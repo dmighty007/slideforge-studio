@@ -200,7 +200,6 @@ class ShareTunnelTests(TestCase):
         self.assertEqual(Client().post("/api/share/tunnel/", data='{"action": "start"}', content_type="application/json").status_code, 403)
 
     def test_tunnel_address_is_read_from_cloudflared(self):
-        import os
         import sys
         import tempfile
         from pathlib import Path

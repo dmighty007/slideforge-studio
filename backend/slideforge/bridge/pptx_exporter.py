@@ -1255,7 +1255,7 @@ class PPTXExporter:
         def colours(value: Any) -> list[str]:
             return [str(v) for v in value] if isinstance(value, list) else ([str(value)] if value else [])
 
-        for series, dataset in zip(chart.plots[0].series, datasets):
+        for series, dataset in zip(chart.plots[0].series, datasets, strict=False):
             fills = colours(dataset.get("backgroundColor")) or colours(dataset.get("borderColor"))
             if not fills:
                 continue

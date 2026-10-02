@@ -86,10 +86,13 @@ class PPTXExportTextTests(TestCase):
         fly = {**fade, "id": "a2", "type": "transform", "direction": "up"}
         auto = {**fade, "id": "a3", "trigger": "on-slide"}
         pulse = {"id": "a4", "category": "emphasis", "type": "scaleInPlace", "duration": 600, "startScale": 1, "endScale": 1.1, "trigger": "on-click"}
-        box = lambda x, animations: {
-            "type": "shape", "shapeType": "rectangle", "x": x, "y": 100, "width": "120px", "height": "80px", "styles": {"backgroundColor": "#2563eb"},
-            "animation": {"timelines": [{"animations": animations}]},
-        }
+
+        def box(x, animations):
+            return {
+                "type": "shape", "shapeType": "rectangle", "x": x, "y": 100, "width": "120px", "height": "80px", "styles": {"backgroundColor": "#2563eb"},
+                "animation": {"timelines": [{"animations": animations}]},
+            }
+
         prs = self._export({"pageSetup": "talk-16-9", "slides": [
             {"elements": [box(0, [fade]), box(200, [fly]), box(400, [auto]), box(600, [pulse])]},
             {"elements": [box(0, [pulse])]},
@@ -292,7 +295,9 @@ class PPTXExportFidelityTests(TestCase):
         box = next(s for s in group.shapes if s.shape_type == MSO_SHAPE_TYPE.TEXT_BOX)
         self.assertEqual(star.text_frame.text, "")
         self.assertEqual(box.text_frame.text, "Native")
-        to_px = lambda emu: round(emu / 9525)
+        def to_px(emu):
+            return round(emu / 9525)
+
         # The editor's star text area: 26 % in from the sides, 30 % from the top, 22 % from the bottom.
         self.assertEqual((to_px(box.left), to_px(box.top), to_px(box.width), to_px(box.height)), (146, 154, 92, 92))
         self.assertTrue(box.text_frame.word_wrap)
@@ -418,7 +423,9 @@ class PPTXExportMediaTests(TestCase):
             "styles": {"color": "#0e7490", "strokeWidth": 4},
         }])
         line = next(s for s in slide.shapes if s.shape_type == 6 or getattr(s, "begin_x", None) is not None)
-        to_px = lambda emu: round(Emu(emu).inches * 96)
+        def to_px(emu):
+            return round(Emu(emu).inches * 96)
+
         self.assertEqual((to_px(line.begin_x), to_px(line.begin_y)), (128, 272))
         self.assertEqual((to_px(line.end_x), to_px(line.end_y)), (372, 128))
         ends = {child.tag.split("}")[1]: child.get("type") for child in line.line._get_or_add_ln()}
