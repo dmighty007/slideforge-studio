@@ -1,0 +1,438 @@
+/* ═══════════════════════════════════════════════════════
+   SLIDEFORGE — Professional Design System
+   Light Professional Theme
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Design Tokens ── */
+:root {
+    --text-muted: #64748b;
+    --bg: #f8fafc;
+    --canvas: #ffffff;
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --accent: #0f766e;
+    --text-main: #0f172a;
+    --text-sub: #475569;
+    --border: #cbd5e1;
+    --sidebar-bg: #f8fafc;
+    --panel-bg: #f8fafc;
+    --surface: #f8fafc;
+    --surface-soft: #f1f5f9;
+    --panel-card: #ffffff;
+    --pastel-blue: #a5d8ff;
+    --pastel-cyan: #d0ebff;
+    --pastel-green: #b7e4c7;
+    --pastel-mint: #b7e4c7;
+    --pastel-yellow: #ffe8a3;
+    --pastel-orange: #ffd6a5;
+    --pastel-lavender: #c7c9f4;
+    --soft-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    --premium-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+    --canvas-shadow: 0 28px 90px rgba(15, 23, 42, 0.22);
+    --popover-shadow: 0 18px 50px rgba(15, 23, 42, 0.18);
+    --grid-dot: rgba(100, 116, 139, 0.22);
+
+    /* Slide theme vars (overridden by JS) */
+    --slide-bg: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    --slide-fg: #0f172a;
+    --slide-muted: #475569;
+    --slide-accent: #4f46e5;
+    --slide-accent-2: #a5d8ff;
+    --slide-grid: rgba(0, 0, 0, 0.02);
+    --editor-accent: #4f46e5;
+    --editor-accent-soft: rgba(79, 70, 229, 0.14);
+}
+
+/* ── Dark Mode Theme ── */
+:root[data-theme="dark"] {
+    --text-muted: #94a3b8;
+    --bg: #0f172a;
+    --canvas: #1e293b;
+    --primary: #6366f1;
+    --primary-hover: #818cf8;
+    --accent: #14b8a6;
+    --text-main: #f1f5f9;
+    --text-sub: #cbd5e1;
+    --border: #334155;
+    --sidebar-bg: #1e293b;
+    --panel-bg: #1a1f35;
+    --surface: #1e293b;
+    --surface-soft: #334155;
+    --panel-card: #334155;
+    --pastel-blue: #0ea5e9;
+    --pastel-cyan: #06b6d4;
+    --pastel-green: #10b981;
+    --pastel-mint: #14b8a6;
+    --pastel-yellow: #eab308;
+    --pastel-orange: #f97316;
+    --pastel-lavender: #a78bfa;
+    --soft-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    --premium-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    --canvas-shadow: 0 28px 90px rgba(0, 0, 0, 0.5);
+    --popover-shadow: 0 18px 50px rgba(0, 0, 0, 0.42);
+    --grid-dot: rgba(148, 163, 184, 0.18);
+
+    /* Dark mode slide vars */
+    --slide-bg: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    --slide-fg: #f1f5f9;
+    --slide-muted: #cbd5e1;
+    --slide-accent: #6366f1;
+    --slide-accent-2: #0ea5e9;
+    --slide-grid: rgba(255, 255, 255, 0.05);
+    --editor-accent: #6366f1;
+    --editor-accent-soft: rgba(99, 102, 241, 0.2);
+}
+
+/* ── Base ── */
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: "Plus Jakarta Sans", "Inter", system-ui, sans-serif;
+    /* Plus Jakarta Sans has a narrow space (0.19em); words ran together in running text. */
+    word-spacing: 0.06em;
+    background-color: var(--bg);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
+/* Desktop app (no accounts): the server marks <body class="accounts-disabled">; no sign-in UI at all. */
+body.accounts-disabled #entry-hero,
+body.accounts-disabled #auth-modal,
+body.accounts-disabled .toolbar-auth {
+    display: none !important;
+}
+
+body.entry-gate-pending,
+body.entry-gate-active {
+    overflow: hidden;
+}
+
+body.entry-gate-pending #app-toolbar,
+body.entry-gate-pending #editor-shell,
+body.entry-gate-active #app-toolbar,
+body.entry-gate-active #editor-shell {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.entry-hero {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    background-image:
+        linear-gradient(90deg, rgba(7, 12, 24, 0.86), rgba(7, 12, 24, 0.54) 52%, rgba(7, 12, 24, 0.26)),
+        url("../assets/offline/entry-hero-office.jpg");
+    background-size: cover;
+    background-position: center;
+    color: #ffffff;
+}
+
+body.entry-gate-active .entry-hero {
+    display: flex;
+}
+
+.entry-hero-content {
+    width: min(1120px, 100%);
+    min-height: min(620px, calc(100vh - 64px));
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(340px, 420px);
+    gap: 32px;
+    align-items: center;
+}
+
+.entry-hero-copy {
+    max-width: 680px;
+}
+
+.entry-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0;
+    color: rgba(255, 255, 255, 0.88);
+}
+
+.entry-brand-mark {
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.entry-hero h1 {
+    margin: 28px 0 0;
+    font-family: "Outfit", "Manrope", "Inter", system-ui, sans-serif;
+    font-size: clamp(52px, 8vw, 104px);
+    line-height: 0.96;
+    font-weight: 800;
+    letter-spacing: 0;
+}
+
+.entry-hero-lede {
+    margin: 22px 0 0;
+    max-width: 590px;
+    font-size: 20px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.86);
+}
+
+.entry-hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 34px;
+}
+
+.entry-primary-action,
+.entry-secondary-action,
+.entry-link-action {
+    min-height: 42px;
+    border: 0;
+    cursor: pointer;
+    font-weight: 800;
+    letter-spacing: 0;
+}
+
+.entry-primary-action {
+    width: 100%;
+    border-radius: 10px;
+    background: var(--primary);
+    color: #ffffff;
+    font-size: 14px;
+}
+
+.entry-secondary-action {
+    padding: 0 16px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    color: #ffffff;
+}
+
+.entry-link-action {
+    width: 100%;
+    background: transparent;
+    color: var(--primary-hover);
+    font-size: 13px;
+}
+
+.entry-auth-panel {
+    padding: 32px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(10px);
+    color: var(--text-main);
+    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.3);
+}
+
+.entry-auth-title {
+    font-size: 24px;
+    color: var(--text-main);
+}
+
+.entry-primary-action {
+    background: var(--primary);
+    font-size: 15px;
+    height: 48px;
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.28);
+    transition: all 0.2s ease;
+}
+
+.entry-primary-action:hover {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(67, 56, 202, 0.32);
+}
+
+.entry-auth-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 20px;
+}
+
+.entry-auth-title {
+    font-size: 20px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.entry-auth-subtitle {
+    margin-top: 4px;
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--text-sub);
+}
+
+.entry-auth-badge {
+    padding: 5px 9px;
+    border-radius: 8px;
+    background: rgba(79, 70, 229, 0.1);
+    color: var(--primary-hover);
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.entry-auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.entry-auth-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    color: #475569;
+}
+
+.entry-auth-form input {
+    width: 100%;
+    height: 42px;
+    border-radius: 10px;
+    border: 1px solid #cbd5e1;
+    padding: 0 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #0f172a;
+    background: #ffffff;
+    outline: none;
+}
+
+.entry-auth-form input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--editor-accent-soft);
+}
+
+.entry-auth-error {
+    min-height: 18px;
+    font-size: 12px;
+    color: #dc2626;
+}
+
+@media (max-width: 820px) {
+    .entry-hero {
+        padding: 20px;
+        overflow-y: auto;
+        align-items: flex-start;
+    }
+
+    .entry-hero-content {
+        min-height: auto;
+        grid-template-columns: 1fr;
+        gap: 24px;
+        padding: 28px 0;
+    }
+
+    .entry-hero h1 {
+        font-size: 52px;
+    }
+
+    .entry-hero-lede {
+        font-size: 17px;
+    }
+}
+
+/* Ensure text stays sharp when scaled via transform */
+.reveal,
+.reveal *,
+.canvas-element,
+.canvas-element * {
+    backface-visibility: visible !important;
+    transform-style: flat !important;
+}
+
+/* ═══════════════════════════════════════════════════════
+   SCROLLBAR (WebKit)
+   ═══════════════════════════════════════════════════════ */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #94a3b8 transparent;
+}
+
+::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Placeholder hints ("Click to add title") on empty text boxes: editor only. */
+.text-element-content[data-placeholder].is-empty::before {
+    content: attr(data-placeholder);
+    opacity: 0.42;
+    pointer-events: none;
+}
+
+/* An empty list shows its placeholder where the first item's text goes, beside the bullet or number. */
+.text-element-content[data-placeholder].is-empty:has(.ppt-bullet-row, .ppt-bullet-edit-item, ol) {
+    position: relative;
+}
+.text-element-content[data-placeholder].is-empty:has(.ppt-bullet-row, .ppt-bullet-edit-item, ol)::before {
+    position: absolute;
+    top: var(--placeholder-top, 0px);
+    left: calc(var(--placeholder-left, 0px) + 1.4em);
+    white-space: nowrap;
+}
+.text-element-content[data-placeholder].is-empty:has(.ppt-bullet-row)::before {
+    left: calc(var(--placeholder-left, 0px) + 1.2em + 12px);
+}
+.text-element-content[data-placeholder].is-empty:has(ol)::before {
+    left: calc(var(--placeholder-left, 0px) + 1.5em);
+}
+
+/* A numbered item's number while a slide is captured (see replaceListMarkersForCapture in export.js):
+   where the browser draws its marker, outside the item and right-aligned. */
+.sf-export-list-marker {
+    position: absolute;
+    right: 100%;
+    margin-right: 0.35em;
+    white-space: nowrap;
+    text-align: right;
+}
+
+/* Exported images show the slide only, not the editor's frame around it. */
+body.exporting-slides .presentation-slide {
+    border-color: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+}
+
+body.play-mode-active .text-element-content[data-placeholder]::before,
+body.exporting-slides .text-element-content[data-placeholder]::before {
+    content: none;
+}
+
+/* An empty "Click to add text" list shows its first bullet only while editing, not in slides as shown or exported. */
+body.play-mode-active .text-element-content[data-placeholder].is-empty:not([contenteditable="true"]) > *,
+body.exporting-slides .text-element-content[data-placeholder].is-empty > *,
+#slide-previews .text-element-content[data-placeholder].is-empty > * {
+    visibility: hidden;
+}
+

@@ -1,0 +1,9 @@
+django>=5.2,<6
+python-dotenv>=1.0,<2
+requests>=2.32,<3
+pymupdf>=1.24,<2
+pdfminer.six>=20231228,<21000000
+pillow>=10.0
+python-pptx>=1.0,<2
+django-ratelimit>=4.1,<5
+CairoSVG>=2.7,<3

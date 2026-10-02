@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>SlideForge - Animation Demo</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    Oxygen, Ubuntu, Cantarell, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                padding: 40px 20px;
+                color: #333;
+            }
+
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+            }
+
+            h1 {
+                color: white;
+                text-align: center;
+                margin-bottom: 10px;
+                font-size: 2.5em;
+            }
+
+            .subtitle {
+                color: rgba(255, 255, 255, 0.9);
+                text-align: center;
+                margin-bottom: 40px;
+                font-size: 1.1em;
+            }
+
+            .demo-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: 30px;
+                margin-bottom: 40px;
+            }
+
+            .demo-card {
+                background: white;
+                border-radius: 12px;
+                padding: 25px;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+                transition: transform 0.3s ease;
+            }
+
+            .demo-card:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 12px 48px rgba(0, 0, 0, 0.25);
+            }
+
+            .demo-card h3 {
+                margin-bottom: 15px;
+                color: #667eea;
+                font-size: 1.3em;
+            }
+
+            .animation-box {
+                width: 100%;
+                height: 150px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border-radius: 8px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin-bottom: 15px;
+                position: relative;
+                overflow: hidden;
+            }
+
+            .animation-element {
+                width: 80px;
+                height: 80px;
+                background: white;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: bold;
+                color: #667eea;
+                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            }
+
+            .button-group {
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+
+            button {
+                flex: 1;
+                min-width: 100px;
+                padding: 10px 15px;
+                border: none;
+                border-radius: 6px;
+                background: #667eea;
+                color: white;
+                cursor: pointer;
+                font-weight: 600;
+                transition: all 0.3s ease;
+                font-size: 0.9em;
+            }
+
+            button:hover {
+                background: #5568d3;
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            }
+
+            button:active {
+                transform: translateY(0);
+            }
+
+            button.reset {
+                background: #f59e0b;
+            }
+
+            button.reset:hover {
+                background: #d97706;
+            }
+
+            .info-text {
+                font-size: 0.85em;
+                color: #666;
+                margin-top: 10px;
+                padding-top: 10px;
+                border-top: 1px solid #eee;
+            }
+
+            .category-title {
+                font-size: 1.5em;
+                margin-top: 50px;
+                margin-bottom: 20px;
+                color: white;
+                text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            }
+
+            .control-panel {
+                background: white;
+                border-radius: 12px;
+                padding: 25px;
+                margin-bottom: 40px;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+            }
+
+            .control-panel h2 {
+                margin-bottom: 20px;
+                color: #667eea;
+            }
+
+            .control-group {
+                margin-bottom: 15px;
+            }
+
+            .control-group label {
+                display: block;
+                margin-bottom: 5px;
+                font-weight: 600;
+                color: #333;
+            }
+
+            .control-group input {
+                width: 100%;
+                padding: 8px 12px;
+                border: 1px solid #ddd;
+                border-radius: 6px;
+                font-size: 1em;
+            }
+
+            .test-description {
+                background: rgba(102, 126, 234, 0.1);
+                border-left: 4px solid #667eea;
+                padding: 15px;
+                border-radius: 4px;
+                margin-bottom: 20px;
+                font-size: 0.95em;
+                color: #333;
+            }
+
+            @keyframes fadeInAnimation {
+                from {
+                    opacity: 0;
+                    transform: scale(0.95);
+                }
+                to {
+                    opacity: 1;
+                    transform: scale(1);
+                }
+            }
+
+            .demo-card {
+                animation: fadeInAnimation 0.5s ease-out;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>✨ SlideForge Animation Demo</h1>
+            <p class="subtitle">
+                Experience improved fade and diffuse animations for smooth
+                presentations
+            </p>
+
+            <div class="control-panel">
+                <h2>🎬 Animation Controls</h2>
+                <div class="test-description">
+                    Click "Play" on any animation card below to preview the
+                    effect. Use "Reset" to return to the initial state. All
+                    animations are optimized for smooth 60fps playback with GPU
+                    acceleration.
+                </div>
+                <div class="control-group">
+                    <label for="durationInput">Animation Duration (ms):</label>
+                    <input
+                        type="number"
+                        id="durationInput"
+                        value="1000"
+                        min="100"
+                        max="5000"
+                        step="100"
+                    />
+                </div>
+                <div class="control-group">
+                    <label for="colorInput"
+                        >Particle Color (for diffuse effects):</label
+                    >
+                    <input type="color" id="colorInput" value="#ffc864" />
+                </div>
+            </div>
+
+            <h2 class="category-title">🎯 Improved Fade Animations</h2>
+            <div class="demo-grid">
+                <div class="demo-card">
+                    <h3>Elegant Fade In</h3>
+                    <div class="animation-box" id="elegantFadeInBox">
+                        <div class="animation-element">📄</div>
+                    </div>
+                    <div class="button-group">
+                        <button onclick="playAnimation('elegantFadeIn')">
+                            Play
+                        </button>
+                        <button
+                            class="reset"
+                            onclick="resetAnimation('elegantFadeInBox')"
+                        >
+                            Reset
+                        </button>
+                    </div>
+                    <p class="info-text">
+                        Smooth fade-in with subtle scale effect for elegant
+                        presentations
+                    </p>
+                </div>
+
+                <div class="demo-card">
+                    <h3>Elegant Fade Out</h3>
+                    <div class="animation-box" id="elegantFadeOutBox">
+                        <div class="animation-element">📄</div>
+                    </div>
+                    <div class="button-group">
+                        <button onclick="playAnimation('elegantFadeOut')">
+                            Play
+                        </button>
+                        <button
+                            class="reset"
+                            onclick="resetAnimation('elegantFadeOutBox')"
+                        >
+                            Reset
+                        </button>
+                    </div>
+                    <p class="info-text">
+                        Smooth fade-out with subtle scale effect for seamless
+                        transitions
+                    </p>
+                </div>
+
+                <div class="demo-card">
+                    <h3>Fade with Blur In</h3>
+                    <div class="animation-box" id="fadeWithBlurInBox">
+                        <div class="animation-element">📄</div>
+                    </div>
+                    <div class="button-group">
+                        <button onclick="playAnimation('fadeWithBlurIn')">
+                            Play
+                        </button>
+                        <button
+                            class="reset"
+                            onclick="resetAnimation('fadeWithBlurInBox')"
+                        >
+                            Reset
+                        </button>
+                    </div>
+                    <p class="info-text">
+                        Fade combined with blur for sophisticated visual effects
+                    </p>
+                </div>
+
+                <div class="demo-card">
+                    <h3>Fade with Blur Out</h3>
+                    <div class="animation-box" id="fadeWithBlurOutBox">
+                        <div class="animation-element">📄</div>
+                    </div>
+                    <div class="button-group">
+                        <button onclick="playAnimation('fadeWithBlurOut')">
+                            Play
+                        </button>
+                        <button
+                            class="reset"
+                            onclick="resetAnimation('fadeWithBlurOutBox')"
+                        >
+                            Reset
+                        </button>
+                    </div>
+                    <p class="info-text">
+                        Fade out with blur creates a dreamy transition effect
+                    </p>
+                </div>
+            </div>
+
+            <h2 class="category-title">✨ New Diffuse/Particle Animations</h2>
+            <div class="demo-grid">
+                <div class="demo-card">
+                    <h3>Diffuse Sparkle</h3>
+                    <div class="animation-box" id="diffuseSparkleBox">
+                        <div class="animation-element">✨</div>
+                    </div>
+                    <div class="button-group">
+                        <button onclick="playAnimation('diffuseSparkle')">
+                            Play
+                        </button>
+                        <button
+                            class="reset"
+                            onclick="resetAnimation('diffuseSparkleBox')"
+                        >
+                            Reset
+                        </button>
+                    </div>
+                    <p class="info-text">
+                        Objects dissolve into sparkling particles radiating
+                        outward
+                    </p>
+                </div>
+
+                <div class="demo-card">
+                    <h3>Diffuse Wave</h3>
+                    <div class="animation-box" id="diffuseWaveBox">
+                        <div class="animation-element">〰️</div>
+                    </div>
+                    <div class="button-group">
+                        <button onclick="playAnimation('diffuseWave')">
+                            Play
+                        </button>
+                        <button
+                            class="reset"
+                            onclick="resetAnimation('diffuseWaveBox')"
+                        >
+                            Reset
+                        </button>
+                    </div>
+                    <p class="info-text">
+                        Smooth wave-like diffusion with undulating particle
+                        motion
+                    </p>
+                </div>
+
+                <div class="demo-card">
+                    <h3>Diffuse Smoke</h3>
+                    <div class="animation-box" id="diffuseSmokeBox">
+                        <div class="animation-element">💨</div>
+                    </div>
+                    <div class="button-group">
+                        <button onclick="playAnimation('diffuseSmoke')">
+                            Play
+                        </button>
+                        <button
+                            class="reset"
+                            onclick="resetAnimation('diffuseSmokeBox')"
+                        >
+                            Reset
+                        </button>
+                    </div>
+                    <p class="info-text">
+                        Objects disperse like smoke with upward drift motion
+                    </p>
+                </div>
+
+                <div class="demo-card">
+                    <h3>Diffuse Dissolve</h3>
+                    <div class="animation-box" id="diffuseDissolveBox">
+                        <div class="animation-element">🌊</div>
+                    </div>
+                    <div class="button-group">
+                        <button onclick="playAnimation('diffuseDissolve')">
+                            Play
+                        </button>
+                        <button
+                            class="reset"
+                            onclick="resetAnimation('diffuseDissolveBox')"
+                        >
+                            Reset
+                        </button>
+                    </div>
+                    <p class="info-text">
+                        Gradual dissolve effect with staggered particle
+                        animation
+                    </p>
+                </div>
+            </div>
+
+            <h2 class="category-title">📊 Performance Metrics</h2>
+            <div class="demo-grid">
+                <div class="demo-card">
+                    <h3>✅ Optimizations Applied</h3>
+                    <div class="info-text">
+                        <strong>GPU Acceleration:</strong> All animations use
+                        transform3d and will-change for hardware acceleration<br /><br />
+                        <strong>Smooth Easing:</strong> Cubic and exponential
+                        easing functions for natural motion<br /><br />
+                        <strong>Particle Pooling:</strong> Efficient particle
+                        rendering with reusable elements<br /><br />
+                        <strong>CSS Filters:</strong> Blur effects use native
+                        CSS filters for optimal performance
+                    </div>
+                </div>
+
+                <div class="demo-card">
+                    <h3>🎨 Customization Options</h3>
+                    <div class="info-text">
+                        <strong>Duration Control:</strong> Adjust animation
+                        speed (100-5000ms)<br /><br />
+                        <strong>Easing Options:</strong> Multiple easing curves
+                        available<br /><br />
+                        <strong>Particle Customization:</strong> Color, count,
+                        and dispersion distance<br /><br />
+                        <strong>Effect Modes:</strong> Different diffuse types
+                        (sparkle, wave, smoke, dissolve)
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            // Store animation states
+            const animationStates = {};
+
+            function getAnimationConfig(animationType) {
+                const duration =
+                    parseInt(document.getElementById("durationInput").value) ||
+                    1000;
+                const particleColor =
+                    document.getElementById("colorInput").value;
+
+                const configs = {
+                    elegantFadeIn: {
+                        type: "elegantFadeIn",
+                        duration: duration,
+                        startOpacity: 0,
+                        endOpacity: 1,
+                        startScale: 0.95,
+                        endScale: 1,
+                        easing: "easeOutCubic",
+                    },
+                    elegantFadeOut: {
+                        type: "elegantFadeOut",
+                        duration: duration,
+                        startOpacity: 1,
+                        endOpacity: 0,
+                        startScale: 1,
+                        endScale: 0.95,
+                        easing: "easeInCubic",
+                    },
+                    fadeWithBlurIn: {
+                        type: "fadeWithBlur",
+                        duration: duration,
+                        startOpacity: 0,
+                        endOpacity: 1,
+                        startBlur: 20,
+                        endBlur: 0,
+                        easing: "easeOutQuad",
+                    },
+                    fadeWithBlurOut: {
+                        type: "fadeWithBlur",
+                        duration: duration,
+                        startOpacity: 1,
+                        endOpacity: 0,
+                        startBlur: 0,
+                        endBlur: 20,
+                        easing: "easeInQuad",
+                    },
+                    diffuseSparkle: {
+                        type: "diffuse",
+                        diffuseType: "sparkle",
+                        duration: duration,
+                        particleColor: particleColor,
+                        particleCount: 16,
+                        disperseDistance: 120,
+                    },
+                    diffuseWave: {
+                        type: "diffuse",
+                        diffuseType: "wave",
+                        duration: duration,
+                        particleColor: particleColor,
+                        particleCount: 20,
+                        disperseDistance: 150,
+                    },
+                    diffuseSmoke: {
+                        type: "diffuse",
+                        diffuseType: "smoke",
+                        duration: duration,
+                        particleColor: particleColor,
+                        particleCount: 24,
+                        disperseDistance: 200,
+                    },
+                    diffuseDissolve: {
+                        type: "diffuse",
+                        diffuseType: "dissolve",
+                        duration: duration,
+                        particleColor: particleColor,
+                        particleCount: 18,
+                        disperseDistance: 100,
+                    },
+                };
+
+                return configs[animationType] || {};
+            }
+
+            function playAnimation(animationType) {
+                const config = getAnimationConfig(animationType);
+                const boxId =
+                    animationType.charAt(0).toUpperCase() +
+                    animationType.slice(1) +
+                    "Box";
+                const element = document.getElementById(boxId);
+
+                if (!element) return;
+
+                const animationElement =
+                    element.querySelector(".animation-element");
+                if (!animationElement) return;
+
+                // Reset element first
+                resetAnimation(boxId);
+
+                // Apply animation based on type
+                if (config.type === "elegantFadeIn") {
+                    animateElegantFadeIn(animationElement, config);
+                } else if (config.type === "elegantFadeOut") {
+                    animateElegantFadeOut(animationElement, config);
+                } else if (config.type === "fadeWithBlur") {
+                    if (config.startOpacity === 0) {
+                        animateFadeWithBlurIn(animationElement, config);
+                    } else {
+                        animateFadeWithBlurOut(animationElement, config);
+                    }
+                } else if (config.type === "diffuse") {
+                    animateDiffuse(element, animationElement, config);
+                }
+            }
+
+            function animateElegantFadeIn(element, config) {
+                let startTime = Date.now();
+                const duration = config.duration;
+
+                function animate() {
+                    const elapsed = Date.now() - startTime;
+                    const progress = Math.min(1, elapsed / duration);
+
+                    const opacity =
+                        config.startOpacity +
+                        (config.endOpacity - config.startOpacity) * progress;
+                    const scale =
+                        config.startScale +
+                        (config.endScale - config.startScale) * progress;
+
+                    element.style.opacity = opacity;
+                    element.style.transform = `scale(${scale})`;
+
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    }
+                }
+
+                animate();
+            }
+
+            function animateElegantFadeOut(element, config) {
+                let startTime = Date.now();
+                const duration = config.duration;
+
+                function animate() {
+                    const elapsed = Date.now() - startTime;
+                    const progress = Math.min(1, elapsed / duration);
+
+                    const opacity =
+                        config.startOpacity +
+                        (config.endOpacity - config.startOpacity) * progress;
+                    const scale =
+                        config.startScale +
+                        (config.endScale - config.startScale) * progress;
+
+                    element.style.opacity = opacity;
+                    element.style.transform = `scale(${scale})`;
+
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    }
+                }
+
+                animate();
+            }
+
+            function animateFadeWithBlurIn(element, config) {
+                let startTime = Date.now();
+                const duration = config.duration;
+
+                function animate() {
+                    const elapsed = Date.now() - startTime;
+                    const progress = Math.min(1, elapsed / duration);
+
+                    const opacity =
+                        config.startOpacity +
+                        (config.endOpacity - config.startOpacity) * progress;
+                    const blur =
+                        config.startBlur +
+                        (config.endBlur - config.startBlur) * progress;
+
+                    element.style.opacity = opacity;
+                    element.style.filter = `blur(${blur}px)`;
+
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    }
+                }
+
+                animate();
+            }
+
+            function animateFadeWithBlurOut(element, config) {
+                let startTime = Date.now();
+                const duration = config.duration;
+
+                function animate() {
+                    const elapsed = Date.now() - startTime;
+                    const progress = Math.min(1, elapsed / duration);
+
+                    const opacity =
+                        config.startOpacity +
+                        (config.endOpacity - config.startOpacity) * progress;
+                    const blur =
+                        config.startBlur +
+                        (config.endBlur - config.startBlur) * progress;
+
+                    element.style.opacity = opacity;
+                    element.style.filter = `blur(${blur}px)`;
+
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    }
+                }
+
+                animate();
+            }
+
+            function animateDiffuse(container, element, config) {
+                // Create particles if not already present
+                if (!container.querySelector(".sf-diffuse-container")) {
+                    createParticles(container, config);
+                }
+
+                let startTime = Date.now();
+                const duration = config.duration;
+                const particles = container.querySelectorAll(
+                    ".sf-diffuse-particle",
+                );
+
+                function animate() {
+                    const elapsed = Date.now() - startTime;
+                    const progress = Math.min(1, elapsed / duration);
+
+                    element.style.opacity = 1 - progress;
+
+                    particles.forEach((particle, index) => {
+                        if (config.diffuseType === "sparkle") {
+                            animateParticleSparkle(
+                                particle,
+                                index,
+                                progress,
+                                particles.length,
+                                config,
+                            );
+                        } else if (config.diffuseType === "wave") {
+                            animateParticleWave(
+                                particle,
+                                index,
+                                progress,
+                                particles.length,
+                                config,
+                            );
+                        } else if (config.diffuseType === "smoke") {
+                            animateParticleSmoke(
+                                particle,
+                                index,
+                                progress,
+                                particles.length,
+                                config,
+                            );
+                        } else if (config.diffuseType === "dissolve") {
+                            animateParticleDissolve(
+                                particle,
+                                index,
+                                progress,
+                                particles.length,
+                                config,
+                            );
+                        }
+                    });
+
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    }
+                }
+
+                animate();
+            }
+
+            function createParticles(container, config) {
+                const particleContainer = document.createElement("div");
+                particleContainer.className = "sf-diffuse-container";
+                particleContainer.style.position = "absolute";
+                particleContainer.style.top = "0";
+                particleContainer.style.left = "0";
+                particleContainer.style.width = "100%";
+                particleContainer.style.height = "100%";
+                particleContainer.style.pointerEvents = "none";
+
+                for (let i = 0; i < config.particleCount; i++) {
+                    const particle = document.createElement("div");
+                    particle.className = "sf-diffuse-particle";
+                    particle.style.position = "absolute";
+                    particle.style.width = "4px";
+                    particle.style.height = "4px";
+                    particle.style.borderRadius = "50%";
+                    particle.style.backgroundColor =
+                        config.particleColor || "rgba(255, 200, 100, 0.8)";
+                    particle.style.pointerEvents = "none";
+
+                    const x = Math.random() * 100;
+                    const y = Math.random() * 100;
+                    particle.style.left = x + "%";
+                    particle.style.top = y + "%";
+
+                    particleContainer.appendChild(particle);
+                }
+
+                container.appendChild(particleContainer);
+            }
+
+            function animateParticleSparkle(
+                particle,
+                index,
+                progress,
+                total,
+                config,
+            ) {
+                const angle = (index / total) * Math.PI * 2;
+                const distance = progress * config.disperseDistance;
+                const x = Math.cos(angle) * distance;
+                const y = Math.sin(angle) * distance;
+                const scale = 1 - progress;
+                const opacity = 1 - progress * 0.5;
+
+                particle.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+                particle.style.opacity = Math.max(0, opacity);
+            }
+
+            function animateParticleWave(
+                particle,
+                index,
+                progress,
+                total,
+                config,
+            ) {
+                const wavePhase = (index / 8) * Math.PI * 2;
+                const distance = progress * config.disperseDistance;
+                const waveOffset =
+                    Math.sin(progress * Math.PI * 2 + wavePhase) * 30;
+                const x = Math.cos(wavePhase) * distance + waveOffset;
+                const y =
+                    Math.sin(wavePhase) * distance +
+                    Math.sin(progress * Math.PI) * 40;
+                const scale = 1 - progress * 0.7;
+                const opacity =
+                    Math.cos(progress * Math.PI * 2 + wavePhase) * 0.5 + 0.5;
+
+                particle.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+                particle.style.opacity = Math.max(0, opacity);
+            }
+
+            function animateParticleSmoke(
+                particle,
+                index,
+                progress,
+                total,
+                config,
+            ) {
+                const angle =
+                    (index / total) * Math.PI * 2 +
+                    Math.sin(progress * Math.PI) * 0.5;
+                const distance =
+                    progress * config.disperseDistance + Math.random() * 50;
+                const x = Math.cos(angle) * distance;
+                const y = Math.sin(angle) * distance - progress * 80;
+                const scale = (1 - progress) * (0.8 + Math.random() * 0.4);
+                const opacity = 1 - progress;
+
+                particle.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+                particle.style.opacity = Math.max(0, opacity);
+            }
+
+            function animateParticleDissolve(
+                particle,
+                index,
+                progress,
+                total,
+                config,
+            ) {
+                const seed = index * 12.9898;
+                const randomX = Math.sin(seed) * 0.5 + 0.5;
+                const randomY = Math.sin(seed * 78.233) * 0.5 + 0.5;
+                const angle = randomX * Math.PI * 2;
+                const delayedProgress = Math.max(
+                    0,
+                    progress - (index / total) * 0.3,
+                );
+                const distance = delayedProgress * config.disperseDistance;
+                const x = Math.cos(angle) * distance;
+                const y = Math.sin(angle) * distance;
+                const scale = Math.max(0, 1 - delayedProgress * 1.2);
+                const opacity = 1 - delayedProgress;
+
+                particle.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+                particle.style.opacity = Math.max(0, opacity);
+            }
+
+            function resetAnimation(boxId) {
+                const box = document.getElementById(boxId);
+                if (!box) return;
+
+                const element = box.querySelector(".animation-element");
+                if (element) {
+                    element.style.opacity = "1";
+                    element.style.transform = "scale(1)";
+                    element.style.filter = "none";
+                }
+
+                // Remove particle container
+                const particleContainer = box.querySelector(
+                    ".sf-diffuse-container",
+                );
+                if (particleContainer) {
+                    particleContainer.remove();
+                }
+            }
+        </script>
+    </body>
+</html>

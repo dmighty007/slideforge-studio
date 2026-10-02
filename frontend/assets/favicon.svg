@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="SlideForge favicon">
+  <defs>
+    <linearGradient id="bg" x1="44" y1="24" x2="212" y2="232" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2563eb"/>
+      <stop offset="0.58" stop-color="#4f46e5"/>
+      <stop offset="1" stop-color="#0f766e"/>
+    </linearGradient>
+    <linearGradient id="sheet" x1="72" y1="62" x2="182" y2="190" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dbeafe"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#0f172a" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <path d="M64 74c0-13.3 10.7-24 24-24h88c13.3 0 24 10.7 24 24v108c0 13.3-10.7 24-24 24H88c-13.3 0-24-10.7-24-24V74Z" fill="url(#sheet)" filter="url(#shadow)"/>
+  <path d="M88 83h88v17H88V83Zm0 33h58v14H88v-14Zm0 28h74v14H88v-14Z" fill="#1e293b" opacity="0.86"/>
+  <path d="M166 126 119 178h36l-9 38 52-61h-36l4-29Z" fill="#facc15"/>
+  <path d="M166 126 119 178h36l-9 38 52-61h-36l4-29Z" fill="none" stroke="#0f172a" stroke-opacity="0.16" stroke-width="5" stroke-linejoin="round"/>
+  <circle cx="198" cy="58" r="10" fill="#ecfeff" opacity="0.95"/>
+  <circle cx="56" cy="204" r="7" fill="#ecfeff" opacity="0.72"/>
+</svg>

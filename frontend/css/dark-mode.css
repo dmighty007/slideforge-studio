@@ -1,0 +1,1010 @@
+/* ═══════════════════════════════════════════════════════
+   DARK MODE THEME — Professional Dark Variant
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Toolbar Dark Mode ── */
+:root[data-theme="dark"] .toolbar-shell {
+    border-color: rgba(51, 65, 85, 0.6);
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Buttons Dark Mode ── */
+:root[data-theme="dark"] .toolbar-btn {
+    color: #cbd5e1;
+    border-color: rgba(51, 65, 85, 0.7);
+    background: rgba(51, 65, 85, 0.3);
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+:root[data-theme="dark"] .toolbar-btn:hover {
+    color: #f1f5f9;
+    background: rgba(99, 102, 241, 0.2);
+    border-color: rgba(99, 102, 241, 0.4);
+    transform: translateY(-1px);
+}
+
+:root[data-theme="dark"] .toolbar-btn-primary {
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    border: 1px solid rgba(99, 102, 241, 0.5);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+}
+
+:root[data-theme="dark"] .toolbar-btn-primary:hover {
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.35);
+}
+
+/* ── Canvas Dark Mode ── */
+:root[data-theme="dark"] #canvas-wrapper {
+    background-color: #1a1f35;
+    background-image:
+        linear-gradient(rgba(51, 65, 85, 0.15) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(51, 65, 85, 0.15) 1px, transparent 1px);
+    background-size: 20px 20px;
+}
+
+:root[data-theme="dark"] .slide-preview-card {
+    background: #334155;
+    border-color: rgba(51, 65, 85, 0.8);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme="dark"] .slide-preview-card:hover {
+    border-color: rgba(99, 102, 241, 0.4);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme="dark"] .slide-preview-card.active {
+    border-color: #0ea5e9;
+    box-shadow:
+        0 0 0 3px rgba(14, 165, 233, 0.15),
+        0 6px 20px rgba(14, 165, 233, 0.2);
+}
+
+:root[data-theme="dark"] .slide-preview-number {
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    box-shadow: 0 2px 6px rgba(99, 102, 241, 0.4);
+}
+
+/* ── Sidebar Dark Mode ── */
+:root[data-theme="dark"] .sidebar {
+    background: #1e293b;
+    border-right: 1px solid rgba(51, 65, 85, 0.5);
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
+}
+
+:root[data-theme="dark"] .sidebar-section-title {
+    color: #e2e8f0;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+}
+
+/* ── Properties Panel Dark Mode ── */
+:root[data-theme="dark"] #properties-panel {
+    background: linear-gradient(180deg, #1a1f35 0%, #0f172a 100%);
+    border-left: 1px solid rgba(51, 65, 85, 0.5);
+}
+
+:root[data-theme="dark"] .prop-group {
+    background: #334155;
+    border: 1px solid rgba(51, 65, 85, 0.5);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme="dark"] .prop-group:hover {
+    border-color: rgba(99, 102, 241, 0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme="dark"] .prop-group-title {
+    color: #e2e8f0;
+    border-bottom: 2px solid rgba(99, 102, 241, 0.2);
+}
+
+/* ── Input Fields Dark Mode ── */
+:root[data-theme="dark"] .prop-textarea,
+:root[data-theme="dark"] .prop-select,
+:root[data-theme="dark"] .prop-input-sm {
+    border-color: rgba(51, 65, 85, 0.5);
+    background: #1e293b;
+    color: #f1f5f9;
+}
+
+:root[data-theme="dark"] .prop-textarea:hover,
+:root[data-theme="dark"] .prop-select:hover,
+:root[data-theme="dark"] .prop-input-sm:hover {
+    border-color: rgba(99, 102, 241, 0.3);
+    box-shadow: 0 2px 6px rgba(99, 102, 241, 0.1);
+}
+
+:root[data-theme="dark"] .prop-textarea:focus,
+:root[data-theme="dark"] .prop-select:focus,
+:root[data-theme="dark"] .prop-input-sm:focus {
+    border-color: #0ea5e9;
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+}
+
+:root[data-theme="dark"] #properties-panel input:not([type="range"]):not([type="checkbox"]),
+:root[data-theme="dark"] #properties-panel select,
+:root[data-theme="dark"] #properties-panel textarea,
+:root[data-theme="dark"] #properties-panel .prop-input,
+:root[data-theme="dark"] #properties-panel .prop-select,
+:root[data-theme="dark"] #properties-panel .prop-input-sm,
+:root[data-theme="dark"] #properties-panel .prop-textarea {
+    border-color: rgba(51, 65, 85, 0.5) !important;
+    background: #1e293b !important;
+    color: #f1f5f9 !important;
+}
+
+:root[data-theme="dark"] #properties-panel input:not([type="range"]):not([type="checkbox"]):hover,
+:root[data-theme="dark"] #properties-panel select:hover,
+:root[data-theme="dark"] #properties-panel textarea:hover {
+    border-color: rgba(99, 102, 241, 0.3) !important;
+}
+
+:root[data-theme="dark"] #properties-panel input:not([type="range"]):not([type="checkbox"]):focus,
+:root[data-theme="dark"] #properties-panel select:focus,
+:root[data-theme="dark"] #properties-panel textarea:focus {
+    border-color: #0ea5e9 !important;
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15) !important;
+}
+
+:root[data-theme="dark"] #properties-panel > .h-11,
+:root[data-theme="dark"] #properties-content .properties-tabbar {
+    background: rgba(15, 23, 42, 0.94);
+    border-color: rgba(51, 65, 85, 0.86);
+}
+
+:root[data-theme="dark"] #properties-panel > .h-11 h2 {
+    color: #cbd5e1;
+}
+
+:root[data-theme="dark"] #properties-panel > .h-11 h2::before {
+    background: rgba(14, 165, 233, 0.16);
+    color: #38bdf8;
+}
+
+:root[data-theme="dark"] #properties-content > .flex.items-center.justify-center {
+    background: #111827;
+    border-color: #334155;
+}
+
+:root[data-theme="dark"] #properties-content .properties-tab {
+    background: #111827;
+    border-color: #334155;
+    color: #94a3b8;
+}
+
+:root[data-theme="dark"] #properties-content .properties-tab i {
+    color: #64748b;
+}
+
+:root[data-theme="dark"] #properties-content .properties-tab:hover {
+    background: #172033;
+    border-color: #475569;
+    color: #e2e8f0;
+}
+
+:root[data-theme="dark"] #properties-content .properties-tab[aria-selected="true"] {
+    background: rgba(14, 165, 233, 0.14);
+    border-color: rgba(56, 189, 248, 0.72);
+    color: #e0f2fe;
+    box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.2);
+}
+
+:root[data-theme="dark"] #properties-content .properties-tab[aria-selected="true"] i {
+    color: #38bdf8;
+}
+
+:root[data-theme="dark"] #properties-panel .prop-group,
+:root[data-theme="dark"] #properties-content .properties-tabpane > .prop-group {
+    background: #111827 !important;
+    border-color: #334155 !important;
+}
+
+:root[data-theme="dark"] #properties-panel .prop-group > div:first-child {
+    background: #172033;
+    border-color: #263449;
+}
+
+:root[data-theme="dark"] #properties-panel .prop-group > div:first-child .prop-group-title {
+    color: #dbeafe !important;
+}
+
+:root[data-theme="dark"] #properties-panel label,
+:root[data-theme="dark"] #properties-panel .prop-label,
+:root[data-theme="dark"] #properties-panel .prop-group span.text-xs {
+    color: #94a3b8 !important;
+}
+
+/* ── Element Selection Dark Mode ── */
+:root[data-theme="dark"] .canvas-element.selected {
+    box-shadow:
+        0 0 0 2px #1a1f35,
+        0 0 0 5px #0ea5e9,
+        0 0 20px rgba(14, 165, 233, 0.3);
+}
+
+:root[data-theme="dark"] .resize-handle {
+    background: linear-gradient(135deg, #0ea5e9, #06b6d4);
+    box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
+}
+
+/* ── Text Dark Mode ── */
+:root[data-theme="dark"] body {
+    background-color: var(--bg);
+    color: var(--text-main);
+}
+
+:root[data-theme="dark"] h1,
+:root[data-theme="dark"] h2,
+:root[data-theme="dark"] h3,
+:root[data-theme="dark"] h4,
+:root[data-theme="dark"] h5,
+:root[data-theme="dark"] h6 {
+    color: #f1f5f9;
+}
+
+:root[data-theme="dark"] label {
+    color: #cbd5e1;
+}
+
+/* ── Borders Dark Mode ── */
+:root[data-theme="dark"] .border {
+    border-color: var(--border) !important;
+}
+
+:root[data-theme="dark"] [class*="border-"] {
+    border-color: var(--border) !important;
+}
+
+/* ─────────────────────────────────────────────────
+   MICRO-INTERACTIONS & ANIMATIONS
+   ───────────────────────────────────────────────── */
+
+/* ── Button Press Effect ── */
+@keyframes button-press {
+    0%   { transform: scale(1);    }
+    40%  { transform: scale(0.93); }
+    100% { transform: scale(1);    }
+}
+
+.toolbar-btn,
+.prop-btn,
+.prop-action-btn,
+button {
+    position: relative;
+    overflow: hidden;
+}
+
+.toolbar-btn:active,
+.prop-btn:active,
+.prop-action-btn:active,
+button:active {
+    animation: button-press 0.18s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* ── Smooth Focus Glow ── */
+@keyframes focus-glow {
+    0%   { box-shadow: 0 0 0 0   rgba(37, 99, 235, 0.5); }
+    50%  { box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2); }
+    100% { box-shadow: 0 0 0 0   rgba(37, 99, 235, 0); }
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    animation: focus-glow 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Smooth Hover Lift ── */
+@keyframes hover-lift {
+    0% {
+        transform: translateY(0);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    }
+    100% {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 14px rgba(0, 0, 0, 0.1);
+    }
+}
+
+.slide-preview-card {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Smooth Slide Transition ── */
+@keyframes slide-in-from-bottom {
+    0% {
+        opacity: 0;
+        transform: translateY(6px) scale(0.99);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.modal,
+.tooltip,
+.dropdown {
+    animation: slide-in-from-bottom 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Ripple Effect on Click ── */
+@keyframes ripple {
+    0% {
+        transform: scale(0);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(4);
+        opacity: 0;
+    }
+}
+
+/* ── Scoped color transitions — applied only to interactive UI elements,
+   NOT to all `*` (which caused drag jitter and cascading recalculations) ── */
+.toolbar-btn,
+.prop-btn,
+.prop-action-btn,
+.prop-input,
+.prop-select,
+.prop-textarea,
+.slide-preview-card,
+.shape-picker-item,
+.prop-group,
+.zoom-icon-btn,
+.floating-text-button,
+.floating-text-select {
+    transition-property: color, background-color, border-color, box-shadow, opacity;
+    transition-duration: 0.15s;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Disable transitions for specific interactive scenarios */
+.no-transition,
+.no-transition * {
+    transition: none !important;
+}
+
+/* ── Loading Spinner Animation ── */
+@keyframes spinner {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spinner,
+[class*="loading"] {
+    animation: spinner 1s linear infinite;
+}
+
+/* ── Pulse Animation ── */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.pulse,
+.blinking {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* ── Smooth Selection Glow ── */
+.canvas-element.selected {
+    transition:
+        outline-color 0.12s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Canvas element: only transition visual decoration, never geometry ──
+   `transform` and `width/height` must NOT transition — they break drag/resize. */
+.canvas-element {
+    transition:
+        outline-color 0.1s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.1s cubic-bezier(0.4, 0, 0.2, 1),
+        opacity 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.canvas-element:active,
+.canvas-element.dragging,
+.canvas-element.resizing {
+    transition: none;
+}
+
+/* ── Tooltip Fade ── */
+@keyframes tooltip-fade {
+    0%   { opacity: 0; transform: translateY(3px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+[class*="tooltip"] {
+    animation: tooltip-fade 0.16s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ═══════════════════════════════════════════════════════
+   END OF DARK MODE & ANIMATION STYLES
+   ═══════════════════════════════════════════════════════ */
+
+:root[data-theme="dark"] .drawing-editor__panel {
+    border-color: #334155;
+    background: #0f172a;
+}
+:root[data-theme="dark"] .drawing-editor__bar {
+    border-bottom-color: #1e293b;
+    background: #111827;
+}
+:root[data-theme="dark"] .drawing-editor__name {
+    color: #f1f5f9;
+}
+:root[data-theme="dark"] .drawing-editor__hint {
+    color: #94a3b8;
+}
+:root[data-theme="dark"] .drawing-editor__icon {
+    background: rgba(99, 102, 241, 0.18);
+    color: #a5b4fc;
+}
+:root[data-theme="dark"] .drawing-editor__btn {
+    border-color: #334155;
+    background: #1e293b;
+    color: #e2e8f0;
+}
+:root[data-theme="dark"] .drawing-editor__btn--primary {
+    border-color: #6366f1;
+    background: #6366f1;
+    color: #ffffff;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+   Dark editor, complete pass (switch: js/ui/app-theme.js). The app's light look is spread over several files with
+   fixed colours and !important, so each surface is restated here; this file loads last. Slides, thumbnails and
+   theme previews keep their own colours. tests/browser/test-dark-mode.js checks that no surface stays light.
+   ══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+html[data-theme="dark"] {
+    --dk-app: #0b1220;
+    --dk-panel: #111827;
+    --dk-card: #172033;
+    --dk-raised: #1e293b;
+    --dk-hover: #26354d;
+    --dk-border: #2b3a52;
+    --dk-text: #e5ebf5;
+    --dk-sub: #b4c0d3;
+    --dk-muted: #8493a9;
+    --dk-accent: #a5b4fc;
+    --dk-accent-bg: rgba(99, 102, 241, 0.24);
+    color-scheme: dark;
+}
+
+/* Top bar */
+html[data-theme="dark"] #app-toolbar {
+    background: rgba(13, 20, 35, 0.97) !important;
+    border-color: var(--dk-border) !important;
+}
+html[data-theme="dark"] .toolbar-cluster,
+html[data-theme="dark"] .toolbar-cluster-muted,
+html[data-theme="dark"] .toolbar-cluster-strong {
+    background: rgba(30, 41, 59, 0.72) !important;
+    border-color: var(--dk-border) !important;
+    box-shadow: none !important;
+}
+html[data-theme="dark"] .toolbar-btn {
+    background: transparent !important;
+    border-color: transparent !important;
+    color: var(--dk-sub) !important;
+}
+html[data-theme="dark"] .toolbar-btn .toolbar-btn-label,
+html[data-theme="dark"] .toolbar-btn i {
+    color: inherit !important;
+}
+html[data-theme="dark"] .toolbar-btn:hover {
+    background: var(--dk-hover) !important;
+    color: var(--dk-text) !important;
+}
+html[data-theme="dark"] .toolbar-btn[aria-pressed="true"],
+html[data-theme="dark"] .toolbar-btn.active {
+    background: var(--dk-accent-bg) !important;
+    border-color: rgba(129, 140, 248, 0.5) !important;
+    color: #e0e7ff !important;
+}
+html[data-theme="dark"] .toolbar-btn-primary {
+    background: var(--dk-accent-bg) !important;
+    border-color: rgba(129, 140, 248, 0.45) !important;
+    color: #dbe2ff !important;
+}
+html[data-theme="dark"] .toolbar-btn-success {
+    background: rgba(16, 185, 129, 0.2) !important;
+    border-color: rgba(52, 211, 153, 0.45) !important;
+    color: #6ee7b7 !important;
+}
+html[data-theme="dark"] .toolbar-btn-ai {
+    background: rgba(168, 85, 247, 0.2) !important;
+    border-color: rgba(192, 132, 252, 0.4) !important;
+    color: #d8b4fe !important;
+}
+html[data-theme="dark"] .toolbar-title-card {
+    background: var(--dk-panel) !important;
+    border-color: var(--dk-border) !important;
+    box-shadow: none !important;
+}
+html[data-theme="dark"] .toolbar-title-input {
+    background: transparent !important;
+    color: var(--dk-text) !important;
+}
+html[data-theme="dark"] .toolbar-title-input:focus {
+    background: var(--dk-app) !important;
+}
+html[data-theme="dark"] .toolbar-product,
+html[data-theme="dark"] #project-save-hint {
+    color: var(--dk-text) !important;
+}
+
+/* Slide rail */
+html[data-theme="dark"] #slide-rail,
+html[data-theme="dark"] #panel-slides,
+html[data-theme="dark"] #slide-previews,
+html[data-theme="dark"] .slide-rail-header {
+    background: var(--dk-panel) !important;
+    border-color: var(--dk-border) !important;
+}
+html[data-theme="dark"] .new-slide-btn {
+    background: rgba(59, 130, 246, 0.18) !important;
+    border-color: rgba(96, 165, 250, 0.4) !important;
+    color: #bfdbfe !important;
+}
+html[data-theme="dark"] .new-slide-btn:hover {
+    background: rgba(59, 130, 246, 0.28) !important;
+}
+html[data-theme="dark"] .slide-rail-title {
+    background: rgba(23, 32, 51, 0.94) !important;
+    border-color: var(--dk-border) !important;
+    color: var(--dk-sub) !important;
+}
+html[data-theme="dark"] .slide-rail-toggle,
+html[data-theme="dark"] .panel-collapse-btn {
+    background: var(--dk-raised) !important;
+    border-color: var(--dk-border) !important;
+    color: var(--dk-sub) !important;
+}
+html[data-theme="dark"] .slide-preview-actions button {
+    background: rgba(15, 23, 42, 0.88) !important;
+    border-color: var(--dk-border) !important;
+}
+html[data-theme="dark"] .slide-preview-number {
+    background: rgba(15, 23, 42, 0.9) !important;
+    border-color: rgba(129, 140, 248, 0.45) !important;
+    color: #c7d2fe !important;
+}
+
+/* Canvas area controls */
+html[data-theme="dark"] #zoom-control,
+html[data-theme="dark"] .zoom-lens-panel,
+html[data-theme="dark"] #zoom-control button {
+    background: var(--dk-raised) !important;
+    border-color: var(--dk-border) !important;
+    color: var(--dk-text) !important;
+}
+
+/* Properties panel */
+html[data-theme="dark"] #properties-panel,
+html[data-theme="dark"] #properties-content,
+html[data-theme="dark"] #properties-content .properties-tabbar,
+html[data-theme="dark"] #properties-content .properties-tabbody {
+    background: var(--dk-app) !important;
+    border-color: var(--dk-border) !important;
+    color: var(--dk-text);
+}
+html[data-theme="dark"] #properties-panel > .h-11 {
+    background: var(--dk-panel) !important;
+    border-color: var(--dk-border) !important;
+}
+html[data-theme="dark"] #properties-content .properties-tab {
+    background: transparent !important;
+    border-color: transparent !important;
+    color: var(--dk-muted) !important;
+}
+html[data-theme="dark"] #properties-content .properties-tab:hover {
+    background: var(--dk-raised) !important;
+    color: var(--dk-text) !important;
+}
+html[data-theme="dark"] #properties-content .properties-tab[aria-selected="true"] {
+    background: var(--dk-raised) !important;
+    border-color: rgba(96, 165, 250, 0.55) !important;
+    color: #bfdbfe !important;
+}
+html[data-theme="dark"] #properties-panel .prop-group,
+html[data-theme="dark"] #properties-content .properties-tabpane > .prop-group {
+    background: var(--dk-panel) !important;
+    border-color: var(--dk-border) !important;
+}
+html[data-theme="dark"] #properties-panel .prop-group > div:first-child {
+    background: var(--dk-card) !important;
+    border-color: var(--dk-border) !important;
+}
+html[data-theme="dark"] #properties-panel .prop-group-title {
+    color: #c7d7f2 !important;
+}
+html[data-theme="dark"] #properties-panel label,
+html[data-theme="dark"] #properties-panel .prop-label,
+html[data-theme="dark"] #properties-panel small {
+    color: var(--dk-muted) !important;
+}
+html[data-theme="dark"] #properties-panel input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+html[data-theme="dark"] #properties-panel select,
+html[data-theme="dark"] #properties-panel textarea {
+    background: var(--dk-app) !important;
+    border-color: var(--dk-border) !important;
+    color: var(--dk-text) !important;
+}
+html[data-theme="dark"] #properties-panel button:not(.properties-tab):not(.sf-anim-add-btn):not([class*="bg-primary"]):not(.active) {
+    background: var(--dk-raised) !important;
+    border-color: var(--dk-border) !important;
+    color: var(--dk-text) !important;
+}
+html[data-theme="dark"] #properties-panel button:not(.properties-tab):not(.active):hover {
+    background: var(--dk-hover) !important;
+}
+html[data-theme="dark"] #properties-panel button.active {
+    background: var(--dk-accent-bg) !important;
+    border-color: rgba(129, 140, 248, 0.6) !important;
+    color: #e0e7ff !important;
+}
+html[data-theme="dark"] #properties-panel .sf-anim-panel,
+html[data-theme="dark"] #properties-panel .sf-anim-item,
+html[data-theme="dark"] #properties-panel .sf-anim-panel-header,
+html[data-theme="dark"] #properties-panel .sf-anim-empty {
+    background: var(--dk-card) !important;
+    border-color: var(--dk-border) !important;
+    color: var(--dk-sub) !important;
+}
+html[data-theme="dark"] #properties-panel .sf-anim-panel-title,
+html[data-theme="dark"] #properties-panel .sf-anim-item-type {
+    color: var(--dk-text) !important;
+}
+html[data-theme="dark"] #properties-panel .sf-anim-add-btn {
+    background: rgba(59, 130, 246, 0.14) !important;
+    border-color: rgba(96, 165, 250, 0.5) !important;
+    color: #93c5fd !important;
+}
+
+/* Dialogs, menus and popovers */
+html[data-theme="dark"] #animation-preset-selector .modal-content,
+html[data-theme="dark"] .command-palette,
+html[data-theme="dark"] #command-palette > div,
+html[data-theme="dark"] #layers-popover,
+html[data-theme="dark"] #export-menu-dropdown,
+html[data-theme="dark"] #canvas-context-menu,
+html[data-theme="dark"] .toolbar-user-menu,
+html[data-theme="dark"] #auth-modal > div,
+html[data-theme="dark"] #projects-modal > div,
+html[data-theme="dark"] #symbol-picker-modal > div,
+html[data-theme="dark"] #shape-picker-modal > div,
+html[data-theme="dark"] #equation-modal > div,
+html[data-theme="dark"] #shortcuts-modal > div {
+    background: var(--dk-panel) !important;
+    border-color: var(--dk-border) !important;
+    color: var(--dk-text) !important;
+}
+html[data-theme="dark"] #animation-preset-selector .modal-header,
+html[data-theme="dark"] #animation-preset-selector .modal-body {
+    background: transparent !important;
+    border-color: var(--dk-border) !important;
+}
+html[data-theme="dark"] #animation-preset-selector h3,
+html[data-theme="dark"] #animation-preset-selector .category-title {
+    color: var(--dk-text) !important;
+}
+html[data-theme="dark"] #animation-preset-selector .preset-card {
+    background: var(--dk-raised) !important;
+    border-color: var(--dk-border) !important;
+    color: var(--dk-text) !important;
+}
+html[data-theme="dark"] #animation-preset-selector .preset-card:hover {
+    background: var(--dk-hover) !important;
+}
+html[data-theme="dark"] #animation-preset-selector .preset-duration {
+    color: var(--dk-muted) !important;
+}
+html[data-theme="dark"] .toolbar-user-menu-item {
+    color: var(--dk-text) !important;
+}
+html[data-theme="dark"] .toolbar-user-menu-item:hover {
+    background: var(--dk-hover) !important;
+}
+
+/* Utility colours used in the app's own markup (never inside slides, thumbnails or theme previews). */
+html[data-theme="dark"] body :is(.bg-white, .bg-slate-50, .bg-slate-100, .bg-gray-50, .bg-gray-100):not(:is(.slides, .slide-thumbnail, .sf-start-theme, .excalidraw) *) {
+    background-color: var(--dk-raised) !important;
+}
+html[data-theme="dark"] body :is(.text-slate-900, .text-slate-800, .text-slate-700, .text-gray-900, .text-gray-800, .text-gray-700):not(:is(.slides, .slide-thumbnail, .sf-start-theme, .excalidraw) *) {
+    color: var(--dk-text) !important;
+}
+html[data-theme="dark"] body :is(.text-slate-600, .text-slate-500, .text-gray-600, .text-gray-500):not(:is(.slides, .slide-thumbnail, .sf-start-theme, .excalidraw) *) {
+    color: var(--dk-sub) !important;
+}
+html[data-theme="dark"] body :is(.border-slate-200, .border-slate-300, .border-gray-200, .border-border):not(:is(.slides, .slide-thumbnail, .sf-start-theme, .excalidraw) *) {
+    border-color: var(--dk-border) !important;
+}
+
+html[data-theme="dark"] #properties-panel > .h-11 h2,
+html[data-theme="dark"] #properties-panel h3,
+html[data-theme="dark"] #properties-panel h4 {
+    color: var(--dk-sub) !important;
+}
+html[data-theme="dark"] #properties-panel .prop-btn-group,
+html[data-theme="dark"] #properties-panel .sf-inspector-subsection,
+html[data-theme="dark"] #properties-panel .sf-inline-control,
+html[data-theme="dark"] #properties-panel details,
+html[data-theme="dark"] #properties-panel summary,
+html[data-theme="dark"] #properties-panel .preset-group,
+html[data-theme="dark"] #properties-panel .preset-group-header {
+    background: var(--dk-card) !important;
+    border-color: var(--dk-border) !important;
+    color: var(--dk-sub) !important;
+}
+html[data-theme="dark"] #properties-panel .sf-inspector-subtitle,
+html[data-theme="dark"] #properties-panel .sf-inspector-subtitle span {
+    color: var(--dk-text) !important;
+}
+html[data-theme="dark"] #animation-preset-selector .preset-name {
+    color: var(--dk-text) !important;
+}
+
+/* Floating toolbars over the canvas (text, picture, shape) */
+html[data-theme="dark"] .floating-text-toolbar,
+html[data-theme="dark"] .floating-element-toolbar,
+html[data-theme="dark"] [id^="floating-"][id$="-toolbar"] {
+    background: rgba(23, 32, 51, 0.97) !important;
+    border-color: var(--dk-border) !important;
+    color: var(--dk-text) !important;
+}
+html[data-theme="dark"] [id^="floating-"][id$="-toolbar"] :is(button, select, input:not([type="color"])) {
+    background: transparent !important;
+    border-color: var(--dk-border) !important;
+    color: var(--dk-text) !important;
+}
+html[data-theme="dark"] [id^="floating-"][id$="-toolbar"] button:hover {
+    background: var(--dk-hover) !important;
+}
+html[data-theme="dark"] [id^="floating-"][id$="-toolbar"] button.active {
+    background: var(--dk-accent-bg) !important;
+    color: #e0e7ff !important;
+}
+html[data-theme="dark"] [id^="floating-"][id$="-toolbar"] :is(span, label) {
+    color: var(--dk-muted) !important;
+}
+
+/* Share dialog: warning and danger colours readable on dark */
+html[data-theme="dark"] .share-warn {
+    color: #fbbf24 !important;
+}
+html[data-theme="dark"] .share-btn-danger {
+    color: #fca5a5 !important;
+}
+html[data-theme="dark"] .share-error {
+    color: #fecaca !important;
+}
+html[data-theme="dark"] .share-success {
+    color: #6ee7b7 !important;
+}
+
+/* Symbol picker, layers, timeline */
+html[data-theme="dark"] #symbol-grid button,
+html[data-theme="dark"] #layers-popover button,
+html[data-theme="dark"] #layers-list,
+html[data-theme="dark"] #layers-list > *,
+html[data-theme="dark"] #timeline-tracks-list,
+html[data-theme="dark"] #timeline-tracks-list .properties-content {
+    background: var(--dk-card) !important;
+    border-color: var(--dk-border) !important;
+    color: var(--dk-text) !important;
+}
+html[data-theme="dark"] #layers-popover .layers-popover-header span,
+html[data-theme="dark"] #timeline-tracks-list .empty-state {
+    color: var(--dk-sub) !important;
+}
+
+/* Equation editor */
+html[data-theme="dark"] .equation-editor-shell,
+html[data-theme="dark"] .equation-editor-header,
+html[data-theme="dark"] .equation-editor-body,
+html[data-theme="dark"] .equation-editor-footer {
+    background: var(--dk-panel) !important;
+    border-color: var(--dk-border) !important;
+    color: var(--dk-text) !important;
+}
+html[data-theme="dark"] .equation-code-panel,
+html[data-theme="dark"] .equation-preview-panel,
+html[data-theme="dark"] .equation-quick-panel,
+html[data-theme="dark"] .equation-preview,
+html[data-theme="dark"] .equation-quick-grid button,
+html[data-theme="dark"] .equation-secondary-action,
+html[data-theme="dark"] .equation-editor-shell textarea,
+html[data-theme="dark"] .equation-editor-shell input {
+    background: var(--dk-card) !important;
+    border-color: var(--dk-border) !important;
+    color: var(--dk-text) !important;
+}
+html[data-theme="dark"] .equation-editor-mark,
+html[data-theme="dark"] .equation-primary-action {
+    background: rgba(249, 115, 22, 0.2) !important;
+    border-color: rgba(251, 146, 60, 0.5) !important;
+    color: #fdba74 !important;
+}
+html[data-theme="dark"] .equation-editor-shell label,
+html[data-theme="dark"] .equation-help-row span,
+html[data-theme="dark"] .equation-preview > span:not(.katex):not(.katex-display) {
+    color: var(--dk-sub) !important;
+}
+
+/* Mermaid editor: its chrome goes dark; the diagram's own canvas keeps the diagram's colours. */
+html[data-theme="dark"] .mermaid-dialog-panel,
+html[data-theme="dark"] .mermaid-dialog-header,
+html[data-theme="dark"] .mermaid-dialog-toolbar,
+html[data-theme="dark"] .mermaid-inspector-pane,
+html[data-theme="dark"] .mermaid-inspector-section {
+    background: var(--dk-panel) !important;
+    border-color: var(--dk-border) !important;
+    color: var(--dk-text) !important;
+}
+html[data-theme="dark"] .mermaid-dialog-body {
+    background: var(--dk-app) !important;
+}
+html[data-theme="dark"] .mermaid-secondary-button,
+html[data-theme="dark"] .mermaid-icon-button,
+html[data-theme="dark"] .mermaid-mode-button,
+html[data-theme="dark"] .mermaid-dialog-panel select,
+html[data-theme="dark"] .mermaid-dialog-panel input:not([type="color"]):not([type="checkbox"]):not([type="range"]),
+html[data-theme="dark"] .mermaid-source-textarea {
+    background: var(--dk-raised) !important;
+    border-color: var(--dk-border) !important;
+    color: var(--dk-text) !important;
+}
+html[data-theme="dark"] .mermaid-mode-button.is-active {
+    background: var(--dk-accent-bg) !important;
+    border-color: rgba(129, 140, 248, 0.6) !important;
+    color: #e0e7ff !important;
+}
+html[data-theme="dark"] .mermaid-dialog-panel label,
+html[data-theme="dark"] .mermaid-dialog-panel h3,
+html[data-theme="dark"] .mermaid-dialog-panel h4,
+html[data-theme="dark"] .mermaid-inspector-section > span {
+    color: var(--dk-sub) !important;
+}
+
+/* Command palette */
+html[data-theme="dark"] #command-palette-modal > div {
+    background: var(--dk-panel) !important;
+    border-color: var(--dk-border) !important;
+}
+html[data-theme="dark"] #command-palette-modal > div > div {
+    background: transparent !important;
+    border-color: var(--dk-border) !important;
+}
+html[data-theme="dark"] #command-palette-modal input {
+    background: transparent !important;
+    color: var(--dk-text) !important;
+}
+
+/* Chart data editor */
+html[data-theme="dark"] .chart-editor-field > span,
+html[data-theme="dark"] .chart-editor-head,
+html[data-theme="dark"] .chart-editor-hint {
+    color: var(--dk-muted) !important;
+}
+html[data-theme="dark"] #properties-panel .chart-editor-add {
+    background: rgba(59, 130, 246, 0.14) !important;
+    border-color: rgba(96, 165, 250, 0.5) !important;
+    color: #93c5fd !important;
+}
+
+html[data-theme="dark"] #properties-panel button[class*="bg-primary"] {
+    background: #4f46e5 !important;
+    border-color: #6366f1 !important;
+    color: #ffffff !important;
+}
+
+html[data-theme="dark"] .prop-geometry-field span {
+    color: var(--dk-sub);
+}
+
+html[data-theme="dark"] .prop-image-source {
+    background: var(--dk-raised);
+    border-color: var(--dk-border);
+    color: var(--dk-text);
+}
+
+html[data-theme="dark"] #insert-toolbar-row .toolbar-cluster.insert-group::before {
+    color: var(--dk-sub);
+}
+
+html[data-theme="dark"] .sf-prompt {
+    background: var(--dk-card);
+    border-color: var(--dk-border);
+    color: var(--dk-text);
+}
+html[data-theme="dark"] .sf-prompt__field,
+html[data-theme="dark"] .sf-prompt__btn:not(.sf-prompt__btn--primary) {
+    background: var(--dk-raised);
+    border-color: var(--dk-border);
+    color: var(--dk-text);
+}
+html[data-theme="dark"] .sf-prompt__label,
+html[data-theme="dark"] .sf-prompt__hint {
+    color: var(--dk-sub);
+}
+
+html[data-theme="dark"] .preset-preview:not(.preset-preview--live) {
+    background: var(--dk-raised) !important;
+}
+html[data-theme="dark"] .preset-preview.preset-preview--live {
+    border-color: var(--dk-border) !important;
+}
+html[data-theme="dark"] .preset-preview-box {
+    background: var(--dk-accent) !important;
+}
+
+html[data-theme="dark"] .chart-editor-corner {
+    color: var(--dk-muted) !important;
+}
+html[data-theme="dark"] .chart-style-check {
+    color: var(--dk-text);
+}
+
+html[data-theme="dark"] .sf-context-menu {
+    background: var(--dk-card) !important;
+    border-color: var(--dk-border) !important;
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+}
+html[data-theme="dark"] .sf-context-menu__item {
+    color: var(--dk-text);
+}
+html[data-theme="dark"] .sf-context-menu__item i {
+    color: var(--dk-sub);
+}
+html[data-theme="dark"] .sf-context-menu__item:hover:not(:disabled),
+html[data-theme="dark"] .sf-context-menu__item:focus-visible {
+    background: rgba(99, 102, 241, 0.18);
+    color: #c7d2fe;
+}
+html[data-theme="dark"] .sf-context-menu__item.is-danger,
+html[data-theme="dark"] .sf-context-menu__item.is-danger i {
+    color: #fb7185;
+}
+
+html[data-theme="dark"] .sf-theme-swatch {
+    border-color: var(--dk-border) !important;
+}
+html[data-theme="dark"] .sf-theme-swatch.is-active,
+html[data-theme="dark"] .sf-theme-swatch:hover {
+    border-color: #818cf8 !important;
+}
+html[data-theme="dark"] .sf-theme-swatch__name {
+    color: var(--dk-sub) !important;
+}
+html[data-theme="dark"] .sf-more-themes {
+    border-color: var(--dk-border) !important;
+    color: var(--dk-sub) !important;
+}
+
+html[data-theme="dark"] .sf-select-menu {
+    background: var(--dk-card) !important;
+    border-color: var(--dk-border) !important;
+    color: var(--dk-text) !important;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+html[data-theme="dark"] .sf-select-menu__group {
+    color: var(--dk-sub) !important;
+}
+html[data-theme="dark"] .sf-select-menu__option.is-active {
+    background: rgba(99, 102, 241, 0.2) !important;
+    color: #c7d2fe !important;
+}
+

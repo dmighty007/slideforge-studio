@@ -1,0 +1,711 @@
+/* Start screen: recent presentations, new / themed / imported decks. Built by js/ui/start-screen.js. */
+
+.sf-start {
+    --sf-bg: #f6f7fb;
+    --sf-panel: rgba(255, 255, 255, 0.86);
+    --sf-card: #ffffff;
+    --sf-border: rgba(15, 23, 42, 0.08);
+    --sf-border-strong: rgba(79, 70, 229, 0.35);
+    --sf-text: #0f172a;
+    --sf-sub: #475569;
+    --sf-muted: #94a3b8;
+    --sf-primary: #4f46e5;
+    --sf-primary-hover: #4338ca;
+    --sf-danger: #dc2626;
+    --sf-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.06);
+    --sf-shadow-hover: 0 2px 4px rgba(15, 23, 42, 0.06), 0 18px 40px rgba(79, 70, 229, 0.14);
+
+    position: fixed;
+    inset: 0;
+    z-index: 400;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    background: var(--sf-bg);
+    color: var(--sf-text);
+    font-family: "Plus Jakarta Sans", "Inter", system-ui, sans-serif;
+    /* Plus Jakarta Sans has a narrow space (0.19em); words ran together in running text. */
+    word-spacing: 0.06em;
+    overflow: hidden;
+    animation: sf-fade-in 280ms ease-out both;
+}
+
+:root[data-theme="dark"] .sf-start {
+    --sf-bg: #0b1020;
+    --sf-panel: rgba(15, 23, 42, 0.78);
+    --sf-card: #111a2e;
+    --sf-border: rgba(148, 163, 184, 0.14);
+    --sf-border-strong: rgba(129, 140, 248, 0.45);
+    --sf-text: #e2e8f0;
+    --sf-sub: #a3b1c6;
+    --sf-muted: #64748b;
+    --sf-primary: #6366f1;
+    --sf-primary-hover: #818cf8;
+    --sf-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+    --sf-shadow-hover: 0 2px 4px rgba(0, 0, 0, 0.3), 0 18px 40px rgba(99, 102, 241, 0.22);
+}
+
+.sf-start[hidden] {
+    display: none;
+}
+
+.sf-start--leaving {
+    animation: sf-fade-out 200ms ease-in both;
+}
+
+/* Soft drifting colour fields behind the panel. */
+.sf-start__backdrop {
+    position: absolute;
+    inset: -20%;
+    pointer-events: none;
+    background:
+        radial-gradient(38% 42% at 18% 22%, rgba(99, 102, 241, 0.16), transparent 70%),
+        radial-gradient(34% 40% at 82% 18%, rgba(14, 165, 233, 0.13), transparent 70%),
+        radial-gradient(40% 46% at 70% 88%, rgba(16, 185, 129, 0.10), transparent 70%);
+    animation: sf-drift 22s ease-in-out infinite alternate;
+}
+
+.sf-start__panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    /* Fills the window up to where the large-window rules take over (it stopped at 1280px, leaving 80px each side
+       of a 1440px window). */
+    width: min(1680px, 100%);
+    margin: clamp(12px, 3vh, 36px) clamp(12px, 3vw, 40px);
+    border: 1px solid var(--sf-border);
+    border-radius: 24px;
+    background: var(--sf-panel);
+    backdrop-filter: blur(18px);
+    box-shadow: var(--sf-shadow);
+    overflow: hidden;
+    animation: sf-panel-in 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.sf-start__hero {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 24px 36px 20px;
+    border-bottom: 1px solid var(--sf-border);
+}
+
+.sf-start__logo {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    box-shadow: 0 10px 24px rgba(79, 70, 229, 0.28);
+    flex-shrink: 0;
+}
+
+.sf-start__brand h1 {
+    margin: 0;
+    font-family: "Outfit", "Manrope", "Inter", system-ui, sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.sf-start__brand p {
+    margin: 4px 0 0;
+    max-width: 720px;
+    color: var(--sf-sub);
+    font-size: 14px;
+    line-height: 1.55;
+}
+
+.sf-start__close {
+    margin-left: auto;
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border: 1px solid var(--sf-border);
+    border-radius: 999px;
+    background: var(--sf-card);
+    color: var(--sf-sub);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 150ms, color 150ms;
+}
+
+.sf-start__close:hover {
+    border-color: var(--sf-border-strong);
+    color: var(--sf-text);
+}
+
+.sf-start__close kbd,
+.sf-start__footer kbd {
+    padding: 1px 6px;
+    border: 1px solid var(--sf-border);
+    border-radius: 6px;
+    font: 600 11px "Inter", system-ui, sans-serif;
+    color: var(--sf-muted);
+}
+
+.sf-start__body {
+    display: grid;
+    grid-template-columns: minmax(300px, 380px) 1fr;
+    flex: 1;
+    min-height: 0;
+}
+
+.sf-start__create {
+    padding: 22px 30px 24px 36px;
+    border-right: 1px solid var(--sf-border);
+    overflow-y: auto;
+}
+
+.sf-start__recent {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 22px 36px 24px 30px;
+}
+
+.sf-start h2 {
+    margin: 0 0 14px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--sf-muted);
+}
+
+.sf-start h3 {
+    margin: 20px 0 9px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--sf-muted);
+}
+
+.sf-new {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 16px 18px;
+    border: 0;
+    border-radius: 16px;
+    background: linear-gradient(135deg, var(--sf-primary), #7c3aed);
+    color: #fff;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    box-shadow: 0 12px 28px rgba(79, 70, 229, 0.30);
+    transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 180ms;
+}
+
+.sf-new:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 36px rgba(79, 70, 229, 0.38);
+}
+
+.sf-new__icon {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.18);
+    font-size: 18px;
+}
+
+.sf-new strong {
+    display: block;
+    font-size: 15px;
+}
+
+.sf-new span {
+    font-size: 12.5px;
+    opacity: 0.85;
+}
+
+.sf-themes {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.sf-more-themes {
+    margin-top: 8px;
+    padding: 6px 10px;
+    border: 1px solid var(--sf-border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--sf-muted, #64748b);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.sf-more-themes:hover {
+    color: var(--sf-text, #0f172a);
+    border-color: var(--sf-accent, #6366f1);
+}
+
+.sf-theme {
+    padding: 0;
+    border: 1px solid var(--sf-border);
+    border-radius: 12px;
+    background: var(--sf-card);
+    color: var(--sf-sub);
+    font: inherit;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), border-color 150ms, box-shadow 180ms;
+}
+
+.sf-theme:hover {
+    transform: translateY(-2px);
+    border-color: var(--sf-border-strong);
+    box-shadow: var(--sf-shadow-hover);
+}
+
+.sf-theme > span {
+    display: block;
+    padding: 6px 8px 7px;
+    text-align: left;
+}
+
+.sf-imports {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.sf-import {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 12px;
+    border: 1px solid var(--sf-border);
+    border-radius: 12px;
+    background: var(--sf-card);
+    color: var(--sf-text);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 150ms, transform 180ms;
+}
+
+.sf-import:hover {
+    border-color: var(--sf-border-strong);
+    transform: translateY(-1px);
+}
+
+.sf-import :is(i, svg) {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    color: var(--sf-primary);
+}
+
+.sf-import small {
+    display: block;
+    color: var(--sf-muted);
+    font-weight: 500;
+}
+
+.sf-features {
+    display: grid;
+    gap: 7px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--sf-sub);
+    font-size: 12.5px;
+}
+
+.sf-features li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sf-features__icon {
+    display: grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    background: rgba(79, 70, 229, 0.10);
+    color: var(--sf-primary);
+}
+
+.sf-features__icon :is(i, svg) {
+    width: 12px;
+    height: 12px;
+}
+
+.sf-recent__head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.sf-recent__head h2 {
+    margin: 0;
+}
+
+.sf-search {
+    position: relative;
+    display: block;
+    margin: -10px 0 -10px auto; /* taller than the heading; don't push the row down */
+    width: min(280px, 45%);
+}
+
+.sf-search :is(i, svg) {
+    position: absolute;
+    width: 12px;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--sf-muted);
+    font-size: 12px;
+}
+
+.sf-search input {
+    width: 100%;
+    padding: 9px 12px 9px 32px;
+    border: 1px solid var(--sf-border);
+    border-radius: 999px;
+    background: var(--sf-card);
+    color: var(--sf-text);
+    font: inherit;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 150ms, box-shadow 150ms;
+}
+
+.sf-search input:focus {
+    border-color: var(--sf-border-strong);
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.12);
+}
+
+.sf-recent__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    /* Rows as tall as their cards: with automatic rows a long list was squeezed to fit, and with a few hundred
+       decks every card collapsed into a thin line. */
+    grid-auto-rows: max-content;
+    gap: 16px;
+    align-content: start;
+    min-height: 0;
+    padding: 4px 4px 12px;
+    margin: -4px -4px 0;
+    overflow-y: auto;
+}
+
+.sf-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--sf-border);
+    border-radius: 16px;
+    background: var(--sf-card);
+    box-shadow: var(--sf-shadow);
+    cursor: pointer;
+    overflow: hidden;
+    outline: none;
+    animation: sf-rise 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation-delay: calc(var(--i, 0) * 45ms + 120ms);
+    transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 200ms, border-color 150ms;
+}
+
+.sf-card:hover,
+.sf-card:focus-visible {
+    transform: translateY(-4px);
+    border-color: var(--sf-border-strong);
+    box-shadow: var(--sf-shadow-hover);
+}
+
+.sf-card--current {
+    border-color: var(--sf-border-strong);
+}
+
+.sf-card--busy {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.sf-card__meta {
+    padding: 11px 13px 12px;
+    min-width: 0;
+}
+
+.sf-card__title {
+    margin: 0;
+    overflow: hidden;
+    font-size: 13.5px;
+    font-weight: 700;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.sf-card__sub {
+    margin: 3px 0 0;
+    color: var(--sf-muted);
+    font-size: 12px;
+}
+
+.sf-card__badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--sf-primary);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    box-shadow: 0 6px 14px rgba(79, 70, 229, 0.35);
+}
+
+.sf-card__delete {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border: 0;
+    border-radius: 9px;
+    background: rgba(15, 23, 42, 0.55);
+    color: #fff;
+    cursor: pointer;
+    opacity: 0;
+    transform: scale(0.9);
+    transition: opacity 150ms, transform 150ms, background 150ms;
+}
+
+.sf-card:hover .sf-card__delete,
+.sf-card:focus-within .sf-card__delete {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.sf-card__delete:hover {
+    background: var(--sf-danger);
+}
+
+.sf-card__confirm {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 16px;
+    background: rgba(15, 23, 42, 0.86);
+    color: #fff;
+    font-size: 13px;
+    text-align: center;
+    animation: sf-fade-in 160ms ease-out both;
+}
+
+.sf-card__confirm div {
+    display: flex;
+    gap: 8px;
+}
+
+.sf-card__confirm button {
+    padding: 7px 14px;
+    border: 0;
+    border-radius: 9px;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.sf-card__confirm .sf-danger {
+    background: var(--sf-danger);
+    color: #fff;
+}
+
+.sf-card__confirm .sf-cancel {
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+}
+
+/* A miniature slide in the deck's own theme. */
+.sf-cover {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    background: var(--cover-bg, #fff);
+    color: var(--cover-fg, #0f172a);
+    border-bottom: 1px solid var(--sf-border);
+}
+
+.sf-cover::before {
+    content: "";
+    position: absolute;
+    left: 10%;
+    top: 36%;
+    width: 18%;
+    height: 3px;
+    border-radius: 3px;
+    background: var(--cover-accent, #4f46e5);
+}
+
+.sf-cover__title {
+    position: absolute;
+    left: 10%;
+    right: 10%;
+    top: 42%;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    font-family: var(--cover-font, inherit);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.sf-theme .sf-cover__title {
+    font-size: 11px;
+}
+
+.sf-cover__count {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.62);
+    color: #fff;
+    font-size: 10.5px;
+    font-weight: 700;
+}
+
+.sf-recent__empty,
+.sf-recent__message {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 60px 20px;
+    border: 1px dashed var(--sf-border);
+    border-radius: 18px;
+    color: var(--sf-sub);
+    font-size: 14px;
+    text-align: center;
+    animation: sf-rise 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.sf-recent__empty :is(i, svg) {
+    font-size: 30px;
+    color: var(--sf-primary);
+}
+
+.sf-skeleton {
+    border-radius: 16px;
+    background: linear-gradient(100deg, var(--sf-card) 30%, rgba(148, 163, 184, 0.14) 50%, var(--sf-card) 70%);
+    background-size: 300% 100%;
+    border: 1px solid var(--sf-border);
+    aspect-ratio: 4 / 4.1;
+    animation: sf-shimmer 1.3s linear infinite;
+}
+
+.sf-start__error {
+    margin: 12px 0 0;
+    color: var(--sf-danger);
+    font-size: 13px;
+}
+
+.sf-start__footer {
+    display: flex;
+    gap: 18px;
+    padding: 12px 36px;
+    border-top: 1px solid var(--sf-border);
+    color: var(--sf-muted);
+    font-size: 12px;
+}
+
+@keyframes sf-fade-in {
+    from { opacity: 0; }
+}
+
+@keyframes sf-fade-out {
+    to { opacity: 0; }
+}
+
+@keyframes sf-panel-in {
+    from { opacity: 0; transform: translateY(14px) scale(0.985); }
+}
+
+@keyframes sf-rise {
+    from { opacity: 0; transform: translateY(14px); }
+}
+
+@keyframes sf-drift {
+    from { transform: translate3d(-2%, -1%, 0) rotate(0deg); }
+    to { transform: translate3d(2%, 2%, 0) rotate(6deg); }
+}
+
+@keyframes sf-shimmer {
+    to { background-position: -150% 0; }
+}
+
+@media (max-width: 900px) {
+    .sf-start__body {
+        grid-template-columns: 1fr;
+        overflow-y: auto;
+    }
+
+    .sf-start__create {
+        border-right: 0;
+        border-bottom: 1px solid var(--sf-border);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sf-start,
+    .sf-start *,
+    .sf-start--leaving {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
+/* Large and maximised windows: the screen grows with them (text, tiles and cards together) and fills the window
+   with a slim margin, instead of a capped panel in the middle (134 px each side at 1920, 760 px on a 4K monitor).
+   zoom multiplies the panel's own lengths, so its width and margin are divided by the zoom to land on the window
+   size minus 16 px. */
+@media (min-width: 1680px) and (min-height: 940px) {
+    .sf-start__panel {
+        --sf-zoom: 1.18;
+        zoom: var(--sf-zoom);
+        width: calc((100vw - 32px) / var(--sf-zoom));
+        margin: calc(16px / var(--sf-zoom));
+    }
+}
+
+@media (min-width: 2200px) and (min-height: 1240px) {
+    .sf-start__panel {
+        --sf-zoom: 1.45;
+    }
+}
+
+@media (min-width: 3200px) and (min-height: 1800px) {
+    .sf-start__panel {
+        --sf-zoom: 1.9;
+    }
+}
+

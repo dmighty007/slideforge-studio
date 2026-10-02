@@ -1,0 +1,103 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+# The distribution is "slideforge-studio" ("slideforge" is too close to the existing "slide-forge" on PyPI); the
+# command, the Python package and the data folder are still "slideforge".
+name = "slideforge-studio"
+dynamic = ["version"]
+description = "A local presentation editor: slides with equations, diagrams, molecules, charts and animations, PowerPoint and PDF export."
+readme = "docs/DESKTOP.md"
+keywords = ["presentation", "slides", "powerpoint", "pptx", "slideshow", "mermaid", "latex", "molecules", "editor"]
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+requires-python = ">=3.10"
+authors = [{ name = "dmighty007" }]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: X11 Applications",
+    "Environment :: MacOS X",
+    "Environment :: Win32 (MS Windows)",
+    "Framework :: Django",
+    "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Multimedia :: Graphics :: Presentation",
+    "Topic :: Office/Business :: Office Suites",
+]
+dependencies = [
+    "django>=5.2,<6",
+    "python-dotenv>=1.0,<2",
+    "requests>=2.32,<3",
+    "pymupdf>=1.24,<2",
+    "pdfminer.six>=20231228",
+    "pillow>=10.0",
+    "python-pptx>=1.0,<2",
+    "django-ratelimit>=4.1,<5",
+    "CairoSVG>=2.7,<3",
+    "waitress>=3.0",
+    "platformdirs>=4.0",
+    "filelock>=3.12",
+    # qt_support.py hooks pywebview internals; widen only after testing a new major version.
+    "pywebview>=6.2,<7",
+]
+
+[project.urls]
+Homepage = "https://github.com/dmighty007/slideforge-studio"
+Source = "https://github.com/dmighty007/slideforge-studio"
+Issues = "https://github.com/dmighty007/slideforge-studio/issues"
+
+[project.optional-dependencies]
+# Native window backend that pip can install on Linux (macOS/Windows need nothing extra).
+qt = ["pywebview[qt]>=6.2,<7"]
+# Heavy PDF/figure extraction stack (torch, vLLM; several GB).
+pdf = ["mineru[all]"]
+dev = ["pytest>=8", "pytest-django>=4.8", "build>=1.2", "ruff>=0.6"]
+
+[project.scripts]
+slideforge = "slideforge.desktop.app:main"
+
+[project.gui-scripts]
+slideforge-gui = "slideforge.desktop.app:gui_main"
+
+# The one place the version is written: slideforge/__init__.py (it was in two places).
+[tool.hatch.version]
+path = "backend/slideforge/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend/slideforge"]
+# Tests stay in the repository; the frontend is added by hatch_build.py (trimmed copy of frontend/).
+exclude = ["backend/slideforge/**/tests.py", "backend/slideforge/**/test_*.py"]
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "hatch_build.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "backend/slideforge",
+    "frontend",
+    "tests/desktop",
+    "hatch_build.py",
+    "docs/DESKTOP.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "pyproject.toml",
+]
+exclude = ["frontend/**/*.map"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.desktop.settings"
+pythonpath = [".", "backend"]
+testpaths = ["tests/desktop"]
+python_files = ["test_*.py"]

@@ -1,0 +1,19 @@
+{
+  "id": "bangers",
+  "family": "Bangers",
+  "subsets": ["latin", "latin-ext", "vietnamese"],
+  "weights": [400],
+  "styles": ["normal"],
+  "defSubset": "latin",
+  "variable": false,
+  "lastModified": "2025-09-08",
+  "version": "v25",
+  "category": "display",
+  "license": {
+    "type": "OFL-1.1",
+    "url": "https://openfontlicense.org",
+    "attribution": "Copyright 2010 The Bangers Project Authors (https://github.com/googlefonts/bangers)"
+  },
+  "source": "https://github.com/google/fonts",
+  "type": "google"
+}

@@ -1,0 +1,1395 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- SEO & Metadata -->
+    <title>SlideForge — Professional AI-Powered Presentation Builder</title>
+    <meta name="description" content="SlideForge is a professional, AI-powered presentation builder designed for speed, beauty, and impact. Create stunning slides with our minimal SaaS editor, intelligent layouts, and high-quality exports." />
+    <meta name="keywords" content="presentation builder, slide maker, AI presentation, online slides, professional presentations, PowerPoint alternative, SlideForge" />
+    <meta name="author" content="SlideForge Team" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="assets/favicon_icon.png" />
+    <link rel="apple-touch-icon" href="assets/favicon_icon.png" />
+
+    <!-- Open Graph / Social -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="/" />
+    <meta property="og:title" content="SlideForge — Professional AI-Powered Presentation Builder" />
+    <meta property="og:description" content="Design stunning presentations in minutes with SlideForge's minimal, intuitive AI-guided editor." />
+    <meta property="og:image" content="assets/favicon.png" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="SlideForge — Professional AI-Powered Presentation Builder" />
+    <meta name="twitter:description" content="Design stunning presentations in minutes with SlideForge's minimal, intuitive AI-guided editor." />
+    <meta name="twitter:image" content="assets/favicon.png" />
+
+    <script src="vendor/chart.js/chart.umd.min.js"></script>
+    <script>
+        // Light or dark editor, set before anything is drawn (js/ui/app-theme.js has the switch).
+        try {
+            if (localStorage.getItem("slideforge.appTheme") === "dark") document.documentElement.dataset.theme = "dark";
+        } catch (_error) {}
+    </script>
+    <script>
+        window.tailwind = window.tailwind || {};
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        surface: "#F5F6F8",
+                        canvas: "#FFFFFF",
+                        primary: "#4F46E5",
+                        "primary-hover": "#4338CA",
+                        accent: "#0F766E",
+                        "text-main": "#0F172A",
+                        "text-sub": "#475569",
+                        border: "#CBD5E1",
+                        sidebar: "#F8FAFC",
+                        panel: "#F1F5F9",
+                        "pastel-blue": "#A5D8FF",
+                        "pastel-cyan": "#D0EBFF",
+                        "pastel-green": "#B7E4C7",
+                        "pastel-mint": "#B7E4C7",
+                        "pastel-yellow": "#FFE8A3",
+                        "pastel-orange": "#FFD6A5",
+                        "pastel-lavender": "#C7C9F4",
+                    },
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', "Inter", "system-ui", "-apple-system", "sans-serif"],
+                        display: ['"Outfit"', "Manrope", "Inter", "sans-serif"],
+                    },
+                    boxShadow: {
+                        slide: "0 12px 30px rgba(0,0,0,0.08)",
+                        panel: "0 2px 8px rgba(0,0,0,0.04)",
+                        toolbar: "0 1px 4px rgba(0,0,0,0.03)",
+                        soft: "0 2px 6px rgba(0,0,0,0.05)",
+                    },
+                },
+            },
+        };
+    </script>
+    <script>
+        window.__slideforgeConsoleWarn = console.warn;
+        console.warn = function (...args) {
+            const message = String(args[0] || "");
+            if (message.includes("should not be used in production")) return;
+            return window.__slideforgeConsoleWarn.apply(console, args);
+        };
+    </script>
+    <script src="vendor/tailwind/tailwind.cdn.js"></script>
+    <script>
+        if (window.__slideforgeConsoleWarn) {
+            console.warn = window.__slideforgeConsoleWarn;
+            delete window.__slideforgeConsoleWarn;
+        }
+    </script>
+
+    <!-- Fonts -->
+    <link rel="stylesheet" href="vendor/fonts/fonts.css" />
+
+    <!-- Reveal.js CSS -->
+    <link rel="stylesheet" href="vendor/reveal.js/reveal.css" />
+    <link id="reveal-theme" rel="stylesheet" href="vendor/reveal.js/theme/white.css" />
+
+    <!-- KaTeX for LaTeX -->
+    <link rel="stylesheet" href="vendor/katex/katex.min.css" />
+
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
+
+    <!-- App Styles -->
+    <link rel="stylesheet" href="css/base.css?v=20260520" />
+    <link rel="stylesheet" href="css/layout.css?v=20260614-properties-panel-stable" />
+    <link rel="stylesheet" href="css/components.css?v=20261001-share" />
+    <link rel="stylesheet" href="css/properties.css?v=20260614-properties-panel-stable" />
+    <link rel="stylesheet" href="css/start-screen.css?v=20260929" />
+    <link rel="stylesheet" href="css/dark-mode.css?v=20261001-dark" />
+</head>
+<body class="entry-gate-pending font-sans bg-surface text-text-main flex flex-col h-screen overflow-hidden select-none">
+    <section id="entry-hero" class="entry-hero" aria-label="SlideForge sign in">
+        <div class="entry-hero-content">
+            <div class="entry-hero-copy">
+                <div class="entry-brand">
+                    <span class="entry-brand-mark"><i class="fa-solid fa-layer-group"></i></span>
+                    <span>SlideForge</span>
+                </div>
+                <h1>SlideForge</h1>
+                <p class="entry-hero-lede">Build, import, refine, and present polished slide decks from one focused workspace.</p>
+                <div class="entry-hero-actions">
+                    <button type="button" class="entry-secondary-action" onclick="continueAsGuest()">
+                        Continue locally
+                    </button>
+                    <button type="button" class="entry-secondary-action" onclick="switchEntryAuthMode('register')">
+                        Create account
+                    </button>
+                </div>
+            </div>
+            <div class="entry-auth-panel">
+                <div class="entry-auth-header">
+                    <div>
+                        <div id="entry-auth-title" class="entry-auth-title">Sign in</div>
+                        <div id="entry-auth-subtitle" class="entry-auth-subtitle">Use your account to save projects.</div>
+                    </div>
+                    <span class="entry-auth-badge">Workspace</span>
+                </div>
+                <form class="entry-auth-form" onsubmit="submitEntryAuthForm(event)">
+                    <label>
+                        <span>Username</span>
+                        <input id="entry-auth-username" type="text" autocomplete="username" placeholder="Your username">
+                    </label>
+                    <label>
+                        <span>Password</span>
+                        <input id="entry-auth-password" type="password" autocomplete="current-password" placeholder="Your password">
+                    </label>
+                    <div id="entry-auth-error" class="entry-auth-error"></div>
+                    <button type="submit" id="entry-auth-submit" class="entry-primary-action">Sign in</button>
+                    <button type="button" id="entry-auth-toggle" class="entry-link-action" onclick="toggleEntryAuthMode()">Create a new account</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════ TOP TOOLBAR -->
+    <header id="app-toolbar" class="toolbar-shell z-30 shrink-0">
+        <div class="toolbar-primary-row">
+            <div class="toolbar-brand">
+                <div class="toolbar-logo">
+                    <i class="fa-solid fa-layer-group text-white text-xs"></i>
+                </div>
+                <div class="toolbar-brand-copy">
+                    <span class="toolbar-product">SlideForge</span>
+                    <div class="toolbar-meta">
+                        <span id="slide-counter">Slide 1 / 1</span>
+                        <span id="autosave-status">Autosave on</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="toolbar-project">
+                <div class="toolbar-cluster">
+                    <button onclick="openStartScreen()" class="toolbar-btn" title="Start screen: recent and new presentations">
+                        <i class="fa-solid fa-house text-sm"></i>
+                    </button>
+                    <button onclick="createNewProject()" class="toolbar-btn" title="New Project">
+                        <i class="fa-regular fa-file text-sm"></i>
+                    </button>
+                    <button onclick="openProjectsModal()" class="toolbar-btn" title="Open Saved Project">
+                        <i class="fa-regular fa-folder-open text-sm"></i>
+                    </button>
+                </div>
+                <div class="toolbar-title-wrap">
+                    <div class="toolbar-title-card">
+                        <div class="toolbar-title-row">
+                            <input
+                                id="project-title-input"
+                                type="text"
+                                value="Untitled Presentation"
+                                placeholder="Project title"
+                                class="toolbar-title-input"
+                                title="Project Title"
+                            />
+                            <span id="project-save-hint" class="toolbar-title-hint">Saved</span>
+                            <button onclick="saveCurrentProject()" class="toolbar-btn toolbar-btn-primary toolbar-save-btn" title="Save Project">
+                                <i class="fa-regular fa-floppy-disk text-sm"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="toolbar-actions toolbar-primary-actions">
+               <!-- <nav class="workspace-mode-switcher" aria-label="Workspace mode">
+                    <button type="button" class="workspace-mode-btn active" data-workspace-mode="slides" onclick="setWorkspaceMode('slides')" title="Slides mode">
+                        <i class="fa-regular fa-window-maximize"></i><span>Slides</span>
+                    </button>
+                    <button type="button" class="workspace-mode-btn" data-workspace-mode="whiteboard" onclick="setWorkspaceMode('whiteboard')" title="Whiteboard mode">
+                        <i class="fa-solid fa-chalkboard"></i><span>Board</span>
+                    </button>
+                    <button type="button" class="workspace-mode-btn" data-workspace-mode="timeline" onclick="setWorkspaceMode('timeline')" title="Timeline mode">
+                        <i class="fa-solid fa-film"></i><span>Motion</span>
+                    </button>
+                    <button type="button" class="workspace-mode-btn" data-workspace-mode="review" onclick="setWorkspaceMode('review')" title="Review mode">
+                        <i class="fa-regular fa-comment-dots"></i><span>Review</span>
+                    </button>
+                </nav>-->
+                <button onclick="openCommandPalette()" class="command-k-button" title="Command palette (Ctrl+K)" aria-label="Open command palette">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <span>Command</span>
+                    <kbd>Ctrl K</kbd>
+                </button>
+                <div class="toolbar-cluster toolbar-cluster-muted toolbar-icon-cluster">
+                    <button onclick="undo()" title="Undo (Ctrl+Z)" class="toolbar-btn" id="btn-undo">
+                        <i class="fa-solid fa-rotate-left text-sm"></i>
+                    </button>
+                    <button onclick="redo()" title="Redo (Ctrl+Y)" class="toolbar-btn" id="btn-redo">
+                        <i class="fa-solid fa-rotate-right text-sm"></i>
+                    </button>
+                    <div class="w-px h-4 bg-border mx-1"></div>
+                    <button onclick="copySelectionToClipboard()" class="toolbar-btn" title="Copy Selected Element">
+                        <i class="fa-regular fa-copy text-sm"></i>
+                    </button>
+                    <button onclick="pasteFromClipboard()" class="toolbar-btn" title="Paste From Clipboard">
+                        <i class="fa-regular fa-clipboard text-sm"></i>
+                    </button>
+                    <div class="w-px h-4 bg-border mx-1"></div>
+                    <button id="toggle-app-theme" onclick="toggleAppTheme()" title="Switch to dark mode" aria-label="Switch to dark mode" class="toolbar-btn" aria-pressed="false">
+                        <i class="fa-solid fa-moon text-sm"></i>
+                    </button>
+                    <button id="toggle-properties-panel" onclick="togglePropertiesPanel()" title="Show Properties" class="toolbar-btn" aria-pressed="false">
+                        <i class="fa-solid fa-sliders text-sm"></i>
+                        <span class="toolbar-btn-label">Properties</span>
+                    </button>
+                    <button id="toggle-layers-popover" onclick="toggleLayersPopover()" title="Layers" class="toolbar-btn" aria-pressed="false">
+                        <i class="fa-solid fa-layer-group text-sm"></i>
+                        <span class="toolbar-btn-label">Layers</span>
+                    </button>
+                    <button id="toggle-transitions-modal" onclick="openTransitionsUI()" title="Slide transitions: how one slide gives way to the next" class="toolbar-btn" aria-pressed="false">
+                        <!-- One slide giving way to the next (the wand looked like a pencil and like the AI button). -->
+                        <svg class="toolbar-svg-icon" viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><rect x="1.5" y="4" width="10" height="9" rx="1.5"/><path d="M14 6.5h3a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H9a1.5 1.5 0 0 1-1.5-1.5V15.5"/><path d="M5 8.5h3.5M7 7l1.5 1.5L7 10"/></svg>
+                        <span class="toolbar-btn-label">Transitions</span>
+                    </button>
+                    <button id="toggle-timeline-editor" onclick="toggleTimelineEditor && toggleTimelineEditor()" title="Animation Timeline Editor" class="toolbar-btn" aria-pressed="false">
+                        <i class="fa-solid fa-film text-sm"></i>
+                        <span class="toolbar-btn-label">Timeline</span>
+                    </button>
+                </div>
+
+                <div class="toolbar-cluster toolbar-cluster-strong">
+                    <button onclick="aiCleanUpSlide()" title="Tidy layout: line objects up with the grid, margins and centre lines (an AI model does it when one is set up). Undo with Ctrl+Z." aria-label="Tidy slide layout" class="toolbar-btn toolbar-btn-ai toolbar-btn-icon-emphasis">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </button>
+                    <button onclick="openShareDialog()" id="btn-share" class="toolbar-btn" title="Share a view-only link" aria-label="Share">
+                        <i class="fa-solid fa-share-nodes text-sm"></i>
+                        <span class="toolbar-btn-label">Share</span>
+                    </button>
+                    <button onclick="togglePlayMode()" id="btn-present" class="toolbar-btn toolbar-btn-success toolbar-btn-icon-emphasis" title="Present" aria-label="Present">
+                        <i class="fa-solid fa-play"></i>
+                    </button>
+                    <div style="position:relative; display:inline-block;" id="export-menu-container">
+                        <button onclick="toggleExportMenu()" class="toolbar-btn toolbar-btn-primary" title="Export">
+                            <i class="fa-solid fa-download text-sm"></i>
+                            <span class="toolbar-btn-label">Export</span>
+                            <i class="fa-solid fa-chevron-down text-[10px] ml-1"></i>
+                        </button>
+                        <div id="export-menu-dropdown" class="export-menu-dropdown">
+                            <button onclick="closeExportMenu(); exportPresentationZip()" class="toolbar-user-menu-item">
+                                <i class="fa-solid fa-file-zipper w-4 text-center"></i> Web (ZIP)
+                            </button>
+                            <button onclick="closeExportMenu(); exportPresentationPDF()" class="toolbar-user-menu-item">
+                                <i class="fa-solid fa-file-pdf w-4 text-center"></i> PDF Document
+                            </button>
+                            <button onclick="closeExportMenu(); exportPresentationPNG()" class="toolbar-user-menu-item">
+                                <i class="fa-regular fa-image w-4 text-center"></i> Slide Image (PNG)
+                            </button>
+                            <button onclick="closeExportMenu(); exportCurrentSlideSceneSVG()" class="toolbar-user-menu-item">
+                                <i class="fa-solid fa-vector-square w-4 text-center"></i> Deterministic SVG
+                            </button>
+                            <button onclick="closeExportMenu(); exportPresentationPPTX()" class="toolbar-user-menu-item">
+                                <i class="fa-solid fa-file-powerpoint w-4 text-center"></i> PowerPoint (PPTX)
+                            </button>
+                            <button onclick="closeExportMenu(); exportPresentationJson()" class="toolbar-user-menu-item">
+                                <i class="fa-solid fa-file-code w-4 text-center"></i> Raw JSON State
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="toolbar-cluster toolbar-auth">
+                    <button id="auth-menu-button" class="toolbar-user-btn" onclick="toggleUserMenu()" title="Account">
+                        <span id="auth-user-glyph" class="toolbar-user-glyph">
+                            <i class="fa-regular fa-user"></i>
+                        </span>
+                        <span id="auth-status" class="toolbar-auth-status">Guest</span>
+                        <i class="fa-solid fa-chevron-down text-[10px] text-slate-600"></i>
+                    </button>
+                    <div id="auth-menu" class="toolbar-user-menu hidden">
+                        <div id="auth-menu-header" class="toolbar-user-menu-header">Not signed in</div>
+                        <button id="auth-primary-btn" type="button" class="toolbar-user-menu-item" onclick="openAuthModal('login')">
+                            <i class="fa-solid fa-right-to-bracket"></i>
+                            <span>Sign In</span>
+                        </button>
+                        <button id="auth-secondary-btn" type="button" class="toolbar-user-menu-item" onclick="openAuthModal('register')">
+                            <i class="fa-regular fa-user-plus"></i>
+                            <span>Register</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="toolbar-secondary-row" id="insert-toolbar-row">
+            <div class="toolbar-secondary-bar insert-toolbar" aria-label="Insert elements">
+                <div class="toolbar-cluster insert-group" role="group" aria-label="Basics" data-caption="Basics">
+                    <button onclick="addElement('text')" class="toolbar-btn insert-tool-btn" title="Text Block" aria-label="Text Block">
+                        <i class="fa-solid fa-t"></i>
+                    </button>
+                    <button onclick="addElement('table')" class="toolbar-btn insert-tool-btn" title="Table" aria-label="Table">
+                        <i class="fa-solid fa-table"></i>
+                    </button>
+                    <button onclick="document.getElementById('image-file-upload').click()" class="toolbar-btn insert-tool-btn" title="Image" aria-label="Image">
+                        <i class="fa-regular fa-image"></i>
+                    </button>
+                </div>
+                <div class="toolbar-cluster insert-group" role="group" aria-label="Charts" data-caption="Charts">
+                    <button onclick="addChart('bar')" class="toolbar-btn insert-tool-btn" title="Bar Chart" aria-label="Bar Chart">
+                        <i class="fa-solid fa-chart-bar"></i>
+                    </button>
+                    <button onclick="addChart('line')" class="toolbar-btn insert-tool-btn" title="Line Chart" aria-label="Line Chart">
+                        <i class="fa-solid fa-chart-line"></i>
+                    </button>
+                    <button onclick="addChart('pie')" class="toolbar-btn insert-tool-btn" title="Pie Chart" aria-label="Pie Chart">
+                        <i class="fa-solid fa-chart-pie"></i>
+                    </button>
+                </div>
+                <div class="toolbar-cluster insert-group" role="group" aria-label="Science" data-caption="Science">
+                    <button onclick="openEquationModal()" class="toolbar-btn insert-tool-btn insert-tool-warm" title="LaTeX Equation" aria-label="LaTeX Equation">
+                        <i class="fa-solid fa-square-root-variable"></i>
+                    </button>
+                    <button data-preserve-inline-selection="true" onmousedown="captureInlineSelection?.(); beginFormattingInteraction?.()" onclick="openSymbolPicker()" class="toolbar-btn insert-tool-btn insert-tool-warm" title="Symbols" aria-label="Symbols">
+                        <span class="insert-tool-glyph" aria-hidden="true">Ω</span>
+                    </button>
+                    <button onclick="document.getElementById('molecule-file-upload').click()" class="toolbar-btn insert-tool-btn" title="PDB or Trajectory" aria-label="PDB or Trajectory">
+                        <i class="fa-solid fa-atom"></i>
+                    </button>
+                </div>
+                <div class="toolbar-cluster insert-group" role="group" aria-label="Graphics" data-caption="Graphics">
+                    <button onclick="openIconPicker()" class="toolbar-btn insert-tool-btn insert-tool-warm" title="Icons" aria-label="Icons">
+                        <i class="fa-solid fa-icons"></i>
+                    </button>
+                    <button onclick="openShapePicker()" class="toolbar-btn insert-tool-btn" title="Shapes and Arrows" aria-label="Shapes and Arrows">
+                        <i class="fa-regular fa-square"></i>
+                    </button>
+                    <button onclick="openMermaidDialog()" class="toolbar-btn insert-tool-btn" title="Flowchart / Mermaid Diagram" aria-label="Flowchart / Mermaid Diagram">
+                        <i class="fa-solid fa-diagram-project"></i>
+                    </button>
+                    <button onclick="addDrawing()" class="toolbar-btn insert-tool-btn" id="btn-add-drawing" title="Drawing (Excalidraw)" aria-label="Drawing">
+                        <i class="fa-solid fa-pen-ruler"></i>
+                    </button>
+                </div>
+                <div class="toolbar-cluster insert-group" role="group" aria-label="Connect" data-caption="Connect">
+                    <button onclick="addConnector('line')" class="toolbar-btn insert-tool-btn" title="Line Connector" aria-label="Line Connector">
+                        <i class="fa-solid fa-slash"></i>
+                    </button>
+                    <button onclick="addConnector('curve')" class="toolbar-btn insert-tool-btn" title="Curve Connector" aria-label="Curve Connector">
+                        <i class="fa-solid fa-bezier-curve"></i>
+                    </button>
+                    <button onclick="addConnector('poly')" class="toolbar-btn insert-tool-btn" title="Polyline Connector" aria-label="Polyline Connector">
+                        <i class="fa-solid fa-share-nodes"></i>
+                    </button>
+                </div>
+                <div class="toolbar-cluster insert-group" role="group" aria-label="Media" data-caption="Media">
+                    <button onclick="addElement('video')" class="toolbar-btn insert-tool-btn" title="Video URL" aria-label="Video URL">
+                        <i class="fa-solid fa-link"></i>
+                    </button>
+                    <button onclick="document.getElementById('video-file-upload').click()" class="toolbar-btn insert-tool-btn" title="Local Video" aria-label="Local Video">
+                        <i class="fa-solid fa-file-video"></i>
+                    </button>
+                    <button onclick="document.getElementById('pdf-file-upload').click()" class="toolbar-btn insert-tool-btn" title="Local PDF" aria-label="Local PDF">
+                        <i class="fa-solid fa-file-pdf"></i>
+                    </button>
+                    <button onclick="document.getElementById('html-file-upload').click()" class="toolbar-btn insert-tool-btn" title="HTML Embed" aria-label="HTML Embed">
+                        <i class="fa-solid fa-code"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div id="layers-popover" class="layers-popover hidden">
+            <div class="layers-popover-header">
+                <span>Layers</span>
+                <div class="layers-popover-actions">
+                    <button onclick="moveSelectedLayer('up')" title="Bring Forward" type="button">
+                        <i class="fa-solid fa-chevron-up"></i>
+                    </button>
+                    <button onclick="moveSelectedLayer('down')" title="Send Backward" type="button">
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="layers-list" class="layers-popover-list">
+                <!-- JS rendered layers -->
+            </div>
+        </div>
+    </header>
+
+    <!-- ═══════════════════════════════════════════════════════════ MAIN BODY -->
+    <div id="editor-shell" class="flex flex-1 min-h-0" data-workspace-mode="slides">
+
+        <!-- ══════════════════════════════════════ LEFT SIDEBAR -->
+        <aside id="slide-rail" class="w-56 bg-white border-r border-border flex flex-col z-20 shrink-0 shadow-panel">
+
+            <div id="panel-slides" class="flex flex-col flex-1 min-h-0">
+                <!-- Add Slide CTA -->
+                <div class="slide-rail-header p-3 border-b border-border shrink-0">
+                    <div class="slide-rail-title">
+                        <span>Deck</span>
+                        <button type="button" class="slide-rail-toggle" onclick="toggleSlideRail()" aria-label="Collapse slide rail" title="Collapse slide rail">
+                            <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                    </div>
+                    <button onclick="addSlide()"
+                        class="new-slide-btn">
+                        <i class="fa-solid fa-plus"></i> New Slide
+                    </button>
+                </div>
+                <!-- Slide Thumbnails -->
+                <div id="slide-previews" class="flex-1 overflow-y-auto p-3 space-y-2 bg-surface/50">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+        </aside>
+
+        <button type="button" id="slide-rail-edge-toggle" class="slide-rail-edge-toggle" onclick="toggleSlideRail()" aria-label="Show slide rail" title="Show slide rail">
+            <i class="fa-solid fa-chevron-right"></i>
+        </button>
+
+        <!-- ══════════════════════════════════════ CANVAS AREA -->
+        <main class="flex-1 flex flex-col min-w-0 bg-surface relative">
+            <!-- Canvas wrapper (Reveal.js lives here) -->
+            <div class="flex-1 relative editor-mode overflow-auto" id="canvas-wrapper">
+                <div id="zoom-engine" class="relative transition-all duration-200 ease-out">
+                    <div class="reveal">
+                        <div class="slides" id="slides-container"></div>
+                    </div>
+                </div>
+                <canvas class="presentation-overlay presentation-chalkboard" id="presentation-chalkboard"></canvas>
+                <div class="presentation-overlay presentation-laser" id="presentation-laser-pointer" aria-hidden="true"></div>
+
+                <div class="canvas-mode-hud" aria-live="polite">
+                    <span id="workspace-mode-label">Slides</span>
+                    <span class="canvas-mode-separator"></span>
+                    <span id="workspace-focus-label">Canvas focused</span>
+                </div>
+
+                <div class="context-insert-fab" id="context-insert-fab">
+                    <button type="button" class="context-fab-main" onclick="toggleInsertDock()" title="Insert tools" aria-label="Insert tools">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                    <div class="context-fab-panel" aria-label="Context-aware insertion toolbar">
+                        <button type="button" onclick="addElement('text')" title="Text"><i class="fa-solid fa-t"></i><span>Text</span></button>
+                        <button type="button" onclick="openEquationModal()" title="Equation"><i class="fa-solid fa-square-root-variable"></i><span>Equation</span></button>
+                        <button type="button" onclick="addChart('bar')" title="Chart"><i class="fa-solid fa-chart-column"></i><span>Chart</span></button>
+                        <button type="button" onclick="openMermaidDialog()" title="Diagram"><i class="fa-solid fa-diagram-project"></i><span>Diagram</span></button>
+                        <button type="button" onclick="document.getElementById('molecule-file-upload').click()" title="Molecule"><i class="fa-solid fa-atom"></i><span>Molecule</span></button>
+                    </div>
+                </div>
+
+                <div id="slash-command-menu" class="slash-command-menu hidden" role="menu" aria-label="Insert command menu">
+                    <div class="slash-command-search">
+                        <span>/</span>
+                        <input id="slash-command-input" type="text" placeholder="Insert, generate, or transform..." autocomplete="off">
+                    </div>
+                    <div id="slash-command-results" class="slash-command-results"></div>
+                </div>
+
+                <div id="ai-assistant-dock" class="ai-assistant-dock" data-state="collapsed">
+                    <button type="button" class="ai-dock-toggle" onclick="toggleAIDock()" aria-expanded="false" title="Quick actions">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </button>
+                    <div class="ai-dock-panel">
+                        <div class="ai-dock-header">
+                            <div>
+                                <strong>Quick actions</strong>
+                                <span>For the slide you are on</span>
+                            </div>
+                            <button type="button" onclick="toggleAIDock()" aria-label="Collapse AI assistant">
+                                <i class="fa-solid fa-minus"></i>
+                            </button>
+                        </div>
+                        <div class="ai-dock-actions">
+                            <!-- Each says what it does: "Generate from command" only opened the command palette, and no
+                                 button here generates content. -->
+                            <button type="button" onclick="aiCleanUpSlide()">Tidy this slide's layout</button>
+                            <button type="button" onclick="openCommandPalette()">Run a command (Ctrl+K)</button>
+                            <button type="button" onclick="openEquationModal()">Add an equation</button>
+                            <button type="button" onclick="openMermaidDialog()">Build a flowchart or pathway</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="play-mode-ui fixed top-4 right-4 z-[300] items-start">
+                    <div id="present-chalk-tools" class="presentation-chalk-tools hidden" aria-label="Chalk tools">
+                        <div id="present-chalk-indicator" class="presentation-chalk-indicator" aria-hidden="true">
+                            <i class="fa-solid fa-pen"></i>
+                            <span>Chalk</span>
+                        </div>
+                        <label class="presentation-chalk-color-chip" for="present-chalk-color-chip" title="Chalk color">
+                            <span class="sr-only">Chalk color</span>
+                            <input id="present-chalk-color-chip" type="color" value="#fff59d" />
+                        </label>
+                        <button id="present-chalk-eraser-btn" class="presentation-chalk-action" type="button" title="Clear chalkboard">
+                            <i class="fa-solid fa-eraser"></i>
+                            <span>Eraser</span>
+                        </button>
+                    </div>
+                    <div class="presentation-menu-shell">
+                        <button id="present-menu-toggle"
+                            class="presentation-menu-toggle"
+                            title="Presentation menu">
+                            <i class="fa-solid fa-bars"></i>
+                        </button>
+                        <div id="present-menu" class="presentation-menu hidden">
+                            <button id="present-menu-fullscreen-btn" class="presentation-menu-item" type="button">
+                                <i class="fa-solid fa-expand"></i><span>Fullscreen</span>
+                            </button>
+                            <button id="present-laser-btn" class="presentation-menu-item" type="button">
+                                <i class="fa-solid fa-location-crosshairs"></i><span>Laser</span>
+                            </button>
+                            <button id="present-chalk-btn" class="presentation-menu-item" type="button">
+                                <i class="fa-solid fa-pen"></i><span>Chalk</span>
+                            </button>
+                            <label class="presentation-menu-color" for="present-chalk-color">
+                                <span>Chalk Color</span>
+                                <input id="present-chalk-color" type="color" value="#fff59d" />
+                            </label>
+                            <button id="present-clear-chalk-btn" class="presentation-menu-item" type="button">
+                                <i class="fa-solid fa-eraser"></i><span>Clear Chalk</span>
+                            </button>
+                            <button id="present-save-annotations-btn" class="presentation-menu-item" type="button">
+                                <i class="fa-solid fa-floppy-disk"></i><span>Save Annotations</span>
+                            </button>
+                            <button id="present-undo-annotation-btn" class="presentation-menu-item" type="button">
+                                <i class="fa-solid fa-rotate-left"></i><span>Undo Annotation</span>
+                            </button>
+                            <button id="present-freeze-annotations-btn" class="presentation-menu-item" type="button">
+                                <i class="fa-solid fa-lock"></i><span>Freeze Annotations</span>
+                            </button>
+                            <button id="present-spotlight-btn" class="presentation-menu-item" type="button">
+                                <i class="fa-solid fa-circle-dot"></i><span>Spotlight</span>
+                            </button>
+                            <button id="present-presenter-btn" class="presentation-menu-item" type="button">
+                                <i class="fa-solid fa-tablet-screen-button"></i><span>Presenter View</span>
+                            </button>
+                            <button id="present-exit-btn" class="presentation-menu-item" type="button">
+                                <i class="fa-solid fa-xmark"></i><span>Exit Present</span>
+                            </button>
+                            <div class="presentation-menu-hint">Right click for this menu. Keys: Esc exit, F fullscreen, L laser, B chalk, X clear.</div>
+                        </div>
+                    </div>
+                    <div id="present-context-menu" class="presentation-menu presentation-context-menu hidden">
+                        <button id="present-context-fullscreen-btn" class="presentation-menu-item" type="button">
+                            <i class="fa-solid fa-expand"></i><span>Fullscreen</span>
+                        </button>
+                        <button id="present-context-laser-btn" class="presentation-menu-item" type="button">
+                            <i class="fa-solid fa-location-crosshairs"></i><span>Laser</span>
+                        </button>
+                        <button id="present-context-chalk-btn" class="presentation-menu-item" type="button">
+                            <i class="fa-solid fa-pen"></i><span>Chalk</span>
+                        </button>
+                        <button id="present-context-clear-btn" class="presentation-menu-item" type="button">
+                            <i class="fa-solid fa-eraser"></i><span>Clear Chalk</span>
+                        </button>
+                        <button id="present-context-save-btn" class="presentation-menu-item" type="button">
+                            <i class="fa-solid fa-floppy-disk"></i><span>Save to Slide</span>
+                        </button>
+                        <button id="present-context-undo-btn" class="presentation-menu-item" type="button">
+                            <i class="fa-solid fa-rotate-left"></i><span>Undo</span>
+                        </button>
+                        <button id="present-context-freeze-btn" class="presentation-menu-item" type="button">
+                            <i class="fa-solid fa-lock"></i><span>Freeze</span>
+                        </button>
+                        <button id="present-context-spotlight-btn" class="presentation-menu-item" type="button">
+                            <i class="fa-solid fa-circle-dot"></i><span>Spotlight</span>
+                        </button>
+                        <button id="present-context-presenter-btn" class="presentation-menu-item" type="button">
+                            <i class="fa-solid fa-tablet-screen-button"></i><span>Presenter View (P)</span>
+                        </button>
+                        <button id="present-context-exit-btn" class="presentation-menu-item" type="button">
+                            <i class="fa-solid fa-xmark"></i><span>Exit Present</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Floating Text Toolbar -->
+                <div id="floating-text-toolbar" class="floating-text-toolbar hidden">
+                    <!-- Text Controls -->
+                    <button id="floating-text-bold" class="floating-text-button" title="Bold (Ctrl+B)">
+                        <i class="fa-solid fa-bold"></i>
+                    </button>
+                    <button id="floating-text-italic" class="floating-text-button" title="Italic (Ctrl+I)">
+                        <i class="fa-solid fa-italic"></i>
+                    </button>
+                    <button id="floating-text-underline" class="floating-text-button" title="Underline (Ctrl+U)">
+                        <i class="fa-solid fa-underline"></i>
+                    </button>
+                    <button id="floating-text-strikethrough" class="floating-text-button" title="Strikethrough">
+                        <i class="fa-solid fa-strikethrough"></i>
+                    </button>
+                    <input type="text" id="floating-text-size" class="floating-text-select floating-text-size" inputmode="numeric" title="Font size (applies to the selected text)" aria-label="Font size">
+                    <div class="floating-toolbar-divider"></div>
+                    <button id="floating-text-bullets" class="floating-text-button" title="Bulleted list">
+                        <i class="fa-solid fa-list-ul"></i>
+                    </button>
+                    <button id="floating-text-numbers" class="floating-text-button" title="Numbered list">
+                        <i class="fa-solid fa-list-ol"></i>
+                    </button>
+                    <div class="floating-toolbar-divider"></div>
+                    <div class="floating-color-tools">
+                        <div id="floating-text-palette" class="flex items-center gap-1"></div>
+                        <input type="color" id="floating-text-color" class="floating-text-button p-0 border-0" title="Custom Color">
+                    </div>
+                    <div class="floating-toolbar-divider"></div>
+                    <button id="floating-text-sub" class="floating-text-button" title="Subscript">
+                        <i class="fa-solid fa-subscript"></i>
+                    </button>
+                    <button id="floating-text-sup" class="floating-text-button" title="Superscript">
+                        <i class="fa-solid fa-superscript"></i>
+                    </button>
+                    <button id="floating-text-clear" class="floating-text-button" title="Clear formatting">
+                        <i class="fa-solid fa-eraser"></i>
+                    </button>
+                    <div class="floating-toolbar-divider"></div>
+                    <button id="floating-insert-symbol" data-preserve-inline-selection="true" class="floating-text-button" title="Insert Symbol" onclick="openSymbolPicker()">
+                        <i class="fa-solid fa-icons"></i>
+                    </button>
+                    <button id="floating-insert-equation" class="floating-text-button" title="Insert Equation" onclick="openEquationModal()">
+                        <i class="fa-solid fa-square-root-variable"></i>
+                    </button>
+                </div>
+
+                <!-- Floating Shape Toolbar -->
+                <div id="floating-shape-toolbar" class="floating-text-toolbar hidden">
+                    <div class="flex items-center gap-1 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Shape</div>
+                    <div class="floating-toolbar-divider"></div>
+                    <div class="floating-color-tools" title="Fill Color">
+                        <i class="fa-solid fa-fill-drip text-[10px] text-slate-400"></i>
+                        <input type="color" id="floating-shape-fill" class="floating-text-button p-0 border-0 ml-1">
+                    </div>
+                    <div class="floating-toolbar-divider"></div>
+                    <div class="floating-color-tools" title="Border Color">
+                        <i class="fa-solid fa-border-all text-[10px] text-slate-400"></i>
+                        <input type="color" id="floating-shape-border" class="floating-text-button p-0 border-0 ml-1">
+                    </div>
+                    <select id="floating-shape-border-width" class="floating-text-select ml-1" style="width:56px;" title="Border Width">
+                        <option value="0">0px</option>
+                        <option value="1">1px</option>
+                        <option value="2">2px</option>
+                        <option value="4">4px</option>
+                        <option value="8">8px</option>
+                    </select>
+                </div>
+
+                <!-- Floating Image Toolbar -->
+                <div id="floating-image-toolbar" class="floating-text-toolbar hidden">
+                    <div id="floating-image-label" class="flex items-center gap-1 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Image</div>
+                    <div class="floating-toolbar-divider"></div>
+                    <button id="floating-image-edit-drawing" class="floating-text-button hidden" title="Edit drawing (or double-click it)">
+                        <i class="fa-solid fa-pen-ruler"></i>
+                    </button>
+                    <button id="floating-image-crop" class="floating-text-button" title="Crop Image">
+                        <i class="fa-solid fa-crop-simple"></i>
+                    </button>
+                    <div class="floating-toolbar-divider"></div>
+                    <div class="flex items-center gap-1" title="Opacity">
+                        <i class="fa-solid fa-droplet text-[10px] text-slate-400 ml-1"></i>
+                        <input type="range" id="floating-image-opacity" min="0" max="1" step="0.1" class="w-16 accent-primary ml-1">
+                    </div>
+                    <div class="floating-toolbar-divider"></div>
+                    <select id="floating-image-radius" class="floating-text-select" style="width:64px;" title="Corner Radius">
+                        <option value="0">Square</option>
+                        <option value="8px">Rounded</option>
+                        <option value="16px">Pill</option>
+                        <option value="50%">Circle</option>
+                    </select>
+                </div>
+
+                <!-- A selected chart says how its data is edited (double-clicking it was the only, unannounced, way). -->
+                <div id="floating-chart-toolbar" class="floating-text-toolbar hidden">
+                    <div class="flex items-center gap-1 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Chart</div>
+                    <div class="floating-toolbar-divider"></div>
+                    <button id="floating-chart-edit-data" class="floating-text-button floating-text-button--label" title="Edit the chart's data (or double-click the chart)">
+                        <i class="fa-solid fa-table-cells"></i><span>Edit data</span>
+                    </button>
+                    <button id="floating-chart-style" class="floating-text-button floating-text-button--label" title="Legend, titles, text size and background">
+                        <i class="fa-solid fa-palette"></i><span>Chart style</span>
+                    </button>
+                </div>
+
+                <!-- Marquee -->
+                <div id="marquee" class="absolute border-2 border-primary bg-primary/10 pointer-events-none hidden z-[100] rounded-sm"></div>
+
+                <!-- Group Bound -->
+                <div id="group-bound" class="absolute border-2 border-primary/60 hidden z-[90] rounded-sm" style="cursor:move;">
+                    <span class="resize-handle tr"></span>
+                    <span class="resize-handle tl"></span>
+                    <span class="resize-handle br"></span>
+                    <span class="resize-handle bl"></span>
+                    <span class="resize-handle tc"></span>
+                    <span class="resize-handle bc"></span>
+                    <span class="resize-handle lc"></span>
+                    <span class="resize-handle rc"></span>
+                </div>
+            </div>
+
+            <!-- Zoom Control -->
+            <div id="zoom-control" class="zoom-lens-control animate-slideInUp" data-expanded="false">
+                <button id="zoom-lens-toggle" type="button" class="zoom-lens-toggle" onclick="toggleZoomControl()" aria-label="Zoom controls" aria-expanded="false" title="Zoom controls">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <span id="zoom-lens-label" class="zoom-lens-label">100%</span>
+                </button>
+                <div class="zoom-lens-panel" aria-label="Zoom and fit controls">
+                    <button type="button" onclick="changeZoom(-0.1)" class="zoom-icon-btn" title="Zoom out" aria-label="Zoom out">
+                        <i class="fa-solid fa-minus"></i>
+                    </button>
+                    <div class="zoom-meter">
+                        <span id="zoom-label" class="zoom-meter-label">100%</span>
+                        <input type="range" id="zoom-slider" min="0.25" max="3" step="0.05" value="1" oninput="handleZoomSlider(this.value)" aria-label="Zoom level">
+                    </div>
+                    <button type="button" onclick="changeZoom(0.1)" class="zoom-icon-btn" title="Zoom in" aria-label="Zoom in">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                    <button type="button" onclick="resetZoom()" class="zoom-fit-btn" title="Fit slide to view">
+                        <i class="fa-solid fa-expand"></i>
+                        <span>Fit</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Context Menu -->
+            <div id="canvas-context-menu" class="fixed hidden z-[1000] w-56 bg-white border border-border rounded-xl shadow-2xl py-2 animate-scaleIn">
+                <div class="px-3 py-1.5 mb-1 border-b border-border">
+                    <span id="ctx-element-type" class="text-[10px] font-bold text-text-sub uppercase tracking-widest">Element</span>
+                </div>
+                <button onclick="ctxAction('bring-forward')" class="w-full flex items-center gap-3 px-4 py-2 text-sm text-text-main hover:bg-surface transition-colors">
+                    <i class="fa-solid fa-layer-group text-primary w-4"></i> Bring Forward
+                </button>
+                <button onclick="ctxAction('send-backward')" class="w-full flex items-center gap-3 px-4 py-2 text-sm text-text-main hover:bg-surface transition-colors">
+                    <i class="fa-solid fa-layer-group rotate-180 text-primary w-4"></i> Send Backward
+                </button>
+                <div class="h-px bg-border my-1"></div>
+                <button onclick="ctxAction('duplicate')" class="w-full flex items-center gap-3 px-4 py-2 text-sm text-text-main hover:bg-surface transition-colors">
+                    <i class="fa-regular fa-copy text-amber-500 w-4"></i> Duplicate
+                </button>
+                <div class="h-px bg-border my-1"></div>
+                <button id="ctx-group-btn" onclick="ctxAction('group')" class="w-full flex items-center gap-3 px-4 py-2 text-sm text-text-main hover:bg-surface transition-colors">
+                    <i class="fa-solid fa-object-group text-primary w-4"></i> Group Elements
+                </button>
+                <button id="ctx-ungroup-btn" onclick="ctxAction('ungroup')" class="w-full flex items-center gap-3 px-4 py-2 text-sm text-text-main hover:bg-surface transition-colors">
+                    <i class="fa-solid fa-object-ungroup text-primary w-4"></i> Ungroup Elements
+                </button>
+                <div class="h-px bg-border my-1"></div>
+                <button onclick="ctxAction('lock')" class="w-full flex items-center gap-3 px-4 py-2 text-sm text-text-main hover:bg-surface transition-colors">
+                    <i class="fa-solid fa-lock text-slate-600 w-4"></i> Lock Element
+                </button>
+                <div class="h-px bg-border my-1"></div>
+                <button onclick="ctxAction('delete')" class="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors">
+                    <i class="fa-regular fa-trash-can w-4"></i> Delete
+                </button>
+            </div>
+
+            <!-- ══════ Whiteboard Overlay (positioned over the active slide) ══════ -->
+            <div id="whiteboard-overlay-container" class="fixed z-[9000] opacity-0 pointer-events-none transition-opacity duration-150" style="display: none;">
+                <canvas id="slideforge-whiteboard" class="w-full h-full block bg-transparent pointer-events-auto"></canvas>
+            </div>
+
+            <!-- Floating Whiteboard Toolbar -->
+            <div id="whiteboard-floating-toolbar" class="fixed top-4 left-1/2 -translate-x-1/2 z-[9010] bg-white/90 backdrop-blur-xl border border-slate-200/80 rounded-2xl px-4 py-2.5 shadow-2xl flex items-center gap-3 transition-all duration-300 ease-out transform scale-95 opacity-0 pointer-events-none">
+                <div class="flex items-center gap-1.5 border-r border-slate-200/80 pr-2">
+                    <span class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center" title="Whiteboard" aria-label="Whiteboard">
+                        <i class="fa-solid fa-chalkboard text-xs"></i>
+                    </span>
+                </div>
+                <div id="whiteboard-tool-strip" class="flex items-center gap-1"></div>
+                <div class="relative">
+                    <button id="wb-more-toggle" onclick="toggleWhiteboardMoreTools()" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors" title="More tools" aria-label="More whiteboard tools">
+                        <i class="fa-solid fa-ellipsis"></i>
+                    </button>
+                    <div id="whiteboard-more-tools" class="whiteboard-more-tools hidden"></div>
+                </div>
+
+                <div class="w-px h-5 bg-slate-200/80"></div>
+
+                <div class="flex items-center gap-2">
+                    <button onclick="undoWhiteboard()" class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors" title="Undo">
+                        <i class="fa-solid fa-rotate-left text-xs"></i>
+                    </button>
+                    <button onclick="redoWhiteboard()" class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors" title="Redo">
+                        <i class="fa-solid fa-rotate-right text-xs"></i>
+                    </button>
+                    <button onclick="clearWhiteboard()" class="w-7 h-7 rounded-lg flex items-center justify-center text-rose-500 hover:bg-rose-50 transition-colors" title="Clear Canvas">
+                        <i class="fa-solid fa-trash-can text-xs"></i>
+                    </button>
+                </div>
+
+                <div class="w-px h-5 bg-slate-200/80"></div>
+
+                <div class="flex items-center gap-1.5">
+                    <button onclick="exportWhiteboardSVG()" class="w-7 h-7 rounded-lg flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-100 transition-all" title="Export SVG" aria-label="Export SVG">
+                        <i class="fa-solid fa-file-export text-xs"></i>
+                    </button>
+                    <button onclick="exitWhiteboardMode()" class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors" title="Exit Whiteboard Mode">
+                        <i class="fa-solid fa-xmark text-sm"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div id="whiteboard-style-panel" class="whiteboard-style-panel opacity-0 pointer-events-none" aria-label="Whiteboard style panel"></div>
+
+            <!-- Whiteboard Guide Card -->
+            <div id="whiteboard-guide-card" class="fixed bottom-6 left-6 z-[9010] bg-white/95 backdrop-blur-xl border border-slate-200/60 rounded-2xl p-4 shadow-2xl flex flex-col gap-2.5 transition-all duration-300 pointer-events-none opacity-0 transform translate-y-4" style="display: none;">
+                <div class="flex items-center gap-2 text-indigo-600 font-extrabold text-[10px] uppercase tracking-wider">
+                    <span class="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></span>
+                    <i class="fa-solid fa-circle-info"></i> Whiteboard Controls
+                </div>
+                <div class="space-y-2 text-[11px] text-slate-500 font-semibold">
+                    <div class="flex items-center justify-between gap-4">
+                        <span class="text-slate-400">Draw on slide</span>
+                        <span class="flex gap-1">
+                            <kbd class="px-1.5 py-0.5 bg-slate-100 border border-slate-200/80 rounded text-[9px] font-mono shadow-sm">W</kbd>
+                        </span>
+                    </div>
+                    <div class="flex items-center justify-between gap-4">
+                        <span class="text-slate-400">Exit Mode</span>
+                        <kbd class="px-1.5 py-0.5 bg-slate-100 border border-slate-200/80 rounded text-[9px] font-mono shadow-sm">ESC Key</kbd>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- ══════════════════════════════════════ RIGHT PANEL (Properties) -->
+        <aside id="properties-panel" class="w-80 properties-inspector bg-white border-l border-border flex flex-col z-20 shrink-0 shadow-panel hidden">
+            <div class="h-11 border-b border-border flex items-center px-4 shrink-0">
+                <h2 class="text-xs font-bold text-text-sub uppercase tracking-widest">Properties</h2>
+                <button type="button" class="panel-collapse-btn ml-auto" onclick="setPropertiesPanelVisible(false)" aria-label="Collapse properties" title="Collapse properties">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto" id="properties-content">
+                <div class="flex flex-col items-center justify-center h-full text-text-sub gap-3 py-20 px-6">
+                    <div class="w-12 h-12 rounded-xl bg-surface flex items-center justify-center border border-border">
+                        <i class="fa-solid fa-arrow-pointer text-xl text-text-sub/50"></i>
+                    </div>
+                    <p class="text-sm text-center text-text-sub/60">Select an element to edit its properties</p>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Timeline Editor Panel (docked at bottom, hidden by default) -->
+    <div id="timeline-editor-panel" style="display:none;"></div>
+
+    <!-- ══════════════════════════════════════════ HIDDEN FILE INPUTS -->
+    <input type="file" id="image-file-upload" accept="image/*" class="hidden" onchange="handleImageFileInsert(event)" />
+    <input type="file" id="html-file-upload" accept=".html,.htm,text/html" class="hidden" onchange="handleHtmlFileInsert(event)" />
+    <input type="file" id="video-file-upload" accept="video/*" class="hidden" onchange="handleVideoFileInsert(event)" />
+    <input type="file" id="pdf-file-upload" accept=".pdf,application/pdf" class="hidden" onchange="handlePdfFileInsert(event)" />
+    <input type="file" id="molecule-file-upload" accept=".pdb,.ent,.gro,.mol2,.xyz,.sdf,.cif,.mmcif,chemical/x-pdb,text/plain" class="hidden" onchange="handleMoleculeFileInsert(event)" />
+    <input type="file" id="molecule-trajectory-upload" accept=".xtc,.trr,.dcd,.nc,.ncdf" class="hidden" onchange="handleMoleculeTrajectoryInsert(event)" />
+
+    <div id="auth-modal" class="fixed inset-0 bg-slate-950/45 hidden items-center justify-center z-[300]">
+        <div class="w-[min(92vw,420px)] rounded-2xl border border-slate-200 bg-white shadow-2xl p-6">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <div id="auth-modal-title" class="text-sm font-semibold text-slate-900">Sign in</div>
+                    <div id="auth-modal-subtitle" class="text-sm text-slate-500 mt-1">Sign in to load, save, and import presentations.</div>
+                </div>
+            </div>
+            <form class="mt-5 space-y-3" onsubmit="submitAuthForm(event)">
+                <input id="auth-username" type="text" autocomplete="username" placeholder="Username" class="w-full border border-border rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30">
+                <input id="auth-password" type="password" autocomplete="current-password" placeholder="Password" class="w-full border border-border rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30">
+                <div id="auth-error" class="text-xs text-red-500 min-h-4"></div>
+                <div class="flex gap-3 pt-1">
+                    <button type="submit" id="auth-submit-btn" class="flex-1 py-2 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-hover transition-colors">Sign in</button>
+                    <button type="button" id="auth-toggle-btn" onclick="toggleAuthMode()" class="flex-1 py-2 rounded-xl border border-border text-sm font-medium text-text-sub hover:bg-surface transition-colors">Create account</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="projects-modal" class="fixed inset-0 bg-slate-950/45 hidden items-center justify-center z-[300]">
+        <div class="w-[min(92vw,560px)] rounded-2xl border border-slate-200 bg-white shadow-2xl p-6">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <div class="text-sm font-semibold text-slate-900">Saved Projects</div>
+                    <div class="text-sm text-slate-500 mt-1">Open a previously saved presentation.</div>
+                </div>
+                <button type="button" onclick="closeProjectsModal()" class="text-slate-600 hover:text-slate-800" title="Close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div id="projects-status" class="text-sm text-slate-500 mt-5"></div>
+            <div id="projects-list" class="mt-4 space-y-3 max-h-[60vh] overflow-y-auto"></div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ SYMBOL PICKER MODAL -->
+    <div id="symbol-picker-modal" style="display:none" class="fixed left-[240px] top-[120px] z-[500]">
+        <div class="bg-white rounded-2xl shadow-2xl w-[520px] max-h-[75vh] flex flex-col border border-border">
+            <div class="flex items-center justify-between px-5 py-3 border-b border-border shrink-0">
+                <h3 class="text-sm font-semibold text-text-main">Insert Symbol</h3>
+                <button onclick="closeSymbolPicker()" class="text-text-sub hover:text-text-main w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="p-4 overflow-y-auto">
+                <p class="text-[10px] font-bold text-text-sub uppercase tracking-widest mb-2">Symbols &amp; Math</p>
+                <div id="symbol-grid" class="grid grid-cols-10 gap-1"></div>
+            </div>
+            <div class="px-5 py-3 border-t border-border text-xs text-text-sub shrink-0">
+                Click a symbol to insert it at the cursor position in a selected text box, or as a new text element.
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ ICON PICKER MODAL -->
+    <div id="icon-picker-modal" style="display:none" class="fixed left-[240px] top-[120px] z-[500]">
+        <div class="bg-white rounded-2xl shadow-2xl w-[520px] max-h-[75vh] flex flex-col border border-border">
+            <div class="flex items-center justify-between px-5 py-3 border-b border-border shrink-0">
+                <h3 class="text-sm font-semibold text-text-main">Insert Icon</h3>
+                <button onclick="closeIconPicker()" class="text-text-sub hover:text-text-main w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1">
+                <p class="text-[10px] font-bold text-text-sub uppercase tracking-widest mb-2">FontAwesome Icons</p>
+                <div class="mb-3">
+                    <input type="text" id="icon-search-input" oninput="filterIconPicker(this.value)" placeholder="Search icons..." class="w-full text-sm px-3 py-2 border border-border rounded-lg bg-surface focus:bg-white focus:outline-none focus:border-primary transition-colors">
+                </div>
+                <div id="icon-grid" class="grid grid-cols-8 gap-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ SHAPE PICKER MODAL -->
+    <div id="shape-picker-modal" style="display:none" class="fixed left-[240px] top-[120px] z-[500]">
+        <div class="shape-picker-sheet bg-white rounded-xl shadow-2xl w-[660px] max-w-[92vw] flex flex-col border border-border">
+            <div class="flex items-center justify-between px-5 py-3 border-b border-border">
+                <div>
+                    <h3 class="text-sm font-semibold text-text-main">Insert Shape</h3>
+                    <p class="text-xs text-text-sub">Basic shapes, block arrows, and editable connectors</p>
+                </div>
+                <button onclick="closeShapePicker()" class="text-text-sub hover:text-text-main w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="shape-picker-body">
+                <section class="shape-picker-section">
+                    <p class="shape-picker-section-label">Shapes</p>
+                    <div id="shape-picker-basic" class="shape-picker-grid"></div>
+                </section>
+                <section class="shape-picker-section">
+                    <p class="shape-picker-section-label">Block Arrows</p>
+                    <div id="shape-picker-arrows" class="shape-picker-grid shape-picker-grid-arrows"></div>
+                </section>
+                <section class="shape-picker-section">
+                    <p class="shape-picker-section-label">Line Arrows</p>
+                    <div class="shape-picker-grid shape-picker-grid-connectors">
+                    <button onclick="insertConnectorFromPicker('line')" class="shape-picker-item">
+                        <svg viewBox="0 0 34 34" width="34" height="34" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M4 26 L28 8"/><path d="M19 8 H28 V17"/></svg>
+                        <span>Line</span>
+                    </button>
+                    <button onclick="insertConnectorFromPicker('curve')" class="shape-picker-item">
+                        <svg viewBox="0 0 34 34" width="34" height="34" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M4 27 C10 5, 22 31, 29 8"/><path d="M22 9 L29 8 L29.5 15"/></svg>
+                        <span>Curve</span>
+                    </button>
+                    <button onclick="insertConnectorFromPicker('poly')" class="shape-picker-item">
+                        <svg viewBox="0 0 34 34" width="34" height="34" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M5 27 H17 V8 H28"/><path d="M22 3 L28 8 L22 13"/></svg>
+                        <span>Elbow</span>
+                    </button>
+                    </div>
+                </section>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ EQUATION MODAL -->
+    <div id="equation-modal" style="display:none" class="equation-modal fixed left-[240px] top-[120px] z-[500]">
+        <div class="equation-editor-shell">
+            <div class="equation-editor-header">
+                <div class="equation-editor-title">
+                    <span class="equation-editor-mark"><i class="fa-solid fa-square-root-variable"></i></span>
+                    <div>
+                        <h3>LaTeX Equation</h3>
+                        <p>Compose a formula and preview the rendered output.</p>
+                    </div>
+                </div>
+                <button onclick="closeEquationModal()" class="equation-editor-close" title="Close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="equation-editor-body">
+                <section class="equation-code-panel">
+                    <label for="equation-input">Expression</label>
+                    <textarea id="equation-input" rows="3"
+                        class="equation-input"
+                        placeholder="\frac{-b \pm \sqrt{b^2 - 4ac}}{2a}"
+                        oninput="previewEquation()"></textarea>
+                    <div class="equation-help-row">
+                        <span>Display mode preview</span>
+                        <span>KaTeX</span>
+                    </div>
+                </section>
+                <section class="equation-preview-panel">
+                    <div class="equation-preview-label">Preview</div>
+                    <div class="equation-preview" id="equation-preview">
+                        <span>Preview will appear here...</span>
+                    </div>
+                </section>
+                <section class="equation-quick-panel">
+                    <div class="equation-quick-label">Quick Insert</div>
+                    <div class="equation-quick-grid">
+                        <button onclick="setEquationQuick('\\frac{a}{b}')">Fraction</button>
+                        <button onclick="setEquationQuick('\\sqrt{x}')">Radical</button>
+                        <button onclick="setEquationQuick('\\sum_{i=0}^{n}')">Sum</button>
+                        <button onclick="setEquationQuick('\\int_{a}^{b}')">Integral</button>
+                        <button onclick="setEquationQuick('\\lim_{x \\to \\infty}')">Limit</button>
+                        <button onclick="setEquationQuick('\\vec{v} = \\frac{d\\vec{r}}{dt}')">Vector</button>
+                        <button onclick="setEquationQuick('\\alpha \\beta \\gamma \\delta')">Greek</button>
+                        <button onclick="setEquationQuick('E = mc^2')">Energy</button>
+                        <button onclick="setEquationQuick('\\hat{H}\\psi = E\\psi')">Quantum</button>
+                    </div>
+                </section>
+            </div>
+            <div class="equation-editor-footer">
+                <button onclick="closeEquationModal()" class="equation-secondary-action">Cancel</button>
+                <button onclick="insertEquation()" class="equation-primary-action">Insert Equation</button>
+            </div>
+        </div>
+    </div>
+    <!-- ══════════════════════════════════════════ KEYBOARD SHORTCUTS MODAL -->
+    <div id="shortcuts-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-scaleIn">
+            <div class="px-6 py-4 border-b border-border flex items-center justify-between bg-surface/50">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                        <i class="fa-solid fa-keyboard text-lg"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-text-main">Keyboard Shortcuts</h2>
+                        <p class="text-xs text-text-sub">Power user cheat sheet</p>
+                    </div>
+                </div>
+                <button onclick="closeShortcutsModal()" class="w-8 h-8 rounded-lg hover:bg-surface flex items-center justify-center transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="p-6 grid grid-cols-2 gap-x-12 gap-y-6 overflow-y-auto max-h-[70vh]">
+                <section>
+                    <h3 class="text-xs font-bold text-text-sub uppercase tracking-wider mb-4">General</h3>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between group">
+                            <span class="text-sm text-text-main">Save Project</span>
+                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Ctrl + S</span>
+                        </div>
+                        <div class="flex items-center justify-between group">
+                            <span class="text-sm text-text-main">Undo / Redo</span>
+                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Ctrl + Z / Y</span>
+                        </div>
+                        <div class="flex items-center justify-between group">
+                            <span class="text-sm text-text-main">New Slide</span>
+                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Ctrl + M</span>
+                        </div>
+                    </div>
+                </section>
+                <section>
+                    <h3 class="text-xs font-bold text-text-sub uppercase tracking-wider mb-4">Editing</h3>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between group">
+                            <span class="text-sm text-text-main">Copy / Paste</span>
+                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Ctrl + C / V</span>
+                        </div>
+                        <div class="flex items-center justify-between group">
+                            <span class="text-sm text-text-main">Duplicate selection (or the slide)</span>
+                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Ctrl + D</span>
+                        </div>
+                        <div class="flex items-center justify-between group">
+                            <span class="text-sm text-text-main">Duplicate Elements</span>
+                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Ctrl + Shift + D</span>
+                        </div>
+                    </div>
+                </section>
+                <section>
+                    <h3 class="text-xs font-bold text-text-sub uppercase tracking-wider mb-4">Layout</h3>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between group">
+                            <span class="text-sm text-text-main">Select All</span>
+                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Ctrl + A</span>
+                        </div>
+                        <div class="flex items-center justify-between group">
+                            <span class="text-sm text-text-main">Group Elements</span>
+                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Alt + G</span>
+                        </div>
+                        <div class="flex items-center justify-between group">
+                            <span class="text-sm text-text-main">Ungroup</span>
+                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Alt + Shift + G</span>
+                        </div>
+                        <div class="flex items-center justify-between group">
+                            <span class="text-sm text-text-main">Nudge Elements</span>
+                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Arrows</span>
+                        </div>
+                        <div class="flex items-center justify-between group">
+                            <span class="text-sm text-text-main">Fast Nudge</span>
+                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Shift + Arrows</span>
+                        </div>
+                    </div>
+                </section>
+                <section>
+                    <h3 class="text-xs font-bold text-text-sub uppercase tracking-wider mb-4">Support</h3>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between group">
+                            <span class="text-sm text-text-main">Show this Help</span>
+                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">F1</span>
+                        </div>
+                        <div class="flex items-center justify-between group">
+                            <span class="text-sm text-text-main">Deselect / Close</span>
+                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Esc</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+            <div class="px-6 py-4 bg-surface/30 border-t border-border flex justify-end">
+                <button onclick="closeShortcutsModal()" class="px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary-hover transition-all shadow-lg shadow-primary/20">
+                    Got it
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ COMMAND PALETTE MODAL -->
+    <div id="command-palette-modal" style="display:none" class="fixed inset-0 z-[600] flex items-start justify-center pt-[15vh]">
+        <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onclick="closeCommandPalette()"></div>
+        <div class="relative bg-white rounded-2xl shadow-2xl w-[600px] max-w-[90vw] flex flex-col border border-slate-200/60 overflow-hidden animate-popIn">
+            <div class="flex items-center px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+                <i class="fa-solid fa-magnifying-glass text-slate-400 mr-3 text-lg"></i>
+                <input type="text" id="command-palette-input" class="w-full bg-transparent border-none outline-none text-slate-700 text-lg placeholder:text-slate-300" placeholder="Type a command or search..." autocomplete="off">
+                <span class="px-2 py-1 bg-white border border-slate-200 rounded text-[10px] font-mono text-slate-400 ml-3 shrink-0">ESC</span>
+            </div>
+            <div id="command-palette-results" class="max-h-[360px] overflow-y-auto py-2">
+                <!-- Results rendered by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ EXTERNAL LIBS -->
+    <!-- Pre-declare the global reveal.js's bundled regenerator-runtime assigns to, so it does not fall back to Function() (blocked by CSP). -->
+    <script>window.regeneratorRuntime = undefined;</script>
+    <script src="vendor/reveal.js/reveal.js"></script>
+    <script src="vendor/three/three.min.js"></script>
+    <script src="vendor/interactjs/interact.min.js"></script>
+    <link rel="stylesheet" href="vendor/reveal.js-plugins/chalkboard/style.css" />
+    <script src="vendor/reveal.js-plugins/chalkboard/plugin.js"></script>
+    <script src="vendor/fontawesome/js/all.min.js"></script>
+    <script src="vendor/jszip/jszip.min.js"></script>
+
+    <!-- Export Libraries -->
+    <script src="vendor/pptxgenjs/pptxgen.bundle.js"></script>
+    <script src="vendor/html2canvas/html2canvas.min.js"></script>
+    <script src="vendor/jspdf/jspdf.umd.min.js"></script>
+    <script src="vendor/file-saver/FileSaver.min.js"></script>
+    <script src="vendor/katex/katex.min.js"></script>
+    <script src="vendor/dompurify/purify.min.js"></script>
+
+    <!-- ══════════════════════════════════════════ APP SCRIPTS -->
+    <script src="js/ui/prompt-dialog.js"></script>
+    <script src="js/ui/select-menu.js"></script>
+    <script src="js/core/pageSetup.js"></script>
+    <script src="js/core/state.js?v=20260531-text-format"></script>
+    <script src="js/animations/animation-utils.js"></script>
+    <script src="js/animations/animation-state.js?v=20260519-advanced-add-fix"></script>
+    <script src="js/animations/animation-engine.js?v=20260519-advanced-add-fix"></script>
+    <script src="js/animations/animation-export.js"></script>
+    <script src="js/animations/animation-presets.js?v=20260519-advanced-add-fix"></script>
+    <script src="js/animations/animation-auto-animate.js?v=20260519-no-slide-transition"></script>
+    <script src="js/ui/timeline-editor.js"></script>
+    <script src="js/properties/panels/animations.js?v=20260519-advanced-add-fix"></script>
+    <script src="js/text/textContent.js?v=20260531-text-format"></script>
+    <script src="js/text/document/TextDocument.js?v=20260531-text-format"></script>
+    <script src="js/editor/themes.js?v=20260530-three-bg"></script>
+    <script src="js/editor/masterSlides.js?v=20260519-present-fixes"></script>
+    <script src="js/embeds/htmlEmbed.js"></script>
+    <script src="js/embeds/moleculeEmbed.js?v=20260519-hide-molecule-top-status"></script>
+    <script src="js/text/textLayout.js"></script>
+    <script src="js/text/textSelection.js?v=20260531-text-format"></script>
+    <script src="js/editor/crop.js?v=20260503-crop-margin"></script>
+    <!-- Renderer (classic scripts; order matters, init.js last) -->
+    <script src="js/editor/render/structured-editor.js?v=20260929-split"></script>
+    <script src="js/editor/render/theme-motion.js?v=20260929-split"></script>
+    <script src="js/editor/render/media-sync.js?v=20260929-split"></script>
+    <script src="js/editor/render/slide-previews.js?v=20260929-split"></script>
+    <script src="js/editor/render/connectors.js?v=20260929-split"></script>
+    <script src="js/editor/render/shapes.js?v=20260929-split"></script>
+    <script src="js/editor/render/shape-catalog.js"></script>
+    <script src="js/editor/render/chart-config.js"></script>
+    <script src="js/editor/render/whiteboard-layer.js?v=20260929-split"></script>
+    <script src="js/editor/render/slides.js?v=20260929-split"></script>
+    <script src="js/editor/render/tables.js?v=20260929-split"></script>
+    <script src="js/editor/render/elements.js?v=20260929-split"></script>
+    <script src="js/editor/render/element-text.js?v=20260929-split"></script>
+    <script src="js/editor/render/element-media.js?v=20260929-split"></script>
+    <script src="js/editor/render/pdf.js?v=20260929-split"></script>
+    <script src="js/editor/render/init.js?v=20260929-split"></script>
+    <script src="js/properties/panels/text.js"></script>
+    <!-- Properties panel (classic scripts; order matters, init.js last) -->
+    <script src="js/properties/core.js?v=20260929-split"></script>
+    <script src="js/properties/text-formatting.js?v=20260929-split"></script>
+    <script src="js/properties/table-selection.js?v=20260929-split"></script>
+    <script src="js/properties/outline-controls.js?v=20260929-split"></script>
+    <script src="js/properties/selection.js?v=20260929-split"></script>
+    <script src="js/properties/dom-sync.js?v=20260929-split"></script>
+    <script src="js/properties/animation-config.js?v=20260929-split"></script>
+    <script src="js/properties/slide-panel.js?v=20260929-split"></script>
+    <script src="js/properties/floating-toolbars.js?v=20260929-split"></script>
+    <script src="js/properties/panel.js?v=20260929-split"></script>
+    <script src="js/properties/panels/shape.js?v=20260929-split"></script>
+    <script src="js/properties/panels/table.js?v=20260929-split"></script>
+    <script src="js/properties/panels/connector.js?v=20260929-split"></script>
+    <script src="js/properties/panels/video.js?v=20260929-split"></script>
+    <script src="js/properties/panels/image.js?v=20260929-split"></script>
+    <script src="js/properties/panels/html.js?v=20260929-split"></script>
+    <script src="js/properties/panels/mermaid.js?v=20260929-split"></script>
+    <script src="js/properties/panels/pdf.js?v=20260929-split"></script>
+    <script src="js/properties/panels/molecule.js?v=20260929-split"></script>
+    <script src="js/properties/panels/equation.js?v=20260929-split"></script>
+    <script src="js/properties/panels/chart.js?v=20261001"></script>
+    <script src="js/properties/panels/sketch.js?v=20260929-split"></script>
+    <script src="js/properties/style.js?v=20260929-split"></script>
+    <script src="js/properties/layers.js?v=20260929-split"></script>
+    <script src="js/properties/init.js?v=20260929-split"></script>
+    <script src="js/editor/interact.js?v=20260531-selection-paint"></script>
+    <script src="js/export/equation-image.js?v=20261001"></script>
+    <script src="js/export/export.js?v=20260531-text-format"></script>
+    <script type="module" src="js/rendering/export/ExportController.js"></script>
+    <script src="js/export/importPptx.js"></script>
+    <script src="js/editor/components.js"></script>
+    <!-- Commands (classic scripts; order matters, init.js last) -->
+    <script src="js/core/commands/align.js?v=20260929-split"></script>
+    <script src="js/core/commands/slides.js?v=20260929-split"></script>
+    <script src="js/core/commands/elements.js?v=20260929-split"></script>
+    <script src="js/core/commands/ai-cleanup.js?v=20260929-split"></script>
+    <script src="js/core/commands/clipboard.js?v=20260929-split"></script>
+    <script src="js/core/commands/drawing.js?v=20261001-excalidraw"></script>
+    <script src="js/core/commands/file-insert.js?v=20260929-split"></script>
+    <script src="js/core/commands/slide-background.js?v=20260929-split"></script>
+    <script src="js/core/commands/bridge-text.js?v=20260929-split"></script>
+    <script src="js/core/commands/bridge-elements.js?v=20260929-split"></script>
+    <script src="js/core/commands/bridge-planning.js?v=20260929-split"></script>
+    <script src="js/core/commands/bridge-slides.js?v=20260929-split"></script>
+    <script src="js/core/commands/bridge-import.js?v=20260929-split"></script>
+    <script src="js/core/commands/history.js?v=20260929-split"></script>
+    <script src="js/core/commands/presentation-viewport.js?v=20260929-split"></script>
+    <script src="js/core/commands/presentation-tools.js?v=20260929-split"></script>
+    <script src="js/core/commands/presentation-animations.js?v=20260929-split"></script>
+    <script src="js/core/commands/presenter-view.js?v=20260929-split"></script>
+    <script src="js/core/commands/play-mode.js?v=20260929-split"></script>
+    <script src="js/core/commands/export-import.js?v=20260929-split"></script>
+    <script src="js/core/commands/command-palette.js?v=20260929-split"></script>
+    <script src="js/core/commands/init.js?v=20260929-split"></script>
+    <script src="js/core/workspace.js?v=20260524-ai-native-layout"></script>
+    <script src="js/core/keyboard.js?v=20260531-selection-paint"></script>
+    <script src="js/editor/zoom.js?v=20260519-no-slide-bump"></script>
+    <script src="js/editor/contextMenu.js"></script>
+    <script src="js/ui/start-screen.js?v=20260929"></script>
+    <script src="js/ui/share.js?v=20261001"></script>
+    <script src="js/ui/app-theme.js?v=20261001"></script>
+    <script src="js/core/main.js?v=20260530-phase2"></script>
+    <script type="module" src="js/mermaid/mermaid-dialog.js"></script>
+    <script type="module" src="js/drawing/loader.js"></script>
+    <script src="js/sketch/sketchRenderer.js"></script>
+    <script src="js/sketch/sketchMode.js"></script>
+    <script src="js/animations/animation-interaction.js?v=20260519-no-slide-transition"></script>
+    <script>
+        // Initialize auto-animate interaction when Reveal.js is ready
+        if (typeof Reveal !== 'undefined') {
+            if (Reveal.isReady && Reveal.isReady()) {
+                initializeAutoAnimateInteraction();
+            } else {
+                Reveal.on('ready', () => {
+                    initializeAutoAnimateInteraction();
+                });
+            }
+        }
+    </script>
+
+    <!-- ══════════════════════════════════════════ UI HELPERS -->
+    <script>
+        // Sidebar tab switching
+        function switchSidebarTab(tab) {
+            document.getElementById('tab-slides')?.classList.toggle('sidebar-tab-active', tab === 'slides');
+            document.getElementById('tab-elements')?.classList.toggle('sidebar-tab-active', tab === 'elements');
+
+            document.getElementById('panel-slides')?.classList.toggle('hidden', false);
+            document.getElementById('panel-slides')?.classList.toggle('flex', true);
+
+            document.getElementById('panel-elements')?.classList.toggle('hidden', true);
+            document.getElementById('panel-elements')?.classList.toggle('flex', false);
+        }
+
+        // Equation modal
+        function openEquationModal(existingLatex, editId = null) {
+            window._editingEquationId = editId || null;
+            const modal = document.getElementById('equation-modal');
+            if (modal) modal.style.display = 'flex';
+            const inp = document.getElementById('equation-input');
+            if (inp) {
+                inp.value = existingLatex || '';
+                setTimeout(() => inp.focus(), 50);
+            }
+            if (existingLatex) {
+                previewEquation();
+            } else {
+                document.getElementById('equation-preview').innerHTML = '<span>Preview will appear here...</span>';
+            }
+        }
+
+        function closeEquationModal() {
+            const modal = document.getElementById('equation-modal');
+            if (modal) modal.style.display = 'none';
+            window._editingEquationId = null;
+        }
+
+        function previewEquation() {
+            const src = document.getElementById('equation-input').value.trim();
+            const preview = document.getElementById('equation-preview');
+            if (!src) { preview.innerHTML = '<span>Preview will appear here...</span>'; return; }
+            try {
+                preview.innerHTML = '';
+                katex.render(src, preview, { throwOnError: false, displayMode: true });
+            } catch(e) {
+                preview.innerHTML = '<span style="color:#dc2626">Invalid LaTeX</span>';
+            }
+        }
+
+        function setEquationQuick(latex) {
+            const inp = document.getElementById('equation-input');
+            if (inp) { inp.value = latex; previewEquation(); inp.focus(); }
+        }
+
+        function insertEquation() {
+            const src = document.getElementById('equation-input').value.trim();
+            if (!src) return;
+            const editId = window._editingEquationId;
+            if (editId && typeof updateElementState === 'function') {
+                // Update existing equation element
+                let renderedHtml = src;
+                try {
+                    if (typeof katex !== 'undefined') {
+                        renderedHtml = katex.renderToString(src, { throwOnError: false, displayMode: true });
+                    }
+                } catch(e) {}
+                updateElementState(editId, { latexSrc: src, content: renderedHtml });
+                if (typeof renderSlidesFromState === 'function') renderSlidesFromState();
+            } else if (typeof addEquationElement === 'function') {
+                addEquationElement(src);
+            }
+            closeEquationModal();
+        }
+    </script>
+    <!-- Slide presets (classic scripts; order matters, init.js last) -->
+    <script src="js/editor/slide-presets/helpers.js?v=20260929-split"></script>
+    <script src="js/editor/slide-presets/modern-helpers.js?v=20260929-split"></script>
+    <script src="js/editor/slide-presets/catalog.js?v=20260929-split"></script>
+    <script src="js/editor/slide-presets/modern.js?v=20260929-split"></script>
+    <script src="js/editor/slide-presets/science-helpers.js?v=20260929-split"></script>
+    <script src="js/editor/slide-presets/science.js?v=20260929-split"></script>
+    <script src="js/editor/slide-presets/professional.js?v=20260929-split"></script>
+    <script src="js/editor/slide-presets/export.js?v=20260929-split"></script>
+    <script src="js/editor/slide-presets/metadata.js?v=20260929-split"></script>
+    <script src="js/editor/slide-presets/apply.js?v=20260929-split"></script>
+    <script src="js/editor/slide-presets/palette-ui.js?v=20260929-split"></script>
+    <script src="js/editor/slide-presets/init.js?v=20260929-split"></script>
+</body>
+</html>
