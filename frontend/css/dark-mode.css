@@ -1008,3 +1008,8 @@ html[data-theme="dark"] .sf-select-menu__option.is-active {
     color: #c7d2fe !important;
 }
 
+
+html[data-theme="dark"] .plugin-panel-error {
+    background: rgba(127, 29, 29, 0.35);
+    color: #fca5a5;
+}

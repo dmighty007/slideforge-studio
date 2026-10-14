@@ -827,6 +827,7 @@ const SAFE_ELEMENT_TYPES = new Set([
     "sketch",
     "whiteboard",
     "mermaid",
+    "plugin",
 ]);
 const SAFE_TEXT_TAGS = new Set([
     "A",
@@ -1359,6 +1360,8 @@ function normalizeStateIds() {
                           localMimeType: safeEl.localMimeType || "application/pdf",
                       }
                     : {}),
+                // Plugin objects (js/plugins/plugins.js): which plugin, its settings and its last drawing.
+                ...(fallbackType === "plugin" ? sanitizePluginElementFields(safeEl) : {}),
                 ...(fallbackType === "mermaid"
                     ? {
                           mermaidSource: _truncateStateString(

@@ -136,6 +136,58 @@
     line-height: 1 !important;
 }
 
+/* Plugin objects (js/plugins/plugins.js): the plugin's drawing, kept to its own proportions inside the box. */
+.plugin-element-content {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.plugin-element-content img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+    user-select: none;
+}
+
+.plugin-element-content img:not([src]) {
+    display: none;
+}
+
+.plugin-element-content--error img {
+    opacity: 0.35;
+}
+
+.plugin-element-note {
+    position: absolute;
+    inset: auto 6px 6px 6px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(254, 242, 242, 0.95);
+    color: #b91c1c;
+    font: 600 11px/1.3 Inter, system-ui, sans-serif;
+    text-align: center;
+}
+
+.plugin-element-content--empty .plugin-element-note {
+    position: static;
+}
+
+.plugin-panel-error {
+    margin: 0;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: #fef2f2;
+    color: #b91c1c;
+    font-size: 11px;
+    line-height: 1.35;
+}
+
 .text-element-content {
     flex: 1 1 auto;
     width: 100%;

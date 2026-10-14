@@ -19,7 +19,7 @@ urlpatterns = [
     re_path(r"^s/(?P<token>[A-Za-z0-9_-]{16,64})/(?P<path>.*)$", shared_presentation, name="shared-presentation"),
     *(
         re_path(rf"^{prefix}/(?P<path>.*)$", serve_frontend_file, {"document_root": _frontend / prefix})
-        for prefix in ("js", "css", "assets", "static", "vendor")
+        for prefix in ("js", "css", "assets", "static", "vendor", "plugins")
     ),
     re_path(r"^media/(?P<path>.*)$", serve, {"document_root": settings.MEDIA_ROOT}),
 ]

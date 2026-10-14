@@ -45,7 +45,7 @@ SlideForge/
 `-- README.md
 ```
 
-The backend serves the SPA shell at `/`, exposes JSON APIs under `/api/`, and serves development assets from `/js/`, `/css/`, `/assets/`, `/static/`, `/vendor/`, and `/media/` while `DEBUG` is enabled. The frontend keeps most editor behavior in global browser modules and uses the backend mainly for project persistence, media upload, cleanup, and PPTX generation.
+The backend serves the SPA shell at `/`, exposes JSON APIs under `/api/`, and serves development assets from `/js/`, `/css/`, `/assets/`, `/static/`, `/vendor/`, `/plugins/`, and `/media/` while `DEBUG` is enabled (the desktop app always serves them). New kinds of slide objects can be added as plugins under `frontend/plugins/`; see `docs/PLUGINS.md`. The frontend keeps most editor behavior in global browser modules and uses the backend mainly for project persistence, media upload, cleanup, and PPTX generation.
 
 ## Runtime Flow
 

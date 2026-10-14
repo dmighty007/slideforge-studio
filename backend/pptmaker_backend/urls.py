@@ -23,5 +23,6 @@ if settings.DEBUG:
         re_path(r"^assets/(?P<path>.*)$", serve_frontend_file, {"document_root": settings.FRONTEND_DIR / "assets"}),
         re_path(r"^static/(?P<path>.*)$", serve_frontend_file, {"document_root": settings.FRONTEND_DIR / "static"}),
         re_path(r"^vendor/(?P<path>.*)$", serve_frontend_file, {"document_root": settings.FRONTEND_DIR / "vendor"}),
+        re_path(r"^plugins/(?P<path>.*)$", serve_frontend_file, {"document_root": settings.FRONTEND_DIR / "plugins"}),
     ]
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

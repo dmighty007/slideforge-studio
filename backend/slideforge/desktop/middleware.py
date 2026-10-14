@@ -18,7 +18,7 @@ def _matches(candidate: str, token: str) -> bool:
 # origin that never carries the SameSite=Strict launch cookie, so it must load without one. Decks, uploads (/media/)
 # and the API stay behind the token.
 # /s/ is a shared presentation: viewers have no launch token, the share token is the key (studio/sharing.py).
-PUBLIC_PREFIXES = ("/js/", "/css/", "/assets/", "/static/", "/vendor/", "/s/")
+PUBLIC_PREFIXES = ("/js/", "/css/", "/assets/", "/static/", "/vendor/", "/plugins/", "/s/")
 
 
 def launch_cookie_name(port) -> str:

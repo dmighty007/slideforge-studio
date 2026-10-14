@@ -1,6 +1,6 @@
 # Third-party notices
 
-SlideForge ships copies of the following libraries and fonts in `frontend/vendor/` and `frontend/js/mermaid/vendor/`. Their licenses follow.
+SlideForge ships copies of the following libraries and fonts in `frontend/vendor/`, `frontend/js/mermaid/vendor/` and `frontend/plugins/*/vendor/`. Their licenses follow.
 The Excalidraw build bundles further open-source modules; their notices are in `frontend/vendor/excalidraw/*.LICENSE.txt`.
 
 | Package | Version | License | Homepage |
@@ -43,6 +43,7 @@ The Excalidraw build bundles further open-source modules; their notices are in `
 | react-dom | 18.3.1 | MIT | https://react.dev |
 | reveal.js | 4.3.1 | MIT | https://revealjs.com |
 | reveal.js-plugins | 4.6.0 | MIT | https://github.com/rajgoel/reveal.js-plugins/blob/master/README.md |
+| smiles-drawer (in plugins/smiles/vendor; bundles chroma-js 2.4.2, BSD-3-Clause with ColorBrewer colours under Apache-2.0) | 2.4.1 | MIT | https://github.com/reymond-group/smilesDrawer |
 | three | 0.128.0 | MIT | https://threejs.org/ |
 | tailwindcss (Play CDN build, vendor/tailwind) | 3.x | MIT | https://tailwindcss.com |
 
@@ -3788,6 +3789,34 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+```
+
+## smiles-drawer 2.4.1
+
+The minified build also contains chroma-js 2.4.2 (BSD-3-Clause; its ColorBrewer colours are Apache-2.0); those notices are kept at the end of `frontend/plugins/smiles/vendor/smiles-drawer.min.js`.
+
+```
+MIT License
+
+Copyright (c) 2017 GDB / Reymond Research Group
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ```
 
 ## tailwindcss

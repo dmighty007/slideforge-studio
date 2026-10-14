@@ -48,7 +48,7 @@ class LaunchTokenTests(TestCase):
 
     def test_bundled_frontend_code_loads_without_the_cookie(self):
         # The sandboxed molecule viewer fetches vendor/ngl/ngl.js without cookies.
-        for path in ("/vendor/dompurify/purify.min.js", "/js/core/state.js"):
+        for path in ("/vendor/dompurify/purify.min.js", "/js/core/state.js", "/plugins/plugins.json"):
             response = Client().get(path)
             self.assertEqual(response.status_code, 200, path)
             response.close()
@@ -76,7 +76,7 @@ class DesktopServingTests(TestCase):
     def test_frontend_assets_are_served_with_debug_off(self):
         self.assertFalse(settings.DEBUG)
         client = Client()
-        for path in ("/", "/js/core/state.js", "/css/base.css", "/vendor/dompurify/purify.min.js"):
+        for path in ("/", "/js/core/state.js", "/css/base.css", "/vendor/dompurify/purify.min.js", "/plugins/smiles/plugin.js"):
             response = client.get(path)
             self.assertEqual(response.status_code, 200, path)
             if hasattr(response, "close"):

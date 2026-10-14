@@ -555,6 +555,10 @@ function _buildPropertiesPanelNow() {
       buildEquationPanel(panel, data);
     }
 
+    if (data.type === "plugin") {
+      buildPluginPanel(panel, data);
+    }
+
     if (data.type === "chart" && typeof buildChartPanel === "function") {
       buildChartPanel(panel, data);
     }
@@ -770,6 +774,10 @@ function _buildPropertiesPanelNow() {
 
       if (data.type === "equation") {
         bindEquationPanel(data, onCommit);
+      }
+
+      if (data.type === "plugin") {
+        bindPluginPanel(data);
       }
 
       if (data.type === "sketch") {

@@ -156,6 +156,7 @@ async function buildViewerBundle({ includeVendor = true } = {}) {
   exportState.pageSize = { width: exportPage.width, height: exportPage.height };
   await drawChartsAndDiagramsAsPictures(exportState);
   if (typeof replaceEquationsWithPictures === "function") await replaceEquationsWithPictures(exportState);
+  if (typeof replacePluginElementsWithPictures === "function") await replacePluginElementsWithPictures(exportState);
   // Shape text with its final colours and sizes: the viewer has no theme logic to work out the defaults.
   (exportState.slides || []).forEach((slide) => (slide.elements || []).forEach((el) => {
     if (el?.type === "shape" && el.shapeText && typeof getShapeTextStyle === "function") el.shapeTextStyle = getShapeTextStyle(el);
@@ -922,6 +923,8 @@ async function exportPPTX() {
     if (typeof replaceMoleculesWithPictures === "function") await replaceMoleculesWithPictures(exportState);
     if (typeof replacePdfsWithPictures === "function") await replacePdfsWithPictures(exportState);
     await replaceMermaidWithPictures(exportState);
+    // Plugin objects are drawn as SVG; they become PNG pictures with the other SVGs just below.
+    if (typeof replacePluginElementsWithPictures === "function") await replacePluginElementsWithPictures(exportState);
     await replaceSvgPicturesWithPng(exportState);
     // And HTML embeds: PowerPoint cannot run them, so a picture of the embed instead of a placeholder.
     if (typeof replaceHtmlEmbedsWithPictures === "function") await replaceHtmlEmbedsWithPictures(exportState);
@@ -962,6 +965,26 @@ function _assetExtension(mime) {
   return { "svg+xml": "svg", jpeg: "jpg", quicktime: "mov", "x-matroska": "mkv" }[subtype] || subtype.replace(/[^a-z0-9]/g, "");
 }
 
+// The type and base64 bytes of a data: URL. Not every data URL is base64 (SVG pictures are often written as
+// URL-encoded text); those bytes went into the zip as if they were, and JSZip refused the whole export.
+function _dataUrlPayload(dataUrl, fallbackMime) {
+  const text = String(dataUrl || "");
+  const comma = text.indexOf(",");
+  if (comma < 0) return null;
+  const meta = text.slice(0, comma);
+  const body = text.slice(comma + 1);
+  const mime = meta.slice(5).split(";")[0].trim() || fallbackMime;
+  if (/;base64$/i.test(meta)) return { mime, base64: body };
+  try {
+    const bytes = new TextEncoder().encode(decodeURIComponent(body));
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return { mime, base64: btoa(binary) };
+  } catch (_error) {
+    return null;
+  }
+}
+
 async function processStateAssets(originalState) {
   const newState = JSON.parse(JSON.stringify(originalState));
   const assets = {};
@@ -1000,16 +1023,9 @@ async function processStateAssets(originalState) {
         (bg.type === "image" || bg.type === "video") &&
         String(bg.content).startsWith("data:")
       ) {
-        const parts = bg.content.split(",");
-        if (parts.length >= 2) {
-          const meta = parts[0];
-          const base64Data = parts[1];
-          const mimeMatch = meta.match(/data:(.*?);/);
-          const mime = mimeMatch
-            ? mimeMatch[1]
-            : bg.type === "image"
-              ? "image/png"
-              : "video/mp4";
+        const payload = _dataUrlPayload(bg.content, bg.type === "image" ? "image/png" : "video/mp4");
+        if (payload) {
+          const { mime, base64: base64Data } = payload;
           const ext =
             _assetExtension(mime) || (bg.type === "image" ? "png" : "mp4");
           const fileName = `asset_${assetCounter++}.${ext}`;
@@ -1051,19 +1067,12 @@ async function processStateAssets(originalState) {
         (el.type === "image" || el.type === "video" || el.type === "pdf") &&
         el.content?.startsWith("data:")
       ) {
-        const parts = el.content.split(",");
-        if (parts.length < 2) continue;
-
-        const meta = parts[0];
-        const base64Data = parts[1];
-        const mimeMatch = meta.match(/data:(.*?);/);
-        const mime = mimeMatch
-          ? mimeMatch[1]
-          : el.type === "image"
-            ? "image/png"
-            : el.type === "pdf"
-              ? "application/pdf"
-              : "video/mp4";
+        const payload = _dataUrlPayload(
+          el.content,
+          el.type === "image" ? "image/png" : el.type === "pdf" ? "application/pdf" : "video/mp4",
+        );
+        if (!payload) continue;
+        const { mime, base64: base64Data } = payload;
         const ext =
           mime === "application/pdf"
             ? "pdf"

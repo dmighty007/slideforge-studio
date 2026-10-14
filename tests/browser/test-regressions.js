@@ -4096,6 +4096,209 @@ async function test(name, fn) {
         await page.close();
     });
 
+    // ─── Plugins (js/plugins/plugins.js, plugins/smiles) ───────────────────────────────────────────────────────────
+
+    // The id of a plugin object's node on the slide (not its thumbnail copy).
+    const pluginNodeImage = (page, id) =>
+        page.evaluate(id => {
+            const node = [...document.querySelectorAll(`[id="${id}"]`)].find(n => !n.closest("#slide-previews"));
+            return node?.querySelector(".plugin-element-content img")?.getAttribute("src") || "";
+        }, id);
+    const svgOf = dataUrl => decodeURIComponent(String(dataUrl).slice(String(dataUrl).indexOf(",") + 1));
+
+    await test("Plugins: the SMILES plugin adds a toolbar button and command, and inserts a 2D structure drawing", async () => {
+        const { page, errors } = await openFreshEditor(context);
+        await page.waitForFunction(() => typeof SlideForgePlugins !== "undefined" && SlideForgePlugins.get("smiles"));
+        const listed = await page.evaluate(() => ({
+            button: Boolean(document.querySelector('.insert-group[data-caption="Science"] [data-plugin-insert="smiles"]')),
+            command: COMMANDS.some(cmd => cmd.id === "add-plugin-smiles"),
+            slash: SLASH_COMMANDS.some(cmd => cmd.id === "plugin-smiles"),
+        }));
+        assert(listed.button && listed.command && listed.slash, `insert controls: ${JSON.stringify(listed)}`);
+        await page.click('[data-plugin-insert="smiles"]');
+        await page.fill(".sf-prompt__field", "c1ccccc1CCN");
+        await page.click(".sf-prompt__btn--primary");
+        await page.waitForFunction(() => state.slides[currentSlideIndex].elements.some(e => e.type === "plugin"));
+        const el = await page.evaluate(() => {
+            const found = state.slides[currentSlideIndex].elements.find(e => e.type === "plugin");
+            return { ...found, selected: state.selectedIds.includes(found.id) };
+        });
+        assert(el.pluginId === "smiles" && el.pluginData.smiles === "c1ccccc1CCN", `element: ${JSON.stringify(el.pluginData)}`);
+        assert(el.selected, "the new structure is not selected");
+        assert(/^data:image\/svg\+xml/.test(el.pluginPreview) && el.pluginPreviewKey, "no drawing kept in the element");
+        const svg = svgOf(el.pluginPreview);
+        assert(/<path|<line/.test(svg) && />N</.test(svg), "the drawing has no bonds or no N label");
+        assert(!/<script/i.test(svg), "the drawing holds a script");
+        // The box takes the drawing's shape (phenethylamine is wider than tall), not a fixed square.
+        const ratio = parseFloat(el.width) / parseFloat(el.height);
+        assert(Math.abs(ratio - 1) > 0.15, `box is ${el.width} x ${el.height}`);
+        await page.waitForFunction(id => {
+            const node = [...document.querySelectorAll(`[id="${id}"]`)].find(n => !n.closest("#slide-previews"));
+            return node?.querySelector(".plugin-element-content img")?.complete;
+        }, el.id);
+        assert((await pluginNodeImage(page, el.id)) === el.pluginPreview, "the slide does not show the drawing");
+        // A cancelled prompt adds nothing.
+        await page.click('[data-plugin-insert="smiles"]');
+        await page.click(".sf-prompt__btn:not(.sf-prompt__btn--primary)");
+        await page.waitForTimeout(200);
+        const count = await page.evaluate(() => state.slides[currentSlideIndex].elements.filter(e => e.type === "plugin").length);
+        assert(count === 1, `cancelled insert still added an object (${count})`);
+        assert(!errors.length, `page errors: ${errors.join("; ")}`);
+        await page.close();
+    });
+
+    await test("Plugins: the Properties panel edits the SMILES; a bad string shows why, and undo brings the drawing back", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await page.evaluate(() => insertPluginElement("smiles", { smiles: "CCO" }, { ask: false }));
+        await page.evaluate(id => {
+            selectElement(id);
+            setPropertiesPanelVisible(true);
+            buildPropertiesPanel();
+        }, id);
+        const field = page.locator("#prop-plugin-smiles");
+        await field.waitFor();
+        const before = await page.evaluate(id => state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginPreview, id);
+        await field.fill("OC(=O)c1ccccc1");
+        await field.press("Enter");
+        await page.waitForFunction(
+            ([id, before]) => state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginPreview !== before,
+            [id, before],
+        );
+        assert((await pluginNodeImage(page, id)) !== before, "the slide still shows the old structure");
+        await page.locator("#prop-plugin-smiles").fill("C1CC(");
+        await page.locator("#prop-plugin-smiles").press("Enter");
+        await page.waitForFunction(() => !document.getElementById("prop-plugin-error")?.hidden);
+        const message = await page.locator("#prop-plugin-error").textContent();
+        assert(/not a valid smiles/i.test(message), `panel error: ${message}`);
+        const note = await page.evaluate(id => {
+            const node = [...document.querySelectorAll(`[id="${id}"]`)].find(n => !n.closest("#slide-previews"));
+            const text = node.querySelector(".plugin-element-note");
+            return text && !text.hidden ? text.textContent : "";
+        }, id);
+        assert(/not a valid smiles/i.test(note), `no note on the slide: ${note}`);
+        await page.evaluate(() => undo());
+        await page.waitForTimeout(400);
+        const restored = await page.evaluate(id => state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginData.smiles, id);
+        assert(restored === "OC(=O)c1ccccc1", `after undo: ${restored}`);
+        assert(!(await page.evaluate(() => getPluginElementError(state.selectedIds[0]) || "")), "the error stayed after undo");
+        // Double-click asks for the SMILES again.
+        await page.evaluate(id => {
+            const node = [...document.querySelectorAll(`[id="${id}"]`)].find(n => !n.closest("#slide-previews"));
+            node.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+        }, id);
+        await page.locator(".sf-prompt__field").waitFor();
+        assert((await page.locator(".sf-prompt__field").inputValue()) === "OC(=O)c1ccccc1", "double-click did not offer the SMILES");
+        await page.fill(".sf-prompt__field", "CCN");
+        await page.click(".sf-prompt__btn--primary");
+        await page.waitForFunction(id => state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginData.smiles === "CCN", id);
+        await page.close();
+    });
+
+    await test("Plugins: a structure follows the theme's text colour unless given its own", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await page.evaluate(() => insertPluginElement("smiles", { smiles: "CCCC" }, { ask: false }));
+        await page.evaluate(() => changePresentationTheme("chalkboard"));
+        const ink = await page.evaluate(() => getPresentationTheme().defaultTextColor.toLowerCase());
+        await page.waitForFunction(
+            ([id, ink]) => decodeURIComponent(state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginPreview).toLowerCase().includes(ink),
+            [id, ink],
+        );
+        await page.evaluate(id => SlideForgePlugins.update(id, { color: "#ff00aa" }), id);
+        await page.waitForFunction(
+            id => decodeURIComponent(state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginPreview).toLowerCase().includes("#ff00aa"),
+            id,
+        );
+        await page.close();
+    });
+
+    await test("Plugins: PowerPoint gets a picture, and the HTML export a readable SVG file", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        let sent = null;
+        await page.route("**/api/presentations/export/pptx/", route => {
+            sent = JSON.parse(route.request().postData() || "{}");
+            route.fulfill({ status: 500, body: "{}" });
+        });
+        const id = await page.evaluate(() => insertPluginElement("smiles", { smiles: "CN1C=NC2=C1C(=O)N(C(=O)N2C)C" }, { ask: false }));
+        await page.evaluate(() => exportPPTX().catch(() => {}));
+        await page.waitForFunction(() => true);
+        for (let i = 0; i < 40 && !sent; i++) await page.waitForTimeout(250);
+        assert(sent, "nothing was sent to the export");
+        const exported = (sent.state || sent).slides.flatMap(s => s.elements).find(e => e.id === id);
+        assert(exported?.type === "image" && /^data:image\/png;base64,/.test(exported.content), `PowerPoint got ${exported?.type}: ${String(exported?.content).slice(0, 40)}`);
+        const bundle = await page.evaluate(async id => {
+            const zip = await JSZip.loadAsync(await buildViewerBundle({ includeVendor: false }));
+            const html = await zip.file("index.html").async("string");
+            const data = JSON.parse(new DOMParser().parseFromString(html, "text/html").getElementById("presentation-data").textContent);
+            const el = data.slides.flatMap(s => s.elements).find(e => e.id === id);
+            const file = el && zip.file(el.content);
+            return { type: el?.type, content: el?.content, svg: file ? await file.async("string") : "" };
+        }, id);
+        assert(bundle.type === "image" && /\.svg$/.test(bundle.content), `viewer element: ${JSON.stringify({ type: bundle.type, content: bundle.content })}`);
+        assert(/^<svg[\s\S]*<\/svg>$/.test(bundle.svg.trim()) && bundle.svg.includes("preserveAspectRatio"), `viewer file: ${bundle.svg.slice(0, 80)}`);
+        await page.close();
+    });
+
+    await test("HTML export: a picture stored as a URL-encoded (not base64) data URL is written out intact", async () => {
+        const { page } = await openFreshEditor(context);
+        const result = await page.evaluate(async () => {
+            const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="#ff0000"/></svg>';
+            addElement("text");
+            const slide = state.slides[currentSlideIndex];
+            slide.elements.push({ id: "urlencoded-svg-pic", type: "image", content: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`, x: 10, y: 10, width: "40px", height: "40px", styles: { zIndex: 50 } });
+            try {
+                const zip = await JSZip.loadAsync(await buildViewerBundle({ includeVendor: false }));
+                const html = await zip.file("index.html").async("string");
+                const data = JSON.parse(new DOMParser().parseFromString(html, "text/html").getElementById("presentation-data").textContent);
+                const el = data.slides.flatMap(s => s.elements).find(e => e.id === "urlencoded-svg-pic");
+                return { content: el?.content, file: await zip.file(el.content)?.async("string"), svg };
+            } catch (error) {
+                return { error: String(error?.message || error) };
+            }
+        });
+        assert(!result.error, `export failed: ${result.error}`);
+        assert(result.file === result.svg, `asset ${result.content}: ${String(result.file).slice(0, 80)}`);
+        await page.close();
+    });
+
+    await test("Plugins: an object whose plugin is missing shows its saved picture, and saved SVG is cleaned", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const shown = await page.evaluate(() => {
+            const bad =
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10" onload="alert(1)"><script>alert(2)</script>' +
+                '<a href="javascript:alert(3)"><rect width="20" height="10" fill="#123456"/></a>' +
+                '<set attributeName="href" to="javascript:alert(4)"/></svg>';
+            state.slides[currentSlideIndex].elements.push({
+                id: "missing-plugin-obj",
+                type: "plugin",
+                pluginId: "not-installed",
+                pluginData: { anything: 1 },
+                pluginPreview: `data:image/svg+xml,${encodeURIComponent(bad)}`,
+                x: 50, y: 50, width: "200px", height: "100px", styles: { zIndex: 60 },
+            });
+            normalizeStateIds();
+            renderSlidesFromState();
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === "missing-plugin-obj");
+            return { type: el.type, pluginId: el.pluginId, svg: decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1)) };
+        });
+        assert(shown.type === "plugin" && shown.pluginId === "not-installed", `normalised to ${shown.type}/${shown.pluginId}`);
+        assert(shown.svg.includes("#123456"), "the picture itself was lost");
+        assert(!/script|onload|javascript:|<set/i.test(shown.svg), `unsafe SVG kept: ${shown.svg}`);
+        const src = await pluginNodeImage(page, "missing-plugin-obj");
+        assert(/^data:image\/svg\+xml/.test(src), "the saved picture is not shown");
+        await page.evaluate(() => {
+            selectElement("missing-plugin-obj");
+            setPropertiesPanelVisible(true);
+            buildPropertiesPanel();
+        });
+        const panel = await page.locator("#properties-content").textContent();
+        assert(/not installed/i.test(panel), "the panel does not say the plugin is missing");
+        await page.close();
+    });
+
     if (!FRONTEND_ONLY) {
         await test("review: importing a SlideForge JSON adds one project, named apart from a deck with the same name", async () => {
             const { page } = await openEditor(context);

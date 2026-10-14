@@ -469,6 +469,8 @@ function _createStaticNode(elData, options = {}) {
       elData.content || elData.latexSrc || "",
     );
     el.appendChild(container);
+  } else if (elData.type === "plugin") {
+    renderPluginElementContent(el, elData, { interactive: false });
   }
   return el;
 }
@@ -681,6 +683,8 @@ function _applyTypeContent(el, elData, options = {}) {
     _applySketchTypeContent(el, elData);
   } else if (elData.type === "connector") {
     _applyConnectorTypeContent(el, elData);
+  } else if (elData.type === "plugin") {
+    renderPluginElementContent(el, elData, { interactive: true });
   }
 }
 

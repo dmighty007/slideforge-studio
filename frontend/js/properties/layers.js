@@ -109,6 +109,8 @@ function getElementIcon(type) {
       return "fa-solid fa-chalkboard";
     case "sketch":
       return "fa-solid fa-pen-nib";
+    case "plugin":
+      return "fa-solid fa-puzzle-piece";
     default:
       return "fa-solid fa-cube";
   }
@@ -133,6 +135,7 @@ function getElementDisplayName(el) {
   if (el.type === "video") return "Video";
   if (el.type === "table") return "Table";
   if (el.type === "molecule") return "Molecule";
+  if (el.type === "plugin") return getSlidePlugin?.(el.pluginId)?.name || "Plugin object";
   return el.type.charAt(0).toUpperCase() + el.type.slice(1);
 }
 
