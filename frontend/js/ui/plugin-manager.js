@@ -7,6 +7,7 @@
     let busy = false;
     let message = null; // { text, tone }
     let confirmingRemove = ""; // the id whose Remove button was pressed once
+    let search = "";
     const replaced = new Set(); // plugins reinstalled while their old script is still running
 
     const escapeHtml = (text) =>
@@ -48,6 +49,7 @@
         );
         el.addEventListener("click", onClick);
         el.addEventListener("change", onChange);
+        el.addEventListener("input", onInput);
         document.body.appendChild(el);
         return el;
     }
@@ -56,6 +58,12 @@
         const count = typeof countPluginObjects === "function" ? countPluginObjects(id) : 0;
         if (!count) return "";
         return `Used ${count === 1 ? "once" : `${count} times`} in this presentation`;
+    }
+
+    function pluginMatches(plugin) {
+        if (!search) return true;
+        const haystack = [plugin.id, plugin.name, plugin.description, plugin.author].filter(Boolean).join(" ").toLocaleLowerCase();
+        return haystack.includes(search);
     }
 
     function pluginRow(plugin, canManage) {
@@ -109,7 +117,9 @@
                 if (el?.type === "plugin" && !known.has(el.pluginId)) used.set(el.pluginId, (used.get(el.pluginId) || 0) + 1);
             }),
         );
-        return [...used.entries()].map(
+        return [...used.entries()]
+            .filter(([id]) => pluginMatches({ id, name: id }))
+            .map(
             ([id, count]) => `<li class="plugin-row plugin-row--off">
                 <span class="plugin-row__icon"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span>
                 <div class="plugin-row__main">
@@ -118,7 +128,7 @@
                     <p class="plugin-row__text">This presentation has ${count === 1 ? "an object" : `${count} objects`} from it. They show their last saved picture.</p>
                 </div>
             </li>`,
-        );
+            );
     }
 
     function render() {
@@ -129,10 +139,19 @@
         if (!listing) {
             content = `<p class="share-progress"><span class="share-spinner"></span> Loading…</p>`;
         } else {
-            const rows = [...listing.plugins.map((plugin) => pluginRow(plugin, canManage)), ...missingRows()];
+            const rows = [...listing.plugins.filter(pluginMatches).map((plugin) => pluginRow(plugin, canManage)), ...missingRows()];
             content = `
                 ${canManage ? "" : `<p class="share-note"><i class="fa-solid fa-lock"></i> Only an administrator can switch plugins on or off.</p>`}
-                ${rows.length ? `<ul class="plugin-list">${rows.join("")}</ul>` : `<p class="share-text">No plugins are installed.</p>`}
+                <label class="plugin-search">
+                    <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                    <span class="sr-only">Search plugins</span>
+                    <input id="plugin-manager-search" type="search" value="${escapeHtml(search)}" placeholder="Search plugins…" autocomplete="off">
+                </label>
+                ${
+                    rows.length
+                        ? `<ul class="plugin-list">${rows.join("")}</ul>`
+                        : `<p class="share-text">${search ? "No plugins match your search." : "No plugins are installed."}</p>`
+                }
                 ${
                     listing.userDir
                         ? `<div class="share-section">
@@ -267,10 +286,22 @@
         }
     }
 
+    function onInput(event) {
+        if (event.target.id !== "plugin-manager-search") return;
+        search = String(event.target.value || "").trim().toLocaleLowerCase();
+        render();
+        const input = document.getElementById("plugin-manager-search");
+        if (input) {
+            input.focus({ preventScroll: true });
+            input.setSelectionRange(input.value.length, input.value.length);
+        }
+    }
+
     async function openPluginManager() {
         const el = modal();
         message = null;
         confirmingRemove = "";
+        search = "";
         el.classList.remove("hidden");
         render();
         el.querySelector(".share-close")?.focus();

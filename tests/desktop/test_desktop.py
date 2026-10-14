@@ -120,6 +120,10 @@ class DesktopPluginTests(TestCase):
         finally:
             shutil.rmtree(folder / "demo", ignore_errors=True)
 
+    def test_plugin_lookups_are_allowed_by_the_page_policy(self):
+        header = Client().get("/")["Content-Security-Policy"]
+        self.assertIn("connect-src 'self' https://pubchem.ncbi.nlm.nih.gov https://api.crossref.org", header)
+
     @override_settings(SLIDEFORGE_LAUNCH_TOKEN="launch-secret")
     def test_user_plugins_and_the_plugin_api_need_the_launch_token(self):
         # Built-in plugin code is public like /js/; the user's own plugins and the API are the user's data.

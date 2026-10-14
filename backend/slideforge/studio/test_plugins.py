@@ -55,7 +55,9 @@ class PluginManagerTests(TestCase):
         self.assertEqual(smiles["script"], "/plugins/smiles/plugin.js")
         self.assertIn("SMILES", smiles["name"])
         built_in = {p["id"]: p for p in data["plugins"] if p["source"] == "bundled"}
-        for plugin_id in ("smiles", "qr-code", "scale-bar", "significance"):
+        for plugin_id in (
+            "smiles", "qr-code", "scale-bar", "significance", "citation", "phylo-tree", "sequence", "box-plot", "forest-plot"
+        ):
             self.assertTrue(built_in[plugin_id]["enabled"], plugin_id)
             self.assertTrue(built_in[plugin_id].get("description"), plugin_id)
         self.assertTrue(data["canManage"] and data["canInstall"])
@@ -144,3 +146,11 @@ class PluginManagerTests(TestCase):
         self.assertFalse(data["canInstall"])
         self.assertEqual(self.install({"demo/plugin.js": PLUGIN_JS}).status_code, 400)
         self.assertEqual(self.staff.get("/user-plugins/demo/plugin.js").status_code, 404)
+
+
+class PluginLookupPolicyTests(TestCase):
+    def test_the_page_may_fetch_only_the_lookup_services_plugins_use(self):
+        response = Client().get("/")
+        header = response.get("Content-Security-Policy") or response.get("Content-Security-Policy-Report-Only") or ""
+        connect = next(part for part in header.split(";") if part.strip().startswith("connect-src")).split()[1:]
+        self.assertEqual(sorted(connect), sorted(["'self'", "https://pubchem.ncbi.nlm.nih.gov", "https://api.crossref.org"]))

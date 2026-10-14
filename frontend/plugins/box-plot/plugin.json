@@ -1,0 +1,8 @@
+{
+    "id": "box-plot",
+    "name": "Box / Violin Plot",
+    "version": "1.0.0",
+    "description": "Box (Tukey), violin (kernel density) or combined plots from columns of numbers, with points and means, in colour-blind-safe colours.",
+    "icon": "fa-solid fa-chart-simple",
+    "author": "SlideForge"
+}

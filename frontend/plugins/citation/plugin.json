@@ -1,0 +1,8 @@
+{
+    "id": "citation",
+    "name": "Citation",
+    "version": "1.0.0",
+    "description": "A formatted reference (short, Nature, APA or ACS) from a DOI. Details come from Crossref once and are kept with the deck.",
+    "icon": "fa-solid fa-book-open",
+    "author": "SlideForge"
+}

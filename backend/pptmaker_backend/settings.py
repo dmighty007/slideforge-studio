@@ -176,7 +176,8 @@ CONTENT_SECURITY_POLICY = {
     "style-src": ("'self'", "'unsafe-inline'"),
     "img-src": ("'self'", "data:", "blob:", "https:"),
     "font-src": ("'self'", "data:"),
-    "connect-src": ("'self'",),
+    # Plugin lookups: compound names → structures (PubChem), DOIs → citations (Crossref).
+    "connect-src": ("'self'", "https://pubchem.ncbi.nlm.nih.gov", "https://api.crossref.org"),
     "frame-ancestors": ("'self'",),
     "media-src": ("'self'", "blob:", "data:", "https:"),
     "frame-src": ("'self'", "blob:", "data:", "https:"),

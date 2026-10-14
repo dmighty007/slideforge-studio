@@ -94,6 +94,14 @@ function buildPluginPanel(panel, data) {
       wrap.appendChild(hint);
     }
   });
+  // A lookup in progress, or why the last one failed (the object keeps what it showed before).
+  const notice = typeof getPluginElementNotice === "function" ? getPluginElementNotice(data.id) : "";
+  const noticeNote = document.createElement("p");
+  noticeNote.id = "prop-plugin-notice";
+  noticeNote.className = notice === "Looking up…" ? "plugin-panel-notice" : "plugin-panel-error";
+  noticeNote.textContent = notice;
+  noticeNote.hidden = !notice;
+  wrap.appendChild(noticeNote);
   const errorNote = document.createElement("p");
   errorNote.id = "prop-plugin-error";
   errorNote.className = "plugin-panel-error";

@@ -24,6 +24,8 @@ let _sfPluginCatalogue = [];
 const _sfPluginDrawings = new Map();
 // The last drawing error per element id, for the Properties panel.
 const _sfPluginErrors = new Map();
+// What a plugin's prepare step last said per element id ("Looking up…", or why a lookup failed), for the panel.
+const _sfPluginNotices = new Map();
 let _sfPluginsReadyResolve = null;
 const sfPluginsReady = new Promise(resolve => {
     _sfPluginsReadyResolve = resolve;
@@ -242,6 +244,70 @@ function _pluginThemeColor() {
     return theme?.defaultTextColor || "#1f2937";
 }
 
+// ─── Helpers plugins get in their context ─────────────────────────────────────
+
+function pluginEscapeXml(text) {
+    return String(text ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
+
+let _sfMeasureCanvas = null;
+// The width of a line of text in px, as an SVG <text> with these settings draws it.
+function pluginMeasureText(text, { size = 16, weight = 400, italic = false, family = "Arial, Helvetica, sans-serif" } = {}) {
+    _sfMeasureCanvas = _sfMeasureCanvas || document.createElement("canvas");
+    const g = _sfMeasureCanvas.getContext("2d");
+    g.font = `${italic ? "italic " : ""}${weight} ${size}px ${family}`;
+    return g.measureText(String(text ?? "")).width;
+}
+
+// Round tick values covering min..max: about `count` of them, at steps of 1, 2 or 5 × 10^n.
+function pluginNiceTicks(min, max, count = 5) {
+    let lo = Number(min);
+    let hi = Number(max);
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) return { min: 0, max: 1, step: 0.2, ticks: [0, 0.2, 0.4, 0.6, 0.8, 1] };
+    if (lo > hi) [lo, hi] = [hi, lo];
+    if (lo === hi) {
+        const pad = Math.abs(lo) * 0.1 || 1;
+        lo -= pad;
+        hi += pad;
+    }
+    const raw = (hi - lo) / Math.max(1, count);
+    const magnitude = 10 ** Math.floor(Math.log10(raw));
+    const step = [1, 2, 2.5, 5, 10].map(f => f * magnitude).find(candidate => candidate >= raw) || 10 * magnitude;
+    const start = Math.floor(lo / step + 1e-9) * step;
+    const end = Math.ceil(hi / step - 1e-9) * step;
+    const ticks = [];
+    for (let value = start; value <= end + step / 2; value += step) ticks.push(Number(value.toPrecision(12)));
+    return { min: start, max: end, step, ticks };
+}
+
+// JSON from a web service, with a clear message when it cannot be reached. Only hosts the page's
+// Content-Security-Policy allows can be fetched (see docs/PLUGINS.md).
+async function pluginFetchJson(url, { timeout = 15000 } = {}) {
+    const host = (() => {
+        try {
+            return new URL(url).host;
+        } catch (_error) {
+            return url;
+        }
+    })();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    let response;
+    try {
+        response = await fetch(url, { signal: controller.signal, credentials: "omit", headers: { Accept: "application/json" } });
+    } catch (_error) {
+        throw new Error(`Could not reach ${host}. Check the internet connection.`);
+    } finally {
+        clearTimeout(timer);
+    }
+    if (!response.ok) {
+        const error = new Error(`${host} answered ${response.status}`);
+        error.status = response.status;
+        throw error;
+    }
+    return response.json();
+}
+
 // An object's box in slide pixels (for plugins that draw to fit it).
 function _pluginBoxSize(plugin, elData) {
     const width = parseFloat(elData?.width);
@@ -260,6 +326,10 @@ function _pluginRenderContext(plugin, elData = null) {
         baseUrl: plugin.baseUrl,
         loadScript: url => loadPluginScript(new URL(url, plugin.baseUrl).href),
         parseTable: parsePluginTable,
+        measureText: pluginMeasureText,
+        niceTicks: pluginNiceTicks,
+        escapeXml: pluginEscapeXml,
+        fetchJson: pluginFetchJson,
         // Size-aware plugins draw for the box (a scale bar spans it; its label keeps its size).
         ...(plugin.sizeAware ? _pluginBoxSize(plugin, elData) : {}),
     };
@@ -369,6 +439,23 @@ function getPluginElementError(id) {
     return _sfPluginErrors.get(id) || "";
 }
 
+function getPluginElementNotice(id) {
+    return _sfPluginNotices.get(id) || "";
+}
+
+// A plugin's prepare step (online lookups and the like) for new settings. Its result is saved with the deck, so the
+// drawing works offline. A failed lookup keeps what was typed; the reason is shown in the panel.
+async function _preparePluginData(plugin, data, previous, elementId = null) {
+    if (typeof plugin.prepare !== "function") return { data, notice: "" };
+    try {
+        const prepared = await plugin.prepare({ ...data }, previous ? { ...previous } : null, _pluginRenderContext(plugin));
+        return { data: normalizePluginData(plugin, prepared || data), notice: "" };
+    } catch (error) {
+        console.warn(`${plugin.name}: prepare failed`, error);
+        return { data, notice: String(error?.message || error), elementId };
+    }
+}
+
 // The object on the slide: its last picture at once, then the plugin's fresh drawing when that differs.
 function renderPluginElementContent(host, elData, { interactive = false } = {}) {
     const plugin = getSlidePlugin(elData.pluginId);
@@ -409,6 +496,12 @@ function renderPluginElementContent(host, elData, { interactive = false } = {}) 
                 box.classList.remove("plugin-element-content--error");
                 if (img.getAttribute("src") !== drawing.dataUrl) img.src = drawing.dataUrl;
                 const stored = _findPluginElementInState(elData.id);
+                // autoHeight plugins (wrapped text) set the box's height to what they drew, outside undo.
+                if (interactive && plugin.sizeAware && plugin.autoHeight && stored && Math.abs(parseFloat(stored.height) - drawing.height) > 1) {
+                    stored.height = `${Math.round(drawing.height)}px`;
+                    host.style.height = stored.height;
+                    if (state.selectedIds?.includes(stored.id) && typeof updateGroupBound === "function") updateGroupBound();
+                }
                 if (stored && stored.pluginPreviewKey !== drawing.key) {
                     // Kept outside undo: it is a cache of what the plugin draws, not an edit.
                     stored.pluginPreview = drawing.dataUrl;
@@ -419,7 +512,8 @@ function renderPluginElementContent(host, elData, { interactive = false } = {}) 
                 }
             })
             .catch(error => {
-                const message = String(error?.message || error || "Could not draw");
+                // A failed lookup explains a failed drawing better (a compound name is no SMILES string).
+                const message = _sfPluginNotices.get(elData.id) || String(error?.message || error || "Could not draw");
                 const known = _sfPluginErrors.get(elData.id);
                 _sfPluginErrors.set(elData.id, message);
                 showNote(message);
@@ -504,6 +598,8 @@ async function insertPluginElement(pluginId, data = null, { ask = true } = {}) {
         if (!pluginData) return null;
         pluginData = normalizePluginData(plugin, pluginData);
     }
+    const prepared = await _preparePluginData(plugin, pluginData, null);
+    pluginData = prepared.data;
     let drawing = null;
     try {
         drawing = await drawPluginElement({ pluginId, pluginData });
@@ -511,7 +607,9 @@ async function insertPluginElement(pluginId, data = null, { ask = true } = {}) {
         console.warn(`${plugin.name}: inserted, but not drawn:`, error);
     }
     // A size-aware plugin starts at its default box; others take the shape of their drawing.
-    const size = plugin.sizeAware ? _pluginBoxSize(plugin, null) : _pluginInsertSize(plugin, drawing);
+    const size = plugin.sizeAware
+        ? { ..._pluginBoxSize(plugin, null), ...(plugin.autoHeight && drawing ? { height: Math.round(drawing.height) } : {}) }
+        : _pluginInsertSize(plugin, drawing);
     const activeIndex = typeof currentSlideIndex !== "undefined" ? currentSlideIndex : 0;
     const slide = state.slides[activeIndex];
     if (!slide) return null;
@@ -530,6 +628,7 @@ async function insertPluginElement(pluginId, data = null, { ask = true } = {}) {
         height: `${size.height}px`,
         styles: { zIndex: getNextZIndex(), backgroundColor: "transparent" },
     };
+    if (prepared.notice) _sfPluginNotices.set(id, prepared.notice);
     slide.elements.push(typeof placeWhereFree === "function" ? placeWhereFree(slide, element) : element);
     renderSlidesFromState();
     selectElement(id);
@@ -537,15 +636,31 @@ async function insertPluginElement(pluginId, data = null, { ask = true } = {}) {
 }
 
 // Changes some of an element's plugin settings, as one undo step.
-function updatePluginElementData(id, updates) {
+// Changes some of an element's plugin settings, as one undo step (after the plugin's prepare step, if it has one).
+async function updatePluginElementData(id, updates) {
     const el = _findPluginElementInState(id);
     const plugin = getSlidePlugin(el?.pluginId);
     if (!el || !plugin) return;
+    const previous = normalizePluginData(plugin, el.pluginData);
+    let next = normalizePluginData(plugin, { ...(el.pluginData || {}), ...updates });
+    const rebuildPanel = () => {
+        if (state.selectedIds?.includes(id) && typeof buildPropertiesPanel === "function") buildPropertiesPanel();
+    };
+    if (typeof plugin.prepare === "function") {
+        _sfPluginNotices.set(id, "Looking up…");
+        rebuildPanel();
+        const prepared = await _preparePluginData(plugin, next, previous);
+        next = prepared.data;
+        if (prepared.notice) _sfPluginNotices.set(id, prepared.notice);
+        else _sfPluginNotices.delete(id);
+    }
+    const current = _findPluginElementInState(id);
+    if (!current) return;
     saveStateToUndo();
-    el.pluginData = normalizePluginData(plugin, { ...(el.pluginData || {}), ...updates });
+    current.pluginData = next;
     _sfPluginErrors.delete(id);
     renderSlidesFromState();
-    if (state.selectedIds?.includes(id) && typeof buildPropertiesPanel === "function") buildPropertiesPanel();
+    rebuildPanel();
     if (typeof refreshPreviews === "function") refreshPreviews();
 }
 
@@ -807,6 +922,8 @@ window.SlideForgePlugins = {
     count: countPluginObjects,
     loadScript: loadPluginScript,
     parseTable: parsePluginTable,
+    measureText: pluginMeasureText,
+    niceTicks: pluginNiceTicks,
     insert: insertPluginElement,
     update: updatePluginElementData,
     edit: editPluginElement,

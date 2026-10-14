@@ -6,9 +6,14 @@ A plugin adds a new kind of object to slides without touching the editor's code.
 
 | Plugin | What it makes |
 |---|---|
-| Chemical structure (`smiles`) | The 2D structure of a molecule from a SMILES string (SmilesDrawer). |
+| Chemical structure (`smiles`) | The 2D structure of a molecule from SMILES, or from a compound name looked up on PubChem (once; the result is kept). Reactions from reaction SMILES (`reactants>agents>products`) with text above and below the arrow. Optional caption: name, formula, molar mass (SmilesDrawer). |
 | QR code (`qr-code`) | A QR code for a link to a paper, dataset, code or poster, with an optional caption (qrcode-generator). Non-ASCII letters in web links are percent-encoded so every scanner reads them the same. |
 | Scale bar (`scale-bar`) | A bar with its length (pm to km) for micrographs and maps. The bar spans the object's box: size the box to the length on the picture. The label keeps its size. Optional end ticks and a dark or light backing. |
+| Citation (`citation`) | A reference from a DOI in short, Nature, APA or ACS style, optionally with the doi.org link. Details come from Crossref once and are kept with the deck. The text wraps to the box's width; the box takes its height. |
+| Phylogenetic tree (`phylo-tree`) | A rectangular tree from Newick: phylogram (branch lengths, scale bar) or cladogram (tips aligned), support values, italic species names. |
+| Sequence (`sequence`) | A DNA, RNA or protein sequence (plain or FASTA) in blocks of ten with position numbers, coloured letters or boxes (A/C/G/T, Clustal classes, or Kyte–Doolittle hydrophobicity), and highlighted regions from a table (start, end, colour, label). |
+| Box / violin plot (`box-plot`) | Box (Tukey: whiskers to 1.5 × IQR, outliers beyond), violin (Gaussian kernel density, Silverman's bandwidth) or both, from columns of numbers; points, means, colour-blind-safe colours. |
+| Forest plot (`forest-plot`) | Estimates with confidence intervals per study or subgroup (label, estimate, lower, upper, weight): squares sized by weight, a pooled diamond, log scale for ratios, values column, "favours" notes. |
 | Significance brackets (`significance`) | Brackets with stars, n.s. or p-values between groups of a chart, from a table of comparisons (from group, to group, label). Brackets stack without overlapping; p-values can be shown as stars (* < 0.05, ** < 0.01, *** < 0.001, **** < 0.0001). Place the box over the chart's plot area, as wide as its bars. |
 
 Every plugin is inserted from the **Plugins** menu (the puzzle-piece button at the end of the insert toolbar), the command palette (Ctrl+K, "Add …") or a `/` command.
@@ -16,6 +21,8 @@ Every plugin is inserted from the **Plugins** menu (the puzzle-piece button at t
 ## Managing plugins
 
 Open the puzzle-piece **Plugins** menu at the end of the insert toolbar and choose **Manage plugins…**, or run "Manage Plugins" from the command palette (Ctrl+K). The dialog lists every plugin with its version, whether it is built in or yours, and how many objects in the open presentation use it.
+
+Use the **Search plugins** box to filter the list by plugin name, id, description, or author. This also searches plugins that are missing from the installation but still used by the open presentation.
 
 - **On/off switch**: takes effect at once, without a reload, and is remembered. A plugin switched off leaves the Plugins menu and the commands. Objects already on slides keep their last picture and can be moved, resized and exported; they are editable again when the plugin is switched back on.
 - **Install from .zip…**: adds a plugin to your plugins folder and switches it on. Installing a newer zip of the same plugin replaces it (reload SlideForge to run the new version).
@@ -99,6 +106,8 @@ SlideForgePlugins.register({
 - **`fields`**: the Properties panel is built from these. Types: `text`, `textarea`, `number` (`min`, `max`, `step`), `color` (`allowAuto: true` adds a "Theme colour" box that stores `""`), `checkbox` (`checkboxLabel`), `select` (`options: [{ value, label }]` or plain strings), and `table` (see below). Any field can have a `hint`. The `primary` field (or the first text field) is asked for when the object is inserted and when it is double-clicked.
 - **`table` fields** take CSV, TSV, semicolon-separated text or cells pasted from a spreadsheet, typed in the box or read with **Load CSV…** (up to 60 KB). `columns: ["From", "To", "Label"]` names the columns above the box and `rows` sets its height. The setting holds the text as typed; read it with `context.parseTable(text)`, which returns rows of trimmed cells (quoted cells may hold separators and line breaks; blank lines are skipped). Skipping a header row is up to the plugin.
 - **`sizeAware: true`**: the plugin draws for the object's box (`context.width`, `context.height`, in slide pixels) instead of being scaled to it, and is redrawn when the box is resized. Use it when parts must keep their size, such as a scale bar's label. A new object starts at `defaultSize`.
+- **`autoHeight: true`** (with `sizeAware`): the box takes the height of the drawing, as for text that wraps to the box's width.
+- **`prepare(data, previous, context)`** (optional, async): runs when settings change, before they are saved; return the settings to keep. Use it for online lookups and keep what they find in the settings, so drawing never needs the network: the citation plugin stores Crossref's answer, the SMILES plugin PubChem's. Throw an `Error` to report a failed lookup: the typed value is kept and the message is shown in the panel (and on the slide if the object cannot be drawn). `previous` is `null` on insert.
 - **`askOnInsert: false`**: insert without asking for the first text field (for objects set up in the panel). Double-click then opens the Properties panel.
 - **`normalize(data)`** (optional): returns cleaned settings. It runs on every draw and every panel change, with `defaultData` already filled in for missing keys.
 - **`render(data, context)`**: returns SVG markup (a string or an `<svg>` element), or throws an `Error` whose message is shown on the slide and in the panel. Give the SVG a `viewBox` fitted tightly around the drawing; the object's box shows it at its own proportions. `context` holds:
@@ -108,6 +117,10 @@ SlideForgePlugins.register({
   - `baseUrl`: the plugin folder's URL.
   - `parseTable(text)`: rows of cells from a table field.
   - `width`, `height`: the box, for `sizeAware` plugins.
+  - `measureText(text, { size, weight, italic, family })`: a line's width in px, to lay out labels.
+  - `niceTicks(min, max, count)`: round axis ticks (`{ min, max, step, ticks }`).
+  - `escapeXml(text)`: text made safe to put in SVG markup.
+  - `fetchJson(url)`: JSON from a web service, with a readable error when it cannot be reached (`error.status` holds the HTTP status). Only hosts the page's Content-Security-Policy allows can be reached: `connect-src` in the desktop and web settings lists PubChem and Crossref. A plugin that needs another service needs that host added there.
 - **`edit(data, context)`** (optional): a custom editor for double-click. Resolve to the changed settings, or `null` to cancel.
 
 The returned SVG is cleaned before it is kept: scripts, event handlers, `<foreignObject>`, animation elements and outside links are removed. Embedded pictures must be `data:image/…` URLs. Labels should use common fonts (Arial, Helvetica, sans-serif): the SVG is shown as a picture and cannot load web fonts.

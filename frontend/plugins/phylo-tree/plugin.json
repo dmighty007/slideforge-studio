@@ -1,0 +1,8 @@
+{
+    "id": "phylo-tree",
+    "name": "Phylogenetic Tree",
+    "version": "1.0.0",
+    "description": "A tree from Newick text: phylogram with a scale bar or cladogram, support values, italic species names.",
+    "icon": "fa-solid fa-sitemap",
+    "author": "SlideForge"
+}

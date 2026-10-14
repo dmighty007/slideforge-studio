@@ -1,0 +1,8 @@
+{
+    "id": "sequence",
+    "name": "Sequence",
+    "version": "1.0.0",
+    "description": "A DNA, RNA or protein sequence (plain or FASTA) in blocks of ten, with position numbers, residue colours and highlighted regions.",
+    "icon": "fa-solid fa-dna",
+    "author": "SlideForge"
+}

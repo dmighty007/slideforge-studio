@@ -1,0 +1,8 @@
+{
+    "id": "forest-plot",
+    "name": "Forest Plot",
+    "version": "1.0.0",
+    "description": "Estimates with confidence intervals per study or subgroup (log scale for ratios), squares sized by weight and a pooled diamond.",
+    "icon": "fa-solid fa-bars-staggered",
+    "author": "SlideForge"
+}

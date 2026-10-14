@@ -1048,3 +1048,7 @@ html[data-theme="dark"] .plugin-insert-item small {
 html[data-theme="dark"] .plugin-insert-separator {
     background: var(--dk-border);
 }
+html[data-theme="dark"] .plugin-panel-notice {
+    background: rgba(99, 102, 241, 0.2);
+    color: #c7d2fe;
+}

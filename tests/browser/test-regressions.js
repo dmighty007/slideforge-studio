@@ -32,6 +32,30 @@ async function openEditor(context) {
     return { page, errors };
 }
 
+// Runs an async function in the page and waits for its result by polling. Playwright now and then dropped a
+// page.evaluate that awaited a long promise (a plugin insert waiting on a fetch or a script) with "Execution
+// context was destroyed", although the page had not navigated: same document, the work done. A waitForFunction
+// survives that.
+async function pageAwait(page, fn, arg) {
+    const key = `await-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    await page.evaluate(
+        `(() => {
+            window.__sfAwait = window.__sfAwait || {};
+            const key = ${JSON.stringify(key)};
+            Promise.resolve()
+                .then(() => (${fn.toString()})(${JSON.stringify(arg ?? null)}))
+                .then(
+                    value => (window.__sfAwait[key] = { value: value === undefined ? null : value }),
+                    error => (window.__sfAwait[key] = { error: String((error && error.message) || error) }),
+                );
+        })()`,
+    );
+    const handle = await page.waitForFunction(key => window.__sfAwait?.[key], key, { timeout: 60000 });
+    const result = await handle.jsonValue();
+    if (result.error) throw new Error(result.error);
+    return result.value;
+}
+
 // SLIDEFORGE_TEST_FILTER: optional text; only tests whose name contains it run ("a||b" runs tests matching either).
 const TEST_FILTERS = (process.env.SLIDEFORGE_TEST_FILTER || "").split("||").filter(Boolean);
 
@@ -4168,7 +4192,7 @@ async function test(name, fn) {
     await test("Plugins: the Properties panel edits the SMILES; a bad string shows why, and undo brings the drawing back", async () => {
         const { page } = await openFreshEditor(context);
         await page.evaluate(() => SlideForgePlugins.ready);
-        const id = await page.evaluate(() => insertPluginElement("smiles", { smiles: "CCO" }, { ask: false }));
+        const id = await pageAwait(page, () => insertPluginElement("smiles", { smiles: "CCO" }, { ask: false }));
         await page.evaluate(id => {
             selectElement(id);
             setPropertiesPanelVisible(true);
@@ -4216,14 +4240,14 @@ async function test(name, fn) {
     await test("Plugins: a structure follows the theme's text colour unless given its own", async () => {
         const { page } = await openFreshEditor(context);
         await page.evaluate(() => SlideForgePlugins.ready);
-        const id = await page.evaluate(() => insertPluginElement("smiles", { smiles: "CCCC" }, { ask: false }));
+        const id = await pageAwait(page, () => insertPluginElement("smiles", { smiles: "CCCC" }, { ask: false }));
         await page.evaluate(() => changePresentationTheme("chalkboard"));
         const ink = await page.evaluate(() => getPresentationTheme().defaultTextColor.toLowerCase());
         await page.waitForFunction(
             ([id, ink]) => decodeURIComponent(state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginPreview).toLowerCase().includes(ink),
             [id, ink],
         );
-        await page.evaluate(id => SlideForgePlugins.update(id, { color: "#ff00aa" }), id);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { color: "#ff00aa" }), id);
         await page.waitForFunction(
             id => decodeURIComponent(state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginPreview).toLowerCase().includes("#ff00aa"),
             id,
@@ -4239,7 +4263,7 @@ async function test(name, fn) {
             sent = JSON.parse(route.request().postData() || "{}");
             route.fulfill({ status: 500, body: "{}" });
         });
-        const id = await page.evaluate(() => insertPluginElement("smiles", { smiles: "CN1C=NC2=C1C(=O)N(C(=O)N2C)C" }, { ask: false }));
+        const id = await pageAwait(page, () => insertPluginElement("smiles", { smiles: "CN1C=NC2=C1C(=O)N(C(=O)N2C)C" }, { ask: false }));
         await page.evaluate(() => exportPPTX().catch(() => {}));
         await page.waitForFunction(() => true);
         for (let i = 0; i < 40 && !sent; i++) await page.waitForTimeout(250);
@@ -4291,7 +4315,7 @@ async function test(name, fn) {
         assert(JSON.stringify(parsed.tsv) === JSON.stringify([["x", "y"], ["4", "5"]]), `tsv: ${JSON.stringify(parsed.tsv)}`);
         assert(JSON.stringify(parsed.semi) === JSON.stringify([["x", "y"], ["1,5", "2,5"]]), `semicolons: ${JSON.stringify(parsed.semi)}`);
         assert(JSON.stringify(parsed.quoted) === JSON.stringify([["p, adj", "label"], ['say "hi"', "2"]]), `quotes: ${JSON.stringify(parsed.quoted)}`);
-        const id = await page.evaluate(() => insertPluginElement("significance"));
+        const id = await pageAwait(page, () => insertPluginElement("significance"));
         await page.evaluate(id => {
             selectElement(id);
             setPropertiesPanelVisible(true);
@@ -4318,7 +4342,7 @@ async function test(name, fn) {
         const { page } = await openFreshEditor(context);
         await page.evaluate(() => SlideForgePlugins.ready);
         const link = "https://doi.org/10.1038/s41586-021-03819-2?ä=ü";
-        const id = await page.evaluate(link => insertPluginElement("qr-code", { text: link, caption: "Scan me" }, { ask: false }), link);
+        const id = await pageAwait(page, link => insertPluginElement("qr-code", { text: link, caption: "Scan me" }, { ask: false }), link);
         const el = await page.evaluate(id => state.slides[currentSlideIndex].elements.find(e => e.id === id), id);
         assert(/Scan me/.test(svgOf(el.pluginPreview)), "caption missing");
         const { execFileSync } = require("child_process");
@@ -4359,10 +4383,10 @@ async function test(name, fn) {
         // Non-ASCII in a link is percent-encoded so any scanner reads it the same; other text is UTF-8.
         const decoded = await scan(id);
         if (decoded !== null) assert(decoded === new URL(link).href, `QR code decodes to ${decoded}`);
-        const textId = await page.evaluate(() => insertPluginElement("qr-code", { text: "Ångström: 10 µm" }, { ask: false }));
+        const textId = await pageAwait(page, () => insertPluginElement("qr-code", { text: "Ångström: 10 µm" }, { ask: false }));
         const text = await scan(textId);
         if (text !== null) assert(text === "Ångström: 10 µm", `QR text decodes to ${text}`);
-        await page.evaluate(id => SlideForgePlugins.update(id, { text: "x".repeat(2900), level: "H" }), id);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { text: "x".repeat(2900), level: "H" }), id);
         await page.waitForFunction(id => /too long/i.test(getPluginElementError(id)), id);
         await page.close();
     });
@@ -4370,7 +4394,7 @@ async function test(name, fn) {
     await test("Plugins: a scale bar spans its box, redraws when resized, and keeps its label size", async () => {
         const { page } = await openFreshEditor(context);
         await page.evaluate(() => SlideForgePlugins.ready);
-        const id = await page.evaluate(() => insertPluginElement("scale-bar"));
+        const id = await pageAwait(page, () => insertPluginElement("scale-bar"));
         assert(!(await page.locator(".sf-prompt").count()), "the scale bar asked for a value on insert");
         const measure = () =>
             page.evaluate(id => {
@@ -4392,7 +4416,7 @@ async function test(name, fn) {
         const after = await measure();
         assert(after.bar === 420 && after.viewBox.startsWith("0 0 420 "), `after resize: ${JSON.stringify(after)}`);
         assert(after.font === before.font, `label size changed with the box: ${before.font} → ${after.font}`);
-        await page.evaluate(id => SlideForgePlugins.update(id, { length: 0.5, unit: "nm", backing: "dark", endTicks: true }), id);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { length: 0.5, unit: "nm", backing: "dark", endTicks: true }), id);
         const backed = await page.evaluate(id => decodeURIComponent(state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginPreview), id);
         assert(/0\.5 nm/.test(backed) && /fill="#ffffff"/.test(backed), "label or light-on-dark colours wrong with a dark backing");
         await page.close();
@@ -4401,7 +4425,7 @@ async function test(name, fn) {
     await test("Plugins: significance brackets stack without overlapping, turn p-values into stars, and point at a bad row", async () => {
         const { page } = await openFreshEditor(context);
         await page.evaluate(() => SlideForgePlugins.ready);
-        const id = await page.evaluate(() =>
+        const id = await pageAwait(page, () =>
             insertPluginElement("significance", { groups: 3, comparisons: "From,To,Label\n1,2,0.004\n2,3,n.s.\n1,3,<0.0001\n1,2,p = 0.2" }),
         );
         const drawn = await page.evaluate(id => {
@@ -4422,8 +4446,218 @@ async function test(name, fn) {
         assert(!clash, `brackets overlap: ${JSON.stringify(drawn.lines)}`);
         const wide = drawn.lines.reduce((a, b) => (b.x1 - b.x0 > a.x1 - a.x0 ? b : a));
         assert(drawn.lines.every(line => line === wide || line.y > wide.y), "the 1–3 bracket is not above the shorter ones");
-        await page.evaluate(id => SlideForgePlugins.update(id, { comparisons: "1,2,*\n1,4,**" }), id);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { comparisons: "1,2,*\n1,4,**" }), id);
         await page.waitForFunction(id => /Row 2/.test(getPluginElementError(id)), id);
+        await page.close();
+    });
+
+    // The drawing of a plugin element as SVG text, and as a parsed document for counting marks.
+    const pluginSvg = (page, id) =>
+        page.evaluate(id => {
+            const el = state.slides.flatMap(slide => slide.elements).find(e => e.id === id);
+            return decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1));
+        }, id);
+    const countInSvg = (page, id, selector) =>
+        page.evaluate(
+            ([id, selector]) => {
+                const el = state.slides.flatMap(slide => slide.elements).find(e => e.id === id);
+                const svg = new DOMParser().parseFromString(decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1)), "image/svg+xml");
+                return svg.querySelectorAll(selector).length;
+            },
+            [id, selector],
+        );
+
+    await test("Plugins: a compound name is looked up on PubChem once, captioned, and a failed lookup says why", async () => {
+        const { page } = await openFreshEditor(context);
+        let hits = 0;
+        await page.route("https://pubchem.ncbi.nlm.nih.gov/**", route => {
+            hits++;
+            const url = route.request().url();
+            if (url.includes("/name/caffeine/")) {
+                return route.fulfill({
+                    status: 200,
+                    contentType: "application/json",
+                    headers: { "Access-Control-Allow-Origin": "*" },
+                    body: JSON.stringify({ PropertyTable: { Properties: [{ CID: 2519, SMILES: "CN1C=NC2=C1C(=O)N(C(=O)N2C)C", MolecularFormula: "C8H10N4O2", MolecularWeight: "194.19", Title: "Caffeine" }] } }),
+                });
+            }
+            if (url.includes("/name/offline/")) return route.abort();
+            return route.fulfill({ status: 404, headers: { "Access-Control-Allow-Origin": "*" }, contentType: "application/json", body: "{}" });
+        });
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("smiles", { smiles: "caffeine", caption: "name-formula" }, { ask: false }));
+        const data = await page.evaluate(id => state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginData, id);
+        assert(data.smiles === "CN1C=NC2=C1C(=O)N(C(=O)N2C)C" && data.title === "Caffeine" && data.formula === "C8H10N4O2", `lookup: ${JSON.stringify(data)}`);
+        const svg = await pluginSvg(page, id);
+        assert(svg.includes("Caffeine") && svg.includes("C₈H₁₀N₄O₂"), "caption missing or formula without subscripts");
+        // Changing only the caption keeps the found structure and asks PubChem nothing more.
+        await pageAwait(page, id => SlideForgePlugins.update(id, { caption: "formula" }), id);
+        assert(hits === 1, `PubChem was asked ${hits} times`);
+        // A typed SMILES replaces what the lookup found.
+        await pageAwait(page, id => SlideForgePlugins.update(id, { smiles: "CCO" }), id);
+        const typed = await page.evaluate(id => state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginData, id);
+        assert(typed.smiles === "CCO" && !typed.title && !typed.formula, `typed SMILES kept the old name: ${JSON.stringify(typed)}`);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { smiles: "unobtainium" }), id);
+        assert(/PubChem has no compound called “unobtainium”/.test(await page.evaluate(id => getPluginElementNotice(id), id)), "no message for an unknown name");
+        await pageAwait(page, id => SlideForgePlugins.update(id, { smiles: "offline" }), id);
+        assert(/Could not reach pubchem/.test(await page.evaluate(id => getPluginElementNotice(id), id)), "no message when PubChem cannot be reached");
+        await page.waitForFunction(id => /Could not reach/.test(getPluginElementError(id)), id);
+        // A reaction: reactants, arrow with conditions, products.
+        const reaction = await pageAwait(page, () => insertPluginElement("smiles", { smiles: "CC(=O)O.OCC>>CC(=O)OCC.O", belowArrow: "reflux, 2 h" }, { ask: false }));
+        const reactionSvg = await pluginSvg(page, reaction);
+        assert(reactionSvg.includes("reflux, 2 h") && /marker/.test(reactionSvg), "the reaction has no arrow or conditions");
+        await page.close();
+    });
+
+    await test("Plugins: a citation comes from Crossref once, follows the chosen style, and its box takes the text's height", async () => {
+        const { page } = await openFreshEditor(context);
+        let hits = 0;
+        await page.route("https://api.crossref.org/**", route => {
+            hits++;
+            if (!route.request().url().includes("s41586-021-03819-2")) return route.fulfill({ status: 404, headers: { "Access-Control-Allow-Origin": "*" }, body: "{}" });
+            return route.fulfill({
+                status: 200,
+                contentType: "application/json",
+                headers: { "Access-Control-Allow-Origin": "*" },
+                body: JSON.stringify({
+                    message: {
+                        title: ["Highly accurate protein structure prediction with AlphaFold"],
+                        "container-title": ["Nature"],
+                        volume: "596",
+                        issue: "7873",
+                        page: "583-589",
+                        issued: { "date-parts": [[2021, 7, 15]] },
+                        author: [
+                            { given: "John", family: "Jumper" },
+                            { given: "Richard", family: "Evans" },
+                            { given: "Alexander", family: "Pritzel" },
+                            { given: "Tim", family: "Green" },
+                            { given: "Demis", family: "Hassabis" },
+                        ],
+                    },
+                }),
+            });
+        });
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("citation", { doi: "https://doi.org/10.1038/s41586-021-03819-2" }, { ask: false }));
+        const words = () =>
+            page.evaluate(id => {
+                const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+                const doc = new DOMParser().parseFromString(decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1)), "image/svg+xml");
+                return [...doc.querySelectorAll("tspan")].map(t => t.textContent).join(" ");
+            }, id);
+        const nature = await words();
+        // Words are laid out one by one, so a comma after a styled word reads " ," here.
+        assert(/^Jumper, J\., Evans, R\., Pritzel, A\. et al\. Highly accurate/.test(nature), `Nature style: ${nature}`);
+        assert(/Nature 596 , 583–589 \(2021\)\.$/.test(nature), `Nature style tail: ${nature}`);
+        assert((await countInSvg(page, id, 'tspan[font-weight="700"]')) === 1 && (await countInSvg(page, id, 'tspan[font-style="italic"]')) === 1, "volume not bold or journal not italic");
+        await pageAwait(page, id => SlideForgePlugins.update(id, { style: "apa", maxAuthors: 20 }), id);
+        const apa = await words();
+        assert(/Hassabis, D\. \(2021\)\. Highly accurate/.test(apa) && /, & Hassabis/.test(apa), `APA style: ${apa}`);
+        assert(hits === 1, `Crossref was asked ${hits} times`);
+        // The box takes the height of the wrapped text.
+        await page.evaluate(id => {
+            const node = [...document.querySelectorAll(`[id="${id}"]`)].find(n => !n.closest("#slide-previews"));
+            node.style.width = "220px";
+            updateElementState(id, { width: "220px" });
+        }, id);
+        await page.waitForFunction(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const svg = decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1));
+            const height = Number(svg.match(/viewBox="0 0 220 ([\d.]+)"/)?.[1]);
+            return height > 60 && Math.abs(parseFloat(el.height) - height) <= 1;
+        }, id);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { doi: "not a doi" }), id);
+        assert(/does not look like a DOI/.test(await page.evaluate(id => getPluginElementNotice(id), id)), "no message for a bad DOI");
+        await page.close();
+    });
+
+    await test("Plugins: a phylogenetic tree reads Newick with support values and lines its tips up as a cladogram", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("phylo-tree"));
+        const svg = await pluginSvg(page, id);
+        assert(["Homo sapiens", "Pan troglodytes", "Gorilla gorilla", "Pongo abelii", "Hylobates lar"].every(name => svg.includes(name)), "tip names missing");
+        assert(svg.includes(">100<") && svg.includes(">92<"), "support values missing");
+        assert((await countInSvg(page, id, 'text[font-style="italic"]')) === 5, "tips are not italic");
+        await pageAwait(page, id => SlideForgePlugins.update(id, { layout: "cladogram", newick: "((A,B),(C,(D,E)));" }), id);
+        const tipX = await page.evaluate(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const doc = new DOMParser().parseFromString(decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1)), "image/svg+xml");
+            return [...doc.querySelectorAll("text")].map(t => Number(t.getAttribute("x")));
+        }, id);
+        assert(tipX.length === 5 && new Set(tipX.map(x => x.toFixed(1))).size === 1, `cladogram tips not aligned: ${tipX}`);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { newick: "((A,B),C" }), id);
+        await page.waitForFunction(id => /Newick, character \d+/.test(getPluginElementError(id)), id);
+        await page.close();
+    });
+
+    await test("Plugins: a sequence is read from FASTA, coloured by residue, highlighted, and a wrong letter is named", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("sequence"));
+        const svg = await pluginSvg(page, id);
+        assert(svg.includes("Human insulin B chain"), "FASTA title missing");
+        assert((await countInSvg(page, id, "tspan")) === 30, "not one letter per residue");
+        assert((await countInSvg(page, id, "rect")) === 3 && svg.includes(">FFY<"), "highlights missing");
+        await pageAwait(page, id => SlideForgePlugins.update(id, { sequence: "ATGCGTAACGTTAGC", highlights: "" }), id);
+        const dna = await pluginSvg(page, id);
+        assert(/fill="#2e9e44">A</.test(dna) && /fill="#d63a3a">T</.test(dna), "DNA letters not coloured A green, T red");
+        await pageAwait(page, id => SlideForgePlugins.update(id, { sequence: "ATGCXT", type: "dna" }), id);
+        await page.waitForFunction(id => /“X” at position 5 is not a DNA letter/.test(getPluginElementError(id)), id);
+        await page.close();
+    });
+
+    await test("Plugins: box plots follow Tukey's rules (outliers beyond 1.5 × IQR) and violins draw a density", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () =>
+            insertPluginElement("box-plot", { data: "A,B\n1,10\n2,11\n3,12\n4,13\n5,14\n6,15\n7,16\n8,17\n30,18", yMin: "0", yMax: "35" }),
+        );
+        // Box A: Q1 3, Q3 7, so 30 is beyond 7 + 6 and is the only outlier; its whisker ends at 8.
+        const marks = await page.evaluate(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const doc = new DOMParser().parseFromString(decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1)), "image/svg+xml");
+            const ticks = [...doc.querySelectorAll("text")].filter(t => /^\d+$/.test(t.textContent)).map(t => ({ v: Number(t.textContent), y: Number(t.getAttribute("y")) }));
+            const labelShift = Number(doc.querySelector("text").getAttribute("font-size")) / 0.85 * 0.3;
+            return { ticks, labelShift, outliers: doc.querySelectorAll("circle").length, boxes: [...doc.querySelectorAll("rect[fill-opacity]")].map(r => ({ top: Number(r.getAttribute("y")), height: Number(r.getAttribute("height")) })) };
+        }, id);
+        assert(marks.outliers === 1, `${marks.outliers} outliers drawn`);
+        // The axis scale from its two lowest ticks (their step depends on the box's size).
+        const [first, second] = [...marks.ticks].sort((a, b) => a.v - b.v);
+        const perUnit = (first.y - second.y) / (second.v - first.v);
+        const boxA = marks.boxes[0];
+        const fontShift = marks.labelShift; // tick labels sit 0.3 em below their line
+        const q3 = first.v + (first.y - fontShift - boxA.top) / perUnit;
+        assert(Math.abs(boxA.height / perUnit - 4) < 0.2, `box A spans ${boxA.height / perUnit} units, not Q3 − Q1 = 4`);
+        assert(Math.abs(q3 - 7) < 0.6, `box A's top is at ${q3.toFixed(2)}, not Q3 = 7`);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { kind: "violin" }), id);
+        assert((await countInSvg(page, id, 'path[fill-opacity="0.35"]')) === 2, "no violin shapes");
+        await pageAwait(page, id => SlideForgePlugins.update(id, { data: "A,B\n1,x" }), id);
+        await page.waitForFunction(id => /Column “B”, value 1: “x” is not a number/.test(getPluginElementError(id)), id);
+        await page.close();
+    });
+
+    await test("Plugins: a forest plot draws squares by weight, a pooled diamond, and keeps a log axis inside the data", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("forest-plot"));
+        const result = await page.evaluate(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const doc = new DOMParser().parseFromString(decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1)), "image/svg+xml");
+            const squares = [...doc.querySelectorAll("rect")].map(r => Number(r.getAttribute("width")));
+            const tickValues = [...doc.querySelectorAll("text")].filter(t => /^[\d.]+$/.test(t.textContent)).map(t => Number(t.textContent));
+            return { squares, diamonds: doc.querySelectorAll("path[fill]").length, tickValues, text: doc.documentElement.textContent };
+        }, id);
+        assert(result.squares.length === 5 && result.diamonds === 1, `squares ${result.squares.length}, diamonds ${result.diamonds}`);
+        // Chen (weight 30) has the biggest square, Diaz (12) the smallest.
+        assert(result.squares[2] === Math.max(...result.squares) && result.squares[3] === Math.min(...result.squares), `squares not sized by weight: ${result.squares}`);
+        assert(result.tickValues.length >= 3 && result.tickValues.every(v => v >= 0.36 && v <= 1.15), `log ticks outside the data: ${result.tickValues}`);
+        assert(result.text.includes("0.76 [0.66, 0.87]"), "values column missing");
+        await pageAwait(page, id => SlideForgePlugins.update(id, { data: "A,-0.2,-0.5,0.1" }), id);
+        await page.waitForFunction(id => /log scale needs positive values/.test(getPluginElementError(id)), id);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { scale: "linear", nullValue: 0 }), id);
+        await page.waitForFunction(id => !getPluginElementError(id), id);
         await page.close();
     });
 
@@ -4498,7 +4732,7 @@ async function test(name, fn) {
             const { page, errors } = await openFreshEditor(context);
             try {
                 await page.evaluate(() => SlideForgePlugins.ready);
-                const id = await page.evaluate(() => insertPluginElement("smiles", { smiles: "CCO" }, { ask: false }));
+                const id = await pageAwait(page, () => insertPluginElement("smiles", { smiles: "CCO" }, { ask: false }));
                 await openPluginManagerDialog(page);
                 await page.waitForSelector('[data-plugin-row="smiles"]');
                 const usage = await page.locator('[data-plugin-row="smiles"]').textContent();
