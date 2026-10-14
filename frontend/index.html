@@ -394,9 +394,9 @@
                         <i class="fa-solid fa-code"></i>
                     </button>
                 </div>
-                <!-- Plugins without a group of their own add their buttons here, before "Manage plugins". -->
+                <!-- One menu for every plugin's insert action and "Manage plugins…" (js/plugins/plugins.js). -->
                 <div class="toolbar-cluster insert-group insert-group--plugins" role="group" aria-label="Plugins" data-caption="Plugins">
-                    <button type="button" data-plugin-manager onclick="openPluginManager()" class="toolbar-btn insert-tool-btn" title="Manage plugins" aria-label="Manage plugins">
+                    <button type="button" data-plugin-menu onclick="togglePluginInsertMenu(this)" class="toolbar-btn insert-tool-btn" title="Plugins" aria-label="Plugins" aria-haspopup="menu" aria-expanded="false">
                         <i class="fa-solid fa-puzzle-piece"></i>
                     </button>
                 </div>

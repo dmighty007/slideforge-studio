@@ -2,13 +2,22 @@
 
 A plugin adds a new kind of object to slides without touching the editor's code. It draws a picture (SVG) from a few settings, and SlideForge handles the rest: inserting the object, moving and resizing it, undo, saving, the Properties panel, themes, and every export (PowerPoint, PDF, PNG, the HTML viewer and share links).
 
-The first plugin, `smiles`, draws the 2D structure of a molecule from a SMILES string (`frontend/plugins/smiles/`).
+## Built-in plugins
+
+| Plugin | What it makes |
+|---|---|
+| Chemical structure (`smiles`) | The 2D structure of a molecule from a SMILES string (SmilesDrawer). |
+| QR code (`qr-code`) | A QR code for a link to a paper, dataset, code or poster, with an optional caption (qrcode-generator). Non-ASCII letters in web links are percent-encoded so every scanner reads them the same. |
+| Scale bar (`scale-bar`) | A bar with its length (pm to km) for micrographs and maps. The bar spans the object's box: size the box to the length on the picture. The label keeps its size. Optional end ticks and a dark or light backing. |
+| Significance brackets (`significance`) | Brackets with stars, n.s. or p-values between groups of a chart, from a table of comparisons (from group, to group, label). Brackets stack without overlapping; p-values can be shown as stars (* < 0.05, ** < 0.01, *** < 0.001, **** < 0.0001). Place the box over the chart's plot area, as wide as its bars. |
+
+Every plugin is inserted from the **Plugins** menu (the puzzle-piece button at the end of the insert toolbar), the command palette (Ctrl+K, "Add …") or a `/` command.
 
 ## Managing plugins
 
-Open **Plugins** from the puzzle-piece button at the end of the insert toolbar, or "Manage Plugins" in the command palette (Ctrl+K). The dialog lists every plugin with its version, whether it is built in or yours, and how many objects in the open presentation use it.
+Open the puzzle-piece **Plugins** menu at the end of the insert toolbar and choose **Manage plugins…**, or run "Manage Plugins" from the command palette (Ctrl+K). The dialog lists every plugin with its version, whether it is built in or yours, and how many objects in the open presentation use it.
 
-- **On/off switch**: takes effect at once, without a reload, and is remembered. A plugin switched off loses its toolbar button and commands. Objects already on slides keep their last picture and can be moved, resized and exported; they are editable again when the plugin is switched back on.
+- **On/off switch**: takes effect at once, without a reload, and is remembered. A plugin switched off leaves the Plugins menu and the commands. Objects already on slides keep their last picture and can be moved, resized and exported; they are editable again when the plugin is switched back on.
 - **Install from .zip…**: adds a plugin to your plugins folder and switches it on. Installing a newer zip of the same plugin replaces it (reload SlideForge to run the new version).
 - **Remove** (your plugins only): deletes the plugin's folder. Click it twice to confirm.
 - **Look again**: rereads the plugins folder after you add or change files there by hand.
@@ -60,7 +69,7 @@ Optional, but it is what the dialog shows before the plugin's code has run:
 
 1. Make a folder `<id>/` with a `plugin.js` (and a `plugin.json`). The id uses lower-case letters, digits and dashes (`smiles`, `qr-code`) and must match the `id` that `plugin.js` registers.
 2. Put the folder in your plugins folder (or zip it and use **Install from .zip…**). For a built-in plugin, put it in `frontend/plugins/` and add its id to `frontend/plugins/plugins.json`.
-3. Press **Look again** in the dialog, or reload. The plugin gets a toolbar button, a command palette entry ("Add …") and a `/` command.
+3. Press **Look again** in the dialog, or reload. The plugin appears in the toolbar's Plugins menu, in the command palette ("Add …") and as a `/` command.
 
 Libraries the plugin needs go in its own folder (for example `vendor/`), and are loaded when the plugin first draws, with `context.loadScript("vendor/lib.js")`. They are not loaded at startup. Put their licences next to them (and, for built-in plugins, list them in `THIRD_PARTY_NOTICES.md`).
 
@@ -73,7 +82,7 @@ SlideForgePlugins.register({
     name: "Chemical Structure",        // the Properties panel section, the layer name
     description: "Draw a 2D structure from a SMILES string",
     icon: "fa-solid fa-flask",         // a Font Awesome 6.5 icon
-    insert: { group: "Science", label: "Chemical structure (SMILES)", keywords: "molecule chemistry" },
+    insert: { label: "Chemical structure (SMILES)", keywords: "molecule chemistry" },
     defaultSize: { width: 300, height: 220 }, // a new object fits its drawing inside this box
     defaultData: { smiles: "CCO", color: "" },
     fields: [
@@ -85,15 +94,20 @@ SlideForgePlugins.register({
 });
 ```
 
-- **`insert.group`**: the toolbar group the button goes in (`Basics`, `Charts`, `Science`, `Graphics`, `Connect`, `Media`). Another name makes a new group.
+- **`insert`**: the `label` shown in the Plugins menu and the command palette, and search `keywords`. The menu also shows `description`.
 - **`defaultData`**: the settings a new object starts with. They are stored in the element as `pluginData` and saved with the deck, so keep them to plain JSON (under 100 KB).
-- **`fields`**: the Properties panel is built from these. Types: `text`, `textarea`, `number` (`min`, `max`, `step`), `color` (`allowAuto: true` adds a "Theme colour" box that stores `""`), `checkbox` (`checkboxLabel`), `select` (`options: [{ value, label }]`). The `primary` field (or the first text field) is asked for when the object is inserted and when it is double-clicked.
+- **`fields`**: the Properties panel is built from these. Types: `text`, `textarea`, `number` (`min`, `max`, `step`), `color` (`allowAuto: true` adds a "Theme colour" box that stores `""`), `checkbox` (`checkboxLabel`), `select` (`options: [{ value, label }]` or plain strings), and `table` (see below). Any field can have a `hint`. The `primary` field (or the first text field) is asked for when the object is inserted and when it is double-clicked.
+- **`table` fields** take CSV, TSV, semicolon-separated text or cells pasted from a spreadsheet, typed in the box or read with **Load CSV…** (up to 60 KB). `columns: ["From", "To", "Label"]` names the columns above the box and `rows` sets its height. The setting holds the text as typed; read it with `context.parseTable(text)`, which returns rows of trimmed cells (quoted cells may hold separators and line breaks; blank lines are skipped). Skipping a header row is up to the plugin.
+- **`sizeAware: true`**: the plugin draws for the object's box (`context.width`, `context.height`, in slide pixels) instead of being scaled to it, and is redrawn when the box is resized. Use it when parts must keep their size, such as a scale bar's label. A new object starts at `defaultSize`.
+- **`askOnInsert: false`**: insert without asking for the first text field (for objects set up in the panel). Double-click then opens the Properties panel.
 - **`normalize(data)`** (optional): returns cleaned settings. It runs on every draw and every panel change, with `defaultData` already filled in for missing keys.
 - **`render(data, context)`**: returns SVG markup (a string or an `<svg>` element), or throws an `Error` whose message is shown on the slide and in the panel. Give the SVG a `viewBox` fitted tightly around the drawing; the object's box shows it at its own proportions. `context` holds:
   - `textColor`: the theme's text colour. Use it when a colour setting is empty, so the drawing suits light and dark themes.
   - `theme`: the full theme object.
   - `loadScript(path)`: loads a script relative to the plugin folder, once.
   - `baseUrl`: the plugin folder's URL.
+  - `parseTable(text)`: rows of cells from a table field.
+  - `width`, `height`: the box, for `sizeAware` plugins.
 - **`edit(data, context)`** (optional): a custom editor for double-click. Resolve to the changed settings, or `null` to cancel.
 
 The returned SVG is cleaned before it is kept: scripts, event handlers, `<foreignObject>`, animation elements and outside links are removed. Embedded pictures must be `data:image/…` URLs. Labels should use common fonts (Arial, Helvetica, sans-serif): the SVG is shown as a picture and cannot load web fonts.

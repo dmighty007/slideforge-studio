@@ -23,6 +23,10 @@ async function openEditor(context) {
         });
     });
     await page.goto(TEST_URL, { waitUntil: "networkidle" });
+    // The first page of a run is redirected while the launch token becomes a cookie. On that page an evaluate that
+    // waited for a script to load now and then failed with "Execution context was destroyed" although nothing had
+    // navigated (same document, the work done). Loading the page again, now without a redirect, avoids it.
+    if (page.url() !== TEST_URL) await page.goto(TEST_URL, { waitUntil: "networkidle" });
     await page.waitForFunction(() => typeof renderSlidesFromState === "function" && document.querySelector(".presentation-slide"));
     await page.waitForTimeout(500);
     return { page, errors };
@@ -4105,17 +4109,31 @@ async function test(name, fn) {
             return node?.querySelector(".plugin-element-content img")?.getAttribute("src") || "";
         }, id);
     const svgOf = dataUrl => decodeURIComponent(String(dataUrl).slice(String(dataUrl).indexOf(",") + 1));
+    // The toolbar's Plugins menu, and the plugin manager opened from it.
+    const openPluginMenu = async page => {
+        await page.click("[data-plugin-menu]");
+        await page.waitForSelector("#plugin-insert-menu");
+    };
+    const insertFromPluginMenu = async (page, id) => {
+        await openPluginMenu(page);
+        await page.click(`#plugin-insert-menu [data-plugin-insert="${id}"]`);
+    };
+    const openPluginManagerDialog = async page => {
+        await openPluginMenu(page);
+        await page.click("#plugin-insert-menu [data-plugin-manager]");
+    };
 
     await test("Plugins: the SMILES plugin adds a toolbar button and command, and inserts a 2D structure drawing", async () => {
         const { page, errors } = await openFreshEditor(context);
         await page.waitForFunction(() => typeof SlideForgePlugins !== "undefined" && SlideForgePlugins.get("smiles"));
+        await openPluginMenu(page);
         const listed = await page.evaluate(() => ({
-            button: Boolean(document.querySelector('.insert-group[data-caption="Science"] [data-plugin-insert="smiles"]')),
+            button: Boolean(document.querySelector('.insert-group[data-caption="Plugins"] [data-plugin-menu]') && document.querySelector('#plugin-insert-menu [data-plugin-insert="smiles"]')),
             command: COMMANDS.some(cmd => cmd.id === "add-plugin-smiles"),
             slash: SLASH_COMMANDS.some(cmd => cmd.id === "plugin-smiles"),
         }));
         assert(listed.button && listed.command && listed.slash, `insert controls: ${JSON.stringify(listed)}`);
-        await page.click('[data-plugin-insert="smiles"]');
+        await page.click('#plugin-insert-menu [data-plugin-insert="smiles"]');
         await page.fill(".sf-prompt__field", "c1ccccc1CCN");
         await page.click(".sf-prompt__btn--primary");
         await page.waitForFunction(() => state.slides[currentSlideIndex].elements.some(e => e.type === "plugin"));
@@ -4138,7 +4156,7 @@ async function test(name, fn) {
         }, el.id);
         assert((await pluginNodeImage(page, el.id)) === el.pluginPreview, "the slide does not show the drawing");
         // A cancelled prompt adds nothing.
-        await page.click('[data-plugin-insert="smiles"]');
+        await insertFromPluginMenu(page, "smiles");
         await page.click(".sf-prompt__btn:not(.sf-prompt__btn--primary)");
         await page.waitForTimeout(200);
         const count = await page.evaluate(() => state.slides[currentSlideIndex].elements.filter(e => e.type === "plugin").length);
@@ -4241,6 +4259,174 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("Plugins: the toolbar's Plugins menu lists every plugin and Manage, and the insert bar fits with the panel open", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        await openPluginMenu(page);
+        const items = await page.$$eval("#plugin-insert-menu [data-plugin-insert]", nodes => nodes.map(n => n.dataset.pluginInsert).sort());
+        assert(["qr-code", "scale-bar", "significance", "smiles"].every(id => items.includes(id)), `menu lists ${items}`);
+        assert(await page.locator("#plugin-insert-menu [data-plugin-manager]").count(), "no Manage plugins item");
+        await page.keyboard.press("Escape");
+        assert(!(await page.locator("#plugin-insert-menu").count()), "Escape left the menu open");
+        await page.evaluate(() => setPropertiesPanelVisible(true));
+        await page.waitForTimeout(400);
+        const bar = await page.evaluate(() => {
+            const node = document.querySelector("#insert-toolbar-row .toolbar-secondary-bar");
+            return { scroll: node.scrollWidth, client: node.clientWidth };
+        });
+        assert(bar.scroll <= bar.client + 1, `insert bar overflows with the panel open: ${JSON.stringify(bar)}`);
+        await page.close();
+    });
+
+    await test("Plugins: table fields read CSV, TSV and quoted cells, and Load CSV fills one from a file", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const parsed = await page.evaluate(() => ({
+            csv: SlideForgePlugins.parseTable("a,b,c\n1,2,3\n\n"),
+            tsv: SlideForgePlugins.parseTable("x\ty\n4\t5"),
+            semi: SlideForgePlugins.parseTable("x;y\n1,5;2,5"),
+            quoted: SlideForgePlugins.parseTable('"p, adj",label\n"say ""hi""",2'),
+        }));
+        assert(JSON.stringify(parsed.csv) === JSON.stringify([["a", "b", "c"], ["1", "2", "3"]]), `csv: ${JSON.stringify(parsed.csv)}`);
+        assert(JSON.stringify(parsed.tsv) === JSON.stringify([["x", "y"], ["4", "5"]]), `tsv: ${JSON.stringify(parsed.tsv)}`);
+        assert(JSON.stringify(parsed.semi) === JSON.stringify([["x", "y"], ["1,5", "2,5"]]), `semicolons: ${JSON.stringify(parsed.semi)}`);
+        assert(JSON.stringify(parsed.quoted) === JSON.stringify([["p, adj", "label"], ['say "hi"', "2"]]), `quotes: ${JSON.stringify(parsed.quoted)}`);
+        const id = await page.evaluate(() => insertPluginElement("significance"));
+        await page.evaluate(id => {
+            selectElement(id);
+            setPropertiesPanelVisible(true);
+            buildPropertiesPanel();
+        }, id);
+        await page.locator("#prop-plugin-comparisons").waitFor();
+        assert(/3 rows × 3 columns/.test(await page.locator("#prop-plugin-comparisons-summary").textContent()), "summary of the sample table");
+        await page.setInputFiles("#prop-plugin-comparisons-file", {
+            name: "comparisons.csv",
+            mimeType: "text/csv",
+            buffer: Buffer.from("From,To,Label\n1,2,0.03\n"),
+        });
+        await page.waitForFunction(id => state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginData.comparisons.includes("0.03"), id);
+        await page.waitForFunction(() => /2 rows × 3 columns/.test(document.getElementById("prop-plugin-comparisons-summary")?.textContent || ""));
+        // Tab in the box types a tab (pasted spreadsheet cells), instead of leaving it.
+        await page.locator("#prop-plugin-comparisons").focus();
+        await page.keyboard.press("End");
+        await page.keyboard.press("Tab");
+        assert(await page.evaluate(() => document.activeElement?.id === "prop-plugin-comparisons" && document.activeElement.value.includes("\t")), "Tab left the table box");
+        await page.close();
+    });
+
+    await test("Plugins: a QR code holds the link (decoded), takes a caption, and says when the text is too long", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const link = "https://doi.org/10.1038/s41586-021-03819-2?ä=ü";
+        const id = await page.evaluate(link => insertPluginElement("qr-code", { text: link, caption: "Scan me" }, { ask: false }), link);
+        const el = await page.evaluate(id => state.slides[currentSlideIndex].elements.find(e => e.id === id), id);
+        assert(/Scan me/.test(svgOf(el.pluginPreview)), "caption missing");
+        const { execFileSync } = require("child_process");
+        const fs = require("fs");
+        const os = require("os");
+        const path = require("path");
+        const folder = fs.mkdtempSync(path.join(os.tmpdir(), "sf-qr-"));
+        // What a scanner reads from an element's drawing; null when zbarimg is not installed.
+        const scan = async elementId => {
+            const dataUrl = await page.evaluate(
+                elementId => state.slides[currentSlideIndex].elements.find(e => e.id === elementId).pluginPreview,
+                elementId,
+            );
+            const png = await page.evaluate(async dataUrl => {
+                const img = new Image();
+                img.src = dataUrl;
+                await img.decode();
+                const canvas = document.createElement("canvas");
+                canvas.width = 600;
+                canvas.height = Math.round((600 * img.naturalHeight) / img.naturalWidth);
+                const g = canvas.getContext("2d");
+                g.fillStyle = "#fff";
+                g.fillRect(0, 0, canvas.width, canvas.height);
+                g.drawImage(img, 0, 0, canvas.width, canvas.height);
+                return canvas.toDataURL("image/png").split(",")[1];
+            }, dataUrl);
+            const file = path.join(folder, `${Date.now()}.png`);
+            fs.writeFileSync(file, Buffer.from(png, "base64"));
+            try {
+                // -Sbinary: the bytes as stored, without zbar guessing a character set.
+                return execFileSync("zbarimg", ["-q", "--raw", "-Sbinary", file]).toString("utf8").trim();
+            } catch (error) {
+                if (error.code !== "ENOENT") throw error;
+                console.log("  (zbarimg is not installed: the QR code was not decoded)");
+                return null;
+            }
+        };
+        // Non-ASCII in a link is percent-encoded so any scanner reads it the same; other text is UTF-8.
+        const decoded = await scan(id);
+        if (decoded !== null) assert(decoded === new URL(link).href, `QR code decodes to ${decoded}`);
+        const textId = await page.evaluate(() => insertPluginElement("qr-code", { text: "Ångström: 10 µm" }, { ask: false }));
+        const text = await scan(textId);
+        if (text !== null) assert(text === "Ångström: 10 µm", `QR text decodes to ${text}`);
+        await page.evaluate(id => SlideForgePlugins.update(id, { text: "x".repeat(2900), level: "H" }), id);
+        await page.waitForFunction(id => /too long/i.test(getPluginElementError(id)), id);
+        await page.close();
+    });
+
+    await test("Plugins: a scale bar spans its box, redraws when resized, and keeps its label size", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await page.evaluate(() => insertPluginElement("scale-bar"));
+        assert(!(await page.locator(".sf-prompt").count()), "the scale bar asked for a value on insert");
+        const measure = () =>
+            page.evaluate(id => {
+                const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+                const svg = new DOMParser().parseFromString(decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1)), "image/svg+xml").documentElement;
+                const rect = svg.querySelector("rect");
+                const text = svg.querySelector("text");
+                return { box: parseFloat(el.width), viewBox: svg.getAttribute("viewBox"), bar: parseFloat(rect.getAttribute("width")), label: text.textContent, font: text.getAttribute("font-size") };
+            }, id);
+        const before = await measure();
+        assert(before.label === "10 µm" && before.bar === before.box, `bar ${JSON.stringify(before)}`);
+        // Resize as the handles do: the node and the stored width change, the slide is not rebuilt.
+        await page.evaluate(id => {
+            const node = [...document.querySelectorAll(`[id="${id}"]`)].find(n => !n.closest("#slide-previews"));
+            node.style.width = "420px";
+            updateElementState(id, { width: "420px" });
+        }, id);
+        await page.waitForFunction(id => state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginPreviewKey.includes("420"), id);
+        const after = await measure();
+        assert(after.bar === 420 && after.viewBox.startsWith("0 0 420 "), `after resize: ${JSON.stringify(after)}`);
+        assert(after.font === before.font, `label size changed with the box: ${before.font} → ${after.font}`);
+        await page.evaluate(id => SlideForgePlugins.update(id, { length: 0.5, unit: "nm", backing: "dark", endTicks: true }), id);
+        const backed = await page.evaluate(id => decodeURIComponent(state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginPreview), id);
+        assert(/0\.5 nm/.test(backed) && /fill="#ffffff"/.test(backed), "label or light-on-dark colours wrong with a dark backing");
+        await page.close();
+    });
+
+    await test("Plugins: significance brackets stack without overlapping, turn p-values into stars, and point at a bad row", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await page.evaluate(() =>
+            insertPluginElement("significance", { groups: 3, comparisons: "From,To,Label\n1,2,0.004\n2,3,n.s.\n1,3,<0.0001\n1,2,p = 0.2" }),
+        );
+        const drawn = await page.evaluate(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const svg = new DOMParser().parseFromString(decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1)), "image/svg+xml").documentElement;
+            return {
+                labels: [...svg.querySelectorAll("text")].map(t => t.textContent),
+                lines: [...svg.querySelectorAll("path")].map(path => {
+                    const [x0, y] = path.getAttribute("d").match(/M([\d.]+) [\d.]+V([\d.]+)/).slice(1).map(Number);
+                    const x1 = Number(path.getAttribute("d").match(/H([\d.]+)/)[1]);
+                    return { x0, x1, y };
+                }),
+            };
+        }, id);
+        assert(JSON.stringify([...drawn.labels].sort()) === JSON.stringify(["**", "****", "n.s.", "n.s."].sort()), `labels: ${drawn.labels}`);
+        // Brackets at the same height never share any stretch of the chart.
+        const clash = drawn.lines.some((a, i) => drawn.lines.some((b, j) => i < j && Math.abs(a.y - b.y) < 1 && a.x0 <= b.x1 && b.x0 <= a.x1));
+        assert(!clash, `brackets overlap: ${JSON.stringify(drawn.lines)}`);
+        const wide = drawn.lines.reduce((a, b) => (b.x1 - b.x0 > a.x1 - a.x0 ? b : a));
+        assert(drawn.lines.every(line => line === wide || line.y > wide.y), "the 1–3 bracket is not above the shorter ones");
+        await page.evaluate(id => SlideForgePlugins.update(id, { comparisons: "1,2,*\n1,4,**" }), id);
+        await page.waitForFunction(id => /Row 2/.test(getPluginElementError(id)), id);
+        await page.close();
+    });
+
     await test("HTML export: a picture stored as a URL-encoded (not base64) data URL is written out intact", async () => {
         const { page } = await openFreshEditor(context);
         const result = await page.evaluate(async () => {
@@ -4313,14 +4499,14 @@ async function test(name, fn) {
             try {
                 await page.evaluate(() => SlideForgePlugins.ready);
                 const id = await page.evaluate(() => insertPluginElement("smiles", { smiles: "CCO" }, { ask: false }));
-                await page.click("[data-plugin-manager]");
+                await openPluginManagerDialog(page);
                 await page.waitForSelector('[data-plugin-row="smiles"]');
                 const usage = await page.locator('[data-plugin-row="smiles"]').textContent();
                 assert(/used once/i.test(usage), `usage not shown: ${usage}`);
                 await page.locator('[data-plugin-toggle="smiles"]').click({ force: true });
                 await page.waitForFunction(() => !SlideForgePlugins.get("smiles"));
                 const after = await page.evaluate(id => ({
-                    button: document.querySelectorAll('[data-plugin-insert="smiles"]').length,
+                    button: SlideForgePlugins.list().some(plugin => plugin.id === "smiles"),
                     command: COMMANDS.some(cmd => cmd.id === "add-plugin-smiles"),
                     shown: [...document.querySelectorAll(`[id="${id}"]`)].find(n => !n.closest("#slide-previews"))?.querySelector("img")?.getAttribute("src") || "",
                 }), id);
@@ -4338,9 +4524,9 @@ async function test(name, fn) {
                 await page.evaluate(() => SlideForgePlugins.ready);
                 assert(!(await page.evaluate(() => Boolean(SlideForgePlugins.get("smiles")))), "smiles came back on after reload");
                 // Back on from the dialog: loaded again without a reload.
-                await page.click("[data-plugin-manager]");
+                await openPluginManagerDialog(page);
                 await page.locator('[data-plugin-toggle="smiles"]').click({ force: true });
-                await page.waitForFunction(() => Boolean(SlideForgePlugins.get("smiles")) && document.querySelector('[data-plugin-insert="smiles"]'));
+                await page.waitForFunction(() => Boolean(SlideForgePlugins.get("smiles")) && COMMANDS.some(cmd => cmd.id === "add-plugin-smiles"));
                 assert(!errors.length, `page errors: ${errors.join("; ")}`);
             } finally {
                 await setPluginEnabled(page, "smiles", true);
@@ -4362,25 +4548,25 @@ async function test(name, fn) {
             const buffer = await zip.generateAsync({ type: "nodebuffer" });
             try {
                 await page.evaluate(() => SlideForgePlugins.ready);
-                await page.click("[data-plugin-manager]");
+                await openPluginManagerDialog(page);
                 await page.waitForSelector(".plugin-row");
                 await page.setInputFiles("#plugin-manager-file", { name: "qa-badge.zip", mimeType: "application/zip", buffer });
                 await page.waitForSelector('[data-plugin-row="qa-badge"]');
-                await page.waitForFunction(() => document.querySelector('[data-plugin-insert="qa-badge"]'));
+                await page.waitForFunction(() => Boolean(SlideForgePlugins.get("qa-badge")));
                 const status = await page.locator("#plugin-manager-modal .share-success").textContent();
                 assert(/installed/i.test(status), `no install message: ${status}`);
                 await page.keyboard.press("Escape");
-                await page.click('[data-plugin-insert="qa-badge"]');
+                await insertFromPluginMenu(page, "qa-badge");
                 await page.fill(".sf-prompt__field", "Hi");
                 await page.click(".sf-prompt__btn--primary");
                 await page.waitForFunction(() => state.slides[currentSlideIndex].elements.some(e => e.pluginId === "qa-badge" && e.pluginPreview));
                 // Remove asks first, then deletes and unloads.
-                await page.click("[data-plugin-manager]");
+                await openPluginManagerDialog(page);
                 await page.click('[data-plugin-row="qa-badge"] [data-plugin-action="remove"]');
                 assert(await page.locator('[data-plugin-row="qa-badge"]').count(), "removed on the first click");
                 await page.click('[data-plugin-row="qa-badge"] [data-plugin-action="remove"]');
                 await page.waitForFunction(() => !document.querySelector('[data-plugin-row="qa-badge"] .plugin-badge--user'));
-                await page.waitForFunction(() => !SlideForgePlugins.get("qa-badge") && !document.querySelector('[data-plugin-insert="qa-badge"]'));
+                await page.waitForFunction(() => !SlideForgePlugins.get("qa-badge") && !COMMANDS.some(cmd => cmd.id === "add-plugin-qa-badge"));
                 const missing = await page.locator("#plugin-manager-modal").textContent();
                 assert(/not installed/i.test(missing), "the deck's objects from the removed plugin are not listed as missing");
                 const listing = await page.evaluate(() => _apiFetch("/api/plugins/").then(r => r.json()));

@@ -9,7 +9,8 @@
 // Exports turn plugin objects into pictures, so PowerPoint, PDF and the HTML viewer need nothing from the plugin.
 
 const SF_PLUGIN_ID_PATTERN = /^[a-z][a-z0-9-]{0,39}$/;
-const SF_PLUGIN_FIELD_TYPES = new Set(["text", "textarea", "number", "color", "checkbox", "select"]);
+const SF_PLUGIN_FIELD_TYPES = new Set(["text", "textarea", "number", "color", "checkbox", "select", "table"]);
+const SF_PLUGIN_MAX_TABLE_LENGTH = 60000;
 const SF_PLUGIN_MAX_PREVIEW_LENGTH = 2000000;
 const SF_PLUGIN_MAX_DATA_LENGTH = 100000;
 
@@ -65,12 +66,61 @@ function _normalizePluginField(field) {
         key,
         type,
         label: String(field.label || key),
+        // A table field's column names, shown above it (the text itself is CSV, TSV or pasted spreadsheet cells).
+        columns: Array.isArray(field.columns) ? field.columns.map(String).slice(0, 50) : [],
         options: Array.isArray(field.options)
             ? field.options.map(option =>
                   typeof option === "object" ? { value: String(option.value), label: String(option.label ?? option.value) } : { value: String(option), label: String(option) },
               )
             : [],
     };
+}
+
+// Table text as rows of cells. The separator is guessed from the first line: tabs (cells pasted from a
+// spreadsheet), semicolons (CSV from locales with a decimal comma) or commas. Quoted cells may hold separators,
+// line breaks and "" for a quote. Blank lines are skipped.
+function parsePluginTable(text, { maxRows = 2000, maxColumns = 50 } = {}) {
+    const source = String(text ?? "").replace(/\r\n?/g, "\n");
+    const firstLine = source.split("\n").find(line => line.trim()) || "";
+    const count = char => firstLine.split(char).length - 1;
+    const separator = count("\t") ? "\t" : count(";") > count(",") ? ";" : ",";
+    const rows = [];
+    let row = [];
+    let cell = "";
+    let quoted = false;
+    const endCell = () => {
+        if (row.length < maxColumns) row.push(cell.trim());
+        cell = "";
+    };
+    const endRow = () => {
+        endCell();
+        if (row.some(value => value !== "") && rows.length < maxRows) rows.push(row);
+        row = [];
+    };
+    for (let i = 0; i < source.length; i++) {
+        const char = source[i];
+        if (quoted) {
+            if (char === '"' && source[i + 1] === '"') {
+                cell += '"';
+                i++;
+            } else if (char === '"') {
+                quoted = false;
+            } else {
+                cell += char;
+            }
+        } else if (char === '"' && !cell.trim()) {
+            quoted = true;
+            cell = "";
+        } else if (char === separator) {
+            endCell();
+        } else if (char === "\n") {
+            endRow();
+        } else {
+            cell += char;
+        }
+    }
+    endRow();
+    return rows;
 }
 
 function registerSlidePlugin(definition) {
@@ -192,23 +242,43 @@ function _pluginThemeColor() {
     return theme?.defaultTextColor || "#1f2937";
 }
 
-function _pluginRenderContext(plugin) {
+// An object's box in slide pixels (for plugins that draw to fit it).
+function _pluginBoxSize(plugin, elData) {
+    const width = parseFloat(elData?.width);
+    const height = parseFloat(elData?.height);
+    return {
+        width: Math.max(8, Math.round(Number.isFinite(width) ? width : Number(plugin.defaultSize?.width) || 320)),
+        height: Math.max(8, Math.round(Number.isFinite(height) ? height : Number(plugin.defaultSize?.height) || 240)),
+    };
+}
+
+function _pluginRenderContext(plugin, elData = null) {
     const theme = typeof getPresentationTheme === "function" ? getPresentationTheme() : null;
     return {
         textColor: _pluginThemeColor(),
         theme,
         baseUrl: plugin.baseUrl,
         loadScript: url => loadPluginScript(new URL(url, plugin.baseUrl).href),
+        parseTable: parsePluginTable,
+        // Size-aware plugins draw for the box (a scale bar spans it; its label keeps its size).
+        ...(plugin.sizeAware ? _pluginBoxSize(plugin, elData) : {}),
     };
 }
 
 function normalizePluginData(plugin, data) {
     const merged = { ...(plugin?.defaultData || {}), ...(data && typeof data === "object" ? data : {}) };
+    // Table fields hold their text as typed or pasted, within a size that keeps decks small.
+    (plugin?.fields || [])
+        .filter(field => field.type === "table")
+        .forEach(field => {
+            merged[field.key] = String(merged[field.key] ?? "").slice(0, SF_PLUGIN_MAX_TABLE_LENGTH);
+        });
     return typeof plugin?.normalize === "function" ? plugin.normalize(merged) || merged : merged;
 }
 
-function _pluginPreviewKey(plugin, data) {
-    return JSON.stringify([plugin.id, plugin.version, _pluginThemeColor(), data]);
+function _pluginPreviewKey(plugin, data, elData = null) {
+    const box = plugin.sizeAware ? _pluginBoxSize(plugin, elData) : null;
+    return JSON.stringify([plugin.id, plugin.version, _pluginThemeColor(), data, ...(box ? [box.width, box.height] : [])]);
 }
 
 // A plugin's SVG made safe to keep and show: no scripts, handlers or outside references, and a viewBox so it scales.
@@ -257,10 +327,10 @@ async function drawPluginElement(elData) {
     const plugin = getSlidePlugin(elData?.pluginId);
     if (!plugin) throw new Error(`The "${elData?.pluginId}" plugin is not installed`);
     const data = normalizePluginData(plugin, elData.pluginData);
-    const key = _pluginPreviewKey(plugin, data);
+    const key = _pluginPreviewKey(plugin, data, elData);
     if (!_sfPluginDrawings.has(key)) {
         const drawing = (async () => {
-            const result = await plugin.render(data, _pluginRenderContext(plugin));
+            const result = await plugin.render(data, _pluginRenderContext(plugin, elData));
             const svgText = cleanPluginSvg(typeof result === "string" ? result : new XMLSerializer().serializeToString(result));
             const svg = new DOMParser().parseFromString(svgText, "image/svg+xml").documentElement;
             const dataUrl = _svgDataUrl(svgText);
@@ -331,32 +401,55 @@ function renderPluginElementContent(host, elData, { interactive = false } = {}) 
         return box;
     }
 
-    drawPluginElement(elData)
-        .then(drawing => {
-            _sfPluginErrors.delete(elData.id);
-            showNote("");
-            if (img.getAttribute("src") !== drawing.dataUrl) img.src = drawing.dataUrl;
-            const stored = _findPluginElementInState(elData.id);
-            if (stored && stored.pluginPreviewKey !== drawing.key) {
-                // Kept outside undo: it is a cache of what the plugin draws, not an edit.
-                stored.pluginPreview = drawing.dataUrl;
-                stored.pluginPreviewKey = drawing.key;
-                elData.pluginPreview = drawing.dataUrl;
-                elData.pluginPreviewKey = drawing.key;
-                if (interactive && typeof refreshActiveSlidePreview === "function") refreshActiveSlidePreview();
-            }
-        })
-        .catch(error => {
-            const message = String(error?.message || error || "Could not draw");
-            const known = _sfPluginErrors.get(elData.id);
-            _sfPluginErrors.set(elData.id, message);
-            showNote(message);
-            box.classList.add("plugin-element-content--error");
-            // The panel shows the error too; rebuild it once when the error is new.
-            if (interactive && known !== message && state.selectedIds?.includes(elData.id) && typeof buildPropertiesPanel === "function") {
-                buildPropertiesPanel();
-            }
+    const redraw = source =>
+        drawPluginElement(source)
+            .then(drawing => {
+                _sfPluginErrors.delete(elData.id);
+                showNote("");
+                box.classList.remove("plugin-element-content--error");
+                if (img.getAttribute("src") !== drawing.dataUrl) img.src = drawing.dataUrl;
+                const stored = _findPluginElementInState(elData.id);
+                if (stored && stored.pluginPreviewKey !== drawing.key) {
+                    // Kept outside undo: it is a cache of what the plugin draws, not an edit.
+                    stored.pluginPreview = drawing.dataUrl;
+                    stored.pluginPreviewKey = drawing.key;
+                    elData.pluginPreview = drawing.dataUrl;
+                    elData.pluginPreviewKey = drawing.key;
+                    if (interactive && typeof refreshActiveSlidePreview === "function") refreshActiveSlidePreview();
+                }
+            })
+            .catch(error => {
+                const message = String(error?.message || error || "Could not draw");
+                const known = _sfPluginErrors.get(elData.id);
+                _sfPluginErrors.set(elData.id, message);
+                showNote(message);
+                box.classList.add("plugin-element-content--error");
+                // The panel shows the error too; rebuild it once when the error is new.
+                if (interactive && known !== message && state.selectedIds?.includes(elData.id) && typeof buildPropertiesPanel === "function") {
+                    buildPropertiesPanel();
+                }
+            });
+    redraw(elData);
+
+    // A size-aware drawing is redrawn for the new box once a resize settles (resizing does not rebuild the slide).
+    if (interactive && plugin.sizeAware && typeof ResizeObserver === "function") {
+        let timer = null;
+        const observer = new ResizeObserver(() => {
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                if (!box.isConnected) {
+                    observer.disconnect();
+                    return;
+                }
+                const current = _findPluginElementInState(elData.id);
+                const plugin = getSlidePlugin(elData.pluginId);
+                if (!current || !plugin) return;
+                const key = _pluginPreviewKey(plugin, normalizePluginData(plugin, current.pluginData), current);
+                if (key !== current.pluginPreviewKey) redraw(current);
+            }, 150);
         });
+        observer.observe(host);
+    }
 
     if (interactive) {
         host.addEventListener("dblclick", () => {
@@ -369,8 +462,12 @@ function renderPluginElementContent(host, elData, { interactive = false } = {}) 
 
 // ─── Inserting and editing ───────────────────────────────────────────────────
 
+// The setting asked for on insert and double-click: the field marked primary, else the first text field, unless the
+// plugin says not to ask (askOnInsert: false), as for a scale bar that is set up in the panel.
 function _primaryPluginField(plugin) {
-    return plugin.fields.find(field => field.primary) || plugin.fields.find(field => field.type === "text" || field.type === "textarea");
+    const marked = plugin.fields.find(field => field.primary);
+    if (marked || plugin.askOnInsert === false) return marked || null;
+    return plugin.fields.find(field => field.type === "text" || field.type === "textarea") || null;
 }
 
 async function _askPluginPrimaryValue(plugin, data, { inserting = false } = {}) {
@@ -402,7 +499,7 @@ async function insertPluginElement(pluginId, data = null, { ask = true } = {}) {
     const plugin = getSlidePlugin(pluginId);
     if (!plugin) return null;
     let pluginData = normalizePluginData(plugin, data || plugin.defaultData);
-    if (ask) {
+    if (ask && plugin.askOnInsert !== false) {
         pluginData = await _askPluginPrimaryValue(plugin, pluginData, { inserting: true });
         if (!pluginData) return null;
         pluginData = normalizePluginData(plugin, pluginData);
@@ -413,7 +510,8 @@ async function insertPluginElement(pluginId, data = null, { ask = true } = {}) {
     } catch (error) {
         console.warn(`${plugin.name}: inserted, but not drawn:`, error);
     }
-    const size = _pluginInsertSize(plugin, drawing);
+    // A size-aware plugin starts at its default box; others take the shape of their drawing.
+    const size = plugin.sizeAware ? _pluginBoxSize(plugin, null) : _pluginInsertSize(plugin, drawing);
     const activeIndex = typeof currentSlideIndex !== "undefined" ? currentSlideIndex : 0;
     const slide = state.slides[activeIndex];
     if (!slide) return null;
@@ -456,72 +554,141 @@ async function editPluginElement(id) {
     const plugin = getSlidePlugin(el?.pluginId);
     if (!el || !plugin) return;
     if (typeof plugin.edit === "function") {
-        const next = await plugin.edit(normalizePluginData(plugin, el.pluginData), _pluginRenderContext(plugin));
+        const next = await plugin.edit(normalizePluginData(plugin, el.pluginData), _pluginRenderContext(plugin, el));
         if (next) updatePluginElementData(id, next);
+        return;
+    }
+    if (!_primaryPluginField(plugin)) {
+        // Nothing to ask for: its settings are in the Properties panel.
+        if (typeof setPropertiesPanelVisible === "function") setPropertiesPanelVisible(true);
+        if (typeof buildPropertiesPanel === "function") buildPropertiesPanel();
         return;
     }
     const next = await _askPluginPrimaryValue(plugin, normalizePluginData(plugin, el.pluginData));
     if (next) updatePluginElementData(id, next);
 }
 
-// A toolbar button in the plugin's group (a new "Plugins" group when it names none that exists), a command palette
-// entry and a slash command.
+// A command palette entry and a slash command. The toolbar has one Plugins menu for all of them (built when it
+// opens), so the insert bar keeps its width however many plugins are switched on.
 function _installPluginInsertControls(plugin) {
     const insert = plugin.insert || {};
     const label = String(insert.label || plugin.name);
-    const toolbar = document.querySelector("#insert-toolbar-row .insert-toolbar");
-    if (toolbar && !toolbar.querySelector(`[data-plugin-insert="${plugin.id}"]`)) {
-        const groupName = String(insert.group || "Plugins");
-        let group = [...toolbar.querySelectorAll(".insert-group")].find(node => node.dataset.caption === groupName);
-        if (!group) {
-            group = document.createElement("div");
-            group.dataset.pluginGroup = "true";
-            group.className = "toolbar-cluster insert-group";
-            group.setAttribute("role", "group");
-            group.setAttribute("aria-label", groupName);
-            group.dataset.caption = groupName;
-            toolbar.appendChild(group);
-        }
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "toolbar-btn insert-tool-btn";
-        button.dataset.pluginInsert = plugin.id;
-        button.title = label;
-        button.setAttribute("aria-label", label);
-        const icon = document.createElement("i");
-        icon.className = plugin.icon;
-        button.appendChild(icon);
-        button.onclick = () => insertPluginElement(plugin.id);
-        // Before the "Manage plugins" button, which stays last in its group.
-        group.insertBefore(button, group.querySelector("[data-plugin-manager]"));
-    }
+    const icon = plugin.icon.split(/\s+/).find(cls => cls.startsWith("fa-") && !["fa-solid", "fa-regular"].includes(cls)) || "fa-puzzle-piece";
     const run = () => insertPluginElement(plugin.id);
     if (typeof COMMANDS !== "undefined" && Array.isArray(COMMANDS) && !COMMANDS.some(cmd => cmd.id === `add-plugin-${plugin.id}`)) {
-        COMMANDS.push({
-            id: `add-plugin-${plugin.id}`,
-            title: `Add ${label}`,
-            icon: plugin.icon.split(/\s+/).find(cls => cls.startsWith("fa-") && !["fa-solid", "fa-regular"].includes(cls)) || "fa-puzzle-piece",
-            keywords: `plugin ${insert.keywords || ""}`,
-            action: run,
-        });
+        COMMANDS.push({ id: `add-plugin-${plugin.id}`, title: `Add ${label}`, icon, keywords: `plugin ${insert.keywords || ""}`, action: run });
     }
     if (typeof SLASH_COMMANDS !== "undefined" && Array.isArray(SLASH_COMMANDS) && !SLASH_COMMANDS.some(cmd => cmd.id === `plugin-${plugin.id}`)) {
-        SLASH_COMMANDS.push({
-            id: `plugin-${plugin.id}`,
-            label,
-            detail: plugin.description || "Plugin object",
-            icon: plugin.icon.split(/\s+/).find(cls => cls.startsWith("fa-") && !["fa-solid", "fa-regular"].includes(cls)) || "fa-puzzle-piece",
-            run,
-        });
+        SLASH_COMMANDS.push({ id: `plugin-${plugin.id}`, label, detail: plugin.description || "Plugin object", icon, run });
     }
 }
 
-function _removePluginInsertControls(id) {
-    document.querySelectorAll(`[data-plugin-insert="${id}"]`).forEach(button => {
-        const group = button.closest(".insert-group");
-        button.remove();
-        if (group?.dataset.pluginGroup === "true" && !group.querySelector("button")) group.remove();
+// ─── The toolbar's Plugins menu ──────────────────────────────────────────────
+
+let _sfPluginMenu = null;
+
+function closePluginInsertMenu({ refocus = false } = {}) {
+    const open = _sfPluginMenu;
+    if (!open) return;
+    _sfPluginMenu = null;
+    open.menu.remove();
+    document.removeEventListener("mousedown", open.onOutside, true);
+    document.removeEventListener("keydown", open.onKey, true);
+    window.removeEventListener("resize", open.onResize);
+    open.anchor.setAttribute("aria-expanded", "false");
+    if (refocus) open.anchor.focus({ preventScroll: true });
+}
+
+function togglePluginInsertMenu(anchor) {
+    if (_sfPluginMenu) {
+        closePluginInsertMenu();
+        return;
+    }
+    const menu = document.createElement("div");
+    menu.id = "plugin-insert-menu";
+    menu.className = "sf-select-menu plugin-insert-menu";
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("aria-label", "Plugins");
+    const plugins = listSlidePlugins().sort((a, b) => String(a.insert?.label || a.name).localeCompare(String(b.insert?.label || b.name)));
+    const heading = document.createElement("div");
+    heading.className = "sf-select-menu__group";
+    heading.textContent = plugins.length ? "Insert" : "No plugins are switched on";
+    menu.appendChild(heading);
+    const item = (iconClass, title, detail) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "plugin-insert-item";
+        button.setAttribute("role", "menuitem");
+        const icon = document.createElement("i");
+        icon.className = iconClass;
+        icon.setAttribute("aria-hidden", "true");
+        const text = document.createElement("span");
+        const strong = document.createElement("strong");
+        strong.textContent = title;
+        text.appendChild(strong);
+        if (detail) {
+            const small = document.createElement("small");
+            small.textContent = detail;
+            text.appendChild(small);
+        }
+        button.append(icon, text);
+        menu.appendChild(button);
+        return button;
+    };
+    plugins.forEach(plugin => {
+        const button = item(plugin.icon, String(plugin.insert?.label || plugin.name), plugin.description);
+        button.dataset.pluginInsert = plugin.id;
+        button.onclick = () => {
+            closePluginInsertMenu();
+            insertPluginElement(plugin.id);
+        };
     });
+    const separator = document.createElement("div");
+    separator.className = "plugin-insert-separator";
+    menu.appendChild(separator);
+    const manage = item("fa-solid fa-sliders", "Manage plugins…", "Switch on or off, install, remove");
+    manage.dataset.pluginManager = "";
+    manage.onclick = () => {
+        closePluginInsertMenu();
+        window.openPluginManager?.();
+    };
+    document.body.appendChild(menu);
+
+    const place = () => {
+        const rect = anchor.getBoundingClientRect();
+        const width = menu.offsetWidth;
+        menu.style.left = `${Math.max(6, Math.min(rect.right - width, window.innerWidth - width - 6))}px`;
+        menu.style.top = `${rect.bottom + 6}px`;
+        menu.style.maxHeight = `${Math.max(160, window.innerHeight - rect.bottom - 18)}px`;
+    };
+    place();
+    const items = () => [...menu.querySelectorAll(".plugin-insert-item")];
+    const onOutside = event => {
+        if (!menu.contains(event.target) && !anchor.contains(event.target)) closePluginInsertMenu();
+    };
+    const onKey = event => {
+        if (event.key === "Escape") {
+            event.preventDefault();
+            event.stopPropagation();
+            closePluginInsertMenu({ refocus: true });
+        } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            const list = items();
+            const index = list.indexOf(document.activeElement);
+            const next = event.key === "ArrowDown" ? index + 1 : index - 1;
+            list[(next + list.length) % list.length]?.focus();
+        }
+    };
+    document.addEventListener("mousedown", onOutside, true);
+    document.addEventListener("keydown", onKey, true);
+    window.addEventListener("resize", place);
+    anchor.setAttribute("aria-expanded", "true");
+    _sfPluginMenu = { menu, anchor, onOutside, onKey, onResize: place };
+    items()[0]?.focus({ preventScroll: true });
+}
+
+function _removePluginInsertControls(id) {
+    closePluginInsertMenu();
     if (typeof COMMANDS !== "undefined" && Array.isArray(COMMANDS)) {
         const index = COMMANDS.findIndex(cmd => cmd.id === `add-plugin-${id}`);
         if (index >= 0) COMMANDS.splice(index, 1);
@@ -639,12 +806,14 @@ window.SlideForgePlugins = {
     disable: disableSlidePlugin,
     count: countPluginObjects,
     loadScript: loadPluginScript,
+    parseTable: parsePluginTable,
     insert: insertPluginElement,
     update: updatePluginElementData,
     edit: editPluginElement,
     draw: drawPluginElement,
 };
 window.insertPluginElement = insertPluginElement;
+window.togglePluginInsertMenu = togglePluginInsertMenu;
 
 // Plugins load once the page's own scripts have run (their insert buttons go into the toolbar and command lists).
 if (document.readyState === "loading") {

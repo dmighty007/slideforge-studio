@@ -1,0 +1,8 @@
+{
+    "id": "scale-bar",
+    "name": "Scale Bar",
+    "version": "1.0.0",
+    "description": "A scale bar with its length (pm to km), for micrographs, maps and diagrams. The bar spans the object's box.",
+    "icon": "fa-solid fa-ruler-horizontal",
+    "author": "SlideForge"
+}

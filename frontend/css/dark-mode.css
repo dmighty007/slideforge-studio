@@ -1026,3 +1026,25 @@ html[data-theme="dark"] .plugin-badge--missing {
 html[data-theme="dark"] .plugin-switch__track {
     background: #475569;
 }
+html[data-theme="dark"] .plugin-table-columns span {
+    background: var(--dk-raised);
+    color: var(--dk-sub);
+}
+html[data-theme="dark"] .plugin-table-summary {
+    color: var(--dk-muted);
+}
+html[data-theme="dark"] .plugin-table-load {
+    background: var(--dk-raised);
+    border-color: var(--dk-border);
+    color: var(--dk-text);
+}
+html[data-theme="dark"] .plugin-insert-item:hover,
+html[data-theme="dark"] .plugin-insert-item:focus-visible {
+    background: rgba(99, 102, 241, 0.2);
+}
+html[data-theme="dark"] .plugin-insert-item small {
+    color: var(--dk-muted);
+}
+html[data-theme="dark"] .plugin-insert-separator {
+    background: var(--dk-border);
+}

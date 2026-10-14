@@ -10,6 +10,17 @@ function _pluginFieldInput(field, value) {
   if (field.type === "textarea") {
     return `<textarea id="${id}" rows="3" class="w-full text-xs font-mono" spellcheck="false" placeholder="${placeholder}">${escapeHtml(value ?? "")}</textarea>`;
   }
+  if (field.type === "table") {
+    const columns = field.columns.length
+      ? `<div class="plugin-table-columns">${field.columns.map((name) => `<span>${escapeHtml(name)}</span>`).join("")}</div>`
+      : "";
+    return `${columns}<textarea id="${id}" rows="${field.rows || 6}" class="w-full text-xs font-mono plugin-table-input" spellcheck="false" wrap="off" placeholder="${placeholder}">${escapeHtml(value ?? "")}</textarea>
+      <div class="plugin-table-footer">
+        <span id="${id}-summary" class="plugin-table-summary">${escapeHtml(_pluginTableSummary(value))}</span>
+        <button type="button" id="${id}-load" class="plugin-table-load"><i class="fa-solid fa-file-csv"></i> Load CSV…</button>
+        <input type="file" id="${id}-file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain" hidden>
+      </div>`;
+  }
   if (field.type === "number") {
     const attrs = ["min", "max", "step"]
       .filter((name) => field[name] !== undefined)
@@ -41,6 +52,17 @@ function _pluginFieldInput(field, value) {
   }
   return `<input type="text" id="${id}" class="w-full text-xs font-mono" spellcheck="false" autocomplete="off" placeholder="${placeholder}" value="${escapeHtml(value ?? "")}">`;
 }
+
+// "3 rows × 2 columns" for a table field.
+function _pluginTableSummary(text) {
+  const rows = typeof parsePluginTable === "function" ? parsePluginTable(text) : [];
+  if (!rows.length) return "No rows yet";
+  const columns = Math.max(...rows.map((row) => row.length));
+  return `${rows.length} ${rows.length === 1 ? "row" : "rows"} × ${columns} ${columns === 1 ? "column" : "columns"}`;
+}
+
+// Matches what a table field may hold (plugins.js SF_PLUGIN_MAX_TABLE_LENGTH), so a file is never cut short.
+const SF_PLUGIN_TABLE_FILE_LIMIT = 60000;
 
 function buildPluginPanel(panel, data) {
   const plugin = typeof getSlidePlugin === "function" ? getSlidePlugin(data.pluginId) : null;
@@ -110,6 +132,34 @@ function bindPluginPanel(data) {
       if (auto) auto.onchange = () => commit(field.key, auto.checked ? "" : input.value);
     } else if (field.type === "select") {
       input.onchange = () => commit(field.key, input.value);
+    } else if (field.type === "table") {
+      const id = _pluginFieldId(field.key);
+      const summary = document.getElementById(`${id}-summary`);
+      const file = document.getElementById(`${id}-file`);
+      // Pasted cells keep their tabs: Tab in the box types one instead of leaving the field.
+      input.onkeydown = (event) => {
+        if (event.key !== "Tab" || event.shiftKey) return;
+        event.preventDefault();
+        input.setRangeText("\t", input.selectionStart, input.selectionEnd, "end");
+      };
+      input.oninput = () => {
+        if (summary) summary.textContent = _pluginTableSummary(input.value);
+      };
+      input.onchange = () => commit(field.key, input.value.replace(/\s+$/, ""));
+      const load = document.getElementById(`${id}-load`);
+      if (load && file) {
+        load.onclick = () => file.click();
+        file.onchange = async () => {
+          const chosen = file.files?.[0];
+          file.value = "";
+          if (!chosen) return;
+          if (chosen.size > SF_PLUGIN_TABLE_FILE_LIMIT) {
+            if (summary) summary.textContent = "That file is larger than 60 KB";
+            return;
+          }
+          commit(field.key, (await chosen.text()).replace(/\s+$/, ""));
+        };
+      }
     } else {
       // Text is applied on Enter or when leaving the field; a textarea only when leaving it.
       input.onchange = () => commit(field.key, input.value.trim());

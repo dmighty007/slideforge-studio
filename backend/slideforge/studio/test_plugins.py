@@ -54,6 +54,10 @@ class PluginManagerTests(TestCase):
         self.assertTrue(smiles["enabled"])
         self.assertEqual(smiles["script"], "/plugins/smiles/plugin.js")
         self.assertIn("SMILES", smiles["name"])
+        built_in = {p["id"]: p for p in data["plugins"] if p["source"] == "bundled"}
+        for plugin_id in ("smiles", "qr-code", "scale-bar", "significance"):
+            self.assertTrue(built_in[plugin_id]["enabled"], plugin_id)
+            self.assertTrue(built_in[plugin_id].get("description"), plugin_id)
         self.assertTrue(data["canManage"] and data["canInstall"])
         self.assertEqual(data["userDir"], str(self.user_dir.resolve()))
 

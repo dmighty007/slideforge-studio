@@ -1,0 +1,8 @@
+{
+    "id": "significance",
+    "name": "Significance Brackets",
+    "version": "1.0.0",
+    "description": "Brackets between groups of a chart with stars, n.s. or p-values, from a small table of comparisons.",
+    "icon": "fa-solid fa-asterisk",
+    "author": "SlideForge"
+}

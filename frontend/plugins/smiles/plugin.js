@@ -53,7 +53,7 @@
         name: "Chemical Structure",
         description: "Draw a 2D structure from a SMILES string",
         icon: "fa-solid fa-flask",
-        insert: { group: "Science", label: "Chemical structure (SMILES)", keywords: "smiles molecule 2d chemistry structure formula" },
+        insert: { label: "Chemical structure (SMILES)", keywords: "smiles molecule 2d chemistry structure formula" },
         defaultSize: { width: 300, height: 220 },
         defaultData: {
             smiles: "CC(=O)Oc1ccccc1C(=O)O",

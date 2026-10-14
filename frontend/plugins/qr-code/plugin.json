@@ -1,0 +1,8 @@
+{
+    "id": "qr-code",
+    "name": "QR Code",
+    "version": "1.0.0",
+    "description": "A QR code for a link to a paper, dataset, code or poster PDF, with an optional caption.",
+    "icon": "fa-solid fa-qrcode",
+    "author": "SlideForge"
+}
