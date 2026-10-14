@@ -1,0 +1,8 @@
+{
+    "id": "colorbar",
+    "name": "Colour Bar",
+    "version": "1.0.0",
+    "description": "A colour scale legend (viridis, magma, plasma, inferno, cividis, coolwarm, RdBu, greys) with range, ticks and label, horizontal or vertical.",
+    "icon": "fa-solid fa-palette",
+    "author": "SlideForge"
+}

@@ -1,0 +1,8 @@
+{
+    "id": "paper-badge",
+    "name": "Paper Badge",
+    "version": "1.0.0",
+    "description": "A corner badge for a paper or preprint (arXiv id, DOI or link) with an optional QR code. Uses the QR code plugin's library.",
+    "icon": "fa-solid fa-certificate",
+    "author": "SlideForge"
+}

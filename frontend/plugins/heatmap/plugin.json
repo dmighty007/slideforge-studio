@@ -1,0 +1,8 @@
+{
+    "id": "heatmap",
+    "name": "Heatmap",
+    "version": "1.0.0",
+    "description": "A heatmap of a matrix with optional row/column z-scores, average-linkage clustering (Euclidean or correlation) with dendrograms, values in cells and a colour bar.",
+    "icon": "fa-solid fa-table-cells",
+    "author": "SlideForge"
+}

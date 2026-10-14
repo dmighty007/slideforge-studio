@@ -1,0 +1,8 @@
+{
+    "id": "domain-architecture",
+    "name": "Domain Architecture",
+    "version": "1.0.0",
+    "description": "A protein drawn to scale with its domains (box, rounded or oval), sites as lollipops and a residue ruler.",
+    "icon": "fa-solid fa-bars-progress",
+    "author": "SlideForge"
+}

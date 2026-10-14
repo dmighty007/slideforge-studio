@@ -1,0 +1,8 @@
+{
+    "id": "venn",
+    "name": "Venn Diagram",
+    "version": "1.0.0",
+    "description": "Venn or area-proportional Euler diagrams of two or three sets, from region counts or from lists of items.",
+    "icon": "fa-solid fa-circle-half-stroke",
+    "author": "SlideForge"
+}

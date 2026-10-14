@@ -1,0 +1,8 @@
+{
+    "id": "function-plot",
+    "name": "Function Plot",
+    "version": "1.0.0",
+    "description": "Curves y = f(x) from typed expressions (safe parser, implicit multiplication), with axes, grid and legend; curves break at asymptotes.",
+    "icon": "fa-solid fa-chart-line",
+    "author": "SlideForge"
+}

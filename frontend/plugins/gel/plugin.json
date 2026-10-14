@@ -1,0 +1,8 @@
+{
+    "id": "gel",
+    "name": "Gel Electrophoresis",
+    "version": "1.0.0",
+    "description": "A gel schematic with a DNA or protein ladder and sample lanes from a table; bands placed by the log of their size, fluorescent or stained look.",
+    "icon": "fa-solid fa-grip-lines-vertical",
+    "author": "SlideForge"
+}

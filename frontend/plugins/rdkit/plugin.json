@@ -1,0 +1,8 @@
+{
+    "id": "rdkit",
+    "name": "Structure (RDKit)",
+    "version": "1.0.0",
+    "description": "Publication-quality 2D structures from SMILES with RDKit: SMARTS substructure highlights, R/S and E/Z labels, and a property card (formula, molar mass, cLogP, TPSA, H-bond donors/acceptors, rotatable bonds). Loads RDKit (7 MB) on first use.",
+    "icon": "fa-solid fa-atom",
+    "author": "SlideForge"
+}

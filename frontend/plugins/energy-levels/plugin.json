@@ -1,0 +1,8 @@
+{
+    "id": "energy-levels",
+    "name": "Energy Diagram",
+    "version": "1.0.0",
+    "description": "A reaction energy profile (states, transition states, pathways compared) or Jablonski/MO energy levels with absorption, emission and non-radiative transitions.",
+    "icon": "fa-solid fa-stairs",
+    "author": "SlideForge"
+}

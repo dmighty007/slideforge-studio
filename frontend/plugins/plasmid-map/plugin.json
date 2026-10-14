@@ -1,0 +1,8 @@
+{
+    "id": "plasmid-map",
+    "name": "Plasmid Map",
+    "version": "1.0.0",
+    "description": "A circular plasmid map from a feature table (strands as arrows, features across the origin) and restriction sites, with labels kept apart.",
+    "icon": "fa-solid fa-circle-notch",
+    "author": "SlideForge"
+}

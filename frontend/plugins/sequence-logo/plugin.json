@@ -1,0 +1,8 @@
+{
+    "id": "sequence-logo",
+    "name": "Sequence Logo",
+    "version": "1.0.0",
+    "description": "A sequence logo from aligned DNA, RNA or protein sequences: information content in bits (with small-sample correction) or probabilities.",
+    "icon": "fa-solid fa-chart-column",
+    "author": "SlideForge"
+}

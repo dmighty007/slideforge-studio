@@ -1,0 +1,8 @@
+{
+    "id": "kaplan-meier",
+    "name": "Kaplan–Meier Curve",
+    "version": "1.0.0",
+    "description": "Kaplan–Meier survival curves per group with censoring marks, 95% log–log confidence bands, median lines, numbers at risk and the log-rank test.",
+    "icon": "fa-solid fa-chart-line",
+    "author": "SlideForge"
+}

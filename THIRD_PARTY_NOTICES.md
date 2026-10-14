@@ -41,6 +41,7 @@ The Excalidraw build bundles further open-source modules; their notices are in `
 | pptxgenjs | 3.12.0 | MIT | https://gitbrent.github.io/PptxGenJS/ |
 | react | 18.3.1 | MIT | https://react.dev |
 | react-dom | 18.3.1 | MIT | https://react.dev |
+| @rdkit/rdkit (RDKit MinimalLib, in plugins/rdkit/vendor; the WebAssembly build includes Boost, BSL-1.0) | 2026.03.6 | BSD-3-Clause | https://www.rdkit.org |
 | qrcode-generator (in plugins/qr-code/vendor) | 2.0.4 | MIT | https://github.com/kazuhikoarase/qrcode-generator |
 | reveal.js | 4.3.1 | MIT | https://revealjs.com |
 | reveal.js-plugins | 4.6.0 | MIT | https://github.com/rajgoel/reveal.js-plugins/blob/master/README.md |
@@ -3714,6 +3715,44 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+```
+
+## @rdkit/rdkit 2026.03.6
+
+```
+RDKit MinimalLib (@rdkit/rdkit 2026.03.6), BSD 3-Clause License
+
+Copyright (c) 2006-2015, Rational Discovery LLC, Greg Landrum, and Julie Penzotti and others
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above
+      copyright notice, this list of conditions and the following
+      disclaimer in the documentation and/or other materials provided
+      with the distribution.
+    * Neither the name of Greg Landrum nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+The WebAssembly build also contains Boost libraries (Boost Software License 1.0) and other third-party code
+used by RDKit; see https://github.com/rdkit/rdkit/blob/master/license.txt and the RDKit source distribution.
 ```
 
 ## qrcode-generator 2.0.4

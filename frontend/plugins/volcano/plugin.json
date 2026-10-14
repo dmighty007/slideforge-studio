@@ -1,0 +1,8 @@
+{
+    "id": "volcano",
+    "name": "Volcano Plot",
+    "version": "1.0.0",
+    "description": "log2 fold change against −log10 p with fold-change and p thresholds, up/down/not-significant colours and counts, and labels for the top hits.",
+    "icon": "fa-solid fa-volcano",
+    "author": "SlideForge"
+}

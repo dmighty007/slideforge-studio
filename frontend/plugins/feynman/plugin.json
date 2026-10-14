@@ -1,0 +1,8 @@
+{
+    "id": "feynman",
+    "name": "Feynman Diagram",
+    "version": "1.0.0",
+    "description": "Feynman diagrams from a short text description or presets",
+    "icon": " fermions with arrows, wavy photons and W/Z, curly gluons, dashed scalars, dotted ghosts.:fa-solid fa-atom",
+    "author": "SlideForge"
+}

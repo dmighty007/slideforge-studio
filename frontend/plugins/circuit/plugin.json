@@ -1,0 +1,8 @@
+{
+    "id": "circuit",
+    "name": "Circuit",
+    "version": "1.0.0",
+    "description": "A circuit schematic from a short text description of nodes and parts (R, C, L, sources, diodes, LEDs, switches, meters, ground).",
+    "icon": "fa-solid fa-bolt",
+    "author": "SlideForge"
+}

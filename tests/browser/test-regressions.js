@@ -4661,6 +4661,496 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("Plugins: RDKit draws a structure in its worker, highlights a SMARTS match, labels stereo and adds a property card", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("rdkit", { smiles: "C[C@H](N)C(=O)O", highlight: "C(=O)O", card: "below" }, { ask: false }));
+        const svg = await pluginSvg(page, id);
+        assert(/class=["']CIP_Code/.test(svg), "no R/S label");
+        const ink = await page.evaluate(() => getPresentationTheme().defaultTextColor.toLowerCase());
+        assert(new RegExp(`class=["']CIP_Code[^>]*fill=["']${ink}`, "i").test(svg), "the R/S label is not in the theme's text colour");
+        assert(/#fbbf24/i.test(svg), "the SMARTS match is not highlighted");
+        const card = await page.evaluate(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const doc = new DOMParser().parseFromString(decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1)), "image/svg+xml");
+            return [...doc.documentElement.children].filter(node => node.nodeName === "text").map(t => t.textContent).join(" | ");
+        }, id);
+        assert(card.includes("C₃H₇NO₂") && card.includes("89.09 g/mol") && card.includes("TPSA"), `property card: ${card}`);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { highlight: "[[[" }), id);
+        await page.waitForFunction(id => /not a valid SMARTS/.test(getPluginElementError(id)), id);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { highlight: "", smiles: "C1CC(" }), id);
+        await page.waitForFunction(id => /RDKit could not read/.test(getPluginElementError(id)), id);
+        await page.close();
+    });
+
+    await test("Plugins: an energy diagram draws a reaction profile with dashed connectors, and Jablonski levels with transitions", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("energy-levels"));
+        assert((await countInSvg(page, id, 'line[stroke-width="3"]')) === 5, "not one level bar per state");
+        assert((await countInSvg(page, id, "line[stroke-dasharray]")) === 4, "states not joined by dashed connectors");
+        const profile = await pluginSvg(page, id);
+        assert(profile.includes(">+18.4<") && profile.includes(">−9.6<") && profile.includes(">Intermediate<"), "energies or names missing");
+        await pageAwait(page, id => SlideForgePlugins.update(id, { kind: "levels" }), id);
+        assert((await countInSvg(page, id, 'line[stroke-width="3"]')) === 4, "not one bar per level");
+        assert((await countInSvg(page, id, 'line[stroke-width="2"]')) === 5, "not one arrow per transition");
+        assert((await countInSvg(page, id, 'line[stroke-width="2"][stroke-dasharray]')) === 2, "IC and ISC are not dashed");
+        await pageAwait(page, id => SlideForgePlugins.update(id, { transitions: "S0,S9,absorption" }), id);
+        await page.waitForFunction(id => /Transitions, row 1: “S9” is not one of the levels/.test(getPluginElementError(id)), id);
+        await page.close();
+    });
+
+    await test("Plugins: a gel places bands by the log of their size between ladder bands, and keeps empty lanes", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("gel"));
+        const gel = await page.evaluate(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const doc = new DOMParser().parseFromString(decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1)), "image/svg+xml");
+            const bands = [...doc.querySelectorAll("rect[fill-opacity]")].map(r => ({ x: Number(r.getAttribute("x")), y: Number(r.getAttribute("y")) + Number(r.getAttribute("height")) / 2 }));
+            const labels = Object.fromEntries([...doc.querySelectorAll("text")].map(t => [t.textContent, Number(t.getAttribute("y"))]));
+            return { bands, labels };
+        }, id);
+        assert(gel.bands.length === 14, `${gel.bands.length} bands (10 ladder + 4 sample)`);
+        assert(["Ladder", "Uncut", "EcoRI", "PCR", "No template"].every(name => name in gel.labels), "lane names missing");
+        const ladderX = Math.min(...gel.bands.map(b => b.x));
+        const ladderY = size => gel.labels[String(size)] - 13 * 0.28; // a size's label sits 0.28 em below its band
+        const samples = gel.bands.filter(b => b.x > ladderX + 1).sort((a, b) => a.y - b.y);
+        // 5200 bp runs between the 6000 and 5000 bands, 750 bp between 1000 and 500.
+        assert(samples[0].y > ladderY(6000) && samples[0].y < ladderY(5000), "5200 bp band misplaced");
+        assert(samples.at(-1).y > ladderY(1000) && samples.at(-1).y < ladderY(500), "750 bp band misplaced");
+        // Log spacing: the 10 000 → 5 000 gap equals the 1 000 → 500 gap (both halve the size).
+        const halving = [ladderY(5000) - ladderY(10000), ladderY(500) - ladderY(1000)];
+        assert(Math.abs(halving[0] - halving[1]) < 1.5, `bands not placed by log size: ${halving}`);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { ladder: "protein", samples: "Lysate,62,0.8" }), id);
+        assert((await pluginSvg(page, id)).includes(">kDa<"), "protein ladder without kDa");
+        await pageAwait(page, id => SlideForgePlugins.update(id, { samples: "Lane,Size\nA,big" }), id);
+        await page.waitForFunction(id => /Row 2: “big” is not a band size/.test(getPluginElementError(id)), id);
+        await page.close();
+    });
+
+    // The parsed drawing of a plugin element, for measuring what it drew.
+    const pluginSvgQuery = (page, id, script) =>
+        page.evaluate(
+            ([id, script]) => {
+                const el = state.slides.flatMap(slide => slide.elements).find(e => e.id === id);
+                const svg = new DOMParser().parseFromString(decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1)), "image/svg+xml").documentElement;
+                return new Function("svg", script)(svg);
+            },
+            [id, script],
+        );
+
+    await test("Plugins: a plasmid map draws features across the origin and keeps its labels apart", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () =>
+            insertPluginElement("plasmid-map", {
+                name: "pTest",
+                length: 5000,
+                features: "Name,Start,End,Strand\nKanR,4500,600,+\nGFP,1200,1920,+\nrep,2500,3800,-",
+                sites: "Name,Position\nBamHI,1\nNotI,10\nXhoI,20\nPstI,30\nSalI,4990",
+            }),
+        );
+        const drawn = await pluginSvgQuery(
+            page,
+            id,
+            `const labels = [...svg.querySelectorAll("text")].filter(t => t.getAttribute("text-anchor") !== "middle");
+             return {
+                 features: svg.querySelectorAll("path[fill^='#']").length,
+                 text: svg.textContent,
+                 sides: ["start", "end"].map(side => labels.filter(t => t.getAttribute("text-anchor") === side).map(t => Number(t.getAttribute("y"))).sort((a, b) => a - b)),
+                 size: Number(labels[0].getAttribute("font-size")),
+             };`,
+        );
+        assert(drawn.features === 3, `${drawn.features} feature arcs`);
+        assert(["pTest", "5,000 bp", "KanR", "BamHI (1)", "SalI (4990)"].every(text => drawn.text.includes(text)), `labels: ${drawn.text}`);
+        // Five sites within 30 bp of the origin: their labels may not sit on top of one another.
+        drawn.sides.forEach(ys => ys.slice(1).forEach((y, i) => assert(y - ys[i] >= drawn.size * 1.2 - 0.5, `labels ${ys[i]} and ${y} overlap`)));
+        await pageAwait(page, id => SlideForgePlugins.update(id, { features: "Name,Start,End\nX,10,6000" }), id);
+        await page.waitForFunction(id => /positions must be from 1 to 5000/.test(getPluginElementError(id)), id);
+        await page.close();
+    });
+
+    await test("Plugins: a sequence logo stacks letters by information content, with the small-sample correction", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        // Eight sequences; column 3 is all T: 2 bits minus the correction 3 / (2 ln 2 × 8) ≈ 0.27.
+        const id = await pageAwait(page, () => insertPluginElement("sequence-logo"));
+        const measure = () =>
+            pluginSvgQuery(
+                page,
+                id,
+                `const tick = value => Number([...svg.querySelectorAll("text")].find(t => t.textContent === String(value) && t.getAttribute("text-anchor") === "end").getAttribute("y"));
+                 const perBit = (tick(0) - tick(1));
+                 const letters = [...svg.querySelectorAll("text[transform*=scale]")].map(t => {
+                     const [, x, y, sx, sy] = t.getAttribute("transform").match(/translate\\(([\\d.]+) ([\\d.]+)\\) scale\\(([\\d.]+) ([\\d.]+)\\)/).map(Number);
+                     return { letter: t.textContent, x, bits: (sy * 100 * 0.716) / perBit };
+                 });
+                 return { letters, perBit };`,
+            );
+        const bits = await measure();
+        const columnThree = bits.letters.filter(l => l.letter === "T").sort((a, b) => b.bits - a.bits)[0];
+        const expected = 2 - 3 / (2 * Math.LN2 * 8);
+        assert(Math.abs(columnThree.bits - expected) < 0.02, `all-T column is ${columnThree.bits.toFixed(3)} bits, expected ${expected.toFixed(3)}`);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { correction: false }), id);
+        const plain = await measure();
+        assert(Math.abs(Math.max(...plain.letters.map(l => l.bits)) - 2) < 0.02, "without correction an all-T column is not 2 bits");
+        await pageAwait(page, id => SlideForgePlugins.update(id, { sequences: "ACGT\nACG" }), id);
+        await page.waitForFunction(id => /Sequence 2 has 3 letters, the first has 4/.test(getPluginElementError(id)), id);
+        await page.close();
+    });
+
+    await test("Plugins: a domain diagram draws domains to scale, names that do not fit outside, sites and a ruler", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () =>
+            insertPluginElement("domain-architecture", {
+                name: "",
+                length: 1000,
+                domains: "Name,Start,End,Colour,Shape\nKinase domain,201,600,,box\nA very long domain name,900,920,,oval",
+                sites: "Position,Label\n100,S100\n105,T105\n110,Y110",
+            }),
+        );
+        const drawn = await pluginSvgQuery(
+            page,
+            id,
+            `const rects = [...svg.querySelectorAll("rect")];
+             const text = name => [...svg.querySelectorAll("text")].find(t => t.textContent === name);
+             const ruler = name => Number(text(name).getAttribute("x"));
+             const sites = ["S100", "T105", "Y110"].map(name => ({ y: Number(text(name).getAttribute("y")) }));
+             return {
+                 rects: rects.map(r => ({ x: Number(r.getAttribute("x")), w: Number(r.getAttribute("width")), y: Number(r.getAttribute("y")), h: Number(r.getAttribute("height")), rx: Number(r.getAttribute("rx")) })),
+                 one: ruler("1"), thousand: ruler("1000"),
+                 inside: Number(text("Kinase domain").getAttribute("y")),
+                 outside: Number(text("A very long domain name").getAttribute("y")),
+                 sites: sites.map(s => s.y),
+                 dots: svg.querySelectorAll("circle").length,
+             };`,
+        );
+        const perResidue = (drawn.thousand - drawn.one) / 999;
+        const kinase = drawn.rects[0];
+        assert(Math.abs(kinase.x - (drawn.one + 200 * perResidue)) < 1 && Math.abs(kinase.w - 399 * perResidue) < 1, "the kinase domain is not drawn to scale");
+        assert(drawn.rects[1].rx >= drawn.rects[1].w / 2 - 0.1, "the oval domain is not an oval");
+        assert(drawn.outside > kinase.y + kinase.h && drawn.inside < kinase.y + kinase.h, "a long name that does not fit was not put below its domain");
+        assert(drawn.dots === 3 && new Set(drawn.sites.map(y => y.toFixed(1))).size === 3, `close sites share a label row: ${drawn.sites}`);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { domains: "X,10,2000" }), id);
+        await page.waitForFunction(id => /Domains, row 1: positions must be from 1 to 1000/.test(getPluginElementError(id)), id);
+        await page.close();
+    });
+
+    await test("Plugins: a two-set Venn diagram is area-proportional, and three sets can be counted from lists", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("venn", { mode: "counts", data: "Region,Count\nA,420\nB,180\nA&B,95" }));
+        const circles = await pluginSvgQuery(page, id, `return [...svg.querySelectorAll("circle")].map(c => ({ x: Number(c.getAttribute("cx")), y: Number(c.getAttribute("cy")), r: Number(c.getAttribute("r")) }));`);
+        const [a, b] = circles;
+        const overlap = (r1, r2, d) =>
+            r1 * r1 * Math.acos((d * d + r1 * r1 - r2 * r2) / (2 * d * r1)) +
+            r2 * r2 * Math.acos((d * d + r2 * r2 - r1 * r1) / (2 * d * r2)) -
+            0.5 * Math.sqrt((-d + r1 + r2) * (d + r1 - r2) * (d - r1 + r2) * (d + r1 + r2));
+        const shared = overlap(a.r, b.r, Math.hypot(a.x - b.x, a.y - b.y)) / (Math.PI * a.r * a.r);
+        assert(Math.abs((a.r * a.r) / (b.r * b.r) - 515 / 275) < 0.03, `circle areas ${(a.r * a.r) / (b.r * b.r)} are not 515 : 275`);
+        assert(Math.abs(shared - 95 / 515) < 0.01, `the overlap is ${shared.toFixed(3)} of A, not ${(95 / 515).toFixed(3)}`);
+        const labels = await pluginSvgQuery(page, id, `return svg.textContent;`);
+        assert(["420", "95", "180", "A (515)", "B (275)"].every(text => labels.includes(text)), `labels: ${labels}`);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { mode: "lists", data: "Mouse,Human,Fish\nTP53,TP53,TP53\nBRCA1,BRCA1,MYC\nMYC,EGFR,SOX2\nSOX2,MYC,\n,SOX2," }), id);
+        const three = await pluginSvgQuery(page, id, `return { circles: svg.querySelectorAll("circle").length, counts: [...svg.querySelectorAll("text[font-weight='700']")].map(t => t.textContent).sort(), names: svg.textContent };`);
+        // Mouse only: 0; Human only: EGFR; Fish only: 0; Mouse & Human: BRCA1; all three: TP53, MYC, SOX2.
+        assert(three.circles === 3 && JSON.stringify(three.counts) === JSON.stringify(["0", "0", "0", "0", "1", "1", "3"]), `three-set counts: ${three.counts}`);
+        assert(three.names.includes("Mouse (4)") && three.names.includes("Human (5)") && three.names.includes("Fish (3)"), `set totals: ${three.names}`);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { mode: "counts", data: "A,1\nB,1\nC,1\nD,1" }), id);
+        await page.waitForFunction(id => /two or three sets; the table names 4/.test(getPluginElementError(id)), id);
+        await page.close();
+    });
+
+    await test("Plugins: the function plot's parser follows precedence, reads 2x and 2sin(x), and points at errors", async () => {
+        const { page } = await openFreshEditor(context);
+        await pageAwait(page, () => SlideForgePlugins.ready.then(() => true));
+        const results = await page.evaluate(() => {
+            const parse = window.SlideForgeFunctionParser.parse;
+            const value = (text, x = 0) => parse(text)(x);
+            const error = text => {
+                try {
+                    parse(text);
+                    return "";
+                } catch (e) {
+                    return e.message;
+                }
+            };
+            return {
+                precedence: value("2+3*4"),
+                power: value("2^3^2"),
+                negativeSquare: value("-x^2", 3),
+                negativeExponent: value("2^-1"),
+                implicit: value("2x", 3),
+                implicitFunction: value("2sin(x)", Math.PI / 2),
+                implicitBrackets: value("(x+1)(x-1)", 3),
+                spaceArgument: value("sin x", Math.PI / 2),
+                letters: value("2pix", 1),
+                functions: value("sqrt(16) + abs(-2) + log 100 + ln(e) + floor(2.7) + ceil(0.2)"),
+                exp: value("e^(ln 5)"),
+                division: value("1/2x", 4),
+                errors: {
+                    operator: error("2+*3"),
+                    bare: error("sin"),
+                    unknown: error("foo(x)"),
+                    open: error("(x+1"),
+                    character: error("2#3"),
+                    empty: error("   "),
+                },
+            };
+        });
+        const near = (a, b) => Math.abs(a - b) < 1e-9;
+        assert(results.precedence === 14 && results.power === 512 && results.negativeSquare === -9 && results.negativeExponent === 0.5, `precedence: ${JSON.stringify(results)}`);
+        assert(results.implicit === 6 && near(results.implicitFunction, 2) && results.implicitBrackets === 8 && near(results.spaceArgument, 1), `implicit multiplication: ${JSON.stringify(results)}`);
+        assert(near(results.letters, 2 * Math.PI) && near(results.functions, 4 + 2 + 2 + 1 + 2 + 1) && near(results.exp, 5) && results.division === 2, `functions: ${JSON.stringify(results)}`);
+        assert(/Position 3: unexpected “\*”/.test(results.errors.operator), `operator error: ${results.errors.operator}`);
+        assert(/sin needs an argument/.test(results.errors.bare), `bare function: ${results.errors.bare}`);
+        assert(/“foo” is not a known name/.test(results.errors.unknown), `unknown name: ${results.errors.unknown}`);
+        assert(/position 1 is not closed/.test(results.errors.open), `open bracket: ${results.errors.open}`);
+        assert(/Position 2: “#” is not allowed/.test(results.errors.character), `character: ${results.errors.character}`);
+        assert(/Type an expression/.test(results.errors.empty), `empty: ${results.errors.empty}`);
+        await page.close();
+    });
+
+    await test("Plugins: a function plot draws one curve per line, breaks tan(x) and 1/x at their asymptotes, and names a bad line", async () => {
+        const { page } = await openFreshEditor(context);
+        const id = await pageAwait(page, () =>
+            insertPluginElement("function-plot", { expressions: "tan(x)\n1/x ; #ff0000 ; inverse\nx^2/10", xMin: "-pi", xMax: "pi" }),
+        );
+        const curves = await page.evaluate(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const doc = new DOMParser().parseFromString(decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1)), "image/svg+xml");
+            return [...doc.querySelectorAll("path[data-curve]")].map(path => ({ segments: Number(path.getAttribute("data-segments")), stroke: path.getAttribute("stroke") }));
+        }, id);
+        assert(curves.length === 3, `${curves.length} curves`);
+        assert(curves[0].segments === 3, `tan(x) on −π…π in ${curves[0].segments} pieces, not 3`);
+        assert(curves[1].segments === 2 && curves[1].stroke === "#ff0000", `1/x: ${JSON.stringify(curves[1])}`);
+        assert(curves[2].segments === 1, "a smooth curve was broken");
+        assert((await pluginSvg(page, id)).includes(">inverse<"), "legend label missing");
+        await pageAwait(page, id => SlideForgePlugins.update(id, { expressions: "sin(x)\n2+*x" }), id);
+        await page.waitForFunction(id => /Line 2 \(2\+\*x\): Position 3/.test(getPluginElementError(id)), id);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { expressions: "x", xMin: "pi", xMax: "-pi" }), id);
+        await page.waitForFunction(id => /“x to” must be greater/.test(getPluginElementError(id)), id);
+        await page.close();
+    });
+
+    await test("Plugins: a ray diagram puts the image where 1/f = 1/dₒ + 1/dᵢ says, real or virtual, for lenses and mirrors", async () => {
+        const { page } = await openFreshEditor(context);
+        const cases = [
+            { kind: "converging-lens", focalLength: 10, objectDistance: 25, f: 10, real: true },
+            { kind: "converging-lens", focalLength: 10, objectDistance: 5, f: 10, real: false },
+            { kind: "diverging-lens", focalLength: 12, objectDistance: 20, f: -12, real: false },
+            { kind: "concave-mirror", focalLength: 10, objectDistance: 30, f: 10, real: true },
+            { kind: "concave-mirror", focalLength: 10, objectDistance: 6, f: 10, real: false },
+            { kind: "convex-mirror", focalLength: 10, objectDistance: 20, f: -10, real: false },
+        ];
+        for (const item of cases) {
+            const id = await pageAwait(page, data => insertPluginElement("ray-optics", data), { kind: item.kind, focalLength: item.focalLength, objectDistance: item.objectDistance, objectHeight: 3 });
+            const drawn = await page.evaluate(id => {
+                const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+                const doc = new DOMParser().parseFromString(decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1)), "image/svg+xml");
+                const root = doc.documentElement;
+                return {
+                    distance: Number(root.getAttribute("data-image-distance")),
+                    magnification: Number(root.getAttribute("data-magnification")),
+                    dashed: doc.querySelectorAll("[stroke-dasharray]").length,
+                    text: root.textContent,
+                };
+            }, id);
+            const lens = 1 / item.objectDistance + 1 / drawn.distance;
+            assert(Math.abs(lens - 1 / item.f) < 1e-9, `${item.kind} dₒ=${item.objectDistance}: 1/dₒ + 1/dᵢ = ${lens}, 1/f = ${1 / item.f}`);
+            assert(Math.abs(drawn.magnification + drawn.distance / item.objectDistance) < 1e-9, `${item.kind}: m = ${drawn.magnification}`);
+            assert((drawn.distance > 0) === item.real && drawn.text.includes(item.real ? "real" : "virtual"), `${item.kind} dₒ=${item.objectDistance}: dᵢ = ${drawn.distance}`);
+            // Virtual images come from the dashed backward extensions of the rays.
+            assert(item.real ? drawn.dashed === 0 : drawn.dashed >= 3, `${item.kind} dₒ=${item.objectDistance}: ${drawn.dashed} dashed lines`);
+        }
+        const focal = await pageAwait(page, () => insertPluginElement("ray-optics", { kind: "converging-lens", focalLength: 10, objectDistance: 10 }));
+        assert((await pluginSvg(page, focal)).includes("Image at infinity"), "an object at the focal point does not say the image is at infinity");
+        await page.close();
+    });
+
+    await test("Plugins: Feynman diagrams draw fermion arrows, photon waves, gluon loops and dashed scalars, presets fill the text", async () => {
+        const { page } = await openFreshEditor(context);
+        const id = await pageAwait(page, () => insertPluginElement("feynman", { preset: "ee-mumu" }));
+        const count = selector => countInSvg(page, id, selector);
+        assert((await count('path[data-line="fermion"]')) === 2 && (await count('path[data-line="antifermion"]')) === 2, "fermion lines");
+        assert((await count('path[data-line="photon"]')) === 1 && (await count("path[data-arrow]")) === 4 && (await count("circle")) === 2, "photon, arrows or vertices");
+        const svg = await pluginSvg(page, id);
+        assert(["γ", "μ⁻", "μ⁺", "e⁻", "e⁺"].every(label => svg.includes(`>${label}<`)), "particle labels not turned into symbols");
+        // A preset replaces the text; editing the text makes the diagram the user's own.
+        await pageAwait(page, id => SlideForgePlugins.update(id, { preset: "higgs-ggf" }), id);
+        let data = await page.evaluate(id => state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginData, id);
+        assert(data.spec.includes("scalar t3 h H"), "choosing a preset did not fill its text");
+        assert((await count('path[data-line="gluon"]')) === 2 && (await count('path[data-line="scalar"][stroke-dasharray]')) === 1, "gluons or the dashed scalar missing");
+        await pageAwait(page, id => SlideForgePlugins.update(id, { spec: "point a 0 0\nvertex b 2 0\nghost a b c bend=0.5" }), id);
+        data = await page.evaluate(id => state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginData, id);
+        assert(data.preset === "custom", `edited text kept preset ${data.preset}`);
+        assert((await count('path[data-line="ghost"][stroke-dasharray]')) === 1, "dotted ghost line missing");
+        await pageAwait(page, id => SlideForgePlugins.update(id, { spec: "point a 0 0\nfermion a nowhere e" }), id);
+        await page.waitForFunction(id => /Line 2: no point or vertex called “nowhere”/.test(getPluginElementError(id)), id);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { spec: "point a 0 0\npoint b 1 0\nwiggle a b" }), id);
+        await page.waitForFunction(id => /Line 3: “wiggle” is not point, vertex or a line type/.test(getPluginElementError(id)), id);
+        await page.close();
+    });
+
+    await test("Plugins: a circuit draws each part between its nodes with values, junction dots and ground, and names a missing node", async () => {
+        const { page } = await openFreshEditor(context);
+        const id = await pageAwait(page, () => insertPluginElement("circuit"));
+        const count = selector => countInSvg(page, id, selector);
+        assert((await count('[data-kind="resistor"]')) === 1 && (await count('[data-kind="capacitor"]')) === 1 && (await count('[data-kind="voltage"]')) === 1, "parts missing");
+        // Junctions: node a (R1, W1, C1) and node g2 (C1, W2, W3, ground).
+        assert((await count("[data-junction]")) === 2 && (await count("[data-ground]")) === 1, "junction dots or ground missing");
+        const svg = await pluginSvg(page, id);
+        assert(svg.includes(">R1 10 kΩ<") && svg.includes(">C1 100 nF<") && svg.includes(">V1 5V<"), "labels with values missing");
+        // Labels stay inside the drawing.
+        const inside = await page.evaluate(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const doc = new DOMParser().parseFromString(decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1)), "image/svg+xml");
+            const [, , w, h] = doc.documentElement.getAttribute("viewBox").split(" ").map(Number);
+            return [...doc.querySelectorAll("svg > text")].every(t => Number(t.getAttribute("y")) > 0 && Number(t.getAttribute("y")) < h && Number(t.getAttribute("x")) < w);
+        }, id);
+        assert(inside, "a label is outside the drawing");
+        assert(svg.includes("<path d=\"M") && !(await count('[data-kind="resistor"] rect')), "US resistor is not a zigzag");
+        await pageAwait(page, id => SlideForgePlugins.update(id, { style: "iec" }), id);
+        assert((await count('[data-kind="resistor"] rect')) === 1, "IEC resistor is not a box");
+        await pageAwait(page, id => SlideForgePlugins.update(id, { spec: "node a 0 0\nnode b 2 0\nR2 a zz 1k" }), id);
+        await page.waitForFunction(id => /Line 3: no node called “zz”/.test(getPluginElementError(id)), id);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { spec: "node a 0 0\nnode b 2 0\nQ1 a b" }), id);
+        await page.waitForFunction(id => /“Q1” does not start with a known part letter/.test(getPluginElementError(id)), id);
+        await page.close();
+    });
+
+    await test("Plugins: Kaplan–Meier curves match the 6-MP leukaemia reference (survival, log–log bands, medians, log-rank)", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("kaplan-meier", { medians: true }));
+        const numbers = await page.evaluate(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const doc = new DOMParser().parseFromString(decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1)), "image/svg+xml");
+            return JSON.parse(doc.querySelector("desc").textContent);
+        }, id);
+        const [mp, placebo] = numbers.groups;
+        const at = (group, time) => group.steps.find(step => step[0] === time);
+        // Reference: R survfit(Surv(time, status) ~ group, conf.type = "log-log") on Freireich et al. (1963).
+        const close = (a, b, tolerance = 5e-4) => Math.abs(a - b) <= tolerance;
+        assert(close(at(mp, 6)[1], 0.857143) && close(at(mp, 6)[2], 0.619718) && close(at(mp, 6)[3], 0.951552), `6-MP at 6: ${at(mp, 6)}`);
+        assert(close(at(mp, 23)[1], 0.448179) && close(at(mp, 23)[2], 0.188052) && close(at(mp, 23)[3], 0.680143), `6-MP at 23: ${at(mp, 23)}`);
+        assert(close(at(placebo, 8)[1], 0.380952) && at(placebo, 23)[1] === 0, `placebo: ${at(placebo, 8)} / ${at(placebo, 23)}`);
+        assert(mp.median === 23 && placebo.median === 8, `medians ${mp.median}, ${placebo.median}`);
+        assert(numbers.test.df === 1 && close(numbers.test.chi2, 16.7929, 1e-3) && Math.abs(numbers.test.p / 4.1688e-5 - 1) < 0.01, `log-rank ${JSON.stringify(numbers.test)}`);
+        const svg = await pluginSvg(page, id);
+        assert(svg.includes("Log-rank p &lt; 0.001") && svg.includes("Number at risk"), "log-rank result or numbers at risk missing");
+        // 12 censored 6-MP patients, none on placebo: one tick mark each.
+        assert((await countInSvg(page, id, 'path[stroke="#0072B2"][d*="v"]:not([fill])')) === 12, "censoring marks");
+        await pageAwait(page, id => SlideForgePlugins.update(id, { data: "Time,Event\n5,1\n3,maybe" }), id);
+        await page.waitForFunction(id => /Row 3: needs a time/.test(getPluginElementError(id)), id);
+        await page.close();
+    });
+
+    await test("Plugins: a volcano plot sorts points by both thresholds, counts them and labels the top hits without overlaps", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("volcano"));
+        const read = () =>
+            page.evaluate(id => {
+                const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+                const doc = new DOMParser().parseFromString(decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1)), "image/svg+xml");
+                const texts = [...doc.querySelectorAll("text")].map(t => t.textContent);
+                const hits = [...doc.querySelectorAll("text.hit")].map(t => ({ x: Number(t.getAttribute("x")), y: Number(t.getAttribute("y")), w: SlideForgePlugins.measureText(t.textContent, { size: Number(t.getAttribute("font-size")) }), h: Number(t.getAttribute("font-size")), label: t.textContent }));
+                return { texts, hits, colours: [...doc.querySelectorAll("circle")].map(c => c.getAttribute("fill")) };
+            }, id);
+        const first = await read();
+        assert(first.texts.includes("Up 6") && first.texts.includes("Down 5") && first.texts.includes("Not significant 9"), `legend: ${first.texts.slice(0, 12)}`);
+        assert(first.hits.length > 0 && first.hits.length <= 8 && first.hits.some(h => h.label === "IL6"), `labels: ${first.hits.map(h => h.label)}`);
+        const clash = first.hits.some((a, i) => first.hits.some((b, j) => i < j && a.x < b.x + b.w && b.x < a.x + a.w && a.y - a.h < b.y && b.y - b.h < a.y));
+        assert(!clash, "two labels overlap");
+        await pageAwait(page, id => SlideForgePlugins.update(id, { fcThreshold: 3 }), id);
+        const strict = await read();
+        assert(strict.texts.includes("Up 2") && strict.texts.includes("Down 2"), `|log2FC| ≥ 3: ${strict.texts.slice(0, 6)}`);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { data: "A,1,1.5" }), id);
+        await page.waitForFunction(id => /p-value between 0 and 1/.test(getPluginElementError(id)), id);
+        await page.close();
+    });
+
+    await test("Plugins: a heatmap z-scores rows and clusters similar rows next to each other", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () =>
+            insertPluginElement("heatmap", { data: "Row,a,b,c\nR1,1,2,3\nR2,10,20,30", zscore: "rows", clusterRows: false, values: true, decimals: 2 }),
+        );
+        const cells = await page.evaluate(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const doc = new DOMParser().parseFromString(decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1)), "image/svg+xml");
+            return [...doc.querySelectorAll("text")].map(t => t.textContent).filter(t => /^-?\d+\.\d\d$/.test(t));
+        }, id);
+        assert(JSON.stringify(cells) === JSON.stringify(["-1.00", "0.00", "1.00", "-1.00", "0.00", "1.00"]), `row z-scores: ${cells}`);
+        // A and C are alike, B and D are alike: clustering puts each pair together, whatever the order of the pairs.
+        await pageAwait(page, id => SlideForgePlugins.update(id, { data: "Row,x,y\nA,1,1\nB,10,10\nC,1.1,1\nD,10,9.9", zscore: "none", clusterRows: true, values: false }), id);
+        const order = await page.evaluate(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const doc = new DOMParser().parseFromString(decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1)), "image/svg+xml");
+            return [...doc.querySelectorAll("text")].filter(t => /^[ABCD]$/.test(t.textContent)).sort((a, b) => Number(a.getAttribute("y")) - Number(b.getAttribute("y"))).map(t => t.textContent).join("");
+        }, id);
+        assert(["ACBD", "CABD", "ACDB", "CADB", "BDAC", "DBAC", "BDCA", "DBCA"].includes(order), `clustered row order ${order}`);
+        assert((await countInSvg(page, id, "path[stroke]")) >= 1, "no dendrogram");
+        await pageAwait(page, id => SlideForgePlugins.update(id, { data: "Row,x\nA,one" }), id);
+        await page.waitForFunction(id => /“one” is not a number/.test(getPluginElementError(id)), id);
+        await page.close();
+    });
+
+    await test("Plugins: a colour bar shows its range with round ticks, either way round", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("colorbar", { colormap: "magma", min: -2, max: 2, label: "z-score" }));
+        const svg = await pluginSvg(page, id);
+        assert(["-2", "-1", "0", "1", "2"].every(t => svg.includes(`>${t}</text>`)) && svg.includes(">z-score<"), "ticks or label missing");
+        assert(svg.includes('stop-color="#000004"') && svg.includes('stop-color="#fcfdbf"'), "magma's end colours missing");
+        await pageAwait(page, id => SlideForgePlugins.update(id, { orientation: "vertical" }), id);
+        assert((await pluginSvg(page, id)).includes('x1="0" y1="1" x2="0" y2="0"'), "vertical bar does not run bottom to top");
+        await pageAwait(page, id => SlideForgePlugins.update(id, { min: 3, max: 1 }), id);
+        await page.waitForFunction(id => /must be larger/.test(getPluginElementError(id)), id);
+        await page.close();
+    });
+
+    await test("Plugins: a paper badge reads arXiv ids, DOIs and links, and its QR code points at the paper", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("paper-badge", { id: "https://arxiv.org/abs/2401.01234v2", title: "" }, { ask: false }));
+        const svg = await pluginSvg(page, id);
+        assert(svg.includes(">arXiv:2401.01234v2<") && svg.includes(">arXiv<"), "arXiv id or heading missing");
+        const png = await page.evaluate(async id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const img = new Image();
+            img.src = el.pluginPreview;
+            await img.decode();
+            const canvas = document.createElement("canvas");
+            canvas.width = img.naturalWidth * 4;
+            canvas.height = img.naturalHeight * 4;
+            canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+            return canvas.toDataURL("image/png").split(",")[1];
+        }, id);
+        const { execFileSync } = require("child_process");
+        const fs = require("fs");
+        const os = require("os");
+        const path = require("path");
+        const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "sf-badge-")), "badge.png");
+        fs.writeFileSync(file, Buffer.from(png, "base64"));
+        try {
+            const decoded = execFileSync("zbarimg", ["-q", "--raw", file]).toString("utf8").trim();
+            assert(decoded === "https://arxiv.org/abs/2401.01234v2", `badge QR decodes to ${decoded}`);
+        } catch (error) {
+            if (error.code !== "ENOENT") throw error;
+            console.log("  (zbarimg is not installed: the badge's QR code was not decoded)");
+        }
+        await pageAwait(page, id => SlideForgePlugins.update(id, { id: "doi:10.1038/s41586-021-03819-2", title: "Nature 2021", qr: false }), id);
+        const doi = await pluginSvg(page, id);
+        assert(doi.includes(">doi:10.1038/s41586-021-03819-2<") && doi.includes(">Nature 2021<") && !doi.includes("crispEdges"), "DOI badge wrong");
+        await pageAwait(page, id => SlideForgePlugins.update(id, { id: "not an id" }), id);
+        await page.waitForFunction(id => /Type an arXiv id/.test(getPluginElementError(id)), id);
+        await page.close();
+    });
+
     await test("HTML export: a picture stored as a URL-encoded (not base64) data URL is written out intact", async () => {
         const { page } = await openFreshEditor(context);
         const result = await page.evaluate(async () => {

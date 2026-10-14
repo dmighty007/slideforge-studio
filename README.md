@@ -10,7 +10,7 @@ To use it as a desktop app on your own computer: `pip install slideforge-studio`
 - Edit presentations in a Figma-like canvas with draggable, resizable, styleable slide elements.
 - Build slides from text, images, shapes, tables, media, scientific figures, and generated presets.
 - Insert editable Mermaid diagrams for flowcharts, sequence diagrams, state charts, Gantt timelines, ER diagrams, and mind maps.
-- Insert science helpers from the Plugins menu: chemical structures and reactions (SMILES or a compound name), citations from a DOI, phylogenetic trees (Newick), DNA/RNA/protein sequences, box/violin and forest plots, significance brackets, scale bars and QR codes. Add new kinds of slide objects as plugins, switched on/off and installed from a .zip in the Plugins dialog (see [docs/PLUGINS.md](docs/PLUGINS.md)).
+- Insert science helpers from the Plugins menu (25 built in): chemistry (SMILES or compound names, reactions, RDKit drawings with property cards, energy diagrams), biology (sequences, logos, phylogenetic trees, plasmid maps, domain diagrams, gels), statistics (box/violin, forest, Kaplan–Meier, volcano, heatmaps, Venn), physics and maths (function plots, ray optics, Feynman diagrams, circuits), and helpers (citations from a DOI, paper badges, QR codes, scale bars, colour bars, significance brackets). Add new kinds of slide objects as plugins, switched on/off and installed from a .zip in the Plugins dialog (see [docs/PLUGINS.md](docs/PLUGINS.md)).
 - Apply and preview slide and object animations, including advanced text and shape effects.
 - Import presentation JSON and clean up slide content.
 - Save presentations through the Django API and export decks to PowerPoint.

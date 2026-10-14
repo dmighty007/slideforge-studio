@@ -15,8 +15,67 @@ A plugin adds a new kind of object to slides without touching the editor's code.
 | Box / violin plot (`box-plot`) | Box (Tukey: whiskers to 1.5 × IQR, outliers beyond), violin (Gaussian kernel density, Silverman's bandwidth) or both, from columns of numbers; points, means, colour-blind-safe colours. |
 | Forest plot (`forest-plot`) | Estimates with confidence intervals per study or subgroup (label, estimate, lower, upper, weight): squares sized by weight, a pooled diamond, log scale for ratios, values column, "favours" notes. |
 | Significance brackets (`significance`) | Brackets with stars, n.s. or p-values between groups of a chart, from a table of comparisons (from group, to group, label). Brackets stack without overlapping; p-values can be shown as stars (* < 0.05, ** < 0.01, *** < 0.001, **** < 0.0001). Place the box over the chart's plot area, as wide as its bars. |
+| Structure, RDKit (`rdkit`) | Publication-quality 2D structures from SMILES drawn by RDKit (loaded on first use, about 7 MB): SMARTS substructure highlights, R/S and E/Z labels, colours that follow the theme, and an optional property card beside or below (formula, molar mass, cLogP, TPSA, H-bond donors/acceptors, rotatable bonds). RDKit runs in a web worker because the page's security policy does not allow WebAssembly. |
+| Energy diagram (`energy-levels`) | A reaction profile (states and transition states in order, dashed connectors or a smooth curve, energies on the levels, several pathways compared by name) or Jablonski/MO levels side by side in columns with transitions: absorption and emission as solid coloured arrows, IC/ISC/relaxation dashed. |
+| Gel electrophoresis (`gel`) | A gel with a 1 kb, 100 bp, protein (kDa) or custom ladder and sample lanes from a table (lane, size, intensity). Bands are placed by the log of their size; a lane with a blank size stays empty. Fluorescent (light on dark) or stained (dark on light) look. |
+| Plasmid map (`plasmid-map`) | A circular map from a feature table (name, start, end, strand, colour, type) and restriction sites (name, position). Strands are arrowheads; a feature may cross the origin (start after end); type (gene, promoter, origin, terminator, resistance) picks a colour when none is given. Labels sit outside, pushed apart so they do not overlap, with leader lines; length ticks inside. |
+| Sequence logo (`sequence-logo`) | A logo from aligned DNA, RNA or protein sequences (one per line or FASTA, same length): information content in bits (optional small-sample correction) or probabilities, letters stacked by frequency, classic colours, position numbers from a chosen start. |
+| Domain architecture (`domain-architecture`) | A protein drawn to scale with domains from a table (name, start, end, colour, shape: box, rounded, oval), sites as lollipops (position, label; close labels go up to three rows) and a residue ruler. Names that do not fit inside a domain go below it. |
+| Venn diagram (`venn`) | Two or three sets from region counts (`A`, `B`, `A&B`… each counting that region only) or from lists of items (one column per set). Two sets can be area-proportional (circle areas and overlap match the counts); three use the symmetric layout. Each count sits at the most open point of its region; set names show totals. |
+| Function plot (`function-plot`) | Curves y = f(x), one per line as `expression ; colour ; label`, with axes through zero, grid and legend. Expressions are read by the plugin's own parser (no `eval`): `+ - * / ^`, unary minus, brackets, `x`, `pi`, `e`, `sin cos tan asin acos atan sinh cosh tanh exp ln log log10 sqrt abs floor ceil`, and implicit multiplication (`2x`, `2sin(x)`, `(x+1)(x-1)`, `sin x`). `-x^2` is −(x²); `^` is right-associative. Curves break where undefined or where they jump across the plot (tan, 1/x). Errors name the line and character position. The x and y limits may be expressions (`-2pi`). |
+| Ray diagram (`ray-optics`) | A thin converging or diverging lens, or a concave or convex mirror, with the object, the three principal rays, focal points (and C for mirrors) and the image: real (solid) or virtual (dashed rays traced back). Computes dᵢ from 1/f = 1/dₒ + 1/dᵢ and m = −dᵢ/dₒ, and says real/virtual, upright/inverted, magnified/reduced. An object at the focal point gives "image at infinity". |
+| Feynman diagram (`feynman`) | Diagrams from a short text description (below) or presets: e⁺e⁻ → μ⁺μ⁻, Compton scattering, gluon exchange, Higgs production by gluon fusion, β decay. Fermions with arrows, wavy photons and W/Z, curly gluons, dashed scalars, dotted ghosts, bent lines for loops. |
+| Circuit (`circuit`) | A schematic from a short text description (below): nodes placed on a grid, parts between nodes with their symbols (US zigzag or IEC box resistors), names and values (`10k` → 10 kΩ), junction dots where three or more connections meet, ground symbols. |
+| Kaplan–Meier curve (`kaplan-meier`) | Survival curves per group from a table (time, event 1/0, optional group): step curves, censoring ticks, 95% confidence bands (Greenwood variance on the log(−log S) scale, as R's `conf.type = "log-log"`), dashed median lines, a numbers-at-risk table under the time axis, and the log-rank test across groups (χ² with k − 1 degrees of freedom). |
+| Volcano plot (`volcano`) | log2 fold change against −log10 p from a table (label, log2FC, p): dashed thresholds for \|log2FC\| and p, up/down/not-significant colours with counts in the legend, labels for the top hits placed where they do not overlap. p = 0 is drawn just above the most significant value. Up to 10,000 points. |
+| Heatmap (`heatmap`) | A matrix (first row column names, first column row names) as coloured cells: viridis, magma, coolwarm, RdBu or greys, range from the data or even around a centre value, optional row/column z-scores, average-linkage clustering of rows and/or columns (Euclidean or 1 − correlation) with dendrograms, values in cells and a colour bar. Up to 200 × 200; empty or NA cells are grey. |
+| Colour bar (`colorbar`) | A standalone colour scale legend (viridis, magma, plasma, inferno, cividis, coolwarm, RdBu, greys) with range, round ticks and label, horizontal or vertical, reversible. |
+| Paper badge (`paper-badge`) | A corner badge for a paper or preprint: an arXiv id, DOI or link is shown as `arXiv:…`, `doi:…` or the address under a heading, with an optional QR code to the paper. Nothing is looked up. Uses the QR code plugin's library (`plugins/qr-code/vendor/qrcode.js`). |
 
 Every plugin is inserted from the **Plugins** menu (the puzzle-piece button at the end of the insert toolbar), the command palette (Ctrl+K, "Add …") or a `/` command.
+
+### Feynman diagram text
+
+One item per line; `#` starts a comment.
+
+- `point name x y` — an end of a line (no dot). `vertex name x y` — a vertex, drawn with a dot. y points up; the diagram is scaled to fit the box.
+- `type from to label [bend=0.5] [side=right] [color=#hex]` — a line from one point to another. Types: `fermion` (arrow along from → to), `antifermion` (arrow against it), `photon` and `boson` (wavy), `gluon` (curly), `scalar` (dashed), `ghost` (dotted), `plain`.
+- `bend` curves the line (the middle moves `bend` × its length to the left of from → to; negative: to the right), for loops and bubbles.
+- `side=right` puts the label on the other side of the line.
+- Labels are italic; `gamma` → γ, `mu` → μ, `nu` → ν, `tau` → τ (and other Greek names), a trailing `+`/`-`/`0` becomes ⁺/⁻/⁰, `bar` gives an overbar (`nubar_e` → ν̄ₑ), `_e` a subscript.
+- Choosing a preset replaces the text; editing the text makes the diagram your own ("custom").
+
+```
+point a -2 1.2
+point b -2 -1.2
+vertex v1 -0.8 0
+vertex v2 0.8 0
+fermion b v1 e-
+antifermion a v1 e+
+photon v1 v2 gamma
+```
+
+### Circuit text
+
+One item per line; `#` or `;` starts a comment. The layout is yours: a clear text beats automatic placement.
+
+- `node name x y` — a point on the grid (y points down). Parts run in a straight line between two nodes, any direction; horizontal and vertical look best.
+- `name node1 node2 value` — a part. Its kind comes from its name's first letters: `R` resistor, `C` capacitor, `L` inductor, `V` voltage source (+ towards node1), `B` battery, `I` current source, `D` diode (anode at node1), `LED`, `SW` (or `S`) switch, `M` voltmeter, `A` ammeter, `X` lamp, `W` wire (no symbol).
+- Values get units: `10k` → 10 kΩ on a resistor, `100n` → 100 nF on a capacitor, `10m` → 10 mH on an inductor, `5` → 5 V on a source. Values with their own unit (`5V`, `2mA`) are kept.
+- `gnd node` — a ground symbol under a node.
+- A dot marks every node where three or more connections meet.
+
+```
+node in 0 0
+node a 3 0
+node g 3 3
+node g0 0 3
+V1 in g0 5V
+R1 in a 10k
+C1 a g 100n
+W1 g0 g
+gnd g
+```
 
 ## Managing plugins
 
@@ -78,7 +137,7 @@ Optional, but it is what the dialog shows before the plugin's code has run:
 2. Put the folder in your plugins folder (or zip it and use **Install from .zip…**). For a built-in plugin, put it in `frontend/plugins/` and add its id to `frontend/plugins/plugins.json`.
 3. Press **Look again** in the dialog, or reload. The plugin appears in the toolbar's Plugins menu, in the command palette ("Add …") and as a `/` command.
 
-Libraries the plugin needs go in its own folder (for example `vendor/`), and are loaded when the plugin first draws, with `context.loadScript("vendor/lib.js")`. They are not loaded at startup. Put their licences next to them (and, for built-in plugins, list them in `THIRD_PARTY_NOTICES.md`).
+Libraries that compile code at run time (WebAssembly, or `new Function` as Emscripten builds use) cannot run in the editor page, whose Content-Security-Policy forbids that: run them in a Web Worker loaded from the plugin folder, as the `rdkit` plugin does (`worker.js`). Libraries the plugin needs go in its own folder (for example `vendor/`), and are loaded when the plugin first draws, with `context.loadScript("vendor/lib.js")`. They are not loaded at startup. Put their licences next to them (and, for built-in plugins, list them in `THIRD_PARTY_NOTICES.md`).
 
 ## plugin.js
 

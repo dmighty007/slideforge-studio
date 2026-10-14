@@ -1,3 +1,29 @@
 {
-    "plugins": ["smiles", "qr-code", "scale-bar", "significance", "citation", "phylo-tree", "sequence", "box-plot", "forest-plot"]
+    "plugins": [
+        "smiles",
+        "qr-code",
+        "scale-bar",
+        "significance",
+        "citation",
+        "phylo-tree",
+        "sequence",
+        "box-plot",
+        "forest-plot",
+        "rdkit",
+        "energy-levels",
+        "gel",
+        "plasmid-map",
+        "sequence-logo",
+        "domain-architecture",
+        "venn",
+        "function-plot",
+        "ray-optics",
+        "feynman",
+        "circuit",
+        "kaplan-meier",
+        "volcano",
+        "heatmap",
+        "colorbar",
+        "paper-badge"
+    ]
 }

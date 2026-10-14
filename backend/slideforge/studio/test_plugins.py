@@ -4,6 +4,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
@@ -55,9 +56,9 @@ class PluginManagerTests(TestCase):
         self.assertEqual(smiles["script"], "/plugins/smiles/plugin.js")
         self.assertIn("SMILES", smiles["name"])
         built_in = {p["id"]: p for p in data["plugins"] if p["source"] == "bundled"}
-        for plugin_id in (
-            "smiles", "qr-code", "scale-bar", "significance", "citation", "phylo-tree", "sequence", "box-plot", "forest-plot"
-        ):
+        expected = json.loads((settings.FRONTEND_DIR / "plugins" / "plugins.json").read_text())["plugins"]
+        self.assertEqual(len(expected), 25)
+        for plugin_id in expected:
             self.assertTrue(built_in[plugin_id]["enabled"], plugin_id)
             self.assertTrue(built_in[plugin_id].get("description"), plugin_id)
         self.assertTrue(data["canManage"] and data["canInstall"])

@@ -1,0 +1,8 @@
+{
+    "id": "ray-optics",
+    "name": "Ray Diagram",
+    "version": "1.0.0",
+    "description": "A thin lens or spherical mirror with its three principal rays and the image (real or virtual), image distance and magnification.",
+    "icon": "fa-solid fa-eye",
+    "author": "SlideForge"
+}
