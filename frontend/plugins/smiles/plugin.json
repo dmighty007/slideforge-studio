@@ -1,0 +1,8 @@
+{
+    "id": "smiles",
+    "name": "Chemical Structure (SMILES)",
+    "version": "1.0.0",
+    "description": "Draws the 2D structure of a molecule from a SMILES string, using SmilesDrawer.",
+    "icon": "fa-solid fa-flask",
+    "author": "SlideForge"
+}

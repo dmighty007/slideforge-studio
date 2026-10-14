@@ -3,6 +3,7 @@ from django.urls import include, path, re_path
 from django.views.static import serve
 
 from slideforge.studio.frontend_files import serve_frontend_file
+from slideforge.studio.plugin_views import serve_user_plugin_file
 from slideforge.studio.views import shared_presentation, spa_index
 
 from .views import share_tunnel
@@ -21,5 +22,7 @@ urlpatterns = [
         re_path(rf"^{prefix}/(?P<path>.*)$", serve_frontend_file, {"document_root": _frontend / prefix})
         for prefix in ("js", "css", "assets", "static", "vendor", "plugins")
     ),
+    # The user's own plugins (<data dir>/plugins/), behind the launch token like the rest of the user's data.
+    re_path(r"^user-plugins/(?P<path>.*)$", serve_user_plugin_file),
     re_path(r"^media/(?P<path>.*)$", serve, {"document_root": settings.MEDIA_ROOT}),
 ]

@@ -64,6 +64,9 @@ SLIDEFORGE_LAUNCH_TOKEN = os.getenv("SLIDEFORGE_LAUNCH_TOKEN", "")
 SLIDEFORGE_LOCAL_USERNAME = "local"
 # No sign-in: every request runs as the local user (see middleware.LocalUserMiddleware).
 SLIDEFORGE_ACCOUNTS_ENABLED = False
+# Plugins the user adds (kept across upgrades) and which plugins are switched on (studio/plugins.py).
+SLIDEFORGE_USER_PLUGINS_DIR = DATA_DIR / "plugins"
+SLIDEFORGE_PLUGIN_STATE_FILE = DATA_DIR / "plugin-settings.json"
 
 INSTALLED_APPS = [
     "django.contrib.auth",

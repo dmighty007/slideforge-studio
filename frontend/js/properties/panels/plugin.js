@@ -46,7 +46,8 @@ function buildPluginPanel(panel, data) {
   const plugin = typeof getSlidePlugin === "function" ? getSlidePlugin(data.pluginId) : null;
   if (!plugin) {
     const group = createGroup("Plugin");
-    group.innerHTML = `<p class="text-xs text-slate-600">The “${escapeHtml(data.pluginId || "unknown")}” plugin is not installed. The object shows its last saved picture and can still be moved, resized and exported.</p>`;
+    group.innerHTML = `<p class="text-xs text-slate-600">${escapeHtml(pluginUnavailableReason(data.pluginId || "unknown"))} The object shows its last saved picture and can still be moved, resized and exported.</p>
+      <button type="button" id="prop-plugin-manage" class="w-full py-2 rounded bg-accent/20 border border-accent/40 text-accent text-xs font-semibold"><i class="fa-solid fa-puzzle-piece mr-2"></i>Manage plugins</button>`;
     panel.appendChild(group);
     return;
   }
@@ -83,7 +84,11 @@ function buildPluginPanel(panel, data) {
 
 function bindPluginPanel(data) {
   const plugin = typeof getSlidePlugin === "function" ? getSlidePlugin(data.pluginId) : null;
-  if (!plugin) return;
+  if (!plugin) {
+    const manage = document.getElementById("prop-plugin-manage");
+    if (manage) manage.onclick = () => window.openPluginManager?.();
+    return;
+  }
   const commit = (key, value) => {
     const current = normalizePluginData(plugin, data.pluginData);
     if (current[key] === value) return;

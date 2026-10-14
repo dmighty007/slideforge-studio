@@ -10,7 +10,7 @@ To use it as a desktop app on your own computer: `pip install slideforge-studio`
 - Edit presentations in a Figma-like canvas with draggable, resizable, styleable slide elements.
 - Build slides from text, images, shapes, tables, media, scientific figures, and generated presets.
 - Insert editable Mermaid diagrams for flowcharts, sequence diagrams, state charts, Gantt timelines, ER diagrams, and mind maps.
-- Draw 2D chemical structures from SMILES strings, and add new kinds of slide objects as plugins (`frontend/plugins/`, see [docs/PLUGINS.md](docs/PLUGINS.md)).
+- Draw 2D chemical structures from SMILES strings, and add new kinds of slide objects as plugins, switched on/off and installed from a .zip in the Plugins dialog (see [docs/PLUGINS.md](docs/PLUGINS.md)).
 - Apply and preview slide and object animations, including advanced text and shape effects.
 - Import presentation JSON and clean up slide content.
 - Save presentations through the Django API and export decks to PowerPoint.

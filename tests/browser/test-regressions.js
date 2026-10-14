@@ -4300,6 +4300,98 @@ async function test(name, fn) {
     });
 
     if (!FRONTEND_ONLY) {
+        // ─── Plugin manager (js/ui/plugin-manager.js, studio/plugins.py) ───────────────────────────────────────
+        // Plugin switches are kept by the server: each test puts them back as it found them.
+        const setPluginEnabled = (page, id, enabled) =>
+            page.evaluate(
+                ([id, enabled]) => _apiFetch(`/api/plugins/${id}/`, { method: "POST", body: JSON.stringify({ enabled }) }).then(r => r.ok),
+                [id, enabled],
+            );
+
+        await test("Plugin manager: switching a plugin off unloads it, keeps its objects' pictures, and lasts after reload", async () => {
+            const { page, errors } = await openFreshEditor(context);
+            try {
+                await page.evaluate(() => SlideForgePlugins.ready);
+                const id = await page.evaluate(() => insertPluginElement("smiles", { smiles: "CCO" }, { ask: false }));
+                await page.click("[data-plugin-manager]");
+                await page.waitForSelector('[data-plugin-row="smiles"]');
+                const usage = await page.locator('[data-plugin-row="smiles"]').textContent();
+                assert(/used once/i.test(usage), `usage not shown: ${usage}`);
+                await page.locator('[data-plugin-toggle="smiles"]').click({ force: true });
+                await page.waitForFunction(() => !SlideForgePlugins.get("smiles"));
+                const after = await page.evaluate(id => ({
+                    button: document.querySelectorAll('[data-plugin-insert="smiles"]').length,
+                    command: COMMANDS.some(cmd => cmd.id === "add-plugin-smiles"),
+                    shown: [...document.querySelectorAll(`[id="${id}"]`)].find(n => !n.closest("#slide-previews"))?.querySelector("img")?.getAttribute("src") || "",
+                }), id);
+                assert(!after.button && !after.command, `insert controls stayed: ${JSON.stringify(after)}`);
+                assert(/^data:image\/svg\+xml/.test(after.shown), "the object lost its picture when its plugin was switched off");
+                await page.keyboard.press("Escape");
+                await page.evaluate(id => {
+                    selectElement(id);
+                    setPropertiesPanelVisible(true);
+                    buildPropertiesPanel();
+                }, id);
+                assert(/switched off/i.test(await page.locator("#properties-content").textContent()), "panel does not say the plugin is off");
+                await page.reload({ waitUntil: "networkidle" });
+                await page.waitForFunction(() => typeof SlideForgePlugins !== "undefined");
+                await page.evaluate(() => SlideForgePlugins.ready);
+                assert(!(await page.evaluate(() => Boolean(SlideForgePlugins.get("smiles")))), "smiles came back on after reload");
+                // Back on from the dialog: loaded again without a reload.
+                await page.click("[data-plugin-manager]");
+                await page.locator('[data-plugin-toggle="smiles"]').click({ force: true });
+                await page.waitForFunction(() => Boolean(SlideForgePlugins.get("smiles")) && document.querySelector('[data-plugin-insert="smiles"]'));
+                assert(!errors.length, `page errors: ${errors.join("; ")}`);
+            } finally {
+                await setPluginEnabled(page, "smiles", true);
+                await page.close();
+            }
+        });
+
+        await test("Plugin manager: a plugin installed from a .zip works at once, and Remove deletes it after a second click", async () => {
+            const { page, errors } = await openFreshEditor(context);
+            const JSZip = require("jszip");
+            const zip = new JSZip();
+            zip.file("qa-badge/plugin.json", JSON.stringify({ name: "QA Badge", version: "0.1", description: "Test plugin" }));
+            zip.file(
+                "qa-badge/plugin.js",
+                `SlideForgePlugins.register({ id: "qa-badge", name: "QA Badge", icon: "fa-solid fa-certificate",
+                    defaultData: { text: "QA" }, fields: [{ key: "text", label: "Text", type: "text", primary: true }],
+                    render: data => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 40"><rect width="80" height="40" rx="20" fill="#0f766e"/><text x="40" y="27" font-size="18" fill="#fff" text-anchor="middle">' + data.text + '</text></svg>' });`,
+            );
+            const buffer = await zip.generateAsync({ type: "nodebuffer" });
+            try {
+                await page.evaluate(() => SlideForgePlugins.ready);
+                await page.click("[data-plugin-manager]");
+                await page.waitForSelector(".plugin-row");
+                await page.setInputFiles("#plugin-manager-file", { name: "qa-badge.zip", mimeType: "application/zip", buffer });
+                await page.waitForSelector('[data-plugin-row="qa-badge"]');
+                await page.waitForFunction(() => document.querySelector('[data-plugin-insert="qa-badge"]'));
+                const status = await page.locator("#plugin-manager-modal .share-success").textContent();
+                assert(/installed/i.test(status), `no install message: ${status}`);
+                await page.keyboard.press("Escape");
+                await page.click('[data-plugin-insert="qa-badge"]');
+                await page.fill(".sf-prompt__field", "Hi");
+                await page.click(".sf-prompt__btn--primary");
+                await page.waitForFunction(() => state.slides[currentSlideIndex].elements.some(e => e.pluginId === "qa-badge" && e.pluginPreview));
+                // Remove asks first, then deletes and unloads.
+                await page.click("[data-plugin-manager]");
+                await page.click('[data-plugin-row="qa-badge"] [data-plugin-action="remove"]');
+                assert(await page.locator('[data-plugin-row="qa-badge"]').count(), "removed on the first click");
+                await page.click('[data-plugin-row="qa-badge"] [data-plugin-action="remove"]');
+                await page.waitForFunction(() => !document.querySelector('[data-plugin-row="qa-badge"] .plugin-badge--user'));
+                await page.waitForFunction(() => !SlideForgePlugins.get("qa-badge") && !document.querySelector('[data-plugin-insert="qa-badge"]'));
+                const missing = await page.locator("#plugin-manager-modal").textContent();
+                assert(/not installed/i.test(missing), "the deck's objects from the removed plugin are not listed as missing");
+                const listing = await page.evaluate(() => _apiFetch("/api/plugins/").then(r => r.json()));
+                assert(!listing.plugins.some(p => p.id === "qa-badge"), "still installed on the server");
+                assert(!errors.length, `page errors: ${errors.join("; ")}`);
+            } finally {
+                await page.evaluate(() => _apiFetch("/api/plugins/qa-badge/", { method: "DELETE" })).catch(() => {});
+                await page.close();
+            }
+        });
+
         await test("review: importing a SlideForge JSON adds one project, named apart from a deck with the same name", async () => {
             const { page } = await openEditor(context);
             const fs = require("fs");

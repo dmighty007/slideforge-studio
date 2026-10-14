@@ -4,20 +4,65 @@ A plugin adds a new kind of object to slides without touching the editor's code.
 
 The first plugin, `smiles`, draws the 2D structure of a molecule from a SMILES string (`frontend/plugins/smiles/`).
 
-## Adding a plugin
+## Managing plugins
 
-1. Make a folder `frontend/plugins/<id>/` with a `plugin.js`. The id uses lower-case letters, digits and dashes (`smiles`, `qr-code`).
-2. Add the id to `frontend/plugins/plugins.json`:
+Open **Plugins** from the puzzle-piece button at the end of the insert toolbar, or "Manage Plugins" in the command palette (Ctrl+K). The dialog lists every plugin with its version, whether it is built in or yours, and how many objects in the open presentation use it.
 
-   ```json
-   { "plugins": ["smiles", "qr-code"] }
-   ```
+- **On/off switch**: takes effect at once, without a reload, and is remembered. A plugin switched off loses its toolbar button and commands. Objects already on slides keep their last picture and can be moved, resized and exported; they are editable again when the plugin is switched back on.
+- **Install from .zip…**: adds a plugin to your plugins folder and switches it on. Installing a newer zip of the same plugin replaces it (reload SlideForge to run the new version).
+- **Remove** (your plugins only): deletes the plugin's folder. Click it twice to confirm.
+- **Look again**: rereads the plugins folder after you add or change files there by hand.
+- Plugins a presentation uses but this installation lacks are listed as "Not installed".
 
-3. Reload the editor. The plugin gets a toolbar button, a command palette entry ("Add …") and a `/` command.
+### Where plugins live
 
-Libraries the plugin needs go in its own folder (for example `vendor/`), and are loaded when the plugin first draws, with `context.loadScript("vendor/lib.js")`. They are not loaded at startup. Put their licences next to them and list them in `THIRD_PARTY_NOTICES.md`.
+| | Folder | Kept on upgrade |
+|---|---|---|
+| Built-in | `frontend/plugins/<id>/`, listed in `frontend/plugins/plugins.json` (the list also says they start switched on) | replaced by each version |
+| Yours, desktop app | `<data dir>/plugins/<id>/` (the dialog shows the full path and can copy it) | yes |
+| Yours, web app | the folder in `SLIDEFORGE_USER_PLUGINS_DIR`; unset means no user plugins | yes |
 
-Plugins are ordinary scripts and run with the same rights as the editor itself. Only add plugins you trust.
+The on/off switches are saved in `<data dir>/plugin-settings.json` (desktop) or `SLIDEFORGE_PLUGIN_STATE_FILE` (web, default `backend/plugin-settings.json`). A user plugin cannot reuse a built-in plugin's id.
+
+**Who may change plugins**: in the desktop app, the person running it. In the web app, only staff users; everyone else sees the list read-only. Plugins run in every user's editor with the editor's full rights, so on a shared server set `SLIDEFORGE_USER_PLUGINS_DIR` only if staff can be trusted with that, and only install plugins you trust.
+
+### A plugin zip
+
+Either a folder named after the plugin id:
+
+```
+my-plugin.zip
+└── qr-code/
+    ├── plugin.js
+    ├── plugin.json
+    └── vendor/…
+```
+
+or the files at the top of the zip, with the id in `plugin.json`. Limits: 25 MB zipped, 60 MB unpacked, 500 files; no links or paths outside the folder.
+
+### plugin.json
+
+Optional, but it is what the dialog shows before the plugin's code has run:
+
+```json
+{
+    "id": "qr-code",
+    "name": "QR Code",
+    "version": "1.2.0",
+    "description": "A QR code for a link.",
+    "icon": "fa-solid fa-qrcode",
+    "author": "Your name",
+    "homepage": "https://example.org/qr-plugin"
+}
+```
+
+## Writing a plugin
+
+1. Make a folder `<id>/` with a `plugin.js` (and a `plugin.json`). The id uses lower-case letters, digits and dashes (`smiles`, `qr-code`) and must match the `id` that `plugin.js` registers.
+2. Put the folder in your plugins folder (or zip it and use **Install from .zip…**). For a built-in plugin, put it in `frontend/plugins/` and add its id to `frontend/plugins/plugins.json`.
+3. Press **Look again** in the dialog, or reload. The plugin gets a toolbar button, a command palette entry ("Add …") and a `/` command.
+
+Libraries the plugin needs go in its own folder (for example `vendor/`), and are loaded when the plugin first draws, with `context.loadScript("vendor/lib.js")`. They are not loaded at startup. Put their licences next to them (and, for built-in plugins, list them in `THIRD_PARTY_NOTICES.md`).
 
 ## plugin.js
 
@@ -77,10 +122,12 @@ Exports turn each plugin object into a picture of its box: PowerPoint gets a PNG
 |---|---|
 | `register(definition)` | Adds a plugin (see above). |
 | `get(id)`, `list()` | A registered plugin, or all of them. |
-| `ready` | A promise that resolves once `plugins.json` has been read and its plugins loaded. |
+| `ready` | A promise that resolves once the switched-on plugins have loaded. |
+| `enable(id)`, `disable(id)` | Loads or unloads a plugin in the open editor only (the dialog also saves the switch on the server). |
+| `catalogue()`, `count(id)` | The installed plugins as the server listed them; how many objects in the deck use a plugin. |
 | `insert(id, data?, { ask })` | Adds an object to the current slide. `ask: false` skips the prompt. Resolves to the new id. |
 | `update(elementId, changes)` | Changes some settings of an object, as one undo step. |
 | `edit(elementId)` | Opens the double-click editor. |
 | `draw(element)` | Resolves to `{ dataUrl, width, height }` for an element's settings. |
 
-The code is in `frontend/js/plugins/plugins.js` (registry, drawing, insert, exports) and `frontend/js/properties/panels/plugin.js` (the panel).
+The code is in `frontend/js/plugins/plugins.js` (registry, drawing, insert, exports), `frontend/js/properties/panels/plugin.js` (the panel), `frontend/js/ui/plugin-manager.js` (the dialog) and `backend/slideforge/studio/plugins.py` with `plugin_views.py` (`GET /api/plugins/`, `POST /api/plugins/<id>/ {"enabled": …}`, `POST /api/plugins/install/`, `DELETE /api/plugins/<id>/`; user plugin files at `/user-plugins/<id>/…`).

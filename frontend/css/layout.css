@@ -1649,6 +1649,12 @@ body.workspace-review #properties-content::before {
     align-items: flex-end;
 }
 
+/* The group's caption is drawn over it, not sized with it: with only the "Manage plugins" button, "PLUGINS" was
+   wider than the group and ran past the end of the bar. */
+#insert-toolbar-row .toolbar-cluster.insert-group--plugins {
+    min-width: 58px;
+}
+
 #insert-toolbar-row .toolbar-cluster.insert-group::before {
     content: attr(data-caption);
     position: absolute;

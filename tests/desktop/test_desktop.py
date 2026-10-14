@@ -1,5 +1,6 @@
 import io
 import json
+import shutil
 
 from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -98,6 +99,33 @@ class DesktopServingTests(TestCase):
         # The database path is checked end to end by the installed-app test (tests run on a test database).
         self.assertTrue(str(settings.MEDIA_ROOT).startswith(str(settings.DATA_DIR)))
         self.assertTrue((settings.DATA_DIR / "secret_key").exists())
+
+
+class DesktopPluginTests(TestCase):
+    def test_the_local_user_manages_plugins_in_the_data_directory(self):
+        folder = settings.DATA_DIR / "plugins"
+        data = Client().get("/api/plugins/").json()
+        self.assertTrue(data["canManage"] and data["canInstall"])
+        self.assertEqual(data["userDir"], str(folder.resolve()))
+        (folder / "demo").mkdir(parents=True, exist_ok=True)
+        (folder / "demo" / "plugin.js").write_text("// demo", encoding="utf-8")
+        try:
+            response = Client().get("/user-plugins/demo/plugin.js")
+            self.assertEqual(response.status_code, 200)
+            response.close()
+            ids = [p["id"] for p in Client().get("/api/plugins/").json()["plugins"]]
+            self.assertIn("demo", ids)
+            self.assertEqual(Client().delete("/api/plugins/demo/").status_code, 200)
+            self.assertFalse((folder / "demo").exists())
+        finally:
+            shutil.rmtree(folder / "demo", ignore_errors=True)
+
+    @override_settings(SLIDEFORGE_LAUNCH_TOKEN="launch-secret")
+    def test_user_plugins_and_the_plugin_api_need_the_launch_token(self):
+        # Built-in plugin code is public like /js/; the user's own plugins and the API are the user's data.
+        self.assertEqual(Client().get("/plugins/plugins.json").status_code, 200)
+        self.assertEqual(Client().get("/user-plugins/demo/plugin.js").status_code, 403)
+        self.assertEqual(Client().get("/api/plugins/").status_code, 403)
 
 
 class NoSignInUiTests(TestCase):

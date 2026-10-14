@@ -13,7 +13,12 @@ const SF_PLUGIN_FIELD_TYPES = new Set(["text", "textarea", "number", "color", "c
 const SF_PLUGIN_MAX_PREVIEW_LENGTH = 2000000;
 const SF_PLUGIN_MAX_DATA_LENGTH = 100000;
 
+// Plugins switched on; every plugin whose script has run (kept, so switching one back on needs no reload); plugins
+// switched off; and what the server said is installed (GET /api/plugins/).
 const _sfPlugins = new Map();
+const _sfPluginDefinitions = new Map();
+const _sfSwitchedOff = new Set();
+let _sfPluginCatalogue = [];
 // Drawings by what they were drawn from, so redraws (thumbnails, re-renders, undo) do not run the plugin again.
 const _sfPluginDrawings = new Map();
 // The last drawing error per element id, for the Properties panel.
@@ -84,14 +89,50 @@ function registerSlidePlugin(definition) {
         baseUrl: definition.baseUrl || _pluginScriptBase(),
         fields: (definition.fields || []).map(_normalizePluginField).filter(Boolean),
     };
-    _sfPlugins.set(id, plugin);
+    _sfPluginDefinitions.set(id, plugin);
+    // A plugin switched off while its script was loading stays off (its definition is kept for switching back on).
+    if (!_sfSwitchedOff.has(id)) _activatePlugin(plugin);
+    return plugin;
+}
+
+// How many objects in the open deck use a plugin.
+function countPluginObjects(id) {
+    return (typeof state !== "undefined" && state?.slides ? state.slides : []).reduce(
+        (count, slide) => count + (slide.elements || []).filter(el => el?.type === "plugin" && el.pluginId === id).length,
+        0,
+    );
+}
+
+function _activatePlugin(plugin) {
+    _sfPlugins.set(plugin.id, plugin);
     _installPluginInsertControls(plugin);
     // Objects of this plugin that were drawn from their saved picture can now be drawn by the plugin itself.
-    const used = (typeof state !== "undefined" && state?.slides ? state.slides : []).some(slide =>
-        (slide.elements || []).some(el => el?.type === "plugin" && el.pluginId === id),
-    );
-    if (used && typeof renderSlidesFromState === "function") renderSlidesFromState();
+    if (countPluginObjects(plugin.id) && typeof renderSlidesFromState === "function") renderSlidesFromState();
+}
+
+// Switches a plugin on: at once if its script ran before, otherwise by loading it.
+async function enableSlidePlugin(id, scriptUrl = "") {
+    _sfSwitchedOff.delete(id);
+    const known = _sfPluginDefinitions.get(id);
+    if (known) {
+        if (!_sfPlugins.has(id)) _activatePlugin(known);
+        return known;
+    }
+    const url = scriptUrl || _sfPluginCatalogue.find(entry => entry.id === id)?.script;
+    if (!url) throw new Error(`No script for the "${id}" plugin`);
+    await loadPluginScript(url);
+    const plugin = _sfPluginDefinitions.get(id);
+    if (!plugin) throw new Error(`${url} did not register a plugin called "${id}"`);
     return plugin;
+}
+
+// Switches a plugin off: its insert controls go, and its objects show their saved pictures again.
+function disableSlidePlugin(id) {
+    _sfSwitchedOff.add(id);
+    if (!_sfPlugins.delete(id)) return;
+    _removePluginInsertControls(id);
+    if (countPluginObjects(id) && typeof renderSlidesFromState === "function") renderSlidesFromState();
+    if (state?.selectedIds?.length && typeof buildPropertiesPanel === "function") buildPropertiesPanel();
 }
 
 function getSlidePlugin(id) {
@@ -102,26 +143,46 @@ function listSlidePlugins() {
     return [..._sfPlugins.values()];
 }
 
-// Reads plugins/plugins.json and loads each listed plugin. One broken plugin does not stop the others.
-async function loadSlidePlugins(manifestUrl = "plugins/plugins.json") {
+// The plugins the server offers (built-in and the user's own) and which are switched on. Without the API (the
+// frontend served on its own) the built-in list in plugins/plugins.json is used.
+async function fetchPluginCatalogue() {
     try {
-        const response = await fetch(manifestUrl, { cache: "no-cache" });
-        if (!response.ok) return [];
-        const manifest = await response.json();
-        const ids = (Array.isArray(manifest?.plugins) ? manifest.plugins : []).filter(id => SF_PLUGIN_ID_PATTERN.test(String(id)));
-        const base = new URL(manifestUrl, document.baseURI);
+        const response = await fetch("/api/plugins/", { credentials: "same-origin", cache: "no-cache" });
+        if (response.ok) {
+            const data = await response.json();
+            if (Array.isArray(data?.plugins)) {
+                _sfPluginCatalogue = data.plugins.filter(entry => SF_PLUGIN_ID_PATTERN.test(String(entry?.id)));
+                return data;
+            }
+        }
+    } catch (_error) {}
+    const response = await fetch("plugins/plugins.json", { cache: "no-cache" });
+    const manifest = response.ok ? await response.json() : {};
+    const ids = (Array.isArray(manifest?.plugins) ? manifest.plugins : []).filter(id => SF_PLUGIN_ID_PATTERN.test(String(id)));
+    _sfPluginCatalogue = ids.map(id => ({ id, name: id, source: "bundled", enabled: true, script: `plugins/${id}/plugin.js` }));
+    return { plugins: _sfPluginCatalogue, canManage: false, canInstall: false, userDir: "" };
+}
+
+function getPluginCatalogue() {
+    return _sfPluginCatalogue;
+}
+
+// Loads every plugin that is switched on. One broken plugin does not stop the others.
+async function loadSlidePlugins() {
+    try {
+        await fetchPluginCatalogue();
+        _sfPluginCatalogue.filter(entry => !entry.enabled).forEach(entry => _sfSwitchedOff.add(entry.id));
         await Promise.all(
-            ids.map(id =>
-                loadPluginScript(new URL(`${id}/plugin.js`, base).href).catch(error => console.warn(`Plugin "${id}" not loaded:`, error)),
-            ),
+            _sfPluginCatalogue
+                .filter(entry => entry.enabled && !entry.error)
+                .map(entry => enableSlidePlugin(entry.id, entry.script).catch(error => console.warn(`Plugin "${entry.id}" not loaded:`, error))),
         );
-        return ids;
     } catch (error) {
         console.warn("Plugins not loaded:", error);
-        return [];
     } finally {
         _sfPluginsReadyResolve?.(listSlidePlugins());
     }
+    return listSlidePlugins();
 }
 
 // ─── Drawing ─────────────────────────────────────────────────────────────────
@@ -226,6 +287,14 @@ function _findPluginElementInState(id) {
     return null;
 }
 
+// Why a plugin object cannot be drawn or edited: its plugin is switched off, or not installed here at all.
+function pluginUnavailableReason(id) {
+    const known = _sfPluginCatalogue.find(entry => entry.id === id) || _sfPluginDefinitions.get(id);
+    return known
+        ? `The “${known.name || id}” plugin is switched off. Turn it on in Plugins to edit this object.`
+        : `The “${id}” plugin is not installed.`;
+}
+
 function getPluginElementError(id) {
     return _sfPluginErrors.get(id) || "";
 }
@@ -256,7 +325,7 @@ function renderPluginElementContent(host, elData, { interactive = false } = {}) 
         // Plugins load after the deck: wait for them before saying this one is missing.
         sfPluginsReady.then(() => {
             if (!getSlidePlugin(elData.pluginId) && box.isConnected) {
-                showNote(img.getAttribute("src") ? "" : `The “${elData.pluginId}” plugin is not installed`);
+                showNote(img.getAttribute("src") ? "" : pluginUnavailableReason(elData.pluginId));
             }
         });
         return box;
@@ -406,6 +475,7 @@ function _installPluginInsertControls(plugin) {
         let group = [...toolbar.querySelectorAll(".insert-group")].find(node => node.dataset.caption === groupName);
         if (!group) {
             group = document.createElement("div");
+            group.dataset.pluginGroup = "true";
             group.className = "toolbar-cluster insert-group";
             group.setAttribute("role", "group");
             group.setAttribute("aria-label", groupName);
@@ -422,7 +492,8 @@ function _installPluginInsertControls(plugin) {
         icon.className = plugin.icon;
         button.appendChild(icon);
         button.onclick = () => insertPluginElement(plugin.id);
-        group.appendChild(button);
+        // Before the "Manage plugins" button, which stays last in its group.
+        group.insertBefore(button, group.querySelector("[data-plugin-manager]"));
     }
     const run = () => insertPluginElement(plugin.id);
     if (typeof COMMANDS !== "undefined" && Array.isArray(COMMANDS) && !COMMANDS.some(cmd => cmd.id === `add-plugin-${plugin.id}`)) {
@@ -442,6 +513,22 @@ function _installPluginInsertControls(plugin) {
             icon: plugin.icon.split(/\s+/).find(cls => cls.startsWith("fa-") && !["fa-solid", "fa-regular"].includes(cls)) || "fa-puzzle-piece",
             run,
         });
+    }
+}
+
+function _removePluginInsertControls(id) {
+    document.querySelectorAll(`[data-plugin-insert="${id}"]`).forEach(button => {
+        const group = button.closest(".insert-group");
+        button.remove();
+        if (group?.dataset.pluginGroup === "true" && !group.querySelector("button")) group.remove();
+    });
+    if (typeof COMMANDS !== "undefined" && Array.isArray(COMMANDS)) {
+        const index = COMMANDS.findIndex(cmd => cmd.id === `add-plugin-${id}`);
+        if (index >= 0) COMMANDS.splice(index, 1);
+    }
+    if (typeof SLASH_COMMANDS !== "undefined" && Array.isArray(SLASH_COMMANDS)) {
+        const index = SLASH_COMMANDS.findIndex(cmd => cmd.id === `plugin-${id}`);
+        if (index >= 0) SLASH_COMMANDS.splice(index, 1);
     }
 }
 
@@ -546,6 +633,11 @@ window.SlideForgePlugins = {
     list: listSlidePlugins,
     ready: sfPluginsReady,
     load: loadSlidePlugins,
+    catalogue: getPluginCatalogue,
+    fetchCatalogue: fetchPluginCatalogue,
+    enable: enableSlidePlugin,
+    disable: disableSlidePlugin,
+    count: countPluginObjects,
     loadScript: loadPluginScript,
     insert: insertPluginElement,
     update: updatePluginElementData,

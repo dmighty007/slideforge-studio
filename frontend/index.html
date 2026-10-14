@@ -394,6 +394,12 @@
                         <i class="fa-solid fa-code"></i>
                     </button>
                 </div>
+                <!-- Plugins without a group of their own add their buttons here, before "Manage plugins". -->
+                <div class="toolbar-cluster insert-group insert-group--plugins" role="group" aria-label="Plugins" data-caption="Plugins">
+                    <button type="button" data-plugin-manager onclick="openPluginManager()" class="toolbar-btn insert-tool-btn" title="Manage plugins" aria-label="Manage plugins">
+                        <i class="fa-solid fa-puzzle-piece"></i>
+                    </button>
+                </div>
             </div>
         </div>
         <div id="layers-popover" class="layers-popover hidden">
@@ -1286,6 +1292,7 @@
     <script src="js/editor/contextMenu.js"></script>
     <script src="js/ui/start-screen.js?v=20260929"></script>
     <script src="js/ui/share.js?v=20261001"></script>
+    <script src="js/ui/plugin-manager.js?v=20261014"></script>
     <script src="js/ui/app-theme.js?v=20261001"></script>
     <script src="js/core/main.js?v=20260530-phase2"></script>
     <script type="module" src="js/mermaid/mermaid-dialog.js"></script>

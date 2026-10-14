@@ -1013,3 +1013,16 @@ html[data-theme="dark"] .plugin-panel-error {
     background: rgba(127, 29, 29, 0.35);
     color: #fca5a5;
 }
+
+/* Plugin manager */
+html[data-theme="dark"] .plugin-badge--user {
+    background: rgba(129, 140, 248, 0.2);
+    color: #c7d2fe;
+}
+html[data-theme="dark"] .plugin-badge--missing {
+    background: rgba(251, 191, 36, 0.16);
+    color: #fcd34d;
+}
+html[data-theme="dark"] .plugin-switch__track {
+    background: #475569;
+}

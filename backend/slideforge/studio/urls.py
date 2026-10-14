@@ -2,6 +2,7 @@ from django.conf import settings
 from django.urls import path
 
 from .auth_views import auth_login, auth_logout, auth_register, auth_session
+from .plugin_views import plugin_detail, plugin_install, plugin_list
 from .views import (
     asset_pdf_page,
     asset_upload,
@@ -22,6 +23,9 @@ urlpatterns = [
     path("presentations/<uuid:presentation_id>/", presentation_detail, name="presentation-detail"),
     path("presentations/<uuid:presentation_id>/share/", presentation_share, name="presentation-share"),
     path("presentations/export/pptx/", export_pptx_view, name="export-pptx"),
+    path("plugins/", plugin_list, name="plugin-list"),
+    path("plugins/install/", plugin_install, name="plugin-install"),
+    path("plugins/<slug:plugin_id>/", plugin_detail, name="plugin-detail"),
 ]
 
 # Sign-in exists only when accounts are enabled (the web app). The desktop app runs as one local user.
