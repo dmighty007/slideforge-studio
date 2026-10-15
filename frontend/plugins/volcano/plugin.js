@@ -10,9 +10,12 @@
         const points = [];
         rows.forEach((row, index) => {
             const [label = "", fcText = "", pText = ""] = row;
-            const fc = Number(String(fcText).replace(",", "."));
-            const p = Number(String(pText).replace(",", "."));
-            if (index === 0 && !Number.isFinite(fc)) return; // a header row
+            // Blank cells are missing values, not 0: a blank p-value became p = 0, the most significant point of all.
+            const read = text => (String(text).trim() === "" ? null : Number(String(text).trim().replace(",", ".")));
+            const fc = read(fcText);
+            const p = read(pText);
+            if (index === 0 && fc !== null && !Number.isFinite(fc)) return; // a header row
+            if (fc === null || p === null) throw new Error(`Row ${index + 1}: the ${fc === null ? "log2 fold change" : "p-value"} is missing`);
             if (!Number.isFinite(fc) || !Number.isFinite(p) || p < 0 || p > 1) {
                 throw new Error(`Row ${index + 1}: needs a log2 fold change and a p-value between 0 and 1`);
             }
@@ -27,7 +30,7 @@
 
     SlideForgePlugins.register({
         id: "volcano",
-        version: "1",
+        version: "2",
         name: "Volcano Plot",
         description: "log2 fold change against −log10 p, with thresholds, up/down colours and labelled top hits",
         icon: "fa-solid fa-volcano",
@@ -47,7 +50,11 @@
             fontSize: 12,
         },
         fields: [
-            { key: "data", label: "Data", type: "table", columns: ["Label", "log2 fold change", "p-value"], rows: 7, hint: "Use adjusted p-values (FDR) if you have them." },
+            { key: "data", label: "Data", type: "table", summarize: rows => {
+                    const header = !Number.isFinite(Number(String(rows[0][1] ?? "").replace(",", "."))) ;
+                    const count = rows.length - (header ? 1 : 0);
+                    return `${count} point${count === 1 ? "" : "s"}`;
+                }, columns: ["Label", "log2 fold change", "p-value"], rows: 7, hint: "Use adjusted p-values (FDR) if you have them." },
             { key: "fcThreshold", label: "Fold-change threshold (|log2FC|)", type: "number", min: 0, max: 20, step: 0.1 },
             { key: "pThreshold", label: "p-value threshold", type: "number", min: 0, max: 1, step: "any" },
             { key: "labels", label: "Label the top hits", type: "number", min: 0, max: 50, step: 1, hint: "The most significant points past both thresholds; labels that would overlap are left out." },

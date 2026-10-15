@@ -63,13 +63,22 @@ export class ExportController {
     }
 }
 
+// "Slide SVG exported." or, when objects could not be kept, which ones became placeholder boxes.
+function exportedMessage(result, done) {
+    const lost = (result?.validation?.issues || []).filter(issue => issue.lost && (result.svg || "").includes(`data-node-id="${issue.nodeId}"`));
+    if (!lost.length) return { text: done, tone: "success" };
+    const kinds = [...new Set(lost.map(issue => issue.lost))].join(", ");
+    return { text: `${done} ${lost.length} object${lost.length === 1 ? "" : "s"} (${kinds}) could not be drawn in SVG and show as labelled boxes.`, tone: "warn" };
+}
+
 window.SlideForgeExportEngine = ExportController;
 window.compileSlideForgeRenderScene = options => ExportController.compileScene(options);
 window.exportPresentationSceneSVG = options => {
     try {
         window.setProjectSaveHint?.("Generating deterministic SVG...", "success");
         const result = ExportController.exportSceneSvg(options || {});
-        window.setProjectSaveHint?.("SVG scene exported.", "success");
+        const message = exportedMessage(result, "SVG scene exported.");
+        window.setProjectSaveHint?.(message.text, message.tone);
         return result;
     } catch (error) {
         console.error(error);
@@ -81,7 +90,8 @@ window.exportCurrentSlideSceneSVG = options => {
     try {
         window.setProjectSaveHint?.("Generating slide SVG...", "success");
         const result = ExportController.exportCurrentSlideSvg(options || {});
-        window.setProjectSaveHint?.("Slide SVG exported.", "success");
+        const message = exportedMessage(result, "Slide SVG exported.");
+        window.setProjectSaveHint?.(message.text, message.tone);
         return result;
     } catch (error) {
         console.error(error);

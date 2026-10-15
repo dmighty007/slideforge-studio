@@ -5362,6 +5362,91 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("Audit round 3: a blank time, p-value or count is reported as missing, not read as 0", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const cases = [
+            ["kaplan-meier", "Time,Event,Group\n5,1,Control\n8,0,Control\n,1,Treated", /Row 4: the time is missing/],
+            ["volcano", "Gene,log2FC,p\nA,2.1,0.001\nB,-1.5,", /Row 3: the p-value is missing/],
+            ["venn", null, /the count for “A&B” is missing/],
+        ];
+        for (const [pluginId, data, message] of cases) {
+            const id = await pageAwait(page, ([pluginId, data]) => insertPluginElement(pluginId, data ? { data } : null, { ask: false }), [pluginId, data]);
+            if (pluginId === "venn") {
+                const key = await page.evaluate(() => SlideForgePlugins.get("venn").fields.find(f => f.type === "table").key);
+                await pageAwait(page, ([id, key]) => SlideForgePlugins.update(id, { mode: "counts", [key]: "Region,Count\nA,12\nB,7\nA&B," }), [id, key]);
+            }
+            await page.waitForFunction(([id, source]) => new RegExp(source).test(getPluginElementError(id)), [id, message.source], { timeout: 5000 }).catch(() => {});
+            const error = await page.evaluate(id => getPluginElementError(id), id);
+            assert(message.test(error), `${pluginId}: "${error}"`);
+        }
+        // An explicit 0 is still a time.
+        const zero = await pageAwait(page, () => insertPluginElement("kaplan-meier", { data: "Time,Event\n0,1\n4,1\n6,0" }, { ask: false }));
+        assert(!(await page.evaluate(id => getPluginElementError(id), zero)), "an explicit time of 0 was refused");
+        await page.close();
+    });
+
+    await test("Audit round 3: the deterministic SVG export draws plugin objects, and says when something could not be kept", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("heatmap", null, { ask: false }));
+        const svg = await page.evaluate(() => window.exportCurrentSlideSceneSVG({ filename: "test.svg" })?.svg || "");
+        const node = svg.match(new RegExp(`<image[^>]*data-node-id="${id}"[^>]*>`))?.[0] || "";
+        assert(/href="data:image\/svg\+xml/.test(node) && /xMidYMid meet/.test(node), `heatmap in the SVG: ${node.slice(0, 160) || svg.match(new RegExp(`data-node-id="${id}"[^>]*>[\\s\\S]{0,200}`))?.[0]}`);
+        assert(/Slide SVG exported\.$/.test(await page.evaluate(() => document.getElementById("project-save-hint")?.textContent || "")), "a full export did not just say exported");
+        // An object an SVG cannot hold is named in the message.
+        await page.evaluate(() => { state.slides[currentSlideIndex].elements.push({ id: "html-embed-x", type: "html", content: "<p>x</p>", x: 10, y: 10, width: "100px", height: "60px", styles: {} }); renderSlidesFromState(); window.exportCurrentSlideSceneSVG({ filename: "test2.svg" }); });
+        const hint = await page.evaluate(() => document.getElementById("project-save-hint")?.textContent || "");
+        assert(/1 object \(html\) could not be drawn in SVG/.test(hint), `export message: "${hint}"`);
+        await page.close();
+    });
+
+    await test("Audit round 3: table fields say Applied after Ctrl+Enter, label example data with Clear, and summarise what they read", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("kaplan-meier", null, { ask: false }));
+        await page.evaluate(id => { selectElement(id); setPropertiesPanelVisible(true); buildPropertiesPanel(); }, id);
+        await page.locator("#prop-plugin-data").waitFor();
+        assert(await page.locator(".plugin-table-example").isVisible(), "the sample data is not labelled as example data");
+        assert(/subjects in 2 groups, \d+ censored/.test(await page.locator("#prop-plugin-data-summary").textContent()), "no subjects/groups summary");
+        await page.locator("#prop-plugin-data").click();
+        await page.keyboard.press("Control+A");
+        await page.keyboard.insertText("Time,Event,Group\n3,1,A\n5,0,A\n4,1,B");
+        assert(/not applied yet/.test(await page.locator("#prop-plugin-data-summary").textContent()), "typing does not say the data waits");
+        await page.keyboard.press("Control+Enter");
+        await page.waitForFunction(id => state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginData.data.includes("4,1,B"), id);
+        const after = await page.locator("#prop-plugin-data-summary").textContent();
+        assert(/3 subjects in 2 groups, 1 censored · applied$/.test(after), `after Ctrl+Enter: "${after}"`);
+        // Clear removes the example data.
+        await page.evaluate(() => document.activeElement?.blur());
+        await pageAwait(page, id => SlideForgePlugins.update(id, { data: SlideForgePlugins.get("kaplan-meier").defaultData.data }), id);
+        await page.evaluate(id => { selectElement(id); setPropertiesPanelVisible(true); buildPropertiesPanel(); }, id);
+        await page.locator("#prop-plugin-data-clear").waitFor();
+        await page.click("#prop-plugin-data-clear");
+        await page.waitForFunction(id => state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginData.data === "", id);
+        await page.close();
+    });
+
+    await test("Audit round 3: a failed lookup is shown once, and Fill content area gives a plot the room under the title", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.route("https://api.crossref.org/**", route => route.abort());
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("citation", { doi: "10.1000/unreachable" }, { ask: false }));
+        await page.evaluate(id => { selectElement(id); setPropertiesPanelVisible(true); buildPropertiesPanel(); }, id);
+        const shown = await page.evaluate(() => ({ notice: !document.getElementById("prop-plugin-notice").hidden, error: !document.getElementById("prop-plugin-error").hidden, retry: !!document.getElementById("prop-plugin-refresh") }));
+        assert(shown.notice && !shown.error && shown.retry, `lookup failure shown: ${JSON.stringify(shown)}`);
+        const plot = await pageAwait(page, () => insertPluginElement("box-plot", null, { ask: false }));
+        await page.evaluate(id => { selectElement(id); buildPropertiesPanel(); }, plot);
+        await page.click("#prop-plugin-fit");
+        const box = await page.evaluate(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const { slideW, margin } = _getSlideInsertBounds();
+            return { x: el.x, y: el.y, w: parseFloat(el.width), h: parseFloat(el.height), slideW, margin, footer: _currentSlideFooterTop() };
+        }, plot);
+        assert(Math.abs(box.w - (box.slideW - 2 * box.margin)) <= 1 && box.y + box.h <= box.footer - 11 && box.h > 150, `filled box: ${JSON.stringify(box)}`);
+        await page.close();
+    });
+
     await test("HTML export: a picture stored as a URL-encoded (not base64) data URL is written out intact", async () => {
         const { page } = await openFreshEditor(context);
         const result = await page.evaluate(async () => {

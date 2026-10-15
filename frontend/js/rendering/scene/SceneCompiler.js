@@ -124,6 +124,16 @@ function compileImage(element = {}) {
     };
 }
 
+// A plugin object is its saved drawing (a cleaned SVG picture), shown whole inside its box as on the slide. It was
+// exported as an empty box labelled "plugin".
+function compilePlugin(element = {}) {
+    return {
+        ...compileImage({ ...element, content: element.pluginPreview || "" }),
+        fit: "meet",
+        pluginId: element.pluginId || "",
+    };
+}
+
 function compileTable(element = {}) {
     return {
         ...baseNode(element),
@@ -191,6 +201,8 @@ export function compileElementToSceneNode(element = {}) {
             return compileShape(element);
         case "image":
             return compileImage(element);
+        case "plugin":
+            return compilePlugin(element);
         case "table":
             return compileTable(element);
         case "equation":

@@ -280,7 +280,7 @@ function renderText(node = {}) {
 
 function renderImage(node = {}) {
     const b = node.bounds || {};
-    if (!node.src) return renderPlaceholder(node, "Image");
+    if (!node.src) return renderPlaceholder(node, node.pluginId ? `Plugin: ${node.pluginId}` : "Image");
     return `<image ${attrsToString({
         "data-node-id": node.id,
         href: node.src,
@@ -289,7 +289,7 @@ function renderImage(node = {}) {
         width: b.width,
         height: b.height,
         opacity: node.opacity ?? 1,
-        preserveAspectRatio: "xMidYMid slice",
+        preserveAspectRatio: node.fit === "meet" ? "xMidYMid meet" : "xMidYMid slice",
         transform: transformAttr(node).trim() || undefined,
     })}/>`;
 }

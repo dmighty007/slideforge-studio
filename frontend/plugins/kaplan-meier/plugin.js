@@ -13,8 +13,11 @@
         const subjects = [];
         rows.forEach((row, index) => {
             const [timeText = "", eventText = "", group = ""] = row;
-            const time = Number(String(timeText).replace(",", "."));
-            if (index === 0 && !Number.isFinite(time)) return; // a header row
+            // A blank time is missing, not 0: Number("") is 0, and a half-filled row became an event at time zero.
+            const blank = String(timeText).trim() === "";
+            const time = blank ? NaN : Number(String(timeText).trim().replace(",", "."));
+            if (index === 0 && !blank && !Number.isFinite(time)) return; // a header row
+            if (blank) throw new Error(`Row ${index + 1}: the time is missing (enter 0 for time zero)`);
             const event = String(eventText).trim().toLowerCase();
             const happened = ["1", "true", "yes", "event", "dead", "died"].includes(event) ? 1 : ["0", "false", "no", "censored", "alive"].includes(event) ? 0 : null;
             if (!Number.isFinite(time) || time < 0 || happened === null) {
@@ -150,7 +153,7 @@
 
     SlideForgePlugins.register({
         id: "kaplan-meier",
-        version: "1",
+        version: "2",
         name: "Kaplan–Meier Curve",
         description: "Survival curves per group with censoring marks, confidence bands, numbers at risk and the log-rank test",
         icon: "fa-solid fa-chart-line",
@@ -174,7 +177,12 @@
             lineWidth: 2,
         },
         fields: [
-            { key: "data", label: "Data", type: "table", columns: ["Time", "Event (1/0)", "Group (optional)"], rows: 7, hint: "One row per subject. Event: 1 = event (death, relapse…), 0 = censored." },
+            { key: "data", label: "Data", type: "table", summarize: rows => {
+                    const body = Number.isFinite(Number(String(rows[0][0]).trim())) && String(rows[0][0]).trim() !== "" ? rows : rows.slice(1);
+                    const groups = new Set(body.map(row => String(row[2] ?? "").trim() || "All"));
+                    const censored = body.filter(row => ["0", "false", "no", "censored", "alive"].includes(String(row[1] ?? "").trim().toLowerCase())).length;
+                    return `${body.length} subjects in ${groups.size} group${groups.size === 1 ? "" : "s"}, ${censored} censored`;
+                }, columns: ["Time", "Event (1/0)", "Group (optional)"], rows: 7, hint: "One row per subject. Event: 1 = event (death, relapse…), 0 = censored." },
             { key: "xLabel", label: "Time axis label", type: "text" },
             { key: "yLabel", label: "Survival axis label", type: "text" },
             { key: "percent", label: "Scale", checkboxLabel: "Survival in percent", type: "checkbox" },

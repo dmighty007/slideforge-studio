@@ -9,12 +9,14 @@ export class ExportValidator {
             (slide.layers || []).forEach(layer => {
                 (layer.nodes || []).forEach(node => {
                     const b = node.bounds || {};
-                    if (node.exportPolicy === "placeholder" && options.profile?.id === "publication") {
+                    // Objects an SVG cannot hold (video, embeds, PDFs, 3D molecules) become labelled boxes: say so.
+                    if (node.exportPolicy === "placeholder") {
                         issues.push({
                             severity: "warning",
                             slideId: slide.id,
                             nodeId: node.id,
-                            message: `${node.type} will export as a placeholder in publication profile.`,
+                            lost: node.type,
+                            message: `${node.type} will export as a placeholder.`,
                         });
                     }
                     if (b.width < 0 || b.height < 0) {
@@ -30,7 +32,8 @@ export class ExportValidator {
                             severity: "warning",
                             slideId: slide.id,
                             nodeId: node.id,
-                            message: "Image node has no source.",
+                            lost: node.pluginId ? `plugin object (${node.pluginId})` : "image",
+                            message: node.pluginId ? `The ${node.pluginId} object has no picture yet.` : "Image node has no source.",
                         });
                     }
                 });

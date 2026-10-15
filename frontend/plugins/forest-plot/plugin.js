@@ -63,7 +63,11 @@
             fontSize: 13,
         },
         fields: [
-            { key: "data", label: "Rows", type: "table", columns: ["Label", "Estimate", "Lower", "Upper", "Weight (optional)"], rows: 7 },
+            { key: "data", label: "Rows", type: "table", summarize: rows => {
+                    const header = !Number.isFinite(Number(String(rows[0][1] ?? "").replace(",", ".")));
+                    const count = rows.length - (header ? 1 : 0);
+                    return `${count} row${count === 1 ? "" : "s"}`;
+                }, columns: ["Label", "Estimate", "Lower", "Upper", "Weight (optional)"], rows: 7 },
             {
                 key: "scale",
                 label: "Scale",

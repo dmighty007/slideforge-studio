@@ -99,7 +99,13 @@
             fontSize: 14,
         },
         fields: [
-            { key: "data", label: "Data", type: "table", rows: 7, placeholder: "Control,Treated\n4.1,5.2\n3.8,5.9", hint: "One column per group; the first row may name the groups." },
+            { key: "data", label: "Data", type: "table", summarize: rows => {
+                    const header = rows[0].some(cell => cell !== "" && !Number.isFinite(Number(String(cell).replace(",", "."))));
+                    const body = header ? rows.slice(1) : rows;
+                    const groups = Math.max(...rows.map(row => row.length));
+                    const values = body.flatMap(row => row).filter(cell => String(cell).trim() !== "").length;
+                    return `${groups} group${groups === 1 ? "" : "s"}, ${values} values`;
+                }, rows: 7, placeholder: "Control,Treated\n4.1,5.2\n3.8,5.9", hint: "One column per group; the first row may name the groups." },
             {
                 key: "kind",
                 label: "Plot",

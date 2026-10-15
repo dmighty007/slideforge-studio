@@ -785,6 +785,33 @@ async function updatePluginElementData(id, updates) {
     await _runPluginPrepare(id, plugin, next, previous, Object.keys(updates));
 }
 
+// "Fill content area": the object takes the slide's width between the margins, from under the title band (text that
+// starts in the top third of the slide) down to the footer. Plots inserted on a busy slide came out small.
+function fitPluginElementToContentArea(id) {
+    const slide = state.slides?.[currentSlideIndex];
+    const el = slide?.elements?.find(item => item.id === id);
+    if (!el || typeof _getSlideInsertBounds !== "function") return;
+    const { slideW, slideH, margin } = _getSlideInsertBounds();
+    const footerTop = typeof _currentSlideFooterTop === "function" ? _currentSlideFooterTop() : null;
+    const floor = footerTop === null ? slideH - margin : footerTop - 12;
+    const titleBottoms = slide.elements
+        .filter(item => item.id !== id && item.type === "text" && !item.isMasterElement && !item.editableMasterFooterElement && (parseFloat(item.y) || 0) < slideH / 3)
+        .map(item => {
+            const node = [...document.querySelectorAll(`[id="${item.id}"]`)].find(n => !n.closest("#slide-previews"));
+            const height = parseFloat(item.height) || node?.offsetHeight || 0;
+            return (parseFloat(item.y) || 0) + height;
+        });
+    const top = Math.round(Math.max(margin, ...titleBottoms.map(bottom => bottom + 16)));
+    saveStateToUndo();
+    el.x = Math.round(margin);
+    el.y = top;
+    el.width = `${Math.round(slideW - margin * 2)}px`;
+    el.height = `${Math.round(Math.max(80, floor - top))}px`;
+    renderSlidesFromState();
+    selectElement(id);
+    if (typeof refreshPreviews === "function") refreshPreviews();
+}
+
 // "Look up again": the plugin's lookup for the settings as they are (after a failed or old lookup).
 async function refreshPluginElement(id) {
     const el = _findPluginElementInState(id);
@@ -1146,6 +1173,7 @@ window.SlideForgePlugins = {
     insert: insertPluginElement,
     update: updatePluginElementData,
     refresh: refreshPluginElement,
+    fitToContentArea: fitPluginElementToContentArea,
     edit: editPluginElement,
     draw: drawPluginElement,
 };

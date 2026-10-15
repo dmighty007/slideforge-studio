@@ -168,7 +168,11 @@
             color: "",
         },
         fields: [
-            { key: "data", label: "Matrix", type: "table", rows: 7, hint: "First row: column names. First column: row names. Empty cells or NA are left grey." },
+            { key: "data", label: "Matrix", type: "table", summarize: rows => {
+                    const values = rows.slice(1).flatMap(row => row.slice(1, rows[0].length));
+                    const missing = values.filter(cell => String(cell ?? "").trim() === "" || /^(na|nan)$/i.test(String(cell).trim())).length;
+                    return `${rows.length - 1} rows × ${rows[0].length - 1} columns of values${missing ? `, ${missing} missing` : ""}`;
+                }, rows: 7, hint: "First row: column names. First column: row names. Empty cells or NA are left grey." },
             {
                 key: "zscore",
                 label: "Scale",

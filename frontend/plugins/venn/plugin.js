@@ -14,9 +14,12 @@
         const regions = new Map();
         rows.forEach((row, index) => {
             const [regionText = "", countText = ""] = row;
-            const count = Number(String(countText).trim());
-            if (index === 0 && !Number.isFinite(count)) return; // a header row
+            const blank = String(countText).trim() === "";
+            const count = blank ? NaN : Number(String(countText).trim());
+            if (index === 0 && !blank && !Number.isFinite(count)) return; // a header row
             if (!regionText.trim()) return;
+            // A blank count is missing, not 0 (Number("") is 0).
+            if (blank) throw new Error(`Row ${index + 1}: the count for “${regionText.trim()}” is missing`);
             if (!Number.isFinite(count) || count < 0) throw new Error(`Row ${index + 1}: “${countText}” is not a count`);
             const members = regionText.split(/[&∩+]/).map(name => name.trim()).filter(Boolean);
             members.forEach(name => !names.includes(name) && names.push(name));
@@ -110,7 +113,7 @@
 
     SlideForgePlugins.register({
         id: "venn",
-        version: "1",
+        version: "2",
         name: "Venn Diagram",
         description: "A Venn or Euler diagram of two or three sets, from counts or lists of items",
         icon: "fa-solid fa-circle-half-stroke",

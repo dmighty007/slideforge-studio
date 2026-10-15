@@ -4,7 +4,7 @@ function _pluginFieldId(key) {
   return `prop-plugin-${key}`;
 }
 
-function _pluginFieldInput(field, value) {
+function _pluginFieldInput(field, value, { example = false } = {}) {
   const id = _pluginFieldId(field.key);
   const placeholder = escapeHtml(field.placeholder || "");
   if (field.type === "textarea") {
@@ -14,9 +14,13 @@ function _pluginFieldInput(field, value) {
     const columns = field.columns.length
       ? `<div class="plugin-table-columns">${field.columns.map((name) => `<span>${escapeHtml(name)}</span>`).join("")}</div>`
       : "";
-    return `${columns}<textarea id="${id}" rows="${field.rows || 6}" class="w-full text-xs font-mono plugin-table-input" spellcheck="false" wrap="off" placeholder="${placeholder}">${escapeHtml(value ?? "")}</textarea>
+    // The plugin's sample data is labelled as such, with a way to clear it before pasting real data.
+    const exampleTag = example
+      ? `<div class="plugin-table-example"><span>Example data</span><button type="button" id="${id}-clear" class="plugin-table-load">Clear</button></div>`
+      : "";
+    return `${columns}${exampleTag}<textarea id="${id}" rows="${field.rows || 6}" class="w-full text-xs font-mono plugin-table-input" spellcheck="false" wrap="off" placeholder="${placeholder}">${escapeHtml(value ?? "")}</textarea>
       <div class="plugin-table-footer">
-        <span id="${id}-summary" class="plugin-table-summary">${escapeHtml(_pluginTableSummary(value))} · applied when you leave the box (Ctrl+Enter)</span>
+        <span id="${id}-summary" class="plugin-table-summary">${escapeHtml(_pluginTableSummary(value, field))} · applied when you leave the box (Ctrl+Enter)</span>
         <button type="button" id="${id}-load" class="plugin-table-load"><i class="fa-solid fa-file-csv"></i> Load CSV…</button>
         <input type="file" id="${id}-file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain" hidden>
       </div>`;
@@ -53,10 +57,17 @@ function _pluginFieldInput(field, value) {
   return `<input type="text" id="${id}" class="w-full text-xs font-mono" spellcheck="false" autocomplete="off" placeholder="${placeholder}" value="${escapeHtml(value ?? "")}">`;
 }
 
-// "3 rows × 2 columns" for a table field.
-function _pluginTableSummary(text) {
+// "3 rows × 2 columns" for a table field, or the plugin's own account of the data ("5 genes × 4 samples, 1 missing
+// value"; field.summarize(rows) may throw, as for data it cannot read).
+function _pluginTableSummary(text, field = null) {
   const rows = typeof parsePluginTable === "function" ? parsePluginTable(text) : [];
   if (!rows.length) return "No rows yet";
+  if (typeof field?.summarize === "function") {
+    try {
+      const own = field.summarize(rows);
+      if (own) return String(own);
+    } catch (_error) {}
+  }
   const columns = Math.max(...rows.map((row) => row.length));
   return `${rows.length} ${rows.length === 1 ? "row" : "rows"} × ${columns} ${columns === 1 ? "column" : "columns"}`;
 }
@@ -85,7 +96,8 @@ function buildPluginPanel(panel, data) {
       row.innerHTML = _pluginFieldInput(field, values[field.key]);
       wrap.appendChild(row);
     } else {
-      wrap.appendChild(createField(escapeHtml(field.label), _pluginFieldInput(field, values[field.key])));
+      const example = field.type === "table" && String(values[field.key] ?? "") !== "" && String(values[field.key]) === String(plugin.defaultData?.[field.key] ?? "");
+      wrap.appendChild(createField(escapeHtml(field.label), _pluginFieldInput(field, values[field.key], { example })));
     }
     if (field.hint) {
       const hint = document.createElement("p");
@@ -125,8 +137,16 @@ function buildPluginPanel(panel, data) {
   errorNote.id = "prop-plugin-error";
   errorNote.className = "plugin-panel-error";
   errorNote.textContent = error;
-  errorNote.hidden = !error;
+  // A failed lookup that also stops the drawing is one problem: say it once (the notice above already does).
+  errorNote.hidden = !error || error === notice;
+  const fit = document.createElement("button");
+  fit.type = "button";
+  fit.id = "prop-plugin-fit";
+  fit.className = "plugin-panel-refresh";
+  fit.innerHTML = '<i class="fa-solid fa-expand"></i> Fill content area';
+  fit.title = "Use the slide's width, from under the title to the footer";
   wrap.appendChild(errorNote);
+  wrap.appendChild(fit);
   group.appendChild(wrap);
   panel.appendChild(group);
 }
@@ -145,6 +165,8 @@ function bindPluginPanel(data) {
   };
   const refresh = document.getElementById("prop-plugin-refresh");
   if (refresh) refresh.onclick = () => refreshPluginElement(data.id);
+  const fit = document.getElementById("prop-plugin-fit");
+  if (fit) fit.onclick = () => fitPluginElementToContentArea(data.id);
   plugin.fields.forEach((field) => {
     const input = document.getElementById(_pluginFieldId(field.key));
     if (!input) return;
@@ -170,6 +192,8 @@ function bindPluginPanel(data) {
         if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
           event.preventDefault();
           commit(field.key, input.value.replace(/\s+$/, ""));
+          // The panel is not rebuilt while the box has focus, so say here that the data is in use now.
+          if (summary) summary.textContent = `${_pluginTableSummary(input.value, field)} · applied`;
           return;
         }
         if (event.key !== "Tab" || event.shiftKey) return;
@@ -177,8 +201,10 @@ function bindPluginPanel(data) {
         input.setRangeText("\t", input.selectionStart, input.selectionEnd, "end");
       };
       input.oninput = () => {
-        if (summary) summary.textContent = `${_pluginTableSummary(input.value)} · not applied yet: leave the box or press Ctrl+Enter`;
+        if (summary) summary.textContent = `${_pluginTableSummary(input.value, field)} · not applied yet: leave the box or press Ctrl+Enter`;
       };
+      const clear = document.getElementById(`${id}-clear`);
+      if (clear) clear.onclick = () => commit(field.key, "");
       input.onchange = () => commit(field.key, input.value.replace(/\s+$/, ""));
       const load = document.getElementById(`${id}-load`);
       if (load && file) {

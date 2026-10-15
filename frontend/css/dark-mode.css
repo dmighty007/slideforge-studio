@@ -1069,3 +1069,7 @@ html[data-theme="dark"] .plugin-panel-refresh {
     border-color: var(--dk-border);
     color: var(--dk-text);
 }
+html[data-theme="dark"] .plugin-table-example span {
+    background: rgba(251, 191, 36, 0.18);
+    color: #fcd34d;
+}
