@@ -178,7 +178,7 @@ SlideForgePlugins.register({
   - `baseUrl`: the plugin folder's URL.
   - `parseTable(text)`: rows of cells from a table field.
   - `width`, `height`: the box, for `sizeAware` plugins.
-  - `measureText(text, { size, weight, italic, family })`: a line's width in px, to lay out labels.
+  - `measureText(text, { size, weight, italic, family })`: a line's width in px, to lay out labels. Text written and measured in `Arial, Helvetica, sans-serif` (the default) is drawn in the theme's body font: SlideForge measures with that font and puts its faces inside the picture where it is shown and exported (the saved drawing stays small). Name another font to keep it (the Feynman diagram's serif, the sequence's monospace).
   - `niceTicks(min, max, count)`: round axis ticks (`{ min, max, step, ticks }`).
   - `escapeXml(text)`: text made safe to put in SVG markup.
   - `fetchJson(url)`: JSON from a web service, with a readable error when it cannot be reached (`error.status` holds the HTTP status). Only hosts the page's Content-Security-Policy allows can be reached: `connect-src` in the desktop and web settings lists PubChem and Crossref. A plugin that needs another service needs that host added there.

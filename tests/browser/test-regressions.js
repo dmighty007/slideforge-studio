@@ -4134,7 +4134,9 @@ async function test(name, fn) {
     const pluginNodeImage = (page, id) =>
         page.evaluate(id => {
             const node = [...document.querySelectorAll(`[id="${id}"]`)].find(n => !n.closest("#slide-previews"));
-            return node?.querySelector(".plugin-element-content img")?.getAttribute("src") || "";
+            // The drawing shown (its src also carries the theme's font).
+            const img = node?.querySelector(".plugin-element-content img");
+            return img?.dataset.picture || img?.getAttribute("src") || "";
         }, id);
     const svgOf = dataUrl => decodeURIComponent(String(dataUrl).slice(String(dataUrl).indexOf(",") + 1));
     // The toolbar's Plugins menu, and the plugin manager opened from it.
@@ -6160,6 +6162,72 @@ async function test(name, fn) {
         });
         await viewer.close();
         assert(viewerPitch && Math.abs(viewerPitch - editorPitch) <= editorPitch * 0.12, `bullet spacing: editor ${editorPitch.toFixed(1)} px, Web ZIP ${viewerPitch?.toFixed(1)} px`);
+        await page.close();
+    });
+
+    await test("research deck: plots draw in the theme's body font, carried inside the picture but not saved with it", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("box-plot", null, { ask: false }));
+        const read = () =>
+            page.evaluate(async id => {
+                const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+                const node = [...document.querySelectorAll(`[id="${id}"]`)].find(n => !n.closest("#slide-previews"));
+                const img = node.querySelector(".plugin-element-content img");
+                const stored = decodeURIComponent(el.pluginPreview);
+                const exported = decodeURIComponent(await _pluginPictureForBox(el));
+                return {
+                    body: getPresentationTheme().bodyFont.split(",")[0].replace(/["']/g, "").trim(),
+                    family: stored.match(/font-family="([^"]*)"/)?.[1] || "",
+                    storedHasFont: stored.includes("@font-face"),
+                    shownHasFont: decodeURIComponent(img.getAttribute("src")).includes("@font-face"),
+                    exportedHasFont: exported.includes("@font-face"),
+                };
+            }, id);
+        await page.waitForFunction(id => {
+            const node = [...document.querySelectorAll(`[id="${id}"]`)].find(n => !n.closest("#slide-previews"));
+            return decodeURIComponent(node?.querySelector(".plugin-element-content img")?.getAttribute("src") || "").includes("@font-face");
+        }, id, { timeout: 10000 }).catch(() => {});
+        const first = await read();
+        assert(first.family.startsWith(`'${first.body}'`) && first.family.includes("Arial"), `plot font: ${JSON.stringify(first)}`);
+        assert(!first.storedHasFont && first.shownHasFont && first.exportedHasFont, `font inside the pictures: ${JSON.stringify(first)}`);
+        // Another theme with another body font: the plot follows it.
+        const other = await page.evaluate(body => Object.keys(PRESENTATION_THEMES).find(key => !String(PRESENTATION_THEMES[key].bodyFont || "").includes(body)), first.body);
+        await page.evaluate(theme => changePresentationTheme(theme), other);
+        await page.waitForFunction(([id, body]) => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            return !decodeURIComponent(el.pluginPreview).includes(`'${body}'`);
+        }, [id, first.body], { timeout: 10000 });
+        const second = await read();
+        assert(second.family.startsWith(`'${second.body}'`), `after the theme change: ${JSON.stringify(second)}`);
+        await page.close();
+    });
+
+    await test("research deck: a native chart in PowerPoint keeps the value axis the editor draws", async () => {
+        const { page } = await openEditor(context);
+        await page.evaluate(() => {
+            addSlide();
+            addChart("bar");
+            const el = state.slides[currentSlideIndex].elements.find(e => e.type === "chart");
+            el.chartData = { labels: ["Placebo", "100 mg", "200 mg"], datasets: [{ label: "Response", data: [3.1, 5.4, 7.6] }] };
+            renderSlidesFromState();
+        });
+        await page.waitForTimeout(500);
+        const out = await page.evaluate(async () => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.type === "chart");
+            const node = [...document.querySelectorAll(`[id="${el.id}"]`)].find(n => !n.closest("#slide-previews"));
+            const scale = Chart.getChart(node.querySelector("canvas")).scales.y;
+            let body = null;
+            const realFetch = window.fetch;
+            window.fetch = async (url, options) => {
+                if (String(url).includes("/export/pptx/")) { body = JSON.parse(options.body); return new Response(new Blob(["x"]), { status: 200 }); }
+                return realFetch(url, options);
+            };
+            try { await exportPPTX(); } finally { window.fetch = realFetch; }
+            const sent = body.state.slides.flatMap(s => s.elements).find(e => e.id === el.id);
+            return { editor: { min: scale.min, max: scale.max }, sent: sent.exportValueAxis };
+        });
+        assert(out.sent && out.sent.min === out.editor.min && out.sent.max === out.editor.max && out.sent.step > 0, `value axis: ${JSON.stringify(out)}`);
         await page.close();
     });
 

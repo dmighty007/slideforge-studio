@@ -246,6 +246,35 @@ function _chartToDataUrl(el) {
   }
 }
 
+// The value axis Chart.js draws for a chart (lowest, highest, step), so PowerPoint's native chart uses the same scale:
+// left to choose its own, it ran the axis to 9 where the editor stopped at 8.
+function chartValueAxisForExport(el) {
+  if (typeof Chart === "undefined" || ["pie", "doughnut"].includes(el?.chartType)) return null;
+  const width = Math.max(40, parseFloat(el.width) || 500);
+  const height = Math.max(40, parseFloat(el.height) || 350);
+  const host = document.createElement("div");
+  host.style.cssText = `position:fixed;left:-10000px;top:0;width:${width}px;height:${height}px;`;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  host.appendChild(canvas);
+  document.body.appendChild(host);
+  let chart = null;
+  try {
+    const config = buildChartJsConfig(el, { forExport: true });
+    chart = new Chart(canvas, config);
+    const scale = chart.scales[config.options.indexAxis === "y" ? "x" : "y"];
+    const ticks = (scale?.ticks || []).map((tick) => Number(tick.value)).filter(Number.isFinite);
+    if (!scale || ticks.length < 2) return null;
+    return { min: scale.min, max: scale.max, step: Math.abs(ticks[1] - ticks[0]) };
+  } catch (_error) {
+    return null;
+  } finally {
+    chart?.destroy();
+    host.remove();
+  }
+}
+
 function createZipViewerState(snapshot, theme) {
   const exportState = JSON.parse(JSON.stringify(snapshot || {}));
   if (!Array.isArray(exportState.slides)) exportState.slides = [];
@@ -1008,6 +1037,11 @@ async function exportPPTX() {
     // Shape text with its colours and sizes worked out (the defaults depend on the shape's fill and the theme).
     exportState.slides.forEach(slide => (slide.elements || []).forEach(el => {
         if (el?.type === "shape" && el.shapeText && typeof getShapeTextStyle === "function") el.shapeTextStyle = getShapeTextStyle(el);
+    }));
+    (exportState.slides || []).forEach((slide) => (slide.elements || []).forEach((el) => {
+      if (el?.type !== "chart") return;
+      const axis = chartValueAxisForExport(el);
+      if (axis) el.exportValueAxis = axis;
     }));
     // PowerPoint cannot show KaTeX: equations go in as pictures instead of an "Equation placeholder" box.
     if (typeof replaceEquationsWithPictures === "function") await replaceEquationsWithPictures(exportState);

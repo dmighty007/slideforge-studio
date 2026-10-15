@@ -244,6 +244,30 @@ function _pluginThemeColor() {
     return theme?.defaultTextColor || "#1f2937";
 }
 
+// Plot text in the theme's body font, as on the slide; it was always Arial. A plugin writes (and measures) Arial,
+// Helvetica, sans-serif: that stack becomes the theme's font with Arial behind it. Fonts a plugin picks itself (the
+// Feynman diagram's serif, the sequence's monospace) are left alone.
+const SF_PLUGIN_DEFAULT_FONT = "Arial, Helvetica, sans-serif";
+function pluginFontStack() {
+    const theme = typeof getPresentationTheme === "function" ? getPresentationTheme() : null;
+    const body = String(theme?.bodyFont || "").replace(/"/g, "'").trim();
+    if (!body) return SF_PLUGIN_DEFAULT_FONT;
+    const generic = /,\s*serif\s*$/i.test(body) ? "serif" : "sans-serif";
+    return `${body.replace(/,\s*(sans-serif|serif)\s*$/i, "")}, Arial, Helvetica, ${generic}`;
+}
+
+function _pluginFont(family) {
+    return !family || String(family).trim() === SF_PLUGIN_DEFAULT_FONT ? pluginFontStack() : family;
+}
+
+// The faces of the theme's font, loaded before a plugin measures its text (measured with a fallback font, labels
+// would not fit once the real font arrived).
+async function _loadPluginFont() {
+    const stack = pluginFontStack();
+    if (stack === SF_PLUGIN_DEFAULT_FONT || !document.fonts?.load) return;
+    await Promise.all(["400", "700", "italic 400"].map(face => document.fonts.load(`${face} 16px ${stack}`).catch(() => null)));
+}
+
 // ─── Helpers plugins get in their context ─────────────────────────────────────
 
 function pluginEscapeXml(text) {
@@ -255,7 +279,7 @@ let _sfMeasureCanvas = null;
 function pluginMeasureText(text, { size = 16, weight = 400, italic = false, family = "Arial, Helvetica, sans-serif" } = {}) {
     _sfMeasureCanvas = _sfMeasureCanvas || document.createElement("canvas");
     const g = _sfMeasureCanvas.getContext("2d");
-    g.font = `${italic ? "italic " : ""}${weight} ${size}px ${family}`;
+    g.font = `${italic ? "italic " : ""}${weight} ${size}px ${_pluginFont(family)}`;
     return g.measureText(String(text ?? "")).width;
 }
 
@@ -348,7 +372,7 @@ function normalizePluginData(plugin, data) {
 
 function _pluginPreviewKey(plugin, data, elData = null) {
     const box = plugin.sizeAware ? _pluginBoxSize(plugin, elData) : null;
-    return JSON.stringify([plugin.id, plugin.version, _pluginThemeColor(), data, ...(box ? [box.width, box.height] : [])]);
+    return JSON.stringify([plugin.id, plugin.version, _pluginThemeColor(), pluginFontStack(), data, ...(box ? [box.width, box.height] : [])]);
 }
 
 // A plugin's SVG made safe to keep and show: no scripts, handlers or outside references, and a viewBox so it scales.
@@ -394,6 +418,119 @@ function cleanPluginSvg(svgText) {
     return new XMLSerializer().serializeToString(svg);
 }
 
+// ─── The theme's font inside the pictures ───────────────────────────────────────
+// A drawing shown as a picture cannot use the page's web fonts: the faces it uses are put inside it (the latin
+// woff2 files, fetched once) where it is shown or exported. The saved drawing stays small and font-free.
+const _sfFontFiles = new Map();
+const _sfPicturesWithFonts = new Map();
+const _sfPicturesWithFontsReady = new Map();
+
+function _pluginFontFaces() {
+    const faces = [];
+    const walk = sheet => {
+        let rules = null;
+        try {
+            rules = sheet.cssRules;
+        } catch (_error) {
+            return;
+        }
+        for (const rule of rules || []) {
+            if (rule.styleSheet) walk(rule.styleSheet);
+            else if (rule instanceof CSSFontFaceRule) {
+                const url = rule.style.getPropertyValue("src").match(/url\(["']?([^"')]+\.woff2)["']?\)/)?.[1];
+                const range = rule.style.getPropertyValue("unicode-range");
+                if (!url || (range && !/U\+0+-/i.test(range))) continue;
+                faces.push({
+                    family: rule.style.getPropertyValue("font-family").replace(/["']/g, "").trim().toLowerCase(),
+                    weight: Number(rule.style.getPropertyValue("font-weight")) || 400,
+                    italic: /italic/i.test(rule.style.getPropertyValue("font-style")),
+                    url: new URL(url, rule.parentStyleSheet?.href || document.baseURI).href,
+                });
+            }
+        }
+    };
+    [...document.styleSheets].forEach(walk);
+    return faces;
+}
+
+function _fontFileAsDataUrl(url) {
+    if (!_sfFontFiles.has(url)) {
+        _sfFontFiles.set(
+            url,
+            fetch(url)
+                .then(response => (response.ok ? response.arrayBuffer() : null))
+                .then(buffer => {
+                    if (!buffer) return "";
+                    const bytes = new Uint8Array(buffer);
+                    let binary = "";
+                    for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+                    return `data:font/woff2;base64,${btoa(binary)}`;
+                })
+                .catch(() => ""),
+        );
+    }
+    return _sfFontFiles.get(url);
+}
+
+async function pluginPictureWithFonts(picture) {
+    if (!String(picture || "").startsWith("data:image/svg+xml")) return picture;
+    if (_sfPicturesWithFonts.has(picture)) return _sfPicturesWithFonts.get(picture);
+    const job = (async () => {
+        const comma = picture.indexOf(",");
+        const head = picture.slice(0, comma);
+        const svgText = /;base64/i.test(head) ? decodeURIComponent(escape(atob(picture.slice(comma + 1)))) : decodeURIComponent(picture.slice(comma + 1));
+        const family = pluginFontStack().split(",")[0].replace(/["']/g, "").trim().toLowerCase();
+        if (pluginFontStack() === SF_PLUGIN_DEFAULT_FONT || !svgText.toLowerCase().includes(family) || svgText.includes("@font-face")) return picture;
+        const available = _pluginFontFaces().filter(face => face.family === family);
+        if (!available.length) return picture;
+        const weights = new Set([400, ...[...svgText.matchAll(/font-weight="(\d+)"/g)].map(match => Number(match[1]))]);
+        const styles = /font-style="italic"/.test(svgText) ? [false, true] : [false];
+        const chosen = new Map();
+        styles.forEach(italic => {
+            const faces = available.filter(face => face.italic === italic);
+            weights.forEach(weight => {
+                const nearest = faces.sort((a, b) => Math.abs(a.weight - weight) - Math.abs(b.weight - weight))[0];
+                if (nearest) chosen.set(nearest.url, nearest);
+            });
+        });
+        const rules = await Promise.all(
+            [...chosen.values()].map(async face => {
+                const data = await _fontFileAsDataUrl(face.url);
+                return data ? `@font-face{font-family:'${pluginFontStack().split(",")[0].replace(/["']/g, "").trim()}';font-weight:${face.weight};font-style:${face.italic ? "italic" : "normal"};src:url(${data}) format('woff2');}` : "";
+            }),
+        );
+        const css = rules.join("");
+        if (!css) return picture;
+        const open = svgText.indexOf(">", svgText.indexOf("<svg"));
+        if (open < 0) return picture;
+        return _svgDataUrl(`${svgText.slice(0, open + 1)}<style>${css}</style>${svgText.slice(open + 1)}`);
+    })().catch(() => picture);
+    _sfPicturesWithFonts.set(picture, job);
+    job.then(result => {
+        _sfPicturesWithFontsReady.set(picture, result);
+        if (_sfPicturesWithFontsReady.size > 150) {
+            const oldest = _sfPicturesWithFontsReady.keys().next().value;
+            _sfPicturesWithFontsReady.delete(oldest);
+            _sfPicturesWithFonts.delete(oldest);
+        }
+    });
+    return job;
+}
+
+// Shows a drawing in an <img>: with its fonts at once when they are ready, else plain until they are.
+function _setPluginPicture(img, picture) {
+    img.dataset.picture = picture;
+    const ready = _sfPicturesWithFontsReady.get(picture);
+    if (ready) {
+        if (img.getAttribute("src") !== ready) img.src = ready;
+        return;
+    }
+    if (img.getAttribute("src") !== picture) img.src = picture;
+    pluginPictureWithFonts(picture).then(withFonts => {
+        if (img.dataset.picture === picture && withFonts !== picture) img.src = withFonts;
+    });
+}
+
 function _svgDataUrl(svgText) {
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgText)}`;
 }
@@ -406,8 +543,10 @@ async function drawPluginElement(elData) {
     const key = _pluginPreviewKey(plugin, data, elData);
     if (!_sfPluginDrawings.has(key)) {
         const drawing = (async () => {
+            await _loadPluginFont();
             const result = await plugin.render(data, _pluginRenderContext(plugin, elData));
-            const svgText = cleanPluginSvg(typeof result === "string" ? result : new XMLSerializer().serializeToString(result));
+            const raw = typeof result === "string" ? result : new XMLSerializer().serializeToString(result);
+            const svgText = cleanPluginSvg(raw.split(`font-family="${SF_PLUGIN_DEFAULT_FONT}"`).join(`font-family="${pluginFontStack()}"`));
             const svg = new DOMParser().parseFromString(svgText, "image/svg+xml").documentElement;
             const dataUrl = _svgDataUrl(svgText);
             _sfCleanPreviews.add(dataUrl);
@@ -458,7 +597,7 @@ function renderPluginElementContent(host, elData, { interactive = false } = {}) 
     const img = document.createElement("img");
     img.alt = plugin?.name || "Plugin object";
     img.draggable = false;
-    if (elData.pluginPreview) img.src = elData.pluginPreview;
+    if (elData.pluginPreview) _setPluginPicture(img, elData.pluginPreview);
     box.appendChild(img);
     const note = document.createElement("div");
     note.className = "plugin-element-note";
@@ -490,7 +629,7 @@ function renderPluginElementContent(host, elData, { interactive = false } = {}) 
                 _sfPluginErrors.delete(elData.id);
                 showNote("");
                 box.classList.remove("plugin-element-content--error");
-                if (img.getAttribute("src") !== drawing.dataUrl) img.src = drawing.dataUrl;
+                if (img.dataset.picture !== drawing.dataUrl) _setPluginPicture(img, drawing.dataUrl);
                 const stored = _findPluginElementInState(elData.id);
                 // autoHeight plugins (wrapped text) set the box's height to what they drew, outside undo. Whichever copy
                 // draws first: when the slide thumbnail redrew for a new width first, it stored the drawing, the editor's
@@ -1112,6 +1251,7 @@ async function _pluginPictureForBox(el) {
         }
     }
     if (!dataUrl.startsWith("data:image/svg+xml")) return dataUrl;
+    dataUrl = await pluginPictureWithFonts(dataUrl);
     const svgText = decodeURIComponent(dataUrl.slice(dataUrl.indexOf(",") + 1));
     const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
     const svg = doc.documentElement;

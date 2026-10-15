@@ -1253,6 +1253,14 @@ class PPTXExporter:
                     run.font.size = Pt(round(font_px * 0.75, 1))
                     run.font.bold = True
                     run.font.color.rgb = ink
+            # The scale the editor's chart drew (Chart.js), so the axis ends where it does on the slide.
+            axis = el.get("exportValueAxis") if isinstance(el.get("exportValueAxis"), dict) else {}
+            low, high, step = (self._chart_number(axis.get(key)) for key in ("min", "max", "step"))
+            if low is not None and high is not None and high > low:
+                chart.value_axis.minimum_scale = low
+                chart.value_axis.maximum_scale = high
+                if step and step > 0 and (high - low) / step <= 50:
+                    chart.value_axis.major_unit = step
             chart.value_axis.has_major_gridlines = style.get("grid") is not False
             if style.get("grid") is not False:
                 chart.value_axis.major_gridlines.format.line.color.rgb = RGBColor(0x94, 0xA3, 0xB8) if card_luminance > 0.5 else RGBColor(0x47, 0x55, 0x69)

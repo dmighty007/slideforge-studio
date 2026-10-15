@@ -361,6 +361,21 @@ class PPTXExportMediaTests(TestCase):
         self.assertEqual(str(plot.series[0].format.fill.fore_color.rgb), "2563EB")
         self.assertFalse(any(shape.has_text_frame and "placeholder" in shape.text_frame.text for shape in slide.shapes))
 
+    def test_chart_value_axis_follows_the_editor(self):
+        slide = self._export([{
+            "type": "chart", "chartType": "bar", "x": 100, "y": 100, "width": "500px", "height": "300px",
+            "chartData": {"labels": ["A", "B"], "datasets": [{"label": "R", "data": [3.2, 7.6]}]},
+            "exportValueAxis": {"min": 0, "max": 8, "step": 2},
+        }])
+        axis = next(shape.chart for shape in slide.shapes if shape.has_chart).value_axis
+        self.assertEqual((axis.minimum_scale, axis.maximum_scale, axis.major_unit), (0.0, 8.0, 2.0))
+        plain = self._export([{
+            "type": "chart", "chartType": "bar", "x": 100, "y": 100, "width": "500px", "height": "300px",
+            "chartData": {"labels": ["A"], "datasets": [{"label": "R", "data": [3.2]}]},
+        }])
+        axis = next(shape.chart for shape in plain.shapes if shape.has_chart).value_axis
+        self.assertIsNone(axis.maximum_scale)
+
     def test_slide_number_is_centred_in_its_pill(self):
         from pptx.enum.text import MSO_ANCHOR
 
