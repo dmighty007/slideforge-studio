@@ -154,7 +154,7 @@
         name: "Kaplan–Meier Curve",
         description: "Survival curves per group with censoring marks, confidence bands, numbers at risk and the log-rank test",
         icon: "fa-solid fa-chart-line",
-        insert: { label: "Kaplan–Meier survival curve", keywords: "kaplan meier survival curve censoring log-rank hazard numbers at risk clinical" },
+        insert: { category: "Statistics", label: "Kaplan–Meier survival curve", keywords: "kaplan meier survival curve censoring log-rank hazard numbers at risk clinical" },
         defaultSize: { width: 560, height: 360 },
         sizeAware: true,
         askOnInsert: false,

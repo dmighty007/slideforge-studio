@@ -41,7 +41,7 @@
         name: "Gel Electrophoresis",
         description: "A gel schematic: ladder and sample lanes with bands placed by size",
         icon: "fa-solid fa-grip-lines-vertical",
-        insert: { label: "Gel electrophoresis", keywords: "gel electrophoresis agarose sds page ladder band pcr western blot dna protein lane" },
+        insert: { category: "Biology", label: "Gel electrophoresis", keywords: "gel electrophoresis agarose sds page ladder band pcr western blot dna protein lane" },
         defaultSize: { width: 420, height: 300 },
         sizeAware: true,
         askOnInsert: false,

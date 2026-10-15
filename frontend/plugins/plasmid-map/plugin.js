@@ -78,7 +78,7 @@
         name: "Plasmid Map",
         description: "A circular plasmid map with features, strands and restriction sites",
         icon: "fa-solid fa-circle-notch",
-        insert: { label: "Plasmid map", keywords: "plasmid map vector circular genbank feature restriction site cloning dna" },
+        insert: { category: "Biology", label: "Plasmid map", keywords: "plasmid map vector circular genbank feature restriction site cloning dna" },
         defaultSize: { width: 460, height: 380 },
         sizeAware: true,
         askOnInsert: false,

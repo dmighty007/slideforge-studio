@@ -45,7 +45,7 @@
         name: "Forest Plot",
         description: "Estimates with confidence intervals per study or subgroup, with a pooled diamond",
         icon: "fa-solid fa-bars-staggered",
-        insert: { label: "Forest plot", keywords: "forest plot meta-analysis odds ratio hazard ratio confidence interval subgroup effect size" },
+        insert: { category: "Statistics", label: "Forest plot", keywords: "forest plot meta-analysis odds ratio hazard ratio confidence interval subgroup effect size" },
         defaultSize: { width: 620, height: 260 },
         sizeAware: true,
         askOnInsert: false,

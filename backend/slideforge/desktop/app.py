@@ -157,6 +157,26 @@ def _notify(message: str, *, gui: bool, error: bool = True) -> None:
         pass
 
 
+def _webview_storage(data_dir: Path) -> Path:
+    """The window's profile folder (<data dir>/webview).
+
+    Earlier versions kept it in ~/.pywebview by mistake (see qt_support.use_storage_path). The default data
+    directory takes over that localStorage once, so the open project and any unsaved-change backups carry over;
+    other data directories start with their own, empty storage.
+    """
+    storage = data_dir / "webview"
+    legacy = Path.home() / ".pywebview" / "Local Storage"
+    try:
+        is_default = data_dir.resolve() == Path(paths.default_data_dir()).resolve()
+        if is_default and legacy.is_dir() and not (storage / "Local Storage").exists():
+            storage.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(legacy, storage / "Local Storage")
+            log.info("Moved the window's local storage from %s to %s", legacy, storage)
+    except OSError as exc:  # a failed copy only loses the open-project pointer
+        log.warning("Could not carry over the window's local storage: %s", exc)
+    return storage
+
+
 def _open_window(url, data_dir, *, gui: bool) -> bool:
     """Show the editor in a native window. Returns False if no GUI backend is available."""
     hint = 'On Linux, install a GUI backend with: pip install "slideforge-studio[qt]"'
@@ -171,14 +191,16 @@ def _open_window(url, data_dir, *, gui: bool) -> bool:
         window = webview.create_window("SlideForge", url, width=1440, height=900, min_size=(1024, 680))
         # Prefer Qt when installed: it has a built-in PDF viewer (WebKitGTK does not), and we configure it ourselves.
         backend = None
+        # Persistent profile: the editor keeps the open project and unsaved-change backups in localStorage.
+        storage = _webview_storage(data_dir)
         if qt_support.available():
             qt_support.prepare(window)
+            qt_support.use_storage_path(storage)
             backend = "qt"
-        # Persistent profile: the editor keeps the open project and unsaved-change backups in localStorage.
         webview.start(
             gui=backend,
             private_mode=False,
-            storage_path=str(data_dir / "webview"),
+            storage_path=str(storage),
             icon=str(paths.ICON_PATH),
         )
     except Exception as exc:  # pywebview raises various errors when no GUI toolkit is installed

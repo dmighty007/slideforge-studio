@@ -147,7 +147,7 @@
         name: "Heatmap",
         description: "A heatmap of a matrix, with z-scoring, clustering, dendrograms and a colour bar",
         icon: "fa-solid fa-table-cells",
-        insert: { label: "Heatmap", keywords: "heatmap matrix expression cluster dendrogram z-score correlation colour scale" },
+        insert: { category: "Statistics", label: "Heatmap", keywords: "heatmap matrix expression cluster dendrogram z-score correlation colour scale" },
         defaultSize: { width: 520, height: 340 },
         sizeAware: true,
         askOnInsert: false,

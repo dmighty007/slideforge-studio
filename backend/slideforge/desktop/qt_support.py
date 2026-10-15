@@ -47,6 +47,18 @@ def prepare(window) -> None:
     window.events.before_show += lambda: _bridge.configure.emit(window)
 
 
+def use_storage_path(path) -> None:
+    """Keep the window's cookies and localStorage in ``path``.
+
+    pywebview's Qt backend reads ``storage_path`` when its module is first imported, and prepare() imports it
+    before webview.start(storage_path=...) runs. So the argument came too late: every window, whatever its data
+    directory, shared ~/.pywebview, and a test instance saw (and changed) the real app's open project.
+    """
+    from webview.platforms import qt as pywebview_qt
+
+    pywebview_qt._profile_storage_path = str(path)
+
+
 def _request_quit(*_args) -> None:
     """Close the Qt application so webview.start() returns and the launcher's clean-up runs."""
     try:

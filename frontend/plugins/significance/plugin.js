@@ -59,7 +59,7 @@
         name: "Significance Brackets",
         description: "Brackets with stars or p-values between groups of a chart",
         icon: "fa-solid fa-asterisk",
-        insert: { label: "Significance brackets", keywords: "significance p-value stars bracket statistics t-test anova chart" },
+        insert: { category: "Statistics", label: "Significance brackets", keywords: "significance p-value stars bracket statistics t-test anova chart" },
         defaultSize: { width: 360, height: 120 },
         sizeAware: true,
         askOnInsert: false,

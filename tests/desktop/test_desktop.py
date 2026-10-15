@@ -269,6 +269,47 @@ class ShareTunnelTests(TestCase):
                 self.assertIsNone(tunnel.status()["url"])
 
 
+class WindowStorageTests(TestCase):
+    """The window's cookies and localStorage live in <data dir>/webview, not in a profile shared by every window."""
+
+    def test_the_qt_backend_uses_the_data_directory_for_its_profile(self):
+        from webview.platforms import qt as pywebview_qt
+
+        from slideforge.desktop import qt_support
+
+        before = pywebview_qt._profile_storage_path
+        try:
+            # Importing the backend (as qt_support.prepare does) fixed the path at ~/.pywebview before start() ran.
+            self.assertTrue(before.endswith(".pywebview") or before.endswith("webview"))
+            qt_support.use_storage_path("/tmp/sf-data/webview")
+            self.assertEqual(pywebview_qt._profile_storage_path, "/tmp/sf-data/webview")
+        finally:
+            pywebview_qt._profile_storage_path = before
+
+    def test_only_the_default_data_directory_takes_over_the_old_shared_storage(self):
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+
+        from slideforge.desktop import app
+
+        with tempfile.TemporaryDirectory() as root:
+            home = Path(root) / "home"
+            (home / ".pywebview" / "Local Storage").mkdir(parents=True)
+            (home / ".pywebview" / "Local Storage" / "leveldb").write_text("open project")
+            default = Path(root) / "SlideForge"
+            other = Path(root) / "test-data"
+            with mock.patch("pathlib.Path.home", return_value=home), mock.patch.object(app.paths, "default_data_dir", return_value=default):
+                self.assertEqual(app._webview_storage(other), other / "webview")
+                self.assertFalse((other / "webview" / "Local Storage").exists())
+                self.assertEqual(app._webview_storage(default), default / "webview")
+                self.assertEqual((default / "webview" / "Local Storage" / "leveldb").read_text(), "open project")
+                # Only once: later changes in the old place are not copied again.
+                (home / ".pywebview" / "Local Storage" / "leveldb").write_text("changed")
+                app._webview_storage(default)
+                self.assertEqual((default / "webview" / "Local Storage" / "leveldb").read_text(), "open project")
+
+
 class QtPermissionTests(TestCase):
     """pywebview's own permission handler passes an int where PyQt6 wants an enum; the TypeError aborted the app
     the first time a page asked for the clipboard (Share > Copy)."""

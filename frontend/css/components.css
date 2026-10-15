@@ -220,6 +220,16 @@
     background: #f8fafc;
 }
 
+.plugin-panel-status {
+    margin: 0;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: #f0fdf4;
+    color: #166534;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
 .plugin-panel-notice {
     margin: 0;
     padding: 6px 8px;
@@ -4220,6 +4230,35 @@ body.whiteboard-mode-active
 /* The toolbar's Plugins menu (js/plugins/plugins.js), on the in-app dropdown's frame. */
 .plugin-insert-menu {
     width: 300px;
+}
+.plugin-insert-menu {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.plugin-insert-search {
+    flex: none;
+    margin: 4px 4px 6px;
+    padding: 7px 10px;
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 8px;
+    background: #f8fafc;
+    color: inherit;
+    font-size: 13px;
+}
+.plugin-insert-search:focus {
+    outline: 2px solid var(--editor-accent-soft, #c7d2fe);
+    border-color: var(--primary, #4f46e5);
+}
+.plugin-insert-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+.plugin-insert-empty {
+    padding: 10px;
+    font-size: 12.5px;
+    color: #64748b;
 }
 .plugin-insert-item {
     display: flex;

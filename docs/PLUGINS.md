@@ -32,7 +32,7 @@ A plugin adds a new kind of object to slides without touching the editor's code.
 | Colour bar (`colorbar`) | A standalone colour scale legend (viridis, magma, plasma, inferno, cividis, coolwarm, RdBu, greys) with range, round ticks and label, horizontal or vertical, reversible. |
 | Paper badge (`paper-badge`) | A corner badge for a paper or preprint: an arXiv id, DOI or link is shown as `arXiv:…`, `doi:…` or the address under a heading, with an optional QR code to the paper. Nothing is looked up. Uses the QR code plugin's library (`plugins/qr-code/vendor/qrcode.js`). |
 
-Every plugin is inserted from the **Plugins** menu (the puzzle-piece button at the end of the insert toolbar), the command palette (Ctrl+K, "Add …") or a `/` command.
+Every plugin is inserted from the **Plugins** menu (the puzzle-piece button at the end of the insert toolbar: plugins grouped by field, with a search box; Enter inserts the first match), the command palette (Ctrl+K, "Add …") or a `/` command.
 
 ### Feynman diagram text
 
@@ -160,7 +160,7 @@ SlideForgePlugins.register({
 });
 ```
 
-- **`insert`**: the `label` shown in the Plugins menu and the command palette, and search `keywords`. The menu also shows `description`.
+- **`insert`**: the `label` shown in the Plugins menu and the command palette, search `keywords`, and the menu `category` the plugin is listed under (`Chemistry`, `Biology`, `Statistics`, `Physics & maths`, `Figures & references`; any other name makes its own group after those, and none puts it under "Other"). The menu also shows `description`; its search box matches the label, description, keywords and category.
 - **`defaultData`**: the settings a new object starts with. They are stored in the element as `pluginData` and saved with the deck, so keep them to plain JSON (under 100 KB).
 - **`fields`**: the Properties panel is built from these. Types: `text`, `textarea`, `number` (`min`, `max`, `step`), `color` (`allowAuto: true` adds a "Theme colour" box that stores `""`), `checkbox` (`checkboxLabel`), `select` (`options: [{ value, label }]` or plain strings), and `table` (see below). Any field can have a `hint`. The `primary` field (or the first text field) is asked for when the object is inserted and when it is double-clicked.
 - **`table` fields** take CSV, TSV, semicolon-separated text or cells pasted from a spreadsheet, typed in the box or read with **Load CSV…** (up to 60 KB). `columns: ["From", "To", "Label"]` names the columns above the box and `rows` sets its height. The setting holds the text as typed; read it with `context.parseTable(text)`, which returns rows of trimmed cells (quoted cells may hold separators and line breaks; blank lines are skipped). Skipping a header row is up to the plugin.
@@ -180,6 +180,7 @@ SlideForgePlugins.register({
   - `niceTicks(min, max, count)`: round axis ticks (`{ min, max, step, ticks }`).
   - `escapeXml(text)`: text made safe to put in SVG markup.
   - `fetchJson(url)`: JSON from a web service, with a readable error when it cannot be reached (`error.status` holds the HTTP status). Only hosts the page's Content-Security-Policy allows can be reached: `connect-src` in the desktop and web settings lists PubChem and Crossref. A plugin that needs another service needs that host added there.
+- **`status(data)`** (optional): a short line shown in the Properties panel above the fields, for what the settings do not show themselves, such as what a lookup found ("Looked up on PubChem: “caffeine” is Caffeine · C₈H₁₀N₄O₂").
 - **`edit(data, context)`** (optional): a custom editor for double-click. Resolve to the changed settings, or `null` to cancel.
 
 The returned SVG is cleaned before it is kept: scripts, event handlers, `<foreignObject>`, animation elements and outside links are removed. Embedded pictures must be `data:image/…` URLs. Labels should use common fonts (Arial, Helvetica, sans-serif): the SVG is shown as a picture and cannot load web fonts.

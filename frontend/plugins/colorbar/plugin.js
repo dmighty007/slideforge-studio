@@ -46,7 +46,7 @@
         name: "Colour Bar",
         description: "A colour scale legend (viridis, magma, coolwarm…) with range, ticks and label",
         icon: "fa-solid fa-palette",
-        insert: { label: "Colour bar", keywords: "colour color bar scale legend colormap viridis magma heatmap" },
+        insert: { category: "Figures & references", label: "Colour bar", keywords: "colour color bar scale legend colormap viridis magma heatmap" },
         defaultSize: { width: 300, height: 70 },
         sizeAware: true,
         askOnInsert: false,

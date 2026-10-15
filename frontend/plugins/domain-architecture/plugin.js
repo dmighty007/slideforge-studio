@@ -52,7 +52,7 @@
         name: "Domain Architecture",
         description: "A protein's domains, sites and length as a diagram",
         icon: "fa-solid fa-bars-progress",
-        insert: { label: "Protein domain architecture", keywords: "protein domain architecture pfam motif site mutation phosphorylation lollipop residue" },
+        insert: { category: "Biology", label: "Protein domain architecture", keywords: "protein domain architecture pfam motif site mutation phosphorylation lollipop residue" },
         defaultSize: { width: 600, height: 170 },
         sizeAware: true,
         askOnInsert: false,

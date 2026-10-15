@@ -94,6 +94,15 @@ function buildPluginPanel(panel, data) {
       wrap.appendChild(hint);
     }
   });
+  // What the plugin can say about the settings, such as what a lookup found ("Looked up on PubChem: Caffeine").
+  const status = typeof plugin.status === "function" ? String(plugin.status(values) || "") : "";
+  if (status) {
+    const statusNote = document.createElement("p");
+    statusNote.id = "prop-plugin-status";
+    statusNote.className = "plugin-panel-status";
+    statusNote.textContent = status;
+    wrap.insertBefore(statusNote, wrap.children[2] || null);
+  }
   // A lookup in progress, or why the last one failed (the object keeps what it showed before).
   const notice = typeof getPluginElementNotice === "function" ? getPluginElementNotice(data.id) : "";
   const noticeNote = document.createElement("p");

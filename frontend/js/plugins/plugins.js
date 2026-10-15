@@ -714,6 +714,17 @@ function closePluginInsertMenu({ refocus = false } = {}) {
     if (refocus) open.anchor.focus({ preventScroll: true });
 }
 
+// Categories in the order the menu shows them; a plugin names its own (insert.category), others go under "Other".
+const SF_PLUGIN_MENU_CATEGORIES = ["Chemistry", "Biology", "Statistics", "Physics & maths", "Figures & references"];
+
+function _pluginMenuLabel(plugin) {
+    return String(plugin.insert?.label || plugin.name);
+}
+
+function _pluginMenuCategory(plugin) {
+    return String(plugin.insert?.category || "").trim() || "Other";
+}
+
 function togglePluginInsertMenu(anchor) {
     if (_sfPluginMenu) {
         closePluginInsertMenu();
@@ -724,11 +735,19 @@ function togglePluginInsertMenu(anchor) {
     menu.className = "sf-select-menu plugin-insert-menu";
     menu.setAttribute("role", "menu");
     menu.setAttribute("aria-label", "Plugins");
-    const plugins = listSlidePlugins().sort((a, b) => String(a.insert?.label || a.name).localeCompare(String(b.insert?.label || b.name)));
-    const heading = document.createElement("div");
-    heading.className = "sf-select-menu__group";
-    heading.textContent = plugins.length ? "Insert" : "No plugins are switched on";
-    menu.appendChild(heading);
+
+    // A search box: with 25 plugins the list ran far below the window.
+    const search = document.createElement("input");
+    search.type = "search";
+    search.className = "plugin-insert-search";
+    search.placeholder = "Search plugins…";
+    search.setAttribute("aria-label", "Search plugins");
+    search.autocomplete = "off";
+    menu.appendChild(search);
+    const list = document.createElement("div");
+    list.className = "plugin-insert-list";
+    menu.appendChild(list);
+
     const item = (iconClass, title, detail) => {
         const button = document.createElement("button");
         button.type = "button";
@@ -747,17 +766,55 @@ function togglePluginInsertMenu(anchor) {
             text.appendChild(small);
         }
         button.append(icon, text);
-        menu.appendChild(button);
         return button;
     };
-    plugins.forEach(plugin => {
-        const button = item(plugin.icon, String(plugin.insert?.label || plugin.name), plugin.description);
-        button.dataset.pluginInsert = plugin.id;
-        button.onclick = () => {
-            closePluginInsertMenu();
-            insertPluginElement(plugin.id);
-        };
-    });
+    const categoryRank = name => {
+        const index = SF_PLUGIN_MENU_CATEGORIES.indexOf(name);
+        return index === -1 ? SF_PLUGIN_MENU_CATEGORIES.length : index;
+    };
+    const plugins = listSlidePlugins().sort(
+        (a, b) =>
+            categoryRank(_pluginMenuCategory(a)) - categoryRank(_pluginMenuCategory(b)) ||
+            _pluginMenuCategory(a).localeCompare(_pluginMenuCategory(b)) ||
+            _pluginMenuLabel(a).localeCompare(_pluginMenuLabel(b)),
+    );
+
+    // The list for a search: every word must appear in the label, description, keywords or category.
+    const fill = () => {
+        const words = search.value.toLowerCase().split(/\s+/).filter(Boolean);
+        list.textContent = "";
+        let lastCategory = null;
+        let shown = 0;
+        plugins.forEach(plugin => {
+            const haystack = [_pluginMenuLabel(plugin), plugin.description, plugin.insert?.keywords, _pluginMenuCategory(plugin), plugin.id].join(" ").toLowerCase();
+            if (!words.every(word => haystack.includes(word))) return;
+            const category = _pluginMenuCategory(plugin);
+            if (category !== lastCategory) {
+                const heading = document.createElement("div");
+                heading.className = "sf-select-menu__group";
+                heading.textContent = category;
+                list.appendChild(heading);
+                lastCategory = category;
+            }
+            const button = item(plugin.icon, _pluginMenuLabel(plugin), plugin.description);
+            button.dataset.pluginInsert = plugin.id;
+            button.onclick = () => {
+                closePluginInsertMenu();
+                insertPluginElement(plugin.id);
+            };
+            list.appendChild(button);
+            shown++;
+        });
+        if (!shown) {
+            const empty = document.createElement("div");
+            empty.className = "plugin-insert-empty";
+            empty.textContent = plugins.length ? `No plugin matches “${search.value.trim()}”` : "No plugins are switched on";
+            list.appendChild(empty);
+        }
+    };
+    fill();
+    search.addEventListener("input", fill);
+
     const separator = document.createElement("div");
     separator.className = "plugin-insert-separator";
     menu.appendChild(separator);
@@ -767,6 +824,7 @@ function togglePluginInsertMenu(anchor) {
         closePluginInsertMenu();
         window.openPluginManager?.();
     };
+    menu.appendChild(manage);
     document.body.appendChild(menu);
 
     const place = () => {
@@ -774,7 +832,7 @@ function togglePluginInsertMenu(anchor) {
         const width = menu.offsetWidth;
         menu.style.left = `${Math.max(6, Math.min(rect.right - width, window.innerWidth - width - 6))}px`;
         menu.style.top = `${rect.bottom + 6}px`;
-        menu.style.maxHeight = `${Math.max(160, window.innerHeight - rect.bottom - 18)}px`;
+        menu.style.maxHeight = `${Math.max(200, window.innerHeight - rect.bottom - 18)}px`;
     };
     place();
     const items = () => [...menu.querySelectorAll(".plugin-insert-item")];
@@ -788,10 +846,15 @@ function togglePluginInsertMenu(anchor) {
             closePluginInsertMenu({ refocus: true });
         } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
             event.preventDefault();
-            const list = items();
-            const index = list.indexOf(document.activeElement);
-            const next = event.key === "ArrowDown" ? index + 1 : index - 1;
-            list[(next + list.length) % list.length]?.focus();
+            const all = items();
+            const index = all.indexOf(document.activeElement);
+            const next = event.key === "ArrowDown" ? index + 1 : index === -1 ? all.length - 1 : index - 1;
+            if (next < 0) search.focus();
+            else all[next % all.length]?.focus();
+        } else if (event.key === "Enter" && document.activeElement === search) {
+            // Enter in the search box inserts the first match.
+            event.preventDefault();
+            menu.querySelector(".plugin-insert-list [data-plugin-insert]")?.click();
         }
     };
     document.addEventListener("mousedown", onOutside, true);
@@ -799,7 +862,7 @@ function togglePluginInsertMenu(anchor) {
     window.addEventListener("resize", place);
     anchor.setAttribute("aria-expanded", "true");
     _sfPluginMenu = { menu, anchor, onOutside, onKey, onResize: place };
-    items()[0]?.focus({ preventScroll: true });
+    search.focus({ preventScroll: true });
 }
 
 function _removePluginInsertControls(id) {

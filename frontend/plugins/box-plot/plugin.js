@@ -82,7 +82,7 @@
         name: "Box / Violin Plot",
         description: "Box, violin or box-and-violin plots from columns of numbers",
         icon: "fa-solid fa-chart-simple",
-        insert: { label: "Box / violin plot", keywords: "box plot violin whisker distribution quartile median statistics csv" },
+        insert: { category: "Statistics", label: "Box / violin plot", keywords: "box plot violin whisker distribution quartile median statistics csv" },
         defaultSize: { width: 440, height: 300 },
         sizeAware: true,
         askOnInsert: false,

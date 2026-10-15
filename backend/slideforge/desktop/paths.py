@@ -19,9 +19,14 @@ FRONTEND_DIR = _frontend_dir()
 ICON_PATH = FRONTEND_DIR / "assets" / "favicon_icon.png"
 
 
+def default_data_dir() -> Path:
+    """Where the data lives when neither --data-dir nor SLIDEFORGE_DATA_DIR says otherwise."""
+    return Path(user_data_dir("SlideForge", appauthor=False))
+
+
 def data_dir() -> Path:
     """Per-user data directory (database, uploaded media, config). Override with SLIDEFORGE_DATA_DIR."""
     override = os.environ.get("SLIDEFORGE_DATA_DIR")
-    path = Path(override).expanduser() if override else Path(user_data_dir("SlideForge", appauthor=False))
+    path = Path(override).expanduser() if override else default_data_dir()
     path.mkdir(parents=True, exist_ok=True)
     return path

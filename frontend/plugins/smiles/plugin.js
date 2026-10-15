@@ -97,7 +97,7 @@
         name: "Chemical Structure",
         description: "A 2D structure or reaction from SMILES, or a compound name looked up on PubChem",
         icon: "fa-solid fa-flask",
-        insert: { label: "Chemical structure (SMILES)", keywords: "smiles molecule 2d chemistry structure formula reaction pubchem name" },
+        insert: { category: "Chemistry", label: "Chemical structure (SMILES)", keywords: "smiles molecule 2d chemistry structure formula reaction pubchem name" },
         defaultSize: { width: 300, height: 220 },
         defaultData: {
             smiles: "CC(=O)Oc1ccccc1C(=O)O",
@@ -162,6 +162,14 @@
                 terminalCarbons: Boolean(data.terminalCarbons),
                 explicitHydrogens: data.explicitHydrogens !== false,
             };
+        },
+
+        // After a lookup the field holds the SMILES it found; this says what the name was.
+        status(data) {
+            if (!data.lookupName || !data.title) return "";
+            const formula = data.formula ? ` · ${subscriptDigits(data.formula)}` : "";
+            const weight = data.weight ? ` · ${data.weight} g/mol` : "";
+            return `Looked up on PubChem: “${data.lookupName}” is ${data.title}${formula}${weight}`;
         },
 
         // A new SMILES that is not valid SMILES is taken as a compound name and looked up; a valid one replaces

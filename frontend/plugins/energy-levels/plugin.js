@@ -78,7 +78,7 @@
         name: "Energy Diagram",
         description: "A reaction energy profile, or Jablonski/MO energy levels with transitions",
         icon: "fa-solid fa-stairs",
-        insert: { label: "Energy diagram (profile, Jablonski)", keywords: "energy level diagram reaction profile coordinate transition state jablonski molecular orbital mo fluorescence" },
+        insert: { category: "Chemistry", label: "Energy diagram (profile, Jablonski)", keywords: "energy level diagram reaction profile coordinate transition state jablonski molecular orbital mo fluorescence" },
         defaultSize: { width: 520, height: 300 },
         sizeAware: true,
         askOnInsert: false,

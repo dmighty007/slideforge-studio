@@ -18,7 +18,7 @@
         name: "Scale Bar",
         description: "A scale bar with its length, for micrographs, maps and diagrams",
         icon: "fa-solid fa-ruler-horizontal",
-        insert: { label: "Scale bar", keywords: "scale bar micrograph microscopy length um nm map" },
+        insert: { category: "Figures & references", label: "Scale bar", keywords: "scale bar micrograph microscopy length um nm map" },
         defaultSize: { width: 200, height: 48 },
         sizeAware: true,
         askOnInsert: false,

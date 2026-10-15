@@ -196,7 +196,7 @@
         name: "Function Plot",
         description: "Curves y = f(x) from expressions, with axes, grid and legend",
         icon: "fa-solid fa-chart-line",
-        insert: { label: "Function plot y = f(x)", keywords: "function plot graph curve equation expression sin cos math" },
+        insert: { category: "Physics & maths", label: "Function plot y = f(x)", keywords: "function plot graph curve equation expression sin cos math" },
         defaultSize: { width: 440, height: 300 },
         sizeAware: true,
         askOnInsert: false,

@@ -114,7 +114,7 @@
         name: "Venn Diagram",
         description: "A Venn or Euler diagram of two or three sets, from counts or lists of items",
         icon: "fa-solid fa-circle-half-stroke",
-        insert: { label: "Venn diagram", keywords: "venn euler diagram sets overlap intersection genes shared unique" },
+        insert: { category: "Statistics", label: "Venn diagram", keywords: "venn euler diagram sets overlap intersection genes shared unique" },
         defaultSize: { width: 440, height: 320 },
         sizeAware: true,
         askOnInsert: false,

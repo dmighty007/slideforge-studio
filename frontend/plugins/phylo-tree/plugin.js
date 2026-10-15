@@ -99,7 +99,7 @@
         name: "Phylogenetic Tree",
         description: "A tree from Newick text, as a phylogram or cladogram",
         icon: "fa-solid fa-sitemap",
-        insert: { label: "Phylogenetic tree (Newick)", keywords: "phylogenetic tree newick phylogeny evolution clade cladogram dendrogram" },
+        insert: { category: "Biology", label: "Phylogenetic tree (Newick)", keywords: "phylogenetic tree newick phylogeny evolution clade cladogram dendrogram" },
         defaultSize: { width: 420, height: 260 },
         sizeAware: true,
         askOnInsert: false,

@@ -354,6 +354,30 @@ async function _pasteFromSystemClipboard(activeIndex) {
     return false;
 }
 
+// A pasted copy sits 40 px right of and below the original, unless that would run it onto the footer or off the
+// slide: then it goes the other way (a copy of a citation at the bottom of a slide landed on the footer text).
+function _pasteOffset(elements) {
+    const bounds = typeof _getSlideInsertBounds === "function" ? _getSlideInsertBounds() : null;
+    if (!bounds) return { dx: 40, dy: 40 };
+    const footerTop = _currentSlideFooterTop();
+    const floor = footerTop === null ? bounds.slideH : footerTop - 12;
+    const box = elements.reduce(
+        (acc, el) => {
+            const x = Number(el.x) || 0;
+            const y = Number(el.y) || 0;
+            return {
+                left: Math.min(acc.left, x),
+                top: Math.min(acc.top, y),
+                right: Math.max(acc.right, x + (parseFloat(el.width) || 0)),
+                bottom: Math.max(acc.bottom, y + (parseFloat(el.height) || 0)),
+            };
+        },
+        { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity },
+    );
+    const step = (low, high, limit) => (high + 40 <= limit ? 40 : low - 40 >= 0 ? -40 : 0);
+    return { dx: step(box.left, box.right, bounds.slideW), dy: step(box.top, box.bottom, floor) };
+}
+
 function pasteElement(payload = null) {
     const activeIndex = ensureActiveSlideSync();
     const sourceElements = _normalizeClipboardPayload(payload).length
@@ -365,6 +389,7 @@ function pasteElement(payload = null) {
     const groupIdMap = {};
     const idMap = {};
     const copies = [];
+    const { dx, dy } = _pasteOffset(sourceElements);
 
     sourceElements.forEach(el => {
         const newId = generateId("el");
@@ -372,8 +397,8 @@ function pasteElement(payload = null) {
         idMap[el.id] = newId;
         copies.push(copy);
         copy.id = newId;
-        copy.x = (Number(copy.x) || 0) + 40;
-        copy.y = (Number(copy.y) || 0) + 40;
+        copy.x = (Number(copy.x) || 0) + dx;
+        copy.y = (Number(copy.y) || 0) + dy;
 
         if (copy.groupId) {
             if (!groupIdMap[copy.groupId]) {

@@ -78,11 +78,11 @@
 
     SlideForgePlugins.register({
         id: "sequence",
-        version: "1",
+        version: "2",
         name: "Sequence",
         description: "A DNA, RNA or protein sequence with numbering, residue colours and highlighted regions",
         icon: "fa-solid fa-dna",
-        insert: { label: "Sequence (DNA, RNA, protein)", keywords: "sequence dna rna protein fasta residue motif mutation nucleotide amino acid" },
+        insert: { category: "Biology", label: "Sequence (DNA, RNA, protein)", keywords: "sequence dna rna protein fasta residue motif mutation nucleotide amino acid" },
         defaultSize: { width: 560, height: 200 },
         askOnInsert: false,
         defaultData: {
@@ -186,7 +186,8 @@
             const cellTop = row => titleHeight + row * rowHeight + labelRoom;
             const cellX = index => numberWidth + columnX(index % data.perLine);
 
-            // Highlights: a box over each stretch of a region on each line, its label above the first stretch.
+            // Highlights: a lightly tinted, outlined box over each stretch of a region on each line, its label above the first
+            // stretch. A strong fill hid letters of the same colour (blue residues in a blue box on a dark theme).
             regions.forEach(region => {
                 let first = true;
                 for (let index = region.start - 1; index < region.end; ) {
@@ -194,7 +195,7 @@
                     const rowEnd = Math.min(region.end - 1, (row + 1) * data.perLine - 1);
                     const x0 = cellX(index) - 1;
                     const x1 = cellX(rowEnd) + charWidth + 1;
-                    parts.push(`<rect x="${x0.toFixed(1)}" y="${(cellTop(row) + size * 0.12).toFixed(1)}" width="${(x1 - x0).toFixed(1)}" height="${(size * 1.22).toFixed(1)}" rx="3" fill="${region.color}" opacity="0.45"/>`);
+                    parts.push(`<rect x="${x0.toFixed(1)}" y="${(cellTop(row) + size * 0.12).toFixed(1)}" width="${(x1 - x0).toFixed(1)}" height="${(size * 1.22).toFixed(1)}" rx="3" fill="${region.color}" fill-opacity="0.22" stroke="${region.color}" stroke-width="1.5"/>`);
                     if (first && region.label) {
                         parts.push(`<text x="${x0.toFixed(1)}" y="${(cellTop(row) - 1).toFixed(1)}" font-family="Arial, Helvetica, sans-serif" font-size="${(size * 0.7).toFixed(1)}" font-weight="600" fill="${ink}">${context.escapeXml(region.label)}</text>`);
                     }

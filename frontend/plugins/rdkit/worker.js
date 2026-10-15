@@ -33,7 +33,9 @@ function draw(RDKit, { smiles, options }) {
         const details = { ...options.draw };
         let matched = 0;
         if (query) {
-            const matches = JSON.parse(mol.get_substruct_matches(query) || "[]");
+            // RDKit answers "{}" when nothing matches and may give one match as a bare object, not a list.
+            const found = JSON.parse(mol.get_substruct_matches(query) || "[]");
+            const matches = Array.isArray(found) ? found : found && Array.isArray(found.atoms) ? [found] : [];
             matched = matches.length;
             details.atoms = [...new Set(matches.flatMap(match => match.atoms || []))];
             details.bonds = [...new Set(matches.flatMap(match => match.bonds || []))];

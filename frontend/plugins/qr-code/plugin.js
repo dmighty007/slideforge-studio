@@ -42,7 +42,7 @@
         name: "QR Code",
         description: "A QR code for a link to a paper, dataset, code or poster",
         icon: "fa-solid fa-qrcode",
-        insert: { label: "QR code", keywords: "qr code link url doi paper dataset scan poster" },
+        insert: { category: "Figures & references", label: "QR code", keywords: "qr code link url doi paper dataset scan poster" },
         defaultSize: { width: 180, height: 180 },
         defaultData: { text: "https://doi.org/", caption: "", level: "M", color: "#000000", background: "white", margin: 4 },
         fields: [

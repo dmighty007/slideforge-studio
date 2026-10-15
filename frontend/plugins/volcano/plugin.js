@@ -31,7 +31,7 @@
         name: "Volcano Plot",
         description: "log2 fold change against −log10 p, with thresholds, up/down colours and labelled top hits",
         icon: "fa-solid fa-volcano",
-        insert: { label: "Volcano plot", keywords: "volcano plot differential expression fold change p-value rna-seq proteomics deseq" },
+        insert: { category: "Statistics", label: "Volcano plot", keywords: "volcano plot differential expression fold change p-value rna-seq proteomics deseq" },
         defaultSize: { width: 480, height: 360 },
         sizeAware: true,
         askOnInsert: false,

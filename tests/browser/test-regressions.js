@@ -4490,6 +4490,10 @@ async function test(name, fn) {
         assert(data.smiles === "CN1C=NC2=C1C(=O)N(C(=O)N2C)C" && data.title === "Caffeine" && data.formula === "C8H10N4O2", `lookup: ${JSON.stringify(data)}`);
         const svg = await pluginSvg(page, id);
         assert(svg.includes("Caffeine") && svg.includes("C₈H₁₀N₄O₂"), "caption missing or formula without subscripts");
+        // The panel says what the typed name turned out to be (the field itself now holds the SMILES).
+        await page.evaluate(id => { selectElement(id); setPropertiesPanelVisible(true); buildPropertiesPanel(); }, id);
+        const status = await page.locator("#prop-plugin-status").textContent();
+        assert(/Looked up on PubChem: “caffeine” is Caffeine/.test(status), `status line: ${status}`);
         // Changing only the caption keeps the found structure and asks PubChem nothing more.
         await pageAwait(page, id => SlideForgePlugins.update(id, { caption: "formula" }), id);
         assert(hits === 1, `PubChem was asked ${hits} times`);
@@ -4600,6 +4604,8 @@ async function test(name, fn) {
         assert(svg.includes("Human insulin B chain"), "FASTA title missing");
         assert((await countInSvg(page, id, "tspan")) === 30, "not one letter per residue");
         assert((await countInSvg(page, id, "rect")) === 3 && svg.includes(">FFY<"), "highlights missing");
+        // Lightly tinted and outlined, so letters of the same colour stay readable.
+        assert((await countInSvg(page, id, 'rect[fill-opacity="0.22"][stroke]')) === 3, "highlights are not tinted boxes with an outline");
         await pageAwait(page, id => SlideForgePlugins.update(id, { sequence: "ATGCGTAACGTTAGC", highlights: "" }), id);
         const dna = await pluginSvg(page, id);
         assert(/fill="#2e9e44">A</.test(dna) && /fill="#d63a3a">T</.test(dna), "DNA letters not coloured A green, T red");
@@ -5148,6 +5154,61 @@ async function test(name, fn) {
         assert(doi.includes(">doi:10.1038/s41586-021-03819-2<") && doi.includes(">Nature 2021<") && !doi.includes("crispEdges"), "DOI badge wrong");
         await pageAwait(page, id => SlideForgePlugins.update(id, { id: "not an id" }), id);
         await page.waitForFunction(id => /Type an arXiv id/.test(getPluginElementError(id)), id);
+        await page.close();
+    });
+
+    await test("QA 2026-10-15: RDKit draws molecules its highlight pattern does not match, and starts with no highlight", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        // The default used to highlight C(=O)[OH]; benzene has none, and RDKit's "{}" for no match broke the drawing.
+        const plain = await pageAwait(page, () => insertPluginElement("rdkit", { smiles: "c1ccccc1" }, { ask: false }));
+        const plainState = await page.evaluate(id => { const e = state.slides[currentSlideIndex].elements.find(x => x.id === id); return { highlight: e.pluginData.highlight, pic: !!e.pluginPreview, err: getPluginElementError(id) }; }, plain);
+        assert(plainState.highlight === "" && plainState.pic && !plainState.err, `benzene: ${JSON.stringify(plainState)}`);
+        for (const [smiles, highlight] of [["CN1C=NC2=C1C(=O)N(C(=O)N2C)C", "C(=O)[OH]"], ["CCO", "[OX2H]"]]) {
+            const id = await pageAwait(page, ([smiles, highlight]) => insertPluginElement("rdkit", { smiles, highlight }, { ask: false }), [smiles, highlight]);
+            const result = await page.evaluate(id => { const e = state.slides[currentSlideIndex].elements.find(x => x.id === id); return { pic: !!e.pluginPreview, err: getPluginElementError(id) }; }, id);
+            assert(result.pic && !result.err, `${smiles} with ${highlight}: ${JSON.stringify(result)}`);
+        }
+        await page.close();
+    });
+
+    await test("QA 2026-10-15: a pasted copy of an object at the bottom of a slide goes up, not onto the footer", async () => {
+        const { page } = await openFreshEditor(context);
+        const result = await page.evaluate(() => {
+            const footerTop = _currentSlideFooterTop();
+            addElement("shape");
+            const shape = state.slides[currentSlideIndex].elements.at(-1);
+            Object.assign(shape, { x: 300, y: footerTop - 12 - 100, width: "200px", height: "100px" });
+            renderSlidesFromState();
+            selectElement(shape.id);
+            copyElement();
+            pasteElement();
+            const copy = state.slides[currentSlideIndex].elements.find(e => e.id === state.selectedIds[0]);
+            return { footerTop, original: [shape.x, shape.y], copy: [copy.x, copy.y], bottom: copy.y + parseFloat(copy.height) };
+        });
+        assert(result.bottom <= result.footerTop - 12, `the copy reaches the footer: ${JSON.stringify(result)}`);
+        assert(result.copy[0] === result.original[0] + 40 && result.copy[1] === result.original[1] - 40, `copy offset: ${JSON.stringify(result)}`);
+        await page.close();
+    });
+
+    await test("QA 2026-10-15: the Plugins menu groups plugins by field and finds them by typing", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        await openPluginMenu(page);
+        const groups = await page.$$eval("#plugin-insert-menu .sf-select-menu__group", nodes => nodes.map(n => n.textContent));
+        assert(JSON.stringify(groups) === JSON.stringify(["Chemistry", "Biology", "Statistics", "Physics & maths", "Figures & references"]), `groups: ${groups}`);
+        assert(await page.evaluate(() => document.activeElement?.classList.contains("plugin-insert-search")), "the search box is not focused");
+        await page.keyboard.type("survival");
+        const shown = await page.$$eval("#plugin-insert-menu [data-plugin-insert]", nodes => nodes.map(n => n.dataset.pluginInsert));
+        assert(JSON.stringify(shown) === JSON.stringify(["kaplan-meier"]), `search "survival" shows ${shown}`);
+        await page.keyboard.press("Enter");
+        await page.waitForFunction(() => state.slides[currentSlideIndex].elements.some(e => e.pluginId === "kaplan-meier" && e.pluginPreview));
+        assert(!(await page.locator("#plugin-insert-menu").count()), "the menu stayed open after inserting");
+        await openPluginMenu(page);
+        await page.keyboard.type("zzzz");
+        assert(/No plugin matches/.test(await page.locator("#plugin-insert-menu").textContent()), "no message for a search without results");
+        assert(await page.locator("#plugin-insert-menu [data-plugin-manager]").count(), "Manage plugins disappeared while searching");
+        await page.keyboard.press("Escape");
         await page.close();
     });
 

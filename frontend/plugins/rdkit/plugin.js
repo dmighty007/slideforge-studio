@@ -85,15 +85,16 @@
 
     SlideForgePlugins.register({
         id: "rdkit",
-        version: "1",
+        version: "2",
         name: "Structure (RDKit)",
         description: "A publication-quality structure from SMILES, with substructure highlights, R/S labels and properties",
         icon: "fa-solid fa-atom",
-        insert: { label: "Structure (RDKit, with properties)", keywords: "rdkit smiles smarts structure molecule highlight stereo cip logp tpsa properties lipinski chemistry" },
+        insert: { category: "Chemistry", label: "Structure (RDKit, with properties)", keywords: "rdkit smiles smarts structure molecule highlight stereo cip logp tpsa properties lipinski chemistry" },
         defaultSize: { width: 320, height: 240 },
         defaultData: {
             smiles: "CC(C)C[C@H](C)C(=O)O",
-            highlight: "C(=O)[OH]",
+            // No highlight unless asked for: a default pattern highlighted groups nobody had chosen.
+            highlight: "",
             highlightColor: "#fbbf24",
             stereo: true,
             atomColors: true,
@@ -163,7 +164,7 @@
                         backgroundColour: [1, 1, 1, 0],
                         atomColourPalette: palette,
                         bondLineWidth: data.bondWidth,
-                        highlightColour: [...rgb(data.highlightColor), 0.6],
+                        highlightColour: [...rgb(data.highlightColor), 0.4],
                         fillHighlights: true,
                         highlightRadius: 0.35,
                     },

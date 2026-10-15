@@ -126,7 +126,7 @@
         name: "Citation",
         description: "A formatted reference from a DOI (details from Crossref)",
         icon: "fa-solid fa-book-open",
-        insert: { label: "Citation from DOI", keywords: "citation reference doi paper crossref bibliography footnote" },
+        insert: { category: "Figures & references", label: "Citation from DOI", keywords: "citation reference doi paper crossref bibliography footnote" },
         defaultSize: { width: 460, height: 60 },
         sizeAware: true,
         autoHeight: true,
@@ -166,6 +166,12 @@
                 meta,
                 metaDoi: meta ? String(data.metaDoi || "") : "",
             };
+        },
+
+        status(data) {
+            if (!data.meta || !data.metaDoi) return "";
+            const lead = data.meta.authors?.[0]?.family;
+            return `From Crossref: ${lead ? `${lead}${data.meta.authors.length > 1 ? " et al." : ""}, ` : ""}${data.meta.year || ""} · ${data.meta.title || "untitled"}`;
         },
 
         async prepare(data, previous, context) {

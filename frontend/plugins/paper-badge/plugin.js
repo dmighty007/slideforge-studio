@@ -53,7 +53,7 @@
         name: "Paper Badge",
         description: "A corner badge for a paper or preprint (arXiv id, DOI or link) with an optional QR code",
         icon: "fa-solid fa-certificate",
-        insert: { label: "Paper badge (arXiv, DOI)", keywords: "badge arxiv doi preprint paper qr corner reference link" },
+        insert: { category: "Figures & references", label: "Paper badge (arXiv, DOI)", keywords: "badge arxiv doi preprint paper qr corner reference link" },
         defaultSize: { width: 300, height: 76 },
         sizeAware: true,
         defaultData: { id: "arXiv:2401.01234", title: "Preprint", qr: true, accent: "#b31b1b", style: "card" },

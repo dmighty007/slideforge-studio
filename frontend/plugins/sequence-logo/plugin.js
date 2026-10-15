@@ -44,7 +44,7 @@
         name: "Sequence Logo",
         description: "A sequence logo (bits or probability) from aligned DNA, RNA or protein sequences",
         icon: "fa-solid fa-chart-column",
-        insert: { label: "Sequence logo", keywords: "sequence logo motif alignment information content bits pwm binding site dna protein" },
+        insert: { category: "Biology", label: "Sequence logo", keywords: "sequence logo motif alignment information content bits pwm binding site dna protein" },
         defaultSize: { width: 480, height: 220 },
         sizeAware: true,
         askOnInsert: false,

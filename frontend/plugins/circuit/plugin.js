@@ -157,7 +157,7 @@
         name: "Circuit",
         description: "A circuit schematic from a short text description of nodes and parts",
         icon: "fa-solid fa-bolt",
-        insert: { label: "Circuit diagram", keywords: "circuit schematic resistor capacitor inductor diode led battery electronics netlist" },
+        insert: { category: "Physics & maths", label: "Circuit diagram", keywords: "circuit schematic resistor capacitor inductor diode led battery electronics netlist" },
         defaultSize: { width: 420, height: 280 },
         sizeAware: true,
         askOnInsert: false,

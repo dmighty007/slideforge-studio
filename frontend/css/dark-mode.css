@@ -1052,3 +1052,15 @@ html[data-theme="dark"] .plugin-panel-notice {
     background: rgba(99, 102, 241, 0.2);
     color: #c7d2fe;
 }
+html[data-theme="dark"] .plugin-insert-search {
+    background: var(--dk-raised);
+    border-color: var(--dk-border);
+    color: var(--dk-text);
+}
+html[data-theme="dark"] .plugin-insert-empty {
+    color: var(--dk-muted);
+}
+html[data-theme="dark"] .plugin-panel-status {
+    background: rgba(22, 101, 52, 0.3);
+    color: #bbf7d0;
+}
