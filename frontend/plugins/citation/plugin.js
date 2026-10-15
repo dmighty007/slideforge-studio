@@ -133,6 +133,7 @@
         sizeAware: true,
         autoHeight: true,
         // 18 px: at 14 a reference was hard to read on a slide shown whole.
+        footnote: true,
         defaultData: { doi: "", style: "nature", maxAuthors: 3, showDoi: false, fontSize: 18, color: "", meta: null },
         fields: [
             { key: "doi", label: "DOI", type: "text", primary: true, placeholder: "10.1038/… or https://doi.org/10.1038/…", hint: "Looked up on Crossref (needs the internet once). Press Enter to update." },

@@ -141,10 +141,17 @@ function buildPluginPanel(panel, data) {
   errorNote.hidden = !error || error === notice;
   const fit = document.createElement("button");
   fit.type = "button";
-  fit.id = "prop-plugin-fit";
   fit.className = "plugin-panel-refresh";
-  fit.innerHTML = '<i class="fa-solid fa-expand"></i> Fill content area';
-  fit.title = "Use the slide's width, from under the title to the footer";
+  if (plugin.footnote) {
+    // A reference goes at the foot of the slide, not across its content area.
+    fit.id = "prop-plugin-footnote";
+    fit.innerHTML = '<i class="fa-solid fa-arrow-down-wide-short"></i> Place as footnote';
+    fit.title = "Across the slide, just above the footer";
+  } else {
+    fit.id = "prop-plugin-fit";
+    fit.innerHTML = '<i class="fa-solid fa-expand"></i> Fill content area';
+    fit.title = "Use the slide's width, from under the title to the footer";
+  }
   wrap.appendChild(errorNote);
   wrap.appendChild(fit);
   group.appendChild(wrap);
@@ -167,6 +174,8 @@ function bindPluginPanel(data) {
   if (refresh) refresh.onclick = () => refreshPluginElement(data.id);
   const fit = document.getElementById("prop-plugin-fit");
   if (fit) fit.onclick = () => fitPluginElementToContentArea(data.id);
+  const footnote = document.getElementById("prop-plugin-footnote");
+  if (footnote) footnote.onclick = () => placePluginElementAsFootnote(data.id);
   plugin.fields.forEach((field) => {
     const input = document.getElementById(_pluginFieldId(field.key));
     if (!input) return;

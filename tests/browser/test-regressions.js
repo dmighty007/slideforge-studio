@@ -6275,6 +6275,43 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("audit: a citation can be placed as a footnote, across the slide just above the footer", async () => {
+        const { page } = await openEditor(context);
+        await page.evaluate(() => { setPropertiesPanelVisible(true, { persist: false }); addSlide(); });
+        await page.evaluate(() => SlideForgePlugins.ready);
+        // A plot filling the content area down to the footer: the footnote must not land on its labels.
+        const plot = await pageAwait(page, () => insertPluginElement("box-plot", null, { ask: false }));
+        const id = await pageAwait(page, () =>
+            insertPluginElement("citation", {
+                doi: "10.1038/s41586-021-03819-2",
+                metaDoi: "10.1038/s41586-021-03819-2",
+                meta: { authors: [{ given: "John", family: "Jumper" }], title: "Highly accurate protein structure prediction with AlphaFold", journal: "Nature", journalShort: "Nature", volume: "596", issue: "7873", pages: "583-589", year: 2021 },
+            }, { ask: false }));
+        await page.evaluate(id => { selectElement(id, "replace"); buildPropertiesPanel(); }, id);
+        assert(!(await page.locator("#prop-plugin-fit").count()), "a citation offers Fill content area");
+        const before = await page.evaluate(id => ({ ...state.slides[currentSlideIndex].elements.find(e => e.id === id) }), id);
+        await page.click("#prop-plugin-footnote");
+        await page.waitForTimeout(400);
+        const box = await page.evaluate(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const { slideW, margin } = _getSlideInsertBounds();
+            return { x: el.x, y: el.y, w: parseFloat(el.width), h: parseFloat(el.height), slideW, margin, footer: _currentSlideFooterTop() };
+        }, id);
+        assert(box.x === Math.round(box.margin) && Math.abs(box.w - (box.slideW - 2 * box.margin)) <= 1, `not across the slide: ${JSON.stringify(box)}`);
+        const bottom = box.y + box.h;
+        assert(bottom <= box.footer && bottom >= box.footer - 20, `not just above the footer: ${JSON.stringify(box)}`);
+        const plotBottom = () => page.evaluate(id => { const el = state.slides[currentSlideIndex].elements.find(e => e.id === id); return el.y + parseFloat(el.height); }, plot);
+        assert((await plotBottom()) <= box.y, `the plot runs under the footnote: plot ends at ${await plotBottom()}, footnote starts at ${box.y}`);
+        // Fill content area keeps the plot above the footnote too.
+        await page.evaluate(id => fitPluginElementToContentArea(id), plot);
+        assert((await plotBottom()) <= box.y, `Fill content area put the plot under the footnote: ${await plotBottom()} > ${box.y}`);
+        await page.evaluate(() => undo());
+        await page.evaluate(() => undo());
+        const undone = await page.evaluate(id => state.slides[currentSlideIndex].elements.find(e => e.id === id), id);
+        assert(undone.x === before.x && undone.y === before.y && undone.width === before.width, "undo did not put the citation back");
+        await page.close();
+    });
+
     if (!FRONTEND_ONLY) {
         // ─── Plugin manager (js/ui/plugin-manager.js, studio/plugins.py) ───────────────────────────────────────
         // Plugin switches are kept by the server: each test puts them back as it found them.

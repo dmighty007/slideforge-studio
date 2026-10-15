@@ -956,7 +956,11 @@ function _pluginContentArea(slide, id) {
     if (!slide || typeof _getSlideInsertBounds !== "function") return null;
     const { slideW, slideH, margin } = _getSlideInsertBounds();
     const footerTop = typeof _currentSlideFooterTop === "function" ? _currentSlideFooterTop() : null;
-    const floor = footerTop === null ? slideH - margin : footerTop - 12;
+    // A reference placed as a footnote (still in the lower half) is the floor instead of the footer.
+    const footnoteTops = slide.elements
+        .filter(item => item.id !== id && item.placedAsFootnote && (parseFloat(item.y) || 0) > slideH / 2)
+        .map(item => (parseFloat(item.y) || 0) - 12);
+    const floor = Math.min(footerTop === null ? slideH - margin : footerTop - 12, ...footnoteTops);
     const titleBottoms = slide.elements
         .filter(item => item.id !== id && item.type === "text" && !item.isMasterElement && !item.editableMasterFooterElement && (parseFloat(item.y) || 0) < slideH / 3)
         .map(item => {
@@ -984,6 +988,43 @@ function _pluginSlideHasOnlyTitle(slide) {
         item.editableMasterFooterElement ||
         (item.placeholderRole === "content" && typeof _isEmptyTextElement === "function" && _isEmptyTextElement(item)) ||
         (item.type === "text" && (parseFloat(item.y) || 0) < slideH / 5));
+}
+
+// "Place as footnote" (plugins with footnote: true, such as the citation): across the slide between the margins,
+// its last line just above the footer, where a reference goes on a research slide. It used to be placed by typing
+// X, Y and W.
+async function placePluginElementAsFootnote(id) {
+    const slide = state.slides?.[currentSlideIndex];
+    const el = slide?.elements?.find(item => item.id === id);
+    if (!el || typeof _getSlideInsertBounds !== "function") return;
+    const { slideW, slideH, margin } = _getSlideInsertBounds();
+    const footerTop = typeof _currentSlideFooterTop === "function" ? _currentSlideFooterTop() : null;
+    const floor = footerTop === null ? slideH - margin : footerTop - 8;
+    saveStateToUndo();
+    el.x = Math.round(margin);
+    el.width = `${Math.round(slideW - margin * 2)}px`;
+    // The text's height at the new width, so its last line sits on the floor.
+    let height = parseFloat(el.height) || 40;
+    try {
+        height = Math.round((await drawPluginElement(el)).height) || height;
+    } catch (_error) {
+        // Not drawable yet (a lookup still running): placed with its current height.
+    }
+    el.height = `${height}px`;
+    el.y = Math.round(Math.max(margin, floor - height));
+    el.placedAsFootnote = true;
+    // Plots and charts reaching down into the footnote's band end just above it instead of under it.
+    const limit = el.y - 12;
+    slide.elements.forEach(item => {
+        if (item === el || item.isMasterElement || item.editableMasterFooterElement) return;
+        if (!(item.type === "chart" || (item.type === "plugin" && getSlidePlugin(item.pluginId)?.sizeAware && !getSlidePlugin(item.pluginId)?.footnote))) return;
+        const top = parseFloat(item.y) || 0;
+        const bottom = top + (parseFloat(item.height) || 0);
+        if (bottom > limit && top < limit - 60) item.height = `${Math.round(limit - top)}px`;
+    });
+    renderSlidesFromState();
+    selectElement(id);
+    if (typeof refreshPreviews === "function") refreshPreviews();
 }
 
 // "Look up again": the plugin's lookup for the settings as they are (after a failed or old lookup).
@@ -1438,6 +1479,7 @@ window.SlideForgePlugins = {
     update: updatePluginElementData,
     refresh: refreshPluginElement,
     fitToContentArea: fitPluginElementToContentArea,
+    placeAsFootnote: placePluginElementAsFootnote,
     edit: editPluginElement,
     draw: drawPluginElement,
 };
