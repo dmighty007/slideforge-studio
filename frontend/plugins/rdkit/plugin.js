@@ -85,7 +85,7 @@
 
     SlideForgePlugins.register({
         id: "rdkit",
-        version: "2",
+        version: "3",
         name: "Structure (RDKit)",
         description: "A publication-quality structure from SMILES, with substructure highlights, R/S labels and properties",
         icon: "fa-solid fa-atom",
@@ -101,7 +101,7 @@
             color: "",
             bondWidth: 2,
             card: "none",
-            fontSize: 14,
+            fontSize: 16,
         },
         fields: [
             { key: "smiles", label: "SMILES", type: "text", primary: true, placeholder: "e.g. CC(=O)Oc1ccccc1C(=O)O", hint: "Press Enter to redraw. The first drawing loads RDKit (a few seconds)." },
@@ -149,6 +149,15 @@
             // Carbon and hydrogen in the ink colour; with atom colours off, every element.
             const palette = {};
             (data.atomColors ? [0, 1, 6] : Array.from({ length: 119 }, (_, z) => z)).forEach(z => (palette[z] = inkRgb));
+            // Heteroatoms readable on the slide: RDKit's pure red oxygen was 3.7:1 on white, its blue nitrogen nearly
+            // invisible on dark slides. Light ink means a dark slide.
+            if (data.atomColors) {
+                const darkSlide = 0.2126 * inkRgb[0] + 0.7152 * inkRgb[1] + 0.0722 * inkRgb[2] > 0.55;
+                const heteroatoms = darkSlide
+                    ? { 7: [0.45, 0.68, 1], 8: [1, 0.47, 0.42], 9: [0.45, 0.86, 0.6], 15: [1, 0.62, 0.3], 16: [0.96, 0.82, 0.25], 17: [0.45, 0.86, 0.6], 35: [1, 0.62, 0.3], 53: [0.8, 0.6, 1] }
+                    : { 7: [0.12, 0.37, 0.66], 8: [0.75, 0.22, 0.17], 9: [0.12, 0.48, 0.24], 15: [0.65, 0.26, 0], 16: [0.48, 0.37, 0], 17: [0.05, 0.46, 0.38], 35: [0.65, 0.26, 0], 53: [0.49, 0.24, 0.6] };
+                Object.entries(heteroatoms).forEach(([z, color]) => (palette[z] = color));
+            }
             const result = await askWorker(context, {
                 smiles: data.smiles,
                 options: {

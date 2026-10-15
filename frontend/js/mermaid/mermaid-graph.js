@@ -89,7 +89,8 @@ const NODE_ID_RE = /^([A-Za-z_][\w-]*)/;
 function decodeMermaidLabel(text = "") {
     let label = String(text).trim();
     if (label.length >= 2 && label.startsWith('"') && label.endsWith('"')) label = label.slice(1, -1);
-    return label.replace(/#quot;/g, '"').replace(/#35;/g, "#");
+    // Mermaid's line break in a label (<br>, <br/>, <br />) is a new line here; it was drawn as the text "<br/>".
+    return label.replace(/#quot;/g, '"').replace(/#35;/g, "#").replace(/<br\s*\/?>/gi, "\n");
 }
 
 // { id, label, shape } for a node token; shape is null for a bare reference ("B"), which must not change the
@@ -429,7 +430,27 @@ export function layoutGraphModel(graph, options = {}) {
         model.nodePositions[node.id] = { x: node.x, y: node.y };
     });
     model.layoutMetadata = { ...(model.layoutMetadata || {}), algorithm: "hierarchical", updatedAt: Date.now() };
+    // Kept positions can overlap once labels grow or the font gets bigger: which nodes the layout placed itself is
+    // not saved, so after reopening every node counted as placed by hand. Unless the layout is locked (manual), lay
+    // the whole chart out again rather than draw boxes on top of each other.
+    if (preserve && !model.lockedLayout && !options.relaidOut && _nodesOverlap(model.nodes)) {
+        return layoutGraphModel(model, { ...options, preservePositions: false, relaidOut: true });
+    }
     return model;
+}
+
+function _nodesOverlap(nodes) {
+    const gap = 6;
+    return nodes.some((a, i) =>
+        nodes.some(
+            (b, j) =>
+                j > i &&
+                a.x < b.x + b.width + gap &&
+                b.x < a.x + a.width + gap &&
+                a.y < b.y + b.height + gap &&
+                b.y < a.y + a.height + gap,
+        ),
+    );
 }
 
 export function graphToMermaid(graph) {
@@ -474,7 +495,7 @@ export function graphToMermaid(graph) {
 
 // Quoted when the label holds characters that would end or confuse the node syntax.
 function labelToMermaid(label) {
-    const text = String(label ?? "");
+    const text = String(label ?? "").replace(/\r?\n/g, "<br/>");
     if (!/[\[\]{}()|<>"#;]/.test(text) && text === text.trim()) return text;
     return `"${text.replace(/#/g, "#35;").replace(/"/g, "#quot;")}"`;
 }

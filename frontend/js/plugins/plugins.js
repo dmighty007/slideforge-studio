@@ -726,7 +726,15 @@ async function insertPluginElement(pluginId, data = null, { ask = true } = {}) {
         height: `${box.height}px`,
         styles: { zIndex: getNextZIndex(), backgroundColor: "transparent" },
     };
-    slide.elements.push(typeof placeWhereFree === "function" ? placeWhereFree(slide, element) : element);
+    const fill = plugin.insert?.fill && slide === state.slides[currentSlideIndex] && _pluginSlideHasOnlyTitle(slide) && _pluginContentArea(slide, id);
+    if (fill) {
+        // It takes the empty content placeholder's place.
+        slide.elements = slide.elements.filter(item => !(item?.placeholderRole === "content" && _isEmptyTextElement(item)));
+        Object.assign(element, fill);
+        slide.elements.push(element);
+    } else {
+        slide.elements.push(typeof placeWhereFree === "function" ? placeWhereFree(slide, element) : element);
+    }
     const placed = { width: element.width, height: element.height };
     renderSlidesFromState();
     selectElement(id);
@@ -790,7 +798,18 @@ async function updatePluginElementData(id, updates) {
 function fitPluginElementToContentArea(id) {
     const slide = state.slides?.[currentSlideIndex];
     const el = slide?.elements?.find(item => item.id === id);
-    if (!el || typeof _getSlideInsertBounds !== "function") return;
+    const area = _pluginContentArea(slide, id);
+    if (!el || !area) return;
+    saveStateToUndo();
+    Object.assign(el, area);
+    renderSlidesFromState();
+    selectElement(id);
+    if (typeof refreshPreviews === "function") refreshPreviews();
+}
+
+// The content area of the current slide (see above), as x, y, width and height, leaving out the object `id`.
+function _pluginContentArea(slide, id) {
+    if (!slide || typeof _getSlideInsertBounds !== "function") return null;
     const { slideW, slideH, margin } = _getSlideInsertBounds();
     const footerTop = typeof _currentSlideFooterTop === "function" ? _currentSlideFooterTop() : null;
     const floor = footerTop === null ? slideH - margin : footerTop - 12;
@@ -802,14 +821,25 @@ function fitPluginElementToContentArea(id) {
             return (parseFloat(item.y) || 0) + height;
         });
     const top = Math.round(Math.max(margin, ...titleBottoms.map(bottom => bottom + 16)));
-    saveStateToUndo();
-    el.x = Math.round(margin);
-    el.y = top;
-    el.width = `${Math.round(slideW - margin * 2)}px`;
-    el.height = `${Math.round(Math.max(80, floor - top))}px`;
-    renderSlidesFromState();
-    selectElement(id);
-    if (typeof refreshPreviews === "function") refreshPreviews();
+    return {
+        x: Math.round(margin),
+        y: top,
+        width: `${Math.round(slideW - margin * 2)}px`,
+        height: `${Math.round(Math.max(80, floor - top))}px`,
+    };
+}
+
+// A plot (insert.fill) inserted on a slide with nothing on it but a title at the top, an empty content placeholder
+// and the footer takes the content area, instead of coming in small above the footer to be sized by hand. A title
+// slide (title in the middle) is left alone.
+function _pluginSlideHasOnlyTitle(slide) {
+    const { slideH } = typeof _getSlideInsertBounds === "function" ? _getSlideInsertBounds() : { slideH: 768 };
+    return (slide?.elements || []).every(item =>
+        !item ||
+        item.isMasterElement ||
+        item.editableMasterFooterElement ||
+        (item.placeholderRole === "content" && typeof _isEmptyTextElement === "function" && _isEmptyTextElement(item)) ||
+        (item.type === "text" && (parseFloat(item.y) || 0) < slideH / 5));
 }
 
 // "Look up again": the plugin's lookup for the settings as they are (after a failed or old lookup).
@@ -981,7 +1011,13 @@ function togglePluginInsertMenu(anchor) {
             button.dataset.pluginInsert = plugin.id;
             button.onclick = () => {
                 closePluginInsertMenu();
-                insertPluginElement(plugin.id);
+                // Inserted from the menu, the object's options are what you want next: show them.
+                insertPluginElement(plugin.id).then(id => {
+                    if (!id || typeof setPropertiesPanelVisible !== "function") return;
+                    if (!document.getElementById("properties-panel")?.classList.contains("hidden")) return;
+                    setPropertiesPanelVisible(true, { persist: false });
+                    if (typeof buildPropertiesPanel === "function") buildPropertiesPanel();
+                });
             };
             list.appendChild(button);
             shown++;
@@ -1078,6 +1114,33 @@ async function _pluginPictureForBox(el) {
     svg.setAttribute("height", String(Math.round(parseFloat(el.height) || 240)));
     svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
     return _svgDataUrl(new XMLSerializer().serializeToString(svg));
+}
+
+// While a slide is captured for PDF/PNG, each plugin picture is shown as a drawing the shape of its box, with the
+// drawing centred in it. html2canvas ignores object-fit: contain, so pictures came out stretched to their box.
+async function showPluginPicturesForCapture(slideNode) {
+    const restored = [];
+    for (const img of slideNode?.querySelectorAll(".plugin-element-content img[src^='data:image/svg+xml']") || []) {
+        const width = img.clientWidth;
+        const height = img.clientHeight;
+        if (!width || !height) continue;
+        try {
+            const source = img.getAttribute("src");
+            const svgText = decodeURIComponent(source.slice(source.indexOf(",") + 1));
+            const svg = new DOMParser().parseFromString(svgText, "image/svg+xml").documentElement;
+            svg.setAttribute("width", String(width));
+            svg.setAttribute("height", String(height));
+            svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+            img.src = _svgDataUrl(new XMLSerializer().serializeToString(svg));
+            await img.decode().catch(() => {});
+            restored.push(() => {
+                img.src = source;
+            });
+        } catch (error) {
+            console.warn("Plugin picture captured as is:", error);
+        }
+    }
+    return () => restored.forEach(restore => restore());
 }
 
 // Plugin objects in an export copy of the state become pictures (PowerPoint and the standalone viewer).

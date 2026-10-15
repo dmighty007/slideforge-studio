@@ -58,8 +58,10 @@
             add(pages ? `, ${pages.split("–")[0]}` : "");
             add(meta.year ? ` (${meta.year})` : "");
         } else if (data.style === "nature") {
-            const names = shown.map(a => `${a.family}, ${initials(a.given)}`);
-            add(names.length ? `${names.join(", ")}${cut ? " et al." : ""} ` : "");
+            // Nature's rule: more than five authors → the first author et al.; otherwise all of them.
+            const many = authors.length > 5;
+            const names = (many ? authors.slice(0, 1) : authors).map(a => `${a.family}, ${initials(a.given)}`);
+            add(names.length ? `${names.join(", ")}${many ? " et al." : ""} ` : "");
             add(meta.title ? `${meta.title}. ` : "");
             add(journal, { italic: true });
             add(meta.volume ? ` ${meta.volume}` : "", { bold: true });
@@ -122,7 +124,7 @@
 
     SlideForgePlugins.register({
         id: "citation",
-        version: "1",
+        version: "2",
         name: "Citation",
         description: "A formatted reference from a DOI (details from Crossref)",
         icon: "fa-solid fa-book-open",
@@ -145,7 +147,7 @@
                     { value: "acs", label: "ACS" },
                 ],
             },
-            { key: "maxAuthors", label: "Authors listed before “et al.”", type: "number", min: 1, max: 50, step: 1 },
+            { key: "maxAuthors", label: "Authors listed before “et al.”", hint: "Nature style always follows its own rule: all authors up to five, else the first author et al.", type: "number", min: 1, max: 50, step: 1 },
             { key: "showDoi", label: "Link", checkboxLabel: "Add the doi.org link", type: "checkbox" },
             { key: "fontSize", label: "Text size (px)", type: "number", min: 8, max: 48, step: 1 },
             { key: "color", label: "Colour", type: "color", allowAuto: true },

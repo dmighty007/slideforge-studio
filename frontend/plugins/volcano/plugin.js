@@ -30,11 +30,11 @@
 
     SlideForgePlugins.register({
         id: "volcano",
-        version: "2",
+        version: "3",
         name: "Volcano Plot",
         description: "log2 fold change against −log10 p, with thresholds, up/down colours and labelled top hits",
         icon: "fa-solid fa-volcano",
-        insert: { category: "Statistics", label: "Volcano plot", keywords: "volcano plot differential expression fold change p-value rna-seq proteomics deseq" },
+        insert: { fill: true, category: "Statistics", label: "Volcano plot", keywords: "volcano plot differential expression fold change p-value rna-seq proteomics deseq" },
         defaultSize: { width: 480, height: 360 },
         sizeAware: true,
         askOnInsert: false,
@@ -47,7 +47,7 @@
             pointSize: 4,
             xLabel: "log₂ fold change",
             yLabel: "−log₁₀ p",
-            fontSize: 12,
+            fontSize: 16,
         },
         fields: [
             { key: "data", label: "Data", type: "table", summarize: rows => {
@@ -97,7 +97,7 @@
             const reach = Math.max(data.fcThreshold * 1.2, ...points.map(pt => Math.abs(pt.fc)));
             const xTicks = context.niceTicks(-reach, reach, 6);
             const yTicks = context.niceTicks(0, Math.max(-Math.log10(data.pThreshold) * 1.2, ...points.map(pt => pt.y)), 5);
-            const tickWidth = Math.max(...yTicks.ticks.map(t => context.measureText(String(t), { size: size * 0.9, family: FONT })));
+            const tickWidth = Math.max(...yTicks.ticks.map(t => context.measureText(String(t), { size, family: FONT })));
             const left = (data.yLabel ? size * 1.6 : 0) + tickWidth + size * 0.7;
             const top = size * 2.2; // the legend sits above the plot
             const bottom = size * 1.8 + (data.xLabel ? size * 1.4 : 0);
@@ -108,10 +108,10 @@
             const parts = [];
             yTicks.ticks.forEach(t => {
                 parts.push(`<line x1="${left}" x2="${left + plotWidth}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}" stroke="${ink}" stroke-opacity="0.1"/>`);
-                parts.push(`<text x="${(left - size * 0.4).toFixed(1)}" y="${(y(t) + size * 0.32).toFixed(1)}" font-size="${(size * 0.9).toFixed(1)}" text-anchor="end" fill="${ink}">${t}</text>`);
+                parts.push(`<text x="${(left - size * 0.4).toFixed(1)}" y="${(y(t) + size * 0.32).toFixed(1)}" font-size="${size}" text-anchor="end" fill="${ink}">${t}</text>`);
             });
             xTicks.ticks.forEach(t => {
-                parts.push(`<text x="${x(t).toFixed(1)}" y="${(top + plotHeight + size * 1.3).toFixed(1)}" font-size="${(size * 0.9).toFixed(1)}" text-anchor="middle" fill="${ink}">${Number(t.toPrecision(6))}</text>`);
+                parts.push(`<text x="${x(t).toFixed(1)}" y="${(top + plotHeight + size * 1.3).toFixed(1)}" font-size="${size}" text-anchor="middle" fill="${ink}">${Number(t.toPrecision(6))}</text>`);
             });
             parts.push(`<path d="M${left} ${top}V${top + plotHeight}H${left + plotWidth}" fill="none" stroke="${ink}" stroke-width="1.2"/>`);
             // Threshold lines
@@ -129,7 +129,7 @@
             const taken = points.map(pt => ({ x: x(pt.fc) - data.pointSize / 2, y: y(pt.y) - data.pointSize / 2, w: data.pointSize, h: data.pointSize }));
             const plotBox = { x: left, y: top, w: plotWidth, h: plotHeight };
             const hits = points.filter(pt => pt.kind !== "ns" && pt.label).sort((a, b) => b.y - a.y || Math.abs(b.fc) - Math.abs(a.fc)).slice(0, data.labels);
-            const labelSize = size * 0.9;
+            const labelSize = size;
             hits.forEach(pt => {
                 const w = context.measureText(pt.label, { size: labelSize, family: FONT });
                 const px = x(pt.fc);
@@ -157,8 +157,8 @@
             let lx = left;
             items.forEach(([kind, text]) => {
                 parts.push(`<circle cx="${(lx + size * 0.4).toFixed(1)}" cy="${(size * 0.9).toFixed(1)}" r="${(size * 0.35).toFixed(1)}" fill="${COLORS[kind]}"/>`);
-                parts.push(`<text x="${(lx + size).toFixed(1)}" y="${(size * 1.2).toFixed(1)}" font-size="${(size * 0.9).toFixed(1)}" fill="${ink}">${text}</text>`);
-                lx += size * 1.8 + context.measureText(text, { size: size * 0.9, family: FONT });
+                parts.push(`<text x="${(lx + size).toFixed(1)}" y="${(size * 1.2).toFixed(1)}" font-size="${size}" fill="${ink}">${text}</text>`);
+                lx += size * 1.8 + context.measureText(text, { size, family: FONT });
             });
             if (data.xLabel) parts.push(`<text x="${(left + plotWidth / 2).toFixed(1)}" y="${(top + plotHeight + size * 2.75).toFixed(1)}" font-size="${size}" text-anchor="middle" fill="${ink}">${context.escapeXml(data.xLabel)}</text>`);
             if (data.yLabel) parts.push(`<text transform="translate(${(size * 0.95).toFixed(1)} ${(top + plotHeight / 2).toFixed(1)}) rotate(-90)" font-size="${size}" text-anchor="middle" fill="${ink}">${context.escapeXml(data.yLabel)}</text>`);

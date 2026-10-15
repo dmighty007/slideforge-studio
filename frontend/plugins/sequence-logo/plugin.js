@@ -56,7 +56,7 @@
             scheme: "classic",
             start: 1,
             axis: true,
-            fontSize: 13,
+            fontSize: 16,
         },
         fields: [
             { key: "sequences", label: "Aligned sequences", type: "textarea", placeholder: "One per line, or FASTA; all the same length (gaps as -)" },

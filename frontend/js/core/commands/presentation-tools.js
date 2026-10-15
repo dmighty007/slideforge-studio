@@ -600,6 +600,9 @@ function initPresentationTools() {
         } else if (["arrowleft", "arrowup", "pageup"].includes(key)) {
             event.preventDefault();
             presentationPrevStep();
+        } else if (key === "home" || key === "end") {
+            event.preventDefault();
+            presentationGoToSlide(key === "home" ? 0 : (state.slides?.length || 1) - 1);
         }
     });
 }

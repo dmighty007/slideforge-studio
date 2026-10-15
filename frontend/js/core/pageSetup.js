@@ -230,8 +230,10 @@ function _rememberLayoutAcrossSizes(previous, next, fromConfig, toConfig) {
     if (!fromConfig?.id || !toConfig?.id) return next;
     const memo = previous.sizeMemo;
     const now = JSON.stringify(_layoutForSizeMemo(previous));
-    // A text box that grows with its text gets a new height at every render: that is not the user touching it.
-    const mark = element => JSON.stringify({ ..._layoutForSizeMemo(element), ...(element.autoHeight ? { height: null } : {}) });
+    // A text box that grows with its text (or a table grown to hold its rows) gets a new height at every render:
+    // that is not the user touching it.
+    const mark = element =>
+        JSON.stringify({ ..._layoutForSizeMemo(element), ...(element.autoHeight || element.tableHeightGrown ? { height: null } : {}) });
     const untouched = Boolean(memo && memo.at?.setup === fromConfig.id && memo.at.layout === mark(previous));
     const saved = untouched ? { ...(memo.saved || {}) } : {};
     saved[fromConfig.id] = JSON.parse(now);

@@ -14,6 +14,25 @@
         B: "#e67e22",
         SI: "#e67e22",
     };
+    // On light slides darker versions, readable at 4.5:1 or better (#3498db nitrogen was 2.9:1 on white); the bright
+    // set above is for dark slides.
+    const ELEMENT_COLORS_ON_LIGHT = {
+        O: "#c0392b",
+        N: "#1f5fa8",
+        F: "#1e7b3c",
+        CL: "#0e7561",
+        BR: "#a64300",
+        I: "#7d3c98",
+        P: "#a64300",
+        S: "#7a5f00",
+        B: "#9a5200",
+        SI: "#9a5200",
+    };
+    const isLightInk = hex => {
+        const value = parseInt(hex.slice(1), 16);
+        const [r, g, b] = [16, 8, 0].map(shift => (value >> shift) & 255);
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b > 140;
+    };
     const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
     let drawerLibrary = null;
@@ -93,7 +112,7 @@
 
     SlideForgePlugins.register({
         id: "smiles",
-        version: "1",
+        version: "2",
         name: "Chemical Structure",
         description: "A 2D structure or reaction from SMILES, or a compound name looked up on PubChem",
         icon: "fa-solid fa-flask",
@@ -199,7 +218,7 @@
             const SmilesDrawer = await loadDrawer(context);
             const ink = HEX_COLOR.test(data.color) ? data.color : HEX_COLOR.test(context.textColor) ? context.textColor : "#222222";
             const palette = { FOREGROUND: ink, BACKGROUND: "transparent", C: ink, H: softened(ink) };
-            Object.entries(ELEMENT_COLORS).forEach(([symbol, color]) => {
+            Object.entries(isLightInk(ink) ? ELEMENT_COLORS : ELEMENT_COLORS_ON_LIGHT).forEach(([symbol, color]) => {
                 palette[symbol] = data.atomColors ? color : ink;
             });
             const moleculeOptions = {

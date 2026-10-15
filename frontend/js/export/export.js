@@ -659,6 +659,81 @@ function createExportPdf(page) {
   });
 }
 
+// The slide's text as lines with their place on the page, for the PDF's invisible text layer. Each page is a picture
+// of the slide (so it looks exactly like the editor); without this layer the PDF could not be searched, its text not
+// copied, and screen readers found nothing.
+function collectSlideTextRuns(slide, page) {
+  const slideRect = slide.getBoundingClientRect();
+  if (!slideRect.width || !slideRect.height) return [];
+  const scaleX = page.width / slideRect.width;
+  const scaleY = page.height / slideRect.height;
+  const skip = ".plugin-element-content, svg, .katex-mathml, .resize-handle, script, style, [aria-hidden='true']";
+  const walker = document.createTreeWalker(slide, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      const parent = node.parentElement;
+      if (!parent || parent.closest(skip)) return NodeFilter.FILTER_REJECT;
+      const style = getComputedStyle(parent);
+      if (style.visibility === "hidden" || style.display === "none" || Number(style.opacity) === 0) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  const lines = [];
+  const range = document.createRange();
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const text = node.nodeValue;
+    // Words as shown: the logo is stored in lower case and drawn in capitals.
+    const transform = getComputedStyle(node.parentElement).textTransform;
+    const shown = word =>
+      transform === "uppercase" ? word.toUpperCase() : transform === "lowercase" ? word.toLowerCase() : word;
+    for (const match of text.matchAll(/\S+/g)) {
+      range.setStart(node, match.index);
+      range.setEnd(node, match.index + match[0].length);
+      const rect = range.getBoundingClientRect();
+      if (!rect.width || rect.bottom < slideRect.top || rect.top > slideRect.bottom) continue;
+      const word = {
+        text: shown(match[0]),
+        x: (rect.left - slideRect.left) * scaleX,
+        right: (rect.right - slideRect.left) * scaleX,
+        top: (rect.top - slideRect.top) * scaleY,
+        bottom: (rect.bottom - slideRect.top) * scaleY,
+      };
+      const line = lines.at(-1);
+      // Words of one line: about the same height on the page and following each other.
+      if (line && Math.abs(line.top - word.top) < (line.bottom - line.top) * 0.4 && word.x >= line.right - 1) {
+        line.text += ` ${word.text}`;
+        line.right = word.right;
+        line.bottom = Math.max(line.bottom, word.bottom);
+      } else {
+        lines.push(word);
+      }
+    }
+  }
+  range.detach?.();
+  return lines;
+}
+
+// jsPDF's standard font knows Latin-1 only: other letters are written as their nearest plain form (or left out),
+// which keeps the layer searchable instead of garbled.
+function _pdfSafeText(text) {
+  return String(text)
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\x20-\x7e\xa0-\xff]/g, "");
+}
+
+function addInvisibleTextLayer(pdf, lines) {
+  lines.forEach(line => {
+    const text = _pdfSafeText(line.text).trim();
+    if (!text) return;
+    const height = Math.max(1, line.bottom - line.top);
+    pdf.setFontSize(height * 0.75);
+    try {
+      pdf.text(text, line.x, line.bottom - height * 0.22, { renderingMode: "invisible" });
+    } catch (_error) {}
+  });
+}
+
 async function exportPDF() {
   const page = getExportPageSetup();
   const pdf = createExportPdf(page);
@@ -685,21 +760,27 @@ async function exportPDF() {
       const restorePdfs = typeof showPdfsAsPicturesForCapture === "function" ? await showPdfsAsPicturesForCapture(slide) : () => {};
       const restoreHtml =
         typeof showHtmlEmbedsAsPicturesForCapture === "function" ? await showHtmlEmbedsAsPicturesForCapture(slide) : () => {};
+      const restorePlugins =
+        typeof showPluginPicturesForCapture === "function" ? await showPluginPicturesForCapture(slide) : () => {};
       const restoreUi = hideExportEditorUi();
       let canvas;
+      let textRuns = [];
       try {
         canvas = await captureSlideCanvas(slide, page, 3);
+        textRuns = collectSlideTextRuns(slide, page);
       } finally {
         restoreUi();
         restoreEquations();
         restoreMolecules();
         restorePdfs();
         restoreHtml();
+        restorePlugins();
       }
 
       const imgData = canvas.toDataURL("image/jpeg", 0.95);
       if (i > 0) pdf.addPage([page.width, page.height], page.orientation);
       pdf.addImage(imgData, "JPEG", 0, 0, page.width, page.height);
+      addInvisibleTextLayer(pdf, textRuns);
       setProjectSaveHint?.(
         `Generated slide ${i + 1}/${state.slides.length}`,
         "success",
@@ -758,6 +839,14 @@ async function exportPNG() {
           restoreEquations = () => {
             restoreBefore();
             restoreHtml();
+          };
+        }
+        if (typeof showPluginPicturesForCapture === "function") {
+          const restorePlugins = await showPluginPicturesForCapture(slide);
+          const restoreAll = restoreEquations;
+          restoreEquations = () => {
+            restoreAll();
+            restorePlugins();
           };
         }
         return captureSlideCanvas(slide, page, 4);
@@ -851,7 +940,10 @@ async function replaceSvgPicturesWithPng(exportState) {
           svgText = await response.text();
         }
         if (!/<svg[\s>]/i.test(svgText)) continue;
-        el.content = await mermaidSvgToPng(svgText, parseFloat(el.width) || 320, parseFloat(el.height) || 240, 2, { stretch: true });
+        // A plugin's drawing keeps its proportions inside its box, as on the slide: stretched, a QR code came out
+        // 14% wider than tall and a reaction scheme 38% wider.
+        const keepShape = String(el.exportedFrom || "").startsWith("plugin:");
+        el.content = await mermaidSvgToPng(svgText, parseFloat(el.width) || 320, parseFloat(el.height) || 240, 2, { stretch: !keepShape });
       } catch (error) {
         console.warn("SVG picture left for the server to convert:", error);
       }

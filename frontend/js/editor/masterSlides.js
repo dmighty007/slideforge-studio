@@ -40,8 +40,42 @@ function updateMasterSlide(masterId, updates = {}) {
             typeof updates.footerText === "string" ? updates.footerText.slice(0, 180) : current.footerText,
         logoText: typeof updates.logoText === "string" ? updates.logoText.slice(0, 80) : current.logoText,
     };
+    // Slides carry their own copies of the footer words (so a slide can change its own). A master change reaches
+    // the copies that still say what the master said; it used to reach only slides added afterwards.
+    _applyMasterTextToSlides(masterId, "footer", current.footerText || "", state.masterSlides[masterId].footerText || "");
+    _applyMasterTextToSlides(masterId, "logo", current.logoText || "", state.masterSlides[masterId].logoText || "");
     renderSlidesFromState?.();
     renderSlidePreviews?.(null, { preserveScroll: true });
+}
+
+function _plainMasterText(content) {
+    const box = document.createElement("div");
+    box.innerHTML = String(content ?? "");
+    return (box.textContent || "").trim();
+}
+
+function _applyMasterTextToSlides(masterId, role, oldText, newText) {
+    if (oldText === newText) return;
+    const theme = typeof getPresentationTheme === "function" ? getPresentationTheme() : null;
+    (state.slides || []).forEach((slide, slideIndex) => {
+        if (resolveSlideMasterId(slide) !== masterId || !Array.isArray(slide.elements)) return;
+        const copies = slide.elements.filter(el => el?.editableMasterFooterElement && el.footerRole === role);
+        if (!copies.length) {
+            // The master had no such text when this slide was made: add it now.
+            if (!newText || !slide.editableMasterFooter) return;
+            const added = buildMasterSlideElements(slide, slideIndex, theme, { includeEditableFooter: true })
+                .filter(el => el.masterRole === role)
+                .map(_toEditableFooterElement);
+            slide.elements.push(...added);
+            return;
+        }
+        copies.forEach(copy => {
+            // A slide whose own text was changed keeps it.
+            if (_plainMasterText(copy.content) !== oldText.trim()) return;
+            if (newText) copy.content = newText;
+            else slide.elements = slide.elements.filter(el => el !== copy);
+        });
+    });
 }
 
 function _masterThemeParts(theme) {

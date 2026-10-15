@@ -199,12 +199,13 @@ const MASTER_SLIDE_DEFINITIONS = {
 
 function createDefaultMasterSlidesState() {
     return {
+        // No product branding by default: every user had to replace "SLIDEFORGE · Presentation" on every deck.
         content: {
             id: "content",
             name: "Content",
             enabled: true,
-            footerText: "Presentation",
-            logoText: "SlideForge",
+            footerText: "",
+            logoText: "",
             showSlideNumber: true,
             showFooter: true,
             showTopRule: true,
@@ -214,7 +215,7 @@ function createDefaultMasterSlidesState() {
             name: "Title",
             enabled: true,
             footerText: "",
-            logoText: "SlideForge",
+            logoText: "",
             showSlideNumber: false,
             showFooter: false,
             showTopRule: true,
@@ -223,8 +224,8 @@ function createDefaultMasterSlidesState() {
             id: "section",
             name: "Section",
             enabled: true,
-            footerText: "Section",
-            logoText: "SlideForge",
+            footerText: "",
+            logoText: "",
             showSlideNumber: true,
             showFooter: true,
             showTopRule: false,

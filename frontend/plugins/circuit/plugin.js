@@ -166,7 +166,7 @@
             style: "us",
             labels: true,
             lineWidth: 2,
-            fontSize: 14,
+            fontSize: 16,
             color: "",
         },
         fields: [

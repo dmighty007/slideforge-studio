@@ -26,12 +26,23 @@ function fitTextContentToBox(dom, data, contentHost) {
     contentHost.style.overflow = "hidden";
     contentHost.style.setProperty("font-size", `${baseSize}px`, "important");
 
+    // Fit with 2 px to spare: a size that only just fit could lose its last line when fonts, zoom or rounding
+    // moved the text by a pixel (a reopened deck showed two of three title lines). The text's own height is measured
+    // with the host at its natural height (scrollHeight is never less than the box's).
+    const available = contentHost.clientHeight;
+    // The host is a stretched flex item, so it is also kept from growing or stretching while measured.
+    const naturalHeight = () => {
+        const saved = ["height", "flex", "align-self"].map(name => [name, contentHost.style.getPropertyValue(name), contentHost.style.getPropertyPriority(name)]);
+        contentHost.style.setProperty("height", "auto", "important");
+        contentHost.style.setProperty("flex", "none", "important");
+        contentHost.style.setProperty("align-self", "flex-start", "important");
+        const height = contentHost.scrollHeight;
+        saved.forEach(([name, value, priority]) => (value ? contentHost.style.setProperty(name, value, priority) : contentHost.style.removeProperty(name)));
+        return height;
+    };
     const fitsAt = size => {
         contentHost.style.setProperty("font-size", `${size}px`, "important");
-        return (
-            contentHost.scrollHeight <= contentHost.clientHeight + 1 &&
-            contentHost.scrollWidth <= contentHost.clientWidth + 1
-        );
+        return naturalHeight() <= available - 2 && contentHost.scrollWidth <= contentHost.clientWidth + 1;
     };
 
     let low = minSize;
@@ -51,7 +62,8 @@ function fitTextContentToBox(dom, data, contentHost) {
         }
     }
 
-    contentHost.style.setProperty("font-size", `${Math.round(best * 10) / 10}px`, "important");
+    // Rounded down: rounded up, a size found to fit could no longer leave the room to spare.
+    contentHost.style.setProperty("font-size", `${Math.floor(best * 10) / 10}px`, "important");
     while (
         best > minSize &&
         (contentHost.scrollHeight > contentHost.clientHeight + 1 ||
@@ -132,3 +144,29 @@ function syncTextBoxLayout(dom, data = null) {
         previousHostHeight,
     };
 }
+
+// Auto-fit boxes are fitted again once the theme's web fonts have loaded, and after the window changes size. Fitted
+// before the fonts arrived (as when a deck is opened), the size suited a narrower fallback font, and with the real
+// font the last line no longer fitted.
+function refitAutofitTextBoxes() {
+    if (typeof state === "undefined" || !state?.slides) return;
+    const byId = new Map(state.slides.flatMap(slide => slide.elements || []).map(el => [el.id, el]));
+    document.querySelectorAll('.canvas-element[data-type="text"][data-text-fit-mode="autofit"]').forEach(node => {
+        const data = byId.get(node.id);
+        if (data) syncTextBoxLayout(node, data);
+    });
+}
+
+(() => {
+    let timer = null;
+    const later = () => {
+        clearTimeout(timer);
+        timer = setTimeout(refitAutofitTextBoxes, 120);
+    };
+    if (document.fonts) {
+        document.fonts.ready.then(later);
+        document.fonts.addEventListener?.("loadingdone", later);
+    }
+    window.addEventListener("resize", later);
+    window.addEventListener("slideforge:render-complete", () => document.fonts?.ready.then(later));
+})();

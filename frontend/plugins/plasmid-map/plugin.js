@@ -78,7 +78,7 @@
         name: "Plasmid Map",
         description: "A circular plasmid map with features, strands and restriction sites",
         icon: "fa-solid fa-circle-notch",
-        insert: { category: "Biology", label: "Plasmid map", keywords: "plasmid map vector circular genbank feature restriction site cloning dna" },
+        insert: { fill: true, category: "Biology", label: "Plasmid map", keywords: "plasmid map vector circular genbank feature restriction site cloning dna" },
         defaultSize: { width: 460, height: 380 },
         sizeAware: true,
         askOnInsert: false,
@@ -88,7 +88,7 @@
             features: "Name,Start,End,Strand,Colour,Type\nlacZα,146,469,-,,gene\nlac promoter,514,544,+,,promoter\nAmpR,1626,2486,-,,resistance\nori,867,1455,-,,origin",
             sites: "Name,Position\nEcoRI,396\nHindIII,447\nAatII,2617",
             ticks: true,
-            fontSize: 13,
+            fontSize: 16,
             color: "",
         },
         fields: [

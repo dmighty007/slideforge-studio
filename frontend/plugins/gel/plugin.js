@@ -52,7 +52,7 @@
             samples: "Lane,Size,Intensity\nUncut,5200,1\nEcoRI,3100,0.9\nEcoRI,2100,0.6\nPCR,750,1\nNo template,,",
             style: "dark",
             ladderLabels: true,
-            fontSize: 13,
+            fontSize: 16,
         },
         fields: [
             {

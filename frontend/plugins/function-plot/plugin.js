@@ -192,11 +192,11 @@
 
     SlideForgePlugins.register({
         id: "function-plot",
-        version: "1",
+        version: "2",
         name: "Function Plot",
         description: "Curves y = f(x) from expressions, with axes, grid and legend",
         icon: "fa-solid fa-chart-line",
-        insert: { category: "Physics & maths", label: "Function plot y = f(x)", keywords: "function plot graph curve equation expression sin cos math" },
+        insert: { fill: true, category: "Physics & maths", label: "Function plot y = f(x)", keywords: "function plot graph curve equation expression sin cos math" },
         defaultSize: { width: 440, height: 300 },
         sizeAware: true,
         askOnInsert: false,
@@ -209,7 +209,7 @@
             grid: true,
             legend: true,
             lineWidth: 2.5,
-            fontSize: 13,
+            fontSize: 16,
             xLabel: "x",
             yLabel: "y",
         },
@@ -292,7 +292,7 @@
             if (!(yHigh > yLow)) throw new Error("“y to” must be greater than “y from”");
             const xTicks = context.niceTicks(xLow, xHigh, Math.max(3, Math.round(width / 80)));
 
-            const tickStyle = { size: size * 0.85, family: FONT };
+            const tickStyle = { size, family: FONT };
             const yTickValues = yTicks.ticks.filter(t => t >= yLow - 1e-9 && t <= yHigh + 1e-9);
             const left = (data.yLabel ? size * 1.5 : 0) + Math.max(...yTickValues.map(t => context.measureText(format(t), tickStyle))) + size * 0.8;
             const bottom = size * (data.xLabel ? 2.9 : 1.9);
@@ -313,8 +313,8 @@
             parts.push(`<path d="M${left} ${axisY.toFixed(1)}H${left + plotWidth}M${axisX.toFixed(1)} ${top}V${top + plotHeight}" stroke="${ink}" stroke-width="1.2" fill="none"/>`);
             xTicks.ticks
                 .filter(t => t >= xLow - 1e-9 && t <= xHigh + 1e-9)
-                .forEach(t => parts.push(`<text x="${px(t).toFixed(1)}" y="${(top + plotHeight + size * 1.15).toFixed(1)}" font-size="${(size * 0.85).toFixed(1)}" text-anchor="middle" fill="${ink}">${format(t)}</text>`));
-            yTickValues.forEach(t => parts.push(`<text x="${(left - size * 0.4).toFixed(1)}" y="${(py(t) + size * 0.3).toFixed(1)}" font-size="${(size * 0.85).toFixed(1)}" text-anchor="end" fill="${ink}">${format(t)}</text>`));
+                .forEach(t => parts.push(`<text x="${px(t).toFixed(1)}" y="${(top + plotHeight + size * 1.15).toFixed(1)}" font-size="${size}" text-anchor="middle" fill="${ink}">${format(t)}</text>`));
+            yTickValues.forEach(t => parts.push(`<text x="${(left - size * 0.4).toFixed(1)}" y="${(py(t) + size * 0.3).toFixed(1)}" font-size="${size}" text-anchor="end" fill="${ink}">${format(t)}</text>`));
             if (data.xLabel) parts.push(`<text x="${(left + plotWidth / 2).toFixed(1)}" y="${(height - size * 0.35).toFixed(1)}" font-size="${size}" font-style="italic" text-anchor="middle" fill="${ink}">${context.escapeXml(data.xLabel)}</text>`);
             if (data.yLabel) parts.push(`<text transform="translate(${(size * 0.95).toFixed(1)} ${(top + plotHeight / 2).toFixed(1)}) rotate(-90)" font-size="${size}" font-style="italic" text-anchor="middle" fill="${ink}">${context.escapeXml(data.yLabel)}</text>`);
 

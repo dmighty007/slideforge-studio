@@ -62,7 +62,7 @@
             domains: "Name,Start,End,Colour,Shape\nTAD,1,61,,rounded\nDNA-binding,94,292,,rounded\nTet,325,356,,oval\nReg,363,393,,box",
             sites: "Position,Label\n15,S15\n175,R175H\n248,R248Q\n273,R273H",
             ruler: true,
-            fontSize: 13,
+            fontSize: 16,
             color: "",
         },
         fields: [

@@ -42,7 +42,7 @@
 
     SlideForgePlugins.register({
         id: "colorbar",
-        version: "1",
+        version: "2",
         name: "Colour Bar",
         description: "A colour scale legend (viridis, magma, coolwarm…) with range, ticks and label",
         icon: "fa-solid fa-palette",
@@ -50,7 +50,7 @@
         defaultSize: { width: 300, height: 70 },
         sizeAware: true,
         askOnInsert: false,
-        defaultData: { colormap: "viridis", min: 0, max: 1, ticks: 5, label: "", orientation: "horizontal", reverse: false, fontSize: 14, color: "" },
+        defaultData: { colormap: "viridis", min: 0, max: 1, ticks: 5, label: "", orientation: "horizontal", reverse: false, fontSize: 16, color: "" },
         fields: [
             { key: "colormap", label: "Colour scale", type: "select", options: COLORMAP_OPTIONS },
             { key: "min", label: "From", type: "number", step: "any" },
@@ -103,7 +103,7 @@
             if (data.orientation === "horizontal") {
                 const labelHeight = data.label ? size * 1.5 : 0;
                 const tickHeight = size * 1.5;
-                const half = Math.max(...ticks.map(t => context.measureText(format(t), { size: size * 0.9, family: FONT }))) / 2;
+                const half = Math.max(...ticks.map(t => context.measureText(format(t), { size, family: FONT }))) / 2;
                 const x0 = half + 2;
                 const x1 = width - half - 2;
                 const barHeight = Math.max(6, height - labelHeight - tickHeight - 2);
@@ -114,11 +114,11 @@
                     const x = x0 + ((t - data.min) / (data.max - data.min)) * (x1 - x0);
                     const y = labelHeight + barHeight;
                     parts.push(`<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${y.toFixed(1)}" y2="${(y + size * 0.3).toFixed(1)}" stroke="${ink}"/>`);
-                    parts.push(`<text x="${x.toFixed(1)}" y="${(y + size * 1.25).toFixed(1)}" font-size="${(size * 0.9).toFixed(1)}" text-anchor="middle" fill="${ink}">${format(t)}</text>`);
+                    parts.push(`<text x="${x.toFixed(1)}" y="${(y + size * 1.25).toFixed(1)}" font-size="${size}" text-anchor="middle" fill="${ink}">${format(t)}</text>`);
                 });
             } else {
                 const labelWidth = data.label ? size * 1.5 : 0;
-                const tickWidth = Math.max(...ticks.map(t => context.measureText(format(t), { size: size * 0.9, family: FONT }))) + size * 0.6;
+                const tickWidth = Math.max(...ticks.map(t => context.measureText(format(t), { size, family: FONT }))) + size * 0.6;
                 const y0 = size * 0.6;
                 const y1 = height - size * 0.6;
                 const barWidth = Math.max(6, width - labelWidth - tickWidth - 2);
@@ -128,7 +128,7 @@
                 ticks.forEach(t => {
                     const y = y1 - ((t - data.min) / (data.max - data.min)) * (y1 - y0);
                     parts.push(`<line x1="${barWidth.toFixed(1)}" x2="${(barWidth + size * 0.3).toFixed(1)}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="${ink}"/>`);
-                    parts.push(`<text x="${(barWidth + size * 0.45).toFixed(1)}" y="${(y + size * 0.32).toFixed(1)}" font-size="${(size * 0.9).toFixed(1)}" fill="${ink}">${format(t)}</text>`);
+                    parts.push(`<text x="${(barWidth + size * 0.45).toFixed(1)}" y="${(y + size * 0.32).toFixed(1)}" font-size="${size}" fill="${ink}">${format(t)}</text>`);
                 });
                 if (data.label) {
                     parts.push(`<text transform="translate(${(width - size * 0.4).toFixed(1)} ${(height / 2).toFixed(1)}) rotate(-90)" font-size="${size}" text-anchor="middle" fill="${ink}">${context.escapeXml(data.label)}</text>`);

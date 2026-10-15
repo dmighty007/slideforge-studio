@@ -32,11 +32,11 @@
         name: "Ray Diagram",
         description: "A thin lens or mirror with its principal rays and the image they form",
         icon: "fa-solid fa-eye",
-        insert: { category: "Physics & maths", label: "Ray diagram (lens or mirror)", keywords: "ray optics lens mirror focal length image object converging diverging concave convex physics" },
+        insert: { fill: true, category: "Physics & maths", label: "Ray diagram (lens or mirror)", keywords: "ray optics lens mirror focal length image object converging diverging concave convex physics" },
         defaultSize: { width: 560, height: 260 },
         sizeAware: true,
         askOnInsert: false,
-        defaultData: { kind: "converging-lens", focalLength: 10, objectDistance: 25, objectHeight: 4, unit: "cm", labels: true, fontSize: 13 },
+        defaultData: { kind: "converging-lens", focalLength: 10, objectDistance: 25, objectHeight: 4, unit: "cm", labels: true, fontSize: 16 },
         fields: [
             {
                 key: "kind",

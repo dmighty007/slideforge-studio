@@ -143,11 +143,11 @@
 
     SlideForgePlugins.register({
         id: "heatmap",
-        version: "1",
+        version: "3",
         name: "Heatmap",
         description: "A heatmap of a matrix, with z-scoring, clustering, dendrograms and a colour bar",
         icon: "fa-solid fa-table-cells",
-        insert: { category: "Statistics", label: "Heatmap", keywords: "heatmap matrix expression cluster dendrogram z-score correlation colour scale" },
+        insert: { fill: true, category: "Statistics", label: "Heatmap", keywords: "heatmap matrix expression cluster dendrogram z-score correlation colour scale" },
         defaultSize: { width: 520, height: 340 },
         sizeAware: true,
         askOnInsert: false,
@@ -164,7 +164,7 @@
             values: false,
             decimals: 1,
             legendLabel: "z-score",
-            fontSize: 12,
+            fontSize: 16,
             color: "",
         },
         fields: [
@@ -279,7 +279,12 @@
             const size = data.fontSize;
             const rowLabelWidth = Math.max(...matrix.rowNames.map(name => context.measureText(name, { size, family: FONT }))) + size * 0.5;
             const columnLabelWidth = Math.max(...matrix.columnNames.map(name => context.measureText(name, { size, family: FONT })));
-            const legendWidth = size * 1.2 + context.measureText(String(Number(high.toPrecision(3))), { size: size * 0.85, family: FONT }) + size * (data.legendLabel ? 2 : 0.8);
+            const tickText = Math.max(
+                context.measureText(String(Number(high.toPrecision(3))), { size, family: FONT }),
+                // Room for the "no data" key under the bar when cells are missing.
+                values.some(row => row.some(value => !Number.isFinite(value))) ? context.measureText("no data", { size, family: FONT }) : 0,
+            );
+            const legendWidth = size * 1.2 + tickText + size * (data.legendLabel ? 2 : 0.8);
             const rowDendro = rowTree && data.dendrograms ? Math.min(width * 0.15, 60) : 0;
             const columnDendro = columnTree && data.dendrograms ? Math.min(height * 0.15, 50) : 0;
             const gridLeft = rowDendro;
@@ -291,16 +296,20 @@
             const gridTop = columnDendro + 2;
             const gridHeight = Math.max(20, height - gridTop - columnLabelHeight);
             const cellHeight = gridHeight / values.length;
-            const parts = [];
+            const parts = [
+                '<defs><pattern id="missing" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#ffffff"/><rect width="2.2" height="6" fill="#475569"/></pattern></defs>',
+            ];
+            const anyMissing = values.some(row => row.some(value => !Number.isFinite(value)));
             rowOrder.forEach((r, i) => {
                 columnOrder.forEach((c, j) => {
                     const value = values[r][c];
-                    const fill = Number.isFinite(value) ? colorAt(data.colormap, t(value)) : "#9ca3af";
+                    // Missing values hatched: the plain grey used before matched coolwarm's middle (no change) too closely.
+                    const fill = Number.isFinite(value) ? colorAt(data.colormap, t(value)) : "url(#missing)";
                     const x = gridLeft + j * cellWidth;
                     const y = gridTop + i * cellHeight;
                     parts.push(`<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${(cellWidth + 0.3).toFixed(2)}" height="${(cellHeight + 0.3).toFixed(2)}" fill="${fill}"/>`);
                     if (data.values && Number.isFinite(value) && cellHeight > size * 0.9) {
-                        parts.push(`<text x="${(x + cellWidth / 2).toFixed(1)}" y="${(y + cellHeight / 2 + size * 0.33).toFixed(1)}" font-size="${(size * 0.85).toFixed(1)}" text-anchor="middle" fill="${textOn(fill)}">${value.toFixed(data.decimals)}</text>`);
+                        parts.push(`<text x="${(x + cellWidth / 2).toFixed(1)}" y="${(y + cellHeight / 2 + size * 0.33).toFixed(1)}" font-size="${size}" text-anchor="middle" fill="${textOn(fill)}">${value.toFixed(data.decimals)}</text>`);
                     }
                 });
                 parts.push(`<text x="${(gridLeft + gridWidth + size * 0.35).toFixed(1)}" y="${(gridTop + (i + 0.5) * cellHeight + size * 0.33).toFixed(1)}" font-size="${size}" fill="${ink}">${context.escapeXml(matrix.rowNames[r])}</text>`);
@@ -338,10 +347,15 @@
                 .ticks.filter(v => v >= low - 1e-9 && v <= high + 1e-9)
                 .forEach(v => {
                     const y = barTop + barHeight - ((v - low) / (high - low)) * barHeight;
-                    parts.push(`<text x="${(barX + size * 1.15).toFixed(1)}" y="${(y + size * 0.3).toFixed(1)}" font-size="${(size * 0.85).toFixed(1)}" fill="${ink}">${Number(v.toPrecision(4))}</text>`);
+                    parts.push(`<text x="${(barX + size * 1.15).toFixed(1)}" y="${(y + size * 0.3).toFixed(1)}" font-size="${size}" fill="${ink}">${Number(v.toPrecision(4))}</text>`);
                 });
             if (data.legendLabel) {
                 parts.push(`<text transform="translate(${(barX - size * 0.4).toFixed(1)} ${(barTop + barHeight / 2).toFixed(1)}) rotate(-90)" font-size="${size}" text-anchor="middle" fill="${ink}">${context.escapeXml(data.legendLabel)}</text>`);
+            }
+            if (anyMissing) {
+                const keyTop = barTop + barHeight + size * 0.8;
+                parts.push(`<rect x="${barX.toFixed(1)}" y="${keyTop.toFixed(1)}" width="${(size * 0.9).toFixed(1)}" height="${(size * 0.9).toFixed(1)}" fill="url(#missing)" stroke="${ink}" stroke-width="0.5"/>`);
+                parts.push(`<text x="${(barX + size * 1.15).toFixed(1)}" y="${(keyTop + size * 0.75).toFixed(1)}" font-size="${size}" fill="${ink}">no data</text>`);
             }
             return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" font-family="${FONT}">${parts.join("")}</svg>`;
         },

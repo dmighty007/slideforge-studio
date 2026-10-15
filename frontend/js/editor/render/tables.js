@@ -35,6 +35,63 @@ function _getTableCellDisplayStyles(
   };
 }
 
+function _pasteTableBlock(elData, startRow, startCol, text) {
+  // The cell being edited is closed first: closing it later wrote its old text over the pasted value.
+  document.activeElement?.blur?.();
+  const block = text.replace(/\n+$/, "").split("\n").map((line) => line.split("\t"));
+  const next = normalizeTableData(elData.tableData);
+  const rows = Math.max(next.rows, startRow + block.length);
+  const cols = Math.max(next.cols, startCol + Math.max(...block.map((line) => line.length)));
+  const lastHeight = next.rowHeights.at(-1) || 44;
+  const lastWidth = next.colWidths.at(-1) || 140;
+  while (next.rowHeights.length < rows) next.rowHeights.push(lastHeight);
+  while (next.colWidths.length < cols) next.colWidths.push(lastWidth);
+  next.cells = Array.from({ length: rows }, (_, r) =>
+    Array.from({ length: cols }, (_, c) => next.cells[r]?.[c] || { text: "", styles: {} }),
+  );
+  block.forEach((line, r) =>
+    line.forEach((value, c) => {
+      next.cells[startRow + r][startCol + c].text = value.trim();
+    }),
+  );
+  next.rows = rows;
+  next.cols = cols;
+  next.selection = { type: "cell", row: startRow, col: startCol };
+  saveStateToUndo();
+  updateElementState(elData.id, { tableData: normalizeTableData(next) });
+  renderSlidesFromState();
+  if (typeof buildPropertiesPanel === "function") buildPropertiesPanel();
+  if (typeof schedulePresentationAutosave === "function") schedulePresentationAutosave();
+}
+
+// The table's box holds all of its rows: text that wraps in a narrow column grows the box instead of disappearing
+// behind a scrollbar (which also showed on the slide, when presenting and in exports). A box grown this way
+// shrinks back when the text no longer needs the room; a height set by hand is never reduced.
+function _fitTableBoxToContent(container, elData, table) {
+  const host = container.closest(".canvas-element");
+  if (!host || host.closest("#slide-previews")) return;
+  const boxHeight = host.offsetHeight;
+  table.style.height = "auto";
+  const needed = Math.ceil(table.offsetHeight);
+  table.style.height = "100%";
+  if (!boxHeight || !needed) return;
+  const stored = (state.slides || []).flatMap((slide) => slide.elements || []).find((el) => el.id === elData.id) || elData;
+  const original = Number(stored.tableHeightBeforeGrowth) || 0;
+  if (needed > boxHeight + 1) {
+    host.style.height = `${needed}px`;
+    Object.assign(stored, { height: `${needed}px`, tableHeightGrown: true, tableHeightBeforeGrowth: original || parseFloat(stored.height) || boxHeight });
+  } else if (stored.tableHeightGrown && needed < boxHeight - 1) {
+    const height = Math.max(needed, original);
+    host.style.height = `${height}px`;
+    const done = height <= original;
+    Object.assign(stored, { height: `${height}px`, tableHeightGrown: !done, tableHeightBeforeGrowth: done ? undefined : original });
+  } else {
+    return;
+  }
+  if (elData !== stored) Object.assign(elData, { height: stored.height, tableHeightGrown: stored.tableHeightGrown, tableHeightBeforeGrowth: stored.tableHeightBeforeGrowth });
+  if (state.selectedIds?.includes(elData.id) && typeof updateGroupBound === "function") updateGroupBound();
+}
+
 function _renderTableDom(container, elData, { interactive = true } = {}) {
   const tableData = normalizeTableData(elData.tableData);
   elData.tableData = tableData;
@@ -106,6 +163,10 @@ function _renderTableDom(container, elData, { interactive = true } = {}) {
     }
 
     cell.textContent = nextText;
+    requestAnimationFrame(() => {
+      const grid = cell.closest("table");
+      if (grid) _fitTableBoxToContent(container, elData, grid);
+    });
     cell.contentEditable = "false";
     cell.removeAttribute("spellcheck");
     cell.classList.remove("is-editing");
@@ -222,6 +283,7 @@ function _renderTableDom(container, elData, { interactive = true } = {}) {
             preserveSelection: true,
           });
         });
+        cell.addEventListener("input", () => _fitTableBoxToContent(container, elData, table));
         cell.addEventListener("beforeinput", (e) => {
           if (!cell.isContentEditable) return;
           if (e.inputType === "insertParagraph") {
@@ -235,6 +297,12 @@ function _renderTableDom(container, elData, { interactive = true } = {}) {
           if (typeof plainText !== "string") return;
           e.preventDefault();
           const normalizedText = plainText.replace(/\r\n?/g, "\n");
+          // Cells copied from a spreadsheet (tabs between cells, a line per row) fill the table from this cell,
+          // adding rows and columns as needed; the whole block used to land in this one cell.
+          if (normalizedText.includes("\t")) {
+            _pasteTableBlock(elData, rowIndex, colIndex, normalizedText);
+            return;
+          }
           const inserted = document.execCommand?.(
             "insertText",
             false,
@@ -290,9 +358,10 @@ function _renderTableDom(container, elData, { interactive = true } = {}) {
   shell.appendChild(scroll);
   container.appendChild(shell);
   if (interactive) {
-    requestAnimationFrame(() =>
-      _renderTableSelectionControls(shell, table, elData),
-    );
+    requestAnimationFrame(() => {
+      _fitTableBoxToContent(container, elData, table);
+      _renderTableSelectionControls(shell, table, elData);
+    });
   }
 }
 

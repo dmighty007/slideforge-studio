@@ -78,11 +78,11 @@
 
     SlideForgePlugins.register({
         id: "box-plot",
-        version: "1",
+        version: "2",
         name: "Box / Violin Plot",
         description: "Box, violin or box-and-violin plots from columns of numbers",
         icon: "fa-solid fa-chart-simple",
-        insert: { category: "Statistics", label: "Box / violin plot", keywords: "box plot violin whisker distribution quartile median statistics csv" },
+        insert: { fill: true, category: "Statistics", label: "Box / violin plot", keywords: "box plot violin whisker distribution quartile median statistics csv" },
         defaultSize: { width: 440, height: 300 },
         sizeAware: true,
         askOnInsert: false,
@@ -96,7 +96,7 @@
             yMax: "",
             palette: "okabe",
             fill: "#4f46e5",
-            fontSize: 14,
+            fontSize: 16,
         },
         fields: [
             { key: "data", label: "Data", type: "table", summarize: rows => {
@@ -172,7 +172,7 @@
             if (!(yHigh > yLow)) throw new Error("The y axis must end above where it starts");
             const format = value => String(Number(value.toPrecision(6)));
             const tickLabels = ticks.ticks.filter(t => t >= yLow - 1e-9 && t <= yHigh + 1e-9);
-            const tickWidth = Math.max(...tickLabels.map(t => context.measureText(format(t), { size: size * 0.85, family: FONT })));
+            const tickWidth = Math.max(...tickLabels.map(t => context.measureText(format(t), { size, family: FONT })));
             const left = (data.yLabel ? size * 1.6 : 0) + tickWidth + size * 0.8;
             const bottom = size * 2.2;
             const top = size * 0.8;
@@ -185,7 +185,7 @@
             // Grid and axis
             tickLabels.forEach(t => {
                 parts.push(`<line x1="${left}" x2="${left + plotWidth}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}" stroke="${ink}" stroke-opacity="0.12"/>`);
-                parts.push(`<text x="${(left - size * 0.4).toFixed(1)}" y="${(y(t) + size * 0.3).toFixed(1)}" font-size="${(size * 0.85).toFixed(1)}" text-anchor="end" fill="${ink}">${format(t)}</text>`);
+                parts.push(`<text x="${(left - size * 0.4).toFixed(1)}" y="${(y(t) + size * 0.3).toFixed(1)}" font-size="${size}" text-anchor="end" fill="${ink}">${format(t)}</text>`);
             });
             parts.push(`<path d="M${left} ${top}V${top + plotHeight}H${left + plotWidth}" fill="none" stroke="${ink}" stroke-width="1.2"/>`);
             if (data.yLabel) {

@@ -81,6 +81,30 @@ function baseNode(element = {}) {
     };
 }
 
+// CSS text-transform (the footer brand is stored in lower case and drawn in capitals) applied to the words
+// themselves: the SVG export wrote "SlideForge" for "SLIDEFORGE".
+function applyTextTransform(textDocument, transform) {
+    const change =
+        transform === "uppercase"
+            ? text => text.toUpperCase()
+            : transform === "lowercase"
+              ? text => text.toLowerCase()
+              : transform === "capitalize"
+                ? text => text.replace(/(^|\s)(\p{L})/gu, (_match, space, letter) => space + letter.toUpperCase())
+                : null;
+    if (!change || !textDocument) return textDocument;
+    const walk = node => {
+        if (Array.isArray(node)) return node.map(walk);
+        if (!node || typeof node !== "object") return node;
+        const copy = {};
+        Object.entries(node).forEach(([key, value]) => {
+            copy[key] = key === "text" && typeof value === "string" ? change(value) : walk(value);
+        });
+        return copy;
+    };
+    return walk(textDocument);
+}
+
 function compileText(element = {}) {
     const textDocument =
         element.textDocument ||
@@ -91,7 +115,7 @@ function compileText(element = {}) {
         ...baseNode(element),
         type: "text",
         content: element.content || "",
-        textDocument: clone(textDocument),
+        textDocument: applyTextTransform(clone(textDocument), element.styles?.textTransform),
         bulletStyle: element.bulletStyle || "default",
         textFitMode: element.textFitMode || "fixed",
         exportPolicy: "vector",

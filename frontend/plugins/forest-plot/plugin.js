@@ -41,11 +41,11 @@
 
     SlideForgePlugins.register({
         id: "forest-plot",
-        version: "2",
+        version: "3",
         name: "Forest Plot",
         description: "Estimates with confidence intervals per study or subgroup, with a pooled diamond",
         icon: "fa-solid fa-bars-staggered",
-        insert: { category: "Statistics", label: "Forest plot", keywords: "forest plot meta-analysis odds ratio hazard ratio confidence interval subgroup effect size" },
+        insert: { fill: true, category: "Statistics", label: "Forest plot", keywords: "forest plot meta-analysis odds ratio hazard ratio confidence interval subgroup effect size" },
         defaultSize: { width: 620, height: 260 },
         sizeAware: true,
         askOnInsert: false,
@@ -60,7 +60,7 @@
             leftNote: "Favours treatment",
             rightNote: "Favours control",
             color: "",
-            fontSize: 13,
+            fontSize: 16,
         },
         fields: [
             { key: "data", label: "Rows", type: "table", summarize: rows => {
@@ -194,7 +194,7 @@
                 .filter(t => t >= low && t <= high)
                 .forEach(t => {
                     parts.push(`<line x1="${x(t).toFixed(1)}" x2="${x(t).toFixed(1)}" y1="${axisY.toFixed(1)}" y2="${(axisY + size * 0.35).toFixed(1)}" stroke="${ink}"/>`);
-                    parts.push(`<text x="${x(t).toFixed(1)}" y="${(axisY + size * 1.3).toFixed(1)}" font-size="${(size * 0.85).toFixed(1)}" text-anchor="middle" fill="${ink}">${Number(t.toPrecision(6))}</text>`);
+                    parts.push(`<text x="${x(t).toFixed(1)}" y="${(axisY + size * 1.3).toFixed(1)}" font-size="${size}" text-anchor="middle" fill="${ink}">${Number(t.toPrecision(6))}</text>`);
                 });
             let below = axisY + size * 1.3;
             if (data.xLabel) {
@@ -204,8 +204,8 @@
             if (data.leftNote || data.rightNote) {
                 below += size * 1.3;
                 const nullX = x(data.nullValue);
-                if (data.leftNote) parts.push(`<text x="${(nullX - size * 0.5).toFixed(1)}" y="${below.toFixed(1)}" font-size="${(size * 0.85).toFixed(1)}" font-style="italic" text-anchor="end" fill="${ink}">← ${context.escapeXml(data.leftNote)}</text>`);
-                if (data.rightNote) parts.push(`<text x="${(nullX + size * 0.5).toFixed(1)}" y="${below.toFixed(1)}" font-size="${(size * 0.85).toFixed(1)}" font-style="italic" fill="${ink}">${context.escapeXml(data.rightNote)} →</text>`);
+                if (data.leftNote) parts.push(`<text x="${(nullX - size * 0.5).toFixed(1)}" y="${below.toFixed(1)}" font-size="${size}" font-style="italic" text-anchor="end" fill="${ink}">← ${context.escapeXml(data.leftNote)}</text>`);
+                if (data.rightNote) parts.push(`<text x="${(nullX + size * 0.5).toFixed(1)}" y="${below.toFixed(1)}" font-size="${size}" font-style="italic" fill="${ink}">${context.escapeXml(data.rightNote)} →</text>`);
             }
             return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${Math.max(height, below + size * 0.4).toFixed(1)}" font-family="${FONT}">${parts.join("")}</svg>`;
         },

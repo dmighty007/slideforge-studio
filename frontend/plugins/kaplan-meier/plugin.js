@@ -153,11 +153,11 @@
 
     SlideForgePlugins.register({
         id: "kaplan-meier",
-        version: "2",
+        version: "3",
         name: "Kaplan–Meier Curve",
         description: "Survival curves per group with censoring marks, confidence bands, numbers at risk and the log-rank test",
         icon: "fa-solid fa-chart-line",
-        insert: { category: "Statistics", label: "Kaplan–Meier survival curve", keywords: "kaplan meier survival curve censoring log-rank hazard numbers at risk clinical" },
+        insert: { fill: true, category: "Statistics", label: "Kaplan–Meier survival curve", keywords: "kaplan meier survival curve censoring log-rank hazard numbers at risk clinical" },
         defaultSize: { width: 560, height: 360 },
         sizeAware: true,
         askOnInsert: false,
@@ -173,7 +173,7 @@
             medians: false,
             atRisk: true,
             logRank: true,
-            fontSize: 13,
+            fontSize: 16,
             lineWidth: 2,
         },
         fields: [
@@ -231,8 +231,8 @@
             const xMax = xTicks.max;
             const yTickValues = [0, 0.25, 0.5, 0.75, 1];
             const yText = v => (data.percent ? `${Math.round(v * 100)}` : String(v));
-            const tickWidth = Math.max(...yTickValues.map(v => context.measureText(yText(v), { size: size * 0.9, family: FONT })));
-            const nameWidth = data.atRisk ? Math.max(...groups.map(g => context.measureText(g.name, { size: size * 0.9, family: FONT }))) : 0;
+            const tickWidth = Math.max(...yTickValues.map(v => context.measureText(yText(v), { size, family: FONT })));
+            const nameWidth = data.atRisk ? Math.max(...groups.map(g => context.measureText(g.name, { size, family: FONT }))) : 0;
             const left = Math.max((data.yLabel ? size * 1.6 : 0) + tickWidth + size * 0.7, nameWidth + size * 1.8);
             const right = size;
             const top = size * 0.8;
@@ -246,13 +246,13 @@
             // Grid and axes
             yTickValues.forEach(v => {
                 parts.push(`<line x1="${left}" x2="${left + plotWidth}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="${ink}" stroke-opacity="0.1"/>`);
-                parts.push(`<text x="${(left - size * 0.4).toFixed(1)}" y="${(y(v) + size * 0.32).toFixed(1)}" font-size="${(size * 0.9).toFixed(1)}" text-anchor="end" fill="${ink}">${yText(v)}</text>`);
+                parts.push(`<text x="${(left - size * 0.4).toFixed(1)}" y="${(y(v) + size * 0.32).toFixed(1)}" font-size="${size}" text-anchor="end" fill="${ink}">${yText(v)}</text>`);
             });
             const axisY = top + plotHeight;
             parts.push(`<path d="M${left} ${top}V${axisY}H${left + plotWidth}" fill="none" stroke="${ink}" stroke-width="1.2"/>`);
             xTicks.ticks.forEach(t => {
                 parts.push(`<line x1="${x(t).toFixed(1)}" x2="${x(t).toFixed(1)}" y1="${axisY}" y2="${(axisY + size * 0.35).toFixed(1)}" stroke="${ink}"/>`);
-                parts.push(`<text x="${x(t).toFixed(1)}" y="${(axisY + size * 1.3).toFixed(1)}" font-size="${(size * 0.9).toFixed(1)}" text-anchor="middle" fill="${ink}">${Number(t.toPrecision(6))}</text>`);
+                parts.push(`<text x="${x(t).toFixed(1)}" y="${(axisY + size * 1.3).toFixed(1)}" font-size="${size}" text-anchor="middle" fill="${ink}">${Number(t.toPrecision(6))}</text>`);
             });
             if (data.xLabel) parts.push(`<text x="${(left + plotWidth / 2).toFixed(1)}" y="${(axisY + size * 2.75).toFixed(1)}" font-size="${size}" text-anchor="middle" fill="${ink}">${context.escapeXml(data.xLabel)}</text>`);
             if (data.yLabel) parts.push(`<text transform="translate(${(size * 0.95).toFixed(1)} ${(top + plotHeight / 2).toFixed(1)}) rotate(-90)" font-size="${size}" text-anchor="middle" fill="${ink}">${context.escapeXml(data.yLabel)}${data.percent ? " (%)" : ""}</text>`);
@@ -294,26 +294,28 @@
             if (groups.length > 1 || data.medians) {
                 legend.forEach((text, i) => {
                     const yy = top + size * 0.6 + i * size * 1.35;
-                    const textWidth = context.measureText(text, { size: size * 0.9, family: FONT });
+                    const textWidth = context.measureText(text, { size, family: FONT });
                     const xx = left + plotWidth - textWidth - size * 0.4;
                     parts.push(`<line x1="${(xx - size * 1.6).toFixed(1)}" x2="${(xx - size * 0.4).toFixed(1)}" y1="${(yy - size * 0.3).toFixed(1)}" y2="${(yy - size * 0.3).toFixed(1)}" stroke="${groups[i].color}" stroke-width="${data.lineWidth + 1}"/>`);
-                    parts.push(`<text x="${xx.toFixed(1)}" y="${yy.toFixed(1)}" font-size="${(size * 0.9).toFixed(1)}" fill="${ink}">${context.escapeXml(text)}</text>`);
+                    parts.push(`<text x="${xx.toFixed(1)}" y="${yy.toFixed(1)}" font-size="${size}" fill="${ink}">${context.escapeXml(text)}</text>`);
                 });
             }
             if (test) {
                 const yy = top + size * 0.6 + legend.length * size * 1.35 + size * 0.2;
-                parts.push(`<text x="${(left + plotWidth - size * 0.4).toFixed(1)}" y="${yy.toFixed(1)}" font-size="${(size * 0.9).toFixed(1)}" text-anchor="end" fill="${ink}">Log-rank ${context.escapeXml(formatP(test.p))}</text>`);
+                parts.push(`<text x="${(left + plotWidth - size * 0.4).toFixed(1)}" y="${yy.toFixed(1)}" font-size="${size}" text-anchor="end" fill="${ink}">Log-rank ${context.escapeXml(formatP(test.p))}</text>`);
             }
 
             // Numbers at risk under the axis, one row per group, under the time ticks.
             if (data.atRisk) {
                 const tableTop = axisY + axisHeight + size * 0.2;
-                parts.push(`<text x="0" y="${(tableTop + size * 0.9).toFixed(1)}" font-size="${(size * 0.85).toFixed(1)}" font-weight="700" fill="${ink}">Number at risk</text>`);
+                parts.push(`<text x="0" y="${(tableTop + size * 0.9).toFixed(1)}" font-size="${size}" font-weight="700" fill="${ink}">Number at risk</text>`);
                 groups.forEach((group, i) => {
                     const yy = tableTop + size * 0.9 + (i + 1) * size * 1.4;
-                    parts.push(`<text x="0" y="${yy.toFixed(1)}" font-size="${(size * 0.9).toFixed(1)}" fill="${group.color}">${context.escapeXml(group.name)}</text>`);
+                    // The name in the text colour (vermilion text was 3.6:1 on white), with the group's colour beside it.
+                    parts.push(`<rect x="0" y="${(yy - size * 0.55).toFixed(1)}" width="${(size * 0.5).toFixed(1)}" height="${(size * 0.5).toFixed(1)}" fill="${group.color}"/>`);
+                    parts.push(`<text x="${(size * 0.7).toFixed(1)}" y="${yy.toFixed(1)}" font-size="${size}" fill="${ink}">${context.escapeXml(group.name)}</text>`);
                     xTicks.ticks.forEach(t => {
-                        parts.push(`<text x="${x(t).toFixed(1)}" y="${yy.toFixed(1)}" font-size="${(size * 0.9).toFixed(1)}" text-anchor="middle" fill="${ink}">${atRiskAt(group.subjects, t)}</text>`);
+                        parts.push(`<text x="${x(t).toFixed(1)}" y="${yy.toFixed(1)}" font-size="${size}" text-anchor="middle" fill="${ink}">${atRiskAt(group.subjects, t)}</text>`);
                     });
                 });
             }

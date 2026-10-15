@@ -1456,6 +1456,7 @@ async function test(name, fn) {
     await test("the footer brand keeps its capitals through saving, and gets them back in decks that lost them", async () => {
         const { page } = await openEditor(context);
         const outcome = await page.evaluate(() => {
+            updateMasterSlide("content", { logoText: "Smith lab" }); // new decks have no logo text
             addSlide();
             const logo = () => state.slides[currentSlideIndex].elements.find(e => e.footerRole === "logo");
             const kept = getPersistableState().slides[currentSlideIndex].elements.find(e => e.footerRole === "logo")?.styles?.textTransform;
@@ -4553,7 +4554,8 @@ async function test(name, fn) {
             }, id);
         const nature = await words();
         // Words are laid out one by one, so a comma after a styled word reads " ," here.
-        assert(/^Jumper, J\., Evans, R\., Pritzel, A\. et al\. Highly accurate/.test(nature), `Nature style: ${nature}`);
+        // Nature lists up to five authors in full (more than five: the first author et al.), whatever "Authors listed" says.
+        assert(/^Jumper, J\., Evans, R\., Pritzel, A\., Green, T\., Hassabis, D\. Highly accurate/.test(nature), `Nature style: ${nature}`);
         assert(/Nature 596 , 583–589 \(2021\)\.$/.test(nature), `Nature style tail: ${nature}`);
         assert((await countInSvg(page, id, 'tspan[font-weight="700"]')) === 1 && (await countInSvg(page, id, 'tspan[font-style="italic"]')) === 1, "volume not bold or journal not italic");
         await pageAwait(page, id => SlideForgePlugins.update(id, { style: "apa", maxAuthors: 20 }), id);
@@ -5502,6 +5504,298 @@ async function test(name, fn) {
         });
         const panel = await page.locator("#properties-content").textContent();
         assert(/not installed/i.test(panel), "the panel does not say the plugin is missing");
+        await page.close();
+    });
+
+    // ─── Research deck study, 2026-10-15 (test-results/research-deck-2026-10-15/REPORT.md) ──────────────────────────
+
+    await test("research deck: a plugin drawing keeps its shape in PowerPoint and in the PDF capture", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("qr-code", { text: "https://doi.org/10.1038/s41586-021-03819-2" }, { ask: false }));
+        // A box twice as wide as tall: the square code sits in its middle, as on the slide.
+        await page.evaluate(id => {
+            updateElementState(id, { width: "400px", height: "200px" });
+            renderSlidesFromState();
+        }, id);
+        await page.waitForTimeout(300);
+        const pptx = await page.evaluate(async id => {
+            let body = null;
+            const realFetch = window.fetch;
+            window.fetch = async (url, options) => {
+                if (String(url).includes("/export/pptx/")) { body = JSON.parse(options.body); return new Response(new Blob(["x"]), { status: 200 }); }
+                return realFetch(url, options);
+            };
+            try { await exportPPTX(); } finally { window.fetch = realFetch; }
+            const el = body.state.slides.flatMap(s => s.elements).find(e => e.id === id);
+            const img = new Image();
+            img.src = el.content;
+            await img.decode();
+            const canvas = document.createElement("canvas");
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0);
+            const alpha = (x, y) => ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data[3];
+            return { type: el.type, w: img.width, h: img.height, edge: alpha(img.width * 0.05, img.height / 2), middle: alpha(img.width / 2, img.height / 2) };
+        }, id);
+        assert(pptx.type === "image" && pptx.edge === 0 && pptx.middle > 0, `the QR code was stretched across its box in PowerPoint: ${JSON.stringify(pptx)}`);
+        // The PDF and PNG capture draw the picture as the slide shows it (html2canvas stretched it to the box).
+        const captured = await page.evaluate(async id => {
+            const node = [...document.querySelectorAll(`[id="${id}"]`)].find(n => !n.closest("#slide-previews"));
+            const slide = node.closest(".presentation-slide");
+            const restore = await showPluginPicturesForCapture(slide);
+            const src = node.querySelector(".plugin-element-content img").getAttribute("src");
+            restore();
+            const svg = new DOMParser().parseFromString(decodeURIComponent(src.slice(src.indexOf(",") + 1)), "image/svg+xml").documentElement;
+            const back = node.querySelector(".plugin-element-content img").getAttribute("src") === state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginPreview;
+            return { width: svg.getAttribute("width"), height: svg.getAttribute("height"), ratio: svg.getAttribute("preserveAspectRatio"), back };
+        }, id);
+        assert(Math.abs(captured.width / captured.height - 2) < 0.05 && captured.ratio === "xMidYMid meet" && captured.back, `capture picture: ${JSON.stringify(captured)}`);
+        await page.close();
+    });
+
+    await test("research deck: the PDF has a searchable text layer over each slide picture", async () => {
+        const { page } = await openFreshEditor(context);
+        const out = await page.evaluate(async () => {
+            updateMasterSlide("content", { logoText: "Smith lab" });
+            addSlide();
+            const title = state.slides[1].elements.find(e => e.placeholder === "Click to add title");
+            title.content = "Searchable protein folding title";
+            delete title.textDocument;
+            renderSlidesFromState();
+            await new Promise(resolve => setTimeout(resolve, 300));
+            let output = "";
+            const realCreate = createExportPdf;
+            createExportPdf = page => {
+                const pdf = realCreate(page);
+                pdf.save = () => { output = pdf.output(); };
+                return pdf;
+            };
+            try { await exportPDF(); } finally { createExportPdf = realCreate; }
+            return output;
+        });
+        assert(out.includes("Searchable protein folding title"), "the slide's text is not in the PDF");
+        assert(/3 Tr/.test(out), "the PDF's text is not drawn invisibly over the picture");
+        assert(out.includes("SMITH lab".toUpperCase()) && !out.includes("Smith lab"), "the PDF's text is not in the case the slide shows");
+        await page.close();
+    });
+
+    await test("research deck: footer and logo text changed on the master reach the slides that already exist, and SVG writes capitals", async () => {
+        const { page } = await openFreshEditor(context);
+        const out = await page.evaluate(async () => {
+            const brand = state.masterSlides.content;
+            const defaults = { footer: brand.footerText, logo: brand.logoText };
+            addSlide();
+            addSlide();
+            const second = state.slides[1];
+            // One slide changed its own footer: it keeps it.
+            updateMasterSlide("content", { footerText: "Lab meeting · 15 Oct" });
+            const footerOf = slide => (slide.elements.find(e => e.editableMasterFooterElement && e.footerRole === "footer")?.content || "").replace(/<[^>]*>/g, "");
+            const own = state.slides[2].elements.find(e => e.editableMasterFooterElement && e.footerRole === "footer");
+            own.content = "My own footer";
+            updateMasterSlide("content", { footerText: "Group meeting · 15 Oct", logoText: "Smith lab" });
+            renderSlidesFromState();
+            currentSlideIndex = 1;
+            const scene = compileSlideForgeRenderScene({ profile: "publication" });
+            const { SvgRenderer } = await import("./js/rendering/renderers/SvgRenderer.js");
+            const svg = SvgRenderer.renderSlide(scene.slides[1], scene);
+            const svgText = [...new DOMParser().parseFromString(svg, "image/svg+xml").querySelectorAll("text, tspan")].map(t => t.textContent).join(" ");
+            const shown = [...document.querySelectorAll(`.presentation-slide`)][1]?.textContent || "";
+            return { defaults, second: footerOf(second), third: footerOf(state.slides[2]), svgText, shown };
+        });
+        assert(out.defaults.footer === "" && out.defaults.logo === "", `a new deck has a branded footer: ${JSON.stringify(out.defaults)}`);
+        assert(out.second === "Group meeting · 15 Oct", `an existing slide kept the old footer: ${out.second}`);
+        assert(out.third === "My own footer", `a slide's own footer was overwritten: ${out.third}`);
+        assert(/SMITH\s*LAB/.test(out.svgText) && !/Smith\s*lab/.test(out.svgText), `SVG logo text not in capitals: ${out.svgText}`);
+        await page.close();
+    });
+
+    await test("research deck: a title that fits leaves room to spare and is fitted again when its font changes", async () => {
+        const { page } = await openEditor(context);
+        const ids = await newContentSlide(page);
+        const fit = () =>
+            page.evaluate(id => {
+                const host = document.getElementById(id).querySelector(".text-element-content");
+                const client = host.clientHeight;
+                // The text's own height (the host is a stretched flex item, and scrollHeight never reads below its box).
+                host.style.setProperty("height", "auto", "important");
+                host.style.setProperty("flex", "none", "important");
+                host.style.setProperty("align-self", "flex-start", "important");
+                const scroll = host.scrollHeight;
+                ["flex", "align-self"].forEach(name => host.style.removeProperty(name));
+                host.style.setProperty("height", "100%");
+                return { scroll, client, size: parseFloat(host.style.fontSize) };
+            }, ids.title);
+        await page.evaluate(id => {
+            const title = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            title.content = "Engineered binding pocket raises catalytic turnover of the enzyme";
+            delete title.textDocument;
+            renderSlidesFromState();
+        }, ids.title);
+        await page.waitForTimeout(400);
+        const first = await fit();
+        assert(first.scroll <= first.client - 2, `the fitted title has no room to spare: ${JSON.stringify(first)}`);
+        // A wider font arriving later (as web fonts do when a deck is opened) gets the title fitted again.
+        await page.evaluate(id => {
+            const host = document.getElementById(id).querySelector(".text-element-content");
+            host.style.letterSpacing = "4px";
+            window.dispatchEvent(new Event("resize"));
+        }, ids.title);
+        await page.waitForTimeout(600);
+        const after = await fit();
+        assert(after.scroll <= after.client - 2 && after.size < first.size, `the title was not fitted again: ${JSON.stringify({ first, after })}`);
+        await page.close();
+    });
+
+    await test("research deck: plot labels and ticks are drawn at the chosen text size", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const small = {};
+        for (const pluginId of ["box-plot", "heatmap", "kaplan-meier", "forest-plot", "volcano", "function-plot", "colorbar"]) {
+            const id = await pageAwait(page, pluginId => insertPluginElement(pluginId, null, { ask: false }), pluginId);
+            const out = await page.evaluate(id => {
+                const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+                const svg = new DOMParser().parseFromString(decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1)), "image/svg+xml");
+                const sizes = [...svg.querySelectorAll("text")].map(t => parseFloat(t.getAttribute("font-size"))).filter(Number.isFinite);
+                return { chosen: el.pluginData.fontSize, smallest: Math.min(...sizes) };
+            }, id);
+            if (out.chosen < 16 || out.smallest < out.chosen - 0.01) small[pluginId] = out;
+        }
+        assert(!Object.keys(small).length, `text smaller than chosen (or a default under 16 px): ${JSON.stringify(small)}`);
+        await page.close();
+    });
+
+    await test("research deck: structures, at-risk tables and missing heatmap cells read clearly", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        // On a light slide, SMILES heteroatoms use the darker set (#3498db nitrogen was 2.9:1 on white).
+        const smiles = await pageAwait(page, () => insertPluginElement("smiles", { smiles: "CC(=O)Nc1ccc(O)cc1" }, { ask: false }));
+        const smilesSvg = (await pluginSvg(page, smiles)).toLowerCase();
+        assert(smilesSvg.includes("#1f5fa8") && smilesSvg.includes("#c0392b") && !smilesSvg.includes("#3498db"), "SMILES atom colours too light for a light slide");
+        // Kaplan–Meier: group names in the at-risk table are written in the ink colour, with a coloured key.
+        const km = await pageAwait(page, () => insertPluginElement("kaplan-meier", null, { ask: false }));
+        const groups = await pluginSvgQuery(page, km, `
+            const ink = [...svg.querySelectorAll("text")].find(t => t.textContent.trim() === "Survival probability")?.getAttribute("fill");
+            const names = [...svg.querySelectorAll("text")].filter(t => t.textContent.trim() === "Placebo" || t.textContent.trim() === "6-MP");
+            return { ink, fills: names.map(t => t.getAttribute("fill")) };`);
+        assert(groups.ink && groups.fills.length >= 2 && groups.fills.every(fill => fill === groups.ink), `at-risk group names: ${JSON.stringify(groups)}`);
+        // Heatmap: a missing value is hatched (not a grey next to the colour scale's own grey) and has a key.
+        const heat = await pageAwait(page, () => insertPluginElement("heatmap", { data: "Gene,A,B\nIL6,1,2\nNAT2,,0\nTNF,3,1", zscore: "none", clusterRows: false, dendrograms: false }, { ask: false }));
+        const hatch = await pluginSvgQuery(page, heat, `
+            return { hatched: svg.querySelectorAll('rect[fill="url(#missing)"]').length, key: [...svg.querySelectorAll("text")].some(t => /no data/i.test(t.textContent)) };`);
+        assert(hatch.hatched >= 2 && hatch.key, `missing cell: ${JSON.stringify(hatch)}`);
+        await page.close();
+    });
+
+    await test("research deck: a flowchart label's <br/> is a line break, and overlapping kept positions are laid out again", async () => {
+        const { page } = await openEditor(context);
+        const out = await page.evaluate(async () => {
+            const graph = await import("/js/mermaid/mermaid-graph.js");
+            const parsed = graph.parseMermaidToGraph('flowchart LR\n A["Cells<br/>(n = 12)"] --> B[Assay]\n B --> C[Result]\n');
+            const label = parsed.nodes.find(n => n.id === "A").label;
+            const back = graph.graphToMermaid(parsed);
+            const model = graph.layoutGraphModel(parsed);
+            const a = model.nodes.find(n => n.id === "A");
+            // B kept on top of A (as after a reopen with longer labels).
+            model.nodes.find(n => n.id === "B").x = a.x;
+            model.nodes.find(n => n.id === "B").y = a.y;
+            model.nodePositions = { ...(model.nodePositions || {}), B: { x: a.x, y: a.y } };
+            const again = graph.layoutGraphModel(model);
+            const [p, q] = ["A", "B"].map(id => again.nodes.find(n => n.id === id));
+            const overlap = p.x < q.x + q.width && q.x < p.x + p.width && p.y < q.y + q.height && q.y < p.y + p.height;
+            return { label, back, overlap };
+        });
+        assert(out.label === "Cells\n(n = 12)", `label: ${JSON.stringify(out.label)}`);
+        assert(out.back.includes("Cells<br/>(n = 12)"), `written back: ${out.back}`);
+        assert(!out.overlap, "two boxes are drawn on top of each other");
+        await page.close();
+    });
+
+    await test("research deck: cells pasted from a spreadsheet fill the table, and the box grows to show every row", async () => {
+        const { page } = await openEditor(context);
+        await newContentSlide(page);
+        await page.evaluate(() => addElement("table"));
+        const id = await page.evaluate(() => state.slides[currentSlideIndex].elements.find(e => e.type === "table").id);
+        const firstCell = await page.evaluate(id => { const r = document.querySelector(`.slides [id="${id}"] .table-element-cell`).getBoundingClientRect(); return [r.x + 15, r.y + 15]; }, id);
+        await page.mouse.dblclick(firstCell[0], firstCell[1]);
+        await page.evaluate(() => {
+            const data = new DataTransfer();
+            data.setData("text/plain", "Dose\tResponse\tn\n50 mg\t12%\t20\n100 mg\t31%\t21\n200 mg\t48%\t19\n400 mg\t52%\t18\n");
+            document.activeElement.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+        });
+        await page.waitForTimeout(300);
+        const table = await page.evaluate(id => state.slides[currentSlideIndex].elements.find(e => e.id === id).tableData, id);
+        assert(table.rows >= 5 && table.cells[0][0].text === "Dose" && table.cells[4][1].text === "52%" && table.cells[2][2].text === "21", `pasted table: ${JSON.stringify(table.cells.map(r => r.map(c => c.text)))}`);
+        // Long text in a narrow column wraps; the box grows to hold it instead of hiding rows behind a scrollbar.
+        const cell = await page.evaluate(id => { const r = document.querySelectorAll(`.slides [id="${id}"] .table-element-cell`)[3 * 3 + 0].getBoundingClientRect(); return [r.x + 10, r.y + 10]; }, id);
+        await page.mouse.dblclick(cell[0], cell[1]);
+        await page.keyboard.press("Control+a");
+        await page.keyboard.type("200 mg twice daily with food, after the loading dose in week one");
+        await page.keyboard.press("Escape");
+        await page.waitForTimeout(300);
+        const box = await page.evaluate(id => {
+            const node = [...document.querySelectorAll(`[id="${id}"]`)].find(n => !n.closest("#slide-previews"));
+            const grid = node.querySelector("table");
+            const scroll = node.querySelector(".table-element-scroll");
+            return { box: node.offsetHeight, table: grid.scrollHeight, overflow: scroll ? getComputedStyle(scroll).overflowY : "", stored: parseFloat(state.slides[currentSlideIndex].elements.find(e => e.id === id).height) };
+        }, id);
+        assert(box.table <= box.box + 1 && Math.abs(box.stored - box.box) <= 1 && box.overflow !== "auto" && box.overflow !== "scroll", `rows hidden: ${JSON.stringify(box)}`);
+        await page.close();
+    });
+
+    await test("research deck: a plot on a slide with only its title fills the content area; the Plugins menu opens its options", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => {
+            setPropertiesPanelVisible(false, { persist: false });
+            addSlide();
+        });
+        await page.evaluate(() => SlideForgePlugins.ready);
+        await insertFromPluginMenu(page, "box-plot");
+        await page.waitForFunction(() => state.slides[currentSlideIndex].elements.some(e => e.type === "plugin" && e.pluginPreview));
+        const out = await page.evaluate(() => {
+            const slide = state.slides[currentSlideIndex];
+            const el = slide.elements.find(e => e.type === "plugin");
+            const page = getPresentationPageSetupConfig();
+            return {
+                width: parseFloat(el.width) / page.width,
+                height: parseFloat(el.height) / page.height,
+                y: parseFloat(el.y),
+                placeholder: slide.elements.some(e => e.placeholderRole === "content"),
+                panel: !document.getElementById("properties-panel").classList.contains("hidden"),
+            };
+        });
+        assert(out.width > 0.8 && out.height > 0.5 && out.y > 120 && !out.placeholder, `plot box: ${JSON.stringify(out)}`);
+        assert(out.panel, "the Properties panel stayed closed after inserting from the Plugins menu");
+        // A slide with content already on it: the plot does not cover it.
+        const busy = await page.evaluate(async () => {
+            addSlide();
+            const body = state.slides[currentSlideIndex].elements.find(e => e.placeholderRole === "content");
+            body.content = "Results so far";
+            delete body.textDocument;
+            renderSlidesFromState();
+            const id = await insertPluginElement("box-plot", null, { ask: false });
+            return parseFloat(state.slides[currentSlideIndex].elements.find(e => e.id === id).width) / getPresentationPageSetupConfig().width;
+        });
+        assert(busy < 0.8, `the plot filled a slide that has text on it: ${busy}`);
+        await page.close();
+    });
+
+    await test("research deck: Home and End go to the first and last slide in the show; brackets name **** in their option", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => { addSlide(); addSlide(); switchSlide(1); });
+        await page.evaluate(() => togglePlayMode());
+        await page.waitForTimeout(800);
+        await page.keyboard.press("End");
+        await page.waitForTimeout(600);
+        const last = await page.evaluate(() => Reveal.getIndices().h);
+        await page.keyboard.press("Home");
+        await page.waitForTimeout(600);
+        const first = await page.evaluate(() => Reveal.getIndices().h);
+        await page.keyboard.press("Escape");
+        assert(last === 2 && first === 0, `End went to ${last}, Home to ${first}`);
+        const label = await page.evaluate(() => getSlidePlugin("significance").fields.find(f => f.key === "stars").checkboxLabel);
+        assert(label.includes("**** < 0.0001"), `stars option: ${label}`);
         await page.close();
     });
 

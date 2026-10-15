@@ -467,7 +467,8 @@
 }
 
 .table-element-scroll {
-    overflow: auto;
+    /* The box grows to fit its rows (tables.js), so there is nothing to scroll: a scrollbar showed on the slide. */
+    overflow: hidden;
 }
 
 .table-element-grid {
