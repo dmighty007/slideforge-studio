@@ -1064,3 +1064,8 @@ html[data-theme="dark"] .plugin-panel-status {
     background: rgba(22, 101, 52, 0.3);
     color: #bbf7d0;
 }
+html[data-theme="dark"] .plugin-panel-refresh {
+    background: var(--dk-raised);
+    border-color: var(--dk-border);
+    color: var(--dk-text);
+}

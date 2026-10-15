@@ -60,10 +60,15 @@
         return `Used ${count === 1 ? "once" : `${count} times`} in this presentation`;
     }
 
+    // The same rule as the toolbar's Plugins menu: every word of the search, in the name, description, keywords,
+    // category or author.
     function pluginMatches(plugin) {
-        if (!search) return true;
-        const haystack = [plugin.id, plugin.name, plugin.description, plugin.author].filter(Boolean).join(" ").toLocaleLowerCase();
-        return haystack.includes(search);
+        return pluginSearchMatches(pluginSearchText(plugin), search);
+    }
+
+    function pluginCategory(plugin) {
+        const loaded = typeof getSlidePlugin === "function" && getSlidePlugin(plugin.id);
+        return loaded?.insert?.category || plugin.category || "";
     }
 
     function pluginRow(plugin, canManage) {
@@ -76,13 +81,15 @@
             plugin.homepage && `<a href="${escapeHtml(plugin.homepage)}" target="_blank" rel="noopener noreferrer">Website</a>`,
         ].filter(Boolean);
         const removing = confirmingRemove === plugin.id;
-        return `<li class="plugin-row${plugin.enabled ? "" : " plugin-row--off"}" data-plugin-row="${escapeHtml(plugin.id)}">
+        const category = pluginCategory(plugin);
+        return `<li class="plugin-row${plugin.enabled ? "" : " plugin-row--off"}" data-plugin-row="${escapeHtml(plugin.id)}" data-search="${escapeHtml(pluginSearchText(plugin))}"${pluginMatches(plugin) ? "" : " hidden"}>
             <span class="plugin-row__icon"><i class="${escapeHtml(icon)}" aria-hidden="true"></i></span>
             <div class="plugin-row__main">
                 <div class="plugin-row__title">
                     <span class="plugin-row__name">${escapeHtml(plugin.name || plugin.id)}</span>
                     ${plugin.version ? `<span class="plugin-row__version">${escapeHtml(plugin.version)}</span>` : ""}
                     <span class="plugin-badge plugin-badge--${plugin.source === "user" ? "user" : "bundled"}">${plugin.source === "user" ? "Yours" : "Built-in"}</span>
+                    ${category ? `<span class="plugin-badge">${escapeHtml(category)}</span>` : ""}
                 </div>
                 ${plugin.description ? `<p class="plugin-row__text">${escapeHtml(plugin.description)}</p>` : ""}
                 ${notes.length ? `<p class="plugin-row__meta">${notes.join(" · ")}</p>` : ""}
@@ -117,10 +124,9 @@
                 if (el?.type === "plugin" && !known.has(el.pluginId)) used.set(el.pluginId, (used.get(el.pluginId) || 0) + 1);
             }),
         );
-        return [...used.entries()]
-            .filter(([id]) => pluginMatches({ id, name: id }))
-            .map(
-            ([id, count]) => `<li class="plugin-row plugin-row--off">
+        // Searchable like the other rows, so the live filter hides them too.
+        return [...used.entries()].map(
+            ([id, count]) => `<li class="plugin-row plugin-row--off" data-plugin-row="${escapeHtml(id)}" data-missing="true" data-search="${escapeHtml(`${id} not installed missing`)}"${pluginSearchMatches(`${id} not installed missing`, search) ? "" : " hidden"}>
                 <span class="plugin-row__icon"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span>
                 <div class="plugin-row__main">
                     <div class="plugin-row__title"><span class="plugin-row__name">${escapeHtml(id)}</span>
@@ -139,7 +145,10 @@
         if (!listing) {
             content = `<p class="share-progress"><span class="share-spinner"></span> Loading…</p>`;
         } else {
-            const rows = [...listing.plugins.filter(pluginMatches).map((plugin) => pluginRow(plugin, canManage)), ...missingRows()];
+            // Every row is drawn and the search only hides some: rebuilding the dialog on each key replaced the search
+            // box itself, which dropped a space just typed ("forest plot" became "forestplot").
+            const rows = [...listing.plugins.map((plugin) => pluginRow(plugin, canManage)), ...missingRows()];
+
             content = `
                 ${canManage ? "" : `<p class="share-note"><i class="fa-solid fa-lock"></i> Only an administrator can switch plugins on or off.</p>`}
                 <label class="plugin-search">
@@ -147,10 +156,11 @@
                     <span class="sr-only">Search plugins</span>
                     <input id="plugin-manager-search" type="search" value="${escapeHtml(search)}" placeholder="Search plugins…" autocomplete="off">
                 </label>
+                <p id="plugin-manager-empty" class="share-text" hidden>No plugins match your search.</p>
                 ${
                     rows.length
                         ? `<ul class="plugin-list">${rows.join("")}</ul>`
-                        : `<p class="share-text">${search ? "No plugins match your search." : "No plugins are installed."}</p>`
+                        : `<p class="share-text">No plugins are installed.</p>`
                 }
                 ${
                     listing.userDir
@@ -184,6 +194,7 @@
             </div>
             ${message ? `<p class="share-${message.tone}">${escapeHtml(message.text)}</p>` : ""}
             ${content}`;
+        applySearch();
         if (!el.contains(document.activeElement)) el.querySelector(".share-close")?.focus({ preventScroll: true });
     }
 
@@ -286,15 +297,25 @@
         }
     }
 
+    // Filters the rows in place; the search box keeps what was typed, spaces and caret included.
     function onInput(event) {
         if (event.target.id !== "plugin-manager-search") return;
-        search = String(event.target.value || "").trim().toLocaleLowerCase();
-        render();
-        const input = document.getElementById("plugin-manager-search");
-        if (input) {
-            input.focus({ preventScroll: true });
-            input.setSelectionRange(input.value.length, input.value.length);
-        }
+        search = String(event.target.value || "");
+        applySearch();
+    }
+
+    // Shows the rows (installed and not installed) that match the search, and says so when none does.
+    function applySearch() {
+        let shown = 0;
+        let rows = 0;
+        document.querySelectorAll("#plugin-manager-modal [data-plugin-row]").forEach((row) => {
+            const match = pluginSearchMatches(row.dataset.search || "", search);
+            row.hidden = !match;
+            rows++;
+            if (match) shown++;
+        });
+        const empty = document.getElementById("plugin-manager-empty");
+        if (empty) empty.hidden = shown > 0 || rows === 0;
     }
 
     async function openPluginManager() {

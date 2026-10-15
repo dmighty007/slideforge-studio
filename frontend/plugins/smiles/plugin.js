@@ -175,6 +175,8 @@
         // A new SMILES that is not valid SMILES is taken as a compound name and looked up; a valid one replaces
         // what an earlier lookup found. The lookup's answer is kept, so the drawing needs no internet afterwards.
         async prepare(data, previous, context) {
+            // "Look up again": the name looked up before, again.
+            if (context.refresh) return data.lookupName ? { ...data, ...(await lookUpName(data.lookupName, context)) } : data;
             if (!data.smiles || data.smiles === previous?.smiles || data.smiles.includes(">")) return data;
             const SmilesDrawer = await loadDrawer(context);
             const valid = await parseSmiles(SmilesDrawer, data.smiles).then(

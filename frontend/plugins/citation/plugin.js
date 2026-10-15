@@ -130,7 +130,8 @@
         defaultSize: { width: 460, height: 60 },
         sizeAware: true,
         autoHeight: true,
-        defaultData: { doi: "", style: "nature", maxAuthors: 3, showDoi: false, fontSize: 14, color: "", meta: null },
+        // 18 px: at 14 a reference was hard to read on a slide shown whole.
+        defaultData: { doi: "", style: "nature", maxAuthors: 3, showDoi: false, fontSize: 18, color: "", meta: null },
         fields: [
             { key: "doi", label: "DOI", type: "text", primary: true, placeholder: "10.1038/… or https://doi.org/10.1038/…", hint: "Looked up on Crossref (needs the internet once). Press Enter to update." },
             {
@@ -178,7 +179,7 @@
             const doi = cleanDoi(data.doi);
             if (!data.doi) return { ...data, meta: null, metaDoi: "" };
             if (!doi) throw new Error("That does not look like a DOI (they start with 10.)");
-            if (doi === data.metaDoi && data.meta) return data;
+            if (doi === data.metaDoi && data.meta && !context.refresh) return data;
             let answer;
             try {
                 answer = await context.fetchJson(`https://api.crossref.org/works/${encodeURIComponent(doi)}`);

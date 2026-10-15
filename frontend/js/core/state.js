@@ -293,6 +293,11 @@ let _presentationPersistenceEnabled = true;
 let _presentationHydrating = false;
 let _autosaveTimer = null;
 let _lastPersistedFingerprint = "";
+// The title the server has. The fingerprint covers the slides only, so a rename alone looked like "nothing to save".
+let _lastPersistedTitle = "";
+function _persistedStateIsCurrent() {
+    return getPersistableFingerprint() === _lastPersistedFingerprint && _inferPresentationTitle() === _lastPersistedTitle;
+}
 let _backendApiAvailable = true;
 const PRESENTATION_STORAGE_KEY = "pptmaker_presentation_id";
 const LOCAL_PRESENTATION_STORAGE_KEY = "pptmaker_local_presentation";
@@ -1998,6 +2003,7 @@ async function createPresentationRecord() {
     setCurrentPresentationTitle(created.title || payload.title);
     localStorage.setItem(PRESENTATION_STORAGE_KEY, currentPresentationId);
     _lastPersistedFingerprint = JSON.stringify(created.state || payload.state);
+    _lastPersistedTitle = created.title || payload.title;
     setProjectSaveHint("Project saved", "success");
     return created;
 }
@@ -2030,6 +2036,7 @@ async function loadPresentationRecord(presentationId) {
     syncPresentationThemeFromState?.({ persist: false });
     localStorage.setItem(PRESENTATION_STORAGE_KEY, currentPresentationId);
     _lastPersistedFingerprint = JSON.stringify(hasSlides ? loaded.state : getPersistableState());
+    _lastPersistedTitle = loaded.title || _inferPresentationTitle();
     setProjectSaveHint(recovered ? "Recovered unsaved changes" : "All changes saved", recovered ? "warn" : "success");
     return loaded;
 }
@@ -2107,7 +2114,7 @@ async function autosavePresentationNow() {
     }
     if (!stillCurrent()) return false;
     const fingerprint = getPersistableFingerprint();
-    if (fingerprint === _lastPersistedFingerprint) {
+    if (_persistedStateIsCurrent()) {
         setProjectSaveHint("All changes saved", "success");
         return false;
     }
@@ -2137,6 +2144,7 @@ async function autosavePresentationNow() {
     currentPresentationAutosaveVersion = saved.autosaveVersion || currentPresentationAutosaveVersion;
     setCurrentPresentationTitle(payload.title);
     _lastPersistedFingerprint = fingerprint;
+    _lastPersistedTitle = payload.title;
     _clearUnsavedBackup(presentationId);
     setProjectSaveHint("All changes saved", "success");
     window.dispatchEvent(new CustomEvent("slideforge:presentation-saved", { detail: { id: presentationId } }));
@@ -2205,7 +2213,7 @@ function flushUnsavedChangesOnExit() {
         return;
     }
     if (!_presentationPersistenceReady || !currentPresentationId) return;
-    if (getPersistableFingerprint() === _lastPersistedFingerprint) return;
+    if (_persistedStateIsCurrent()) return;
     clearTimeout(_autosaveTimer);
     const payload = {
         title: _inferPresentationTitle(),
@@ -2238,6 +2246,7 @@ function adoptPresentationRecord(presentationId, title = null, autosaveVersion =
     if (title) setCurrentPresentationTitle(title);
     localStorage.setItem(PRESENTATION_STORAGE_KEY, currentPresentationId);
     _lastPersistedFingerprint = "";
+    _lastPersistedTitle = "";
 }
 
 // Editing before any project exists (nothing picked on the start screen yet) creates one, so no edit is unsaved.
@@ -2306,6 +2315,7 @@ async function createNewProject() {
     setCurrentPresentationTitle("Untitled Presentation");
     setProjectSaveHint("New project created", "muted");
     _lastPersistedFingerprint = "";
+    _lastPersistedTitle = "";
     localStorage.removeItem(PRESENTATION_STORAGE_KEY);
     await createPresentationRecord();
     applyPresentationTheme(state.presentationTheme, { persist: false });
@@ -2355,6 +2365,7 @@ async function duplicateCurrentStateToNewProject(title = null) {
     currentPresentationAutosaveVersion = 0;
     setCurrentPresentationTitle(title || _inferPresentationTitle());
     _lastPersistedFingerprint = "";
+    _lastPersistedTitle = "";
     localStorage.removeItem(PRESENTATION_STORAGE_KEY);
     await createPresentationRecord();
     return true;
@@ -2366,17 +2377,26 @@ function bindProjectTitleInput() {
     input.dataset.bound = "true";
     updateProjectTitleUi();
 
+    // The title as it was before this edit. Typing updates currentPresentationTitle at once (other code reads it),
+    // so comparing against that on commit always found "no change" and a rename alone was never saved.
+    let titleBeforeEdit = currentPresentationTitle;
     const commitTitle = () => {
         const nextTitle = (input.value || "").trim() || "Untitled Presentation";
-        if (nextTitle === currentPresentationTitle) {
-            input.value = currentPresentationTitle;
+        input.value = nextTitle;
+        if (nextTitle === titleBeforeEdit) {
+            currentPresentationTitle = nextTitle;
+            schedulePresentationAutosave(150); // nothing new to save: it only puts the save status back
             return;
         }
+        titleBeforeEdit = nextTitle;
         setCurrentPresentationTitle(nextTitle);
         setProjectSaveHint("Unsaved changes", "warn");
         schedulePresentationAutosave(150);
     };
 
+    input.addEventListener("focus", () => {
+        titleBeforeEdit = currentPresentationTitle;
+    });
     input.addEventListener("input", () => {
         currentPresentationTitle = (input.value || "").trim() || "Untitled Presentation";
         setProjectSaveHint("Editing title…", "muted");

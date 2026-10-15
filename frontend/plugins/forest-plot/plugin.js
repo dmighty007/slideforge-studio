@@ -41,7 +41,7 @@
 
     SlideForgePlugins.register({
         id: "forest-plot",
-        version: "1",
+        version: "2",
         name: "Forest Plot",
         description: "Estimates with confidence intervals per study or subgroup, with a pooled diamond",
         icon: "fa-solid fa-bars-staggered",
@@ -128,6 +128,18 @@
             const transform = value => (log ? Math.log(value) : value);
             let low = Math.min(data.nullValue, ...rows.map(row => row.lower));
             let high = Math.max(data.nullValue, ...rows.map(row => row.upper));
+            // Every value the same (all 1 on a ratio scale): widen the range, or the axis has zero width and every
+            // coordinate came out NaN.
+            if (!(high > low)) {
+                if (log) {
+                    low /= 2;
+                    high *= 2;
+                } else {
+                    const pad = Math.abs(low) * 0.5 || 1;
+                    low -= pad;
+                    high += pad;
+                }
+            }
             let ticks;
             if (log) {
                 ticks = logTicks(low, high, 6);

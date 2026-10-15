@@ -16,7 +16,7 @@ function _pluginFieldInput(field, value) {
       : "";
     return `${columns}<textarea id="${id}" rows="${field.rows || 6}" class="w-full text-xs font-mono plugin-table-input" spellcheck="false" wrap="off" placeholder="${placeholder}">${escapeHtml(value ?? "")}</textarea>
       <div class="plugin-table-footer">
-        <span id="${id}-summary" class="plugin-table-summary">${escapeHtml(_pluginTableSummary(value))}</span>
+        <span id="${id}-summary" class="plugin-table-summary">${escapeHtml(_pluginTableSummary(value))} · applied when you leave the box (Ctrl+Enter)</span>
         <button type="button" id="${id}-load" class="plugin-table-load"><i class="fa-solid fa-file-csv"></i> Load CSV…</button>
         <input type="file" id="${id}-file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain" hidden>
       </div>`;
@@ -111,6 +111,16 @@ function buildPluginPanel(panel, data) {
   noticeNote.textContent = notice;
   noticeNote.hidden = !notice;
   wrap.appendChild(noticeNote);
+  // Look up again: after a failed lookup, or to refresh what a saved deck holds.
+  // Also when the object cannot be drawn: its details may never have been looked up.
+  if (typeof plugin.prepare === "function" && ((notice && notice !== "Looking up…") || status || error)) {
+    const refresh = document.createElement("button");
+    refresh.type = "button";
+    refresh.id = "prop-plugin-refresh";
+    refresh.className = "plugin-panel-refresh";
+    refresh.innerHTML = '<i class="fa-solid fa-rotate"></i> Look up again';
+    wrap.appendChild(refresh);
+  }
   const errorNote = document.createElement("p");
   errorNote.id = "prop-plugin-error";
   errorNote.className = "plugin-panel-error";
@@ -133,6 +143,8 @@ function bindPluginPanel(data) {
     if (current[key] === value) return;
     updatePluginElementData(data.id, { [key]: value });
   };
+  const refresh = document.getElementById("prop-plugin-refresh");
+  if (refresh) refresh.onclick = () => refreshPluginElement(data.id);
   plugin.fields.forEach((field) => {
     const input = document.getElementById(_pluginFieldId(field.key));
     if (!input) return;
@@ -155,12 +167,17 @@ function bindPluginPanel(data) {
       const file = document.getElementById(`${id}-file`);
       // Pasted cells keep their tabs: Tab in the box types one instead of leaving the field.
       input.onkeydown = (event) => {
+        if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+          event.preventDefault();
+          commit(field.key, input.value.replace(/\s+$/, ""));
+          return;
+        }
         if (event.key !== "Tab" || event.shiftKey) return;
         event.preventDefault();
         input.setRangeText("\t", input.selectionStart, input.selectionEnd, "end");
       };
       input.oninput = () => {
-        if (summary) summary.textContent = _pluginTableSummary(input.value);
+        if (summary) summary.textContent = `${_pluginTableSummary(input.value)} · not applied yet: leave the box or press Ctrl+Enter`;
       };
       input.onchange = () => commit(field.key, input.value.replace(/\s+$/, ""));
       const load = document.getElementById(`${id}-load`);

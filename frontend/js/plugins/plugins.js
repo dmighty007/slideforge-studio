@@ -371,6 +371,12 @@ function cleanPluginSvg(svgText) {
             }
         });
     });
+    // A drawing with NaN or Infinity in its geometry would be kept as a valid picture with marks missing.
+    const geometry = ["x", "y", "x1", "x2", "y1", "y2", "cx", "cy", "r", "rx", "ry", "width", "height", "d", "points", "transform", "viewBox"];
+    const broken = [svg, ...svg.querySelectorAll("*")].find(node =>
+        geometry.some(name => /\b(NaN|Infinity)\b/.test(node.getAttribute(name) || "")),
+    );
+    if (broken) throw new Error("The plugin drew invalid coordinates (NaN); check the data for a range of zero width");
     svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
     if (!svg.getAttribute("viewBox")) {
         const width = parseFloat(svg.getAttribute("width")) || 300;
@@ -443,19 +449,6 @@ function getPluginElementNotice(id) {
     return _sfPluginNotices.get(id) || "";
 }
 
-// A plugin's prepare step (online lookups and the like) for new settings. Its result is saved with the deck, so the
-// drawing works offline. A failed lookup keeps what was typed; the reason is shown in the panel.
-async function _preparePluginData(plugin, data, previous, elementId = null) {
-    if (typeof plugin.prepare !== "function") return { data, notice: "" };
-    try {
-        const prepared = await plugin.prepare({ ...data }, previous ? { ...previous } : null, _pluginRenderContext(plugin));
-        return { data: normalizePluginData(plugin, prepared || data), notice: "" };
-    } catch (error) {
-        console.warn(`${plugin.name}: prepare failed`, error);
-        return { data, notice: String(error?.message || error), elementId };
-    }
-}
-
 // The object on the slide: its last picture at once, then the plugin's fresh drawing when that differs.
 function renderPluginElementContent(host, elData, { interactive = false } = {}) {
     const plugin = getSlidePlugin(elData.pluginId);
@@ -476,8 +469,11 @@ function renderPluginElementContent(host, elData, { interactive = false } = {}) 
     const showNote = text => {
         note.textContent = text;
         note.hidden = !text;
+        // A lookup or first drawing in progress is not an error.
+        note.classList.toggle("plugin-element-note--busy", text === "Looking up…" || text === "Drawing…");
         box.classList.toggle("plugin-element-content--empty", Boolean(text) && !img.getAttribute("src"));
     };
+    if (!elData.pluginPreview) showNote(_sfPluginNotices.get(elData.id) === "Looking up…" ? "Looking up…" : "Drawing…");
     if (!plugin) {
         // Plugins load after the deck: wait for them before saying this one is missing.
         sfPluginsReady.then(() => {
@@ -514,6 +510,11 @@ function renderPluginElementContent(host, elData, { interactive = false } = {}) 
             .catch(error => {
                 // A failed lookup explains a failed drawing better (a compound name is no SMILES string).
                 const message = _sfPluginNotices.get(elData.id) || String(error?.message || error || "Could not draw");
+                // While a lookup runs the drawing cannot be made yet: that is shown, but it is not an error.
+                if (message === "Looking up…") {
+                    showNote(message);
+                    return;
+                }
                 const known = _sfPluginErrors.get(elData.id);
                 _sfPluginErrors.set(elData.id, message);
                 showNote(message);
@@ -589,6 +590,115 @@ function _pluginInsertSize(plugin, drawing) {
     return { width: Math.round(drawing.width * scale), height: Math.round(drawing.height * scale) };
 }
 
+// The newest lookup per element: an older one that finishes later must not undo what a newer one found.
+const _sfPluginPrepareSeq = new Map();
+
+function _rebuildPluginPanel(id) {
+    if (!state.selectedIds?.includes(id) || typeof buildPropertiesPanel !== "function") return;
+    // Rebuilding while the user types in the panel would throw away what they are typing: update the notice only.
+    const focused = document.activeElement;
+    if (focused?.closest?.("#properties-panel") && /^(INPUT|TEXTAREA|SELECT)$/.test(focused.tagName)) {
+        const notice = document.getElementById("prop-plugin-notice");
+        const text = getPluginElementNotice(id);
+        if (notice) {
+            notice.textContent = text;
+            notice.hidden = !text;
+            notice.className = text === "Looking up…" ? "plugin-panel-notice" : "plugin-panel-error";
+        }
+        return;
+    }
+    buildPropertiesPanel();
+}
+
+// Runs a plugin's lookup for settings already saved in the element, then merges what it found into the element as
+// it is by then. The typed value stays in place meanwhile, and later edits are not overwritten: the result is
+// dropped when the looked-up settings (inputKeys) changed since, or the object is gone (deleted, undone, another
+// project opened).
+async function _runPluginPrepare(id, plugin, next, previous, inputKeys, { refresh = false } = {}) {
+    if (typeof plugin.prepare !== "function") return;
+    const seq = (_sfPluginPrepareSeq.get(id) || 0) + 1;
+    _sfPluginPrepareSeq.set(id, seq);
+    _sfPluginDropped.delete(id); // a newer lookup replaces any answer kept for an undo/redo
+    _sfPluginNotices.set(id, "Looking up…");
+    _rebuildPluginPanel(id);
+    let prepared = null;
+    let notice = "";
+    try {
+        const result = await plugin.prepare({ ...next }, previous ? { ...previous } : null, { ..._pluginRenderContext(plugin), refresh });
+        prepared = normalizePluginData(plugin, result || next);
+    } catch (error) {
+        console.warn(`${plugin.name}: lookup failed`, error);
+        notice = String(error?.message || error);
+    }
+    const latest = _sfPluginPrepareSeq.get(id) === seq;
+    if (!_findPluginElementInState(id)) {
+        // Gone (undone, deleted, another project). Kept for a redo that brings it back with these settings.
+        if (latest) {
+            _sfPluginNotices.delete(id);
+            if (_sfPluginDropped.size > 50) _sfPluginDropped.clear();
+            _sfPluginDropped.set(id, { next, previous, inputKeys, prepared, notice, absent: true });
+        }
+        return;
+    }
+    _applyPreparedResult(id, plugin, { next, inputKeys, prepared, notice, latest });
+}
+
+const _samePluginValue = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+// Merges what a lookup found into the element as it is now, if the settings it was for are unchanged.
+function _applyPreparedResult(id, plugin, { next, inputKeys, prepared, notice, latest = true }) {
+    const el = _findPluginElementInState(id);
+    if (!el) return;
+    const current = normalizePluginData(plugin, el.pluginData);
+    const stale = !latest || inputKeys.some(key => !_samePluginValue(current[key], next[key]));
+    if (latest) {
+        if (notice && !stale) _sfPluginNotices.set(id, notice);
+        else _sfPluginNotices.delete(id);
+        // Undo replaced the settings this answer is for: keep it, in case redo brings them back.
+        if (stale && (prepared || notice)) {
+            if (_sfPluginDropped.size > 50) _sfPluginDropped.clear();
+            _sfPluginDropped.set(id, { next, inputKeys, prepared, notice, absent: false });
+        }
+    }
+    if (!stale && prepared) {
+        const found = Object.keys(prepared).filter(key => !_samePluginValue(prepared[key], next[key]));
+        if (found.length) {
+            el.pluginData = normalizePluginData(plugin, { ...current, ...Object.fromEntries(found.map(key => [key, prepared[key]])) });
+            _sfPluginErrors.delete(id);
+        }
+    }
+    renderSlidesFromState();
+    _rebuildPluginPanel(id);
+    if (typeof refreshPreviews === "function") refreshPreviews();
+}
+
+// Lookups that finished while their object was gone. When undo/redo brings the object back, its answer is applied
+// if it still fits the restored settings; otherwise the lookup runs again (redo restored a citation without the
+// details it was waiting for, and with no way to look them up).
+const _sfPluginDropped = new Map();
+window.addEventListener("slideforge:render-complete", () => {
+    if (!_sfPluginDropped.size) return;
+    [..._sfPluginDropped].forEach(([id, entry]) => {
+        const el = _findPluginElementInState(id);
+        if (!el) return;
+        const plugin = getSlidePlugin(el.pluginId);
+        if (!plugin) return;
+        const current = normalizePluginData(plugin, el.pluginData);
+        const fits = entry.inputKeys.every(key => _samePluginValue(current[key], entry.next[key]));
+        // An answer kept after undo waits until redo restores the settings it is for.
+        if (!fits && !entry.absent) return;
+        _sfPluginDropped.delete(id);
+        // After this render has finished: applying a result renders again.
+        setTimeout(() => {
+            if (fits) _applyPreparedResult(id, plugin, { ...entry, latest: true });
+            else _runPluginPrepare(id, plugin, current, entry.previous, entry.inputKeys);
+        }, 0);
+    });
+});
+
+// Inserts a plugin object on the current slide: placed at once (with "Looking up…" while a lookup runs), then
+// drawn and given its drawing's shape. Resolves to its id once it is drawn. The slide is fixed when insertion
+// starts: switching slides during a slow lookup used to move the new object to the slide shown at the end.
 async function insertPluginElement(pluginId, data = null, { ask = true } = {}) {
     const plugin = getSlidePlugin(pluginId);
     if (!plugin) return null;
@@ -598,70 +708,90 @@ async function insertPluginElement(pluginId, data = null, { ask = true } = {}) {
         if (!pluginData) return null;
         pluginData = normalizePluginData(plugin, pluginData);
     }
-    const prepared = await _preparePluginData(plugin, pluginData, null);
-    pluginData = prepared.data;
-    let drawing = null;
-    try {
-        drawing = await drawPluginElement({ pluginId, pluginData });
-    } catch (error) {
-        console.warn(`${plugin.name}: inserted, but not drawn:`, error);
-    }
-    // A size-aware plugin starts at its default box; others take the shape of their drawing.
-    const size = plugin.sizeAware
-        ? { ..._pluginBoxSize(plugin, null), ...(plugin.autoHeight && drawing ? { height: Math.round(drawing.height) } : {}) }
-        : _pluginInsertSize(plugin, drawing);
-    const activeIndex = typeof currentSlideIndex !== "undefined" ? currentSlideIndex : 0;
-    const slide = state.slides[activeIndex];
+    const slide = state.slides[typeof currentSlideIndex !== "undefined" ? currentSlideIndex : 0];
     if (!slide) return null;
     saveStateToUndo();
     const id = generateId("el");
+    const box = _pluginBoxSize(plugin, null);
     const element = {
         id,
         type: "plugin",
         pluginId,
         pluginData,
-        pluginPreview: drawing?.dataUrl || "",
-        pluginPreviewKey: drawing?.key || "",
+        pluginPreview: "",
+        pluginPreviewKey: "",
         x: 200,
         y: 160,
-        width: `${size.width}px`,
-        height: `${size.height}px`,
+        width: `${box.width}px`,
+        height: `${box.height}px`,
         styles: { zIndex: getNextZIndex(), backgroundColor: "transparent" },
     };
-    if (prepared.notice) _sfPluginNotices.set(id, prepared.notice);
     slide.elements.push(typeof placeWhereFree === "function" ? placeWhereFree(slide, element) : element);
+    const placed = { width: element.width, height: element.height };
     renderSlidesFromState();
     selectElement(id);
+
+    await _runPluginPrepare(id, plugin, pluginData, null, Object.keys(pluginData));
+    const current = _findPluginElementInState(id);
+    if (!current) return id;
+    let drawing = null;
+    try {
+        drawing = await drawPluginElement(current);
+    } catch (error) {
+        console.warn(`${plugin.name}: inserted, but not drawn:`, error);
+        return id;
+    }
+    const el = _findPluginElementInState(id);
+    if (!el) return id;
+    // The box takes the drawing's shape (within the placed box, centred there), unless it was resized meanwhile.
+    if (el.width === placed.width && el.height === placed.height) {
+        const w = parseFloat(placed.width);
+        const h = parseFloat(placed.height);
+        if (plugin.sizeAware) {
+            if (plugin.autoHeight) el.height = `${Math.round(drawing.height)}px`;
+        } else if (drawing.width && drawing.height) {
+            const scale = Math.min(w / drawing.width, h / drawing.height);
+            const fitted = { width: Math.round(drawing.width * scale), height: Math.round(drawing.height * scale) };
+            el.x = Math.round((parseFloat(el.x) || 0) + (w - fitted.width) / 2);
+            el.y = Math.round((parseFloat(el.y) || 0) + (h - fitted.height) / 2);
+            el.width = `${fitted.width}px`;
+            el.height = `${fitted.height}px`;
+        }
+    }
+    // The picture kept in the element, for its final box (thumbnails and exports use it).
+    try {
+        const finalDrawing = await drawPluginElement(el);
+        el.pluginPreview = finalDrawing.dataUrl;
+        el.pluginPreviewKey = finalDrawing.key;
+    } catch (_error) {}
+    renderSlidesFromState();
     return id;
 }
 
-// Changes some of an element's plugin settings, as one undo step.
-// Changes some of an element's plugin settings, as one undo step (after the plugin's prepare step, if it has one).
+// Changes some of an element's plugin settings, as one undo step. The change shows at once; a lookup the plugin
+// does for it (prepare) runs afterwards and fills in what it finds.
 async function updatePluginElementData(id, updates) {
     const el = _findPluginElementInState(id);
     const plugin = getSlidePlugin(el?.pluginId);
     if (!el || !plugin) return;
     const previous = normalizePluginData(plugin, el.pluginData);
-    let next = normalizePluginData(plugin, { ...(el.pluginData || {}), ...updates });
-    const rebuildPanel = () => {
-        if (state.selectedIds?.includes(id) && typeof buildPropertiesPanel === "function") buildPropertiesPanel();
-    };
-    if (typeof plugin.prepare === "function") {
-        _sfPluginNotices.set(id, "Looking up…");
-        rebuildPanel();
-        const prepared = await _preparePluginData(plugin, next, previous);
-        next = prepared.data;
-        if (prepared.notice) _sfPluginNotices.set(id, prepared.notice);
-        else _sfPluginNotices.delete(id);
-    }
-    const current = _findPluginElementInState(id);
-    if (!current) return;
+    const next = normalizePluginData(plugin, { ...(el.pluginData || {}), ...updates });
     saveStateToUndo();
-    current.pluginData = next;
+    el.pluginData = next;
     _sfPluginErrors.delete(id);
     renderSlidesFromState();
-    rebuildPanel();
+    _rebuildPluginPanel(id);
     if (typeof refreshPreviews === "function") refreshPreviews();
+    await _runPluginPrepare(id, plugin, next, previous, Object.keys(updates));
+}
+
+// "Look up again": the plugin's lookup for the settings as they are (after a failed or old lookup).
+async function refreshPluginElement(id) {
+    const el = _findPluginElementInState(id);
+    const plugin = getSlidePlugin(el?.pluginId);
+    if (!el || !plugin || typeof plugin.prepare !== "function") return;
+    const current = normalizePluginData(plugin, el.pluginData);
+    await _runPluginPrepare(id, plugin, current, null, Object.keys(current), { refresh: true });
 }
 
 async function editPluginElement(id) {
@@ -725,6 +855,32 @@ function _pluginMenuCategory(plugin) {
     return String(plugin.insert?.category || "").trim() || "Other";
 }
 
+// What a plugin search looks through, for a registered plugin and/or a catalogue entry (the manager lists
+// plugins whose script has not run): name and label, description, keywords, category, author and id.
+function pluginSearchText(entry) {
+    const plugin = getSlidePlugin(entry?.id) || _sfPluginDefinitions.get(entry?.id) || entry || {};
+    return [
+        entry?.id,
+        entry?.name,
+        plugin.name,
+        plugin.insert?.label,
+        entry?.description,
+        plugin.description,
+        plugin.insert?.keywords,
+        plugin.insert?.category || entry?.category,
+        entry?.author,
+    ]
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase();
+}
+
+// Every word of the query appears somewhere in the text ("forest plot", "box violin").
+function pluginSearchMatches(text, query) {
+    const words = String(query || "").toLocaleLowerCase().split(/\s+/).filter(Boolean);
+    return words.every(word => text.includes(word));
+}
+
 function togglePluginInsertMenu(anchor) {
     if (_sfPluginMenu) {
         closePluginInsertMenu();
@@ -781,13 +937,11 @@ function togglePluginInsertMenu(anchor) {
 
     // The list for a search: every word must appear in the label, description, keywords or category.
     const fill = () => {
-        const words = search.value.toLowerCase().split(/\s+/).filter(Boolean);
         list.textContent = "";
         let lastCategory = null;
         let shown = 0;
         plugins.forEach(plugin => {
-            const haystack = [_pluginMenuLabel(plugin), plugin.description, plugin.insert?.keywords, _pluginMenuCategory(plugin), plugin.id].join(" ").toLowerCase();
-            if (!words.every(word => haystack.includes(word))) return;
+            if (!pluginSearchMatches(pluginSearchText(plugin), search.value)) return;
             const category = _pluginMenuCategory(plugin);
             if (category !== lastCategory) {
                 const heading = document.createElement("div");
@@ -983,12 +1137,15 @@ window.SlideForgePlugins = {
     enable: enableSlidePlugin,
     disable: disableSlidePlugin,
     count: countPluginObjects,
+    searchText: pluginSearchText,
+    searchMatches: pluginSearchMatches,
     loadScript: loadPluginScript,
     parseTable: parsePluginTable,
     measureText: pluginMeasureText,
     niceTicks: pluginNiceTicks,
     insert: insertPluginElement,
     update: updatePluginElementData,
+    refresh: refreshPluginElement,
     edit: editPluginElement,
     draw: drawPluginElement,
 };

@@ -4160,7 +4160,8 @@ async function test(name, fn) {
         await page.click('#plugin-insert-menu [data-plugin-insert="smiles"]');
         await page.fill(".sf-prompt__field", "c1ccccc1CCN");
         await page.click(".sf-prompt__btn--primary");
-        await page.waitForFunction(() => state.slides[currentSlideIndex].elements.some(e => e.type === "plugin"));
+        // The object appears at once and is drawn a moment later.
+        await page.waitForFunction(() => state.slides[currentSlideIndex].elements.some(e => e.type === "plugin" && e.pluginPreview));
         const el = await page.evaluate(() => {
             const found = state.slides[currentSlideIndex].elements.find(e => e.type === "plugin");
             return { ...found, selected: state.selectedIds.includes(found.id) };
@@ -5212,6 +5213,155 @@ async function test(name, fn) {
         await page.close();
     });
 
+    // ─── Plugin workflow audit 2026-10-15 ─────────────────────────────────────────────────────────────────────────
+    const crossrefWork = (title, year) => ({
+        message: { title: [title], "container-title": ["Nature"], volume: "1", page: "1-2", issued: { "date-parts": [[year]] }, author: [{ given: "Ada", family: "Lovelace" }] },
+    });
+    // Crossref answers at once, except for DOIs containing "slow", which wait `delay` ms.
+    const routeCrossref = (page, delay) =>
+        page.route("https://api.crossref.org/**", async route => {
+            const slow = route.request().url().includes("slow");
+            if (slow) await new Promise(resolve => setTimeout(resolve, delay));
+            await route.fulfill({
+                status: 200,
+                contentType: "application/json",
+                headers: { "Access-Control-Allow-Origin": "*" },
+                body: JSON.stringify(crossrefWork(slow ? "The slow paper" : "The quick paper", slow ? 2024 : 2020)),
+            });
+        });
+
+    await test("Audit 2026-10-15: an edit made while a lookup runs is kept, and the typed DOI stays in place", async () => {
+        const { page } = await openFreshEditor(context);
+        await routeCrossref(page, 2500);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("citation", { doi: "10.1000/quick" }, { ask: false }));
+        await page.evaluate(id => { selectElement(id); setPropertiesPanelVisible(true); buildPropertiesPanel(); SlideForgePlugins.update(id, { doi: "10.1000/slow" }); }, id);
+        await page.waitForFunction(id => getPluginElementNotice(id) === "Looking up…", id);
+        const during = await page.evaluate(id => ({ stored: state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginData.doi, field: document.getElementById("prop-plugin-doi")?.value }), id);
+        assert(during.stored === "10.1000/slow" && during.field === "10.1000/slow", `while looking up: ${JSON.stringify(during)}`);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { style: "apa" }), id);
+        await page.waitForFunction(id => !getPluginElementNotice(id), id, { timeout: 10000 });
+        const after = await page.evaluate(id => { const d = state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginData; return { doi: d.doi, style: d.style, title: d.meta?.title, metaDoi: d.metaDoi }; }, id);
+        assert(after.style === "apa", `the APA choice was lost: ${JSON.stringify(after)}`);
+        assert(after.doi === "10.1000/slow" && after.metaDoi === "10.1000/slow" && after.title === "The slow paper", `lookup result: ${JSON.stringify(after)}`);
+        await page.close();
+    });
+
+    await test("Audit 2026-10-15: a slow insert stays on the slide it was started on, and undo during a lookup cancels it", async () => {
+        const { page } = await openFreshEditor(context);
+        await routeCrossref(page, 2000);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        await page.evaluate(() => { addSlide(); addSlide(); Reveal.slide(1); });
+        await page.waitForTimeout(300);
+        await page.evaluate(() => { window.__insert = insertPluginElement("citation", { doi: "10.1000/slow-one" }, { ask: false }); });
+        // It is on slide 2 at once, waiting for its lookup.
+        const placed = await page.evaluate(() => state.slides.map(s => s.elements.filter(e => e.pluginId === "citation").length));
+        assert(JSON.stringify(placed) === "[0,1,0]", `not placed at once on the second slide: ${placed}`);
+        await page.evaluate(() => Reveal.slide(0));
+        await page.evaluate(() => window.__insert);
+        const counts = await page.evaluate(() => state.slides.map(s => s.elements.filter(e => e.pluginId === "citation" && e.pluginData.meta).length));
+        assert(JSON.stringify(counts) === "[0,1,0]", `citation counts per slide: ${counts}`);
+        // Undo while a lookup runs: the object goes, and the late answer does not bring it back.
+        await page.evaluate(() => { Reveal.slide(2); window.__insert2 = insertPluginElement("citation", { doi: "10.1000/slow-two" }, { ask: false }); });
+        await page.waitForTimeout(200);
+        await page.evaluate(() => undo());
+        await page.evaluate(() => window.__insert2);
+        await page.waitForTimeout(300);
+        const third = await page.evaluate(() => state.slides[2].elements.filter(e => e.pluginId === "citation").length);
+        assert(third === 0, "the undone insert came back when its lookup finished");
+        await page.close();
+    });
+
+    await test("Audit 2026-10-15: the plugin manager's search takes words typed one key at a time", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        await openPluginManagerDialog(page);
+        await page.waitForSelector("#plugin-manager-search");
+        await page.click("#plugin-manager-search");
+        await page.keyboard.type("forest plot", { delay: 30 });
+        const result = await page.evaluate(() => ({
+            value: document.getElementById("plugin-manager-search").value,
+            shown: [...document.querySelectorAll("#plugin-manager-modal [data-plugin-row]")].filter(row => !row.hidden).map(row => row.dataset.pluginRow),
+            focused: document.activeElement?.id,
+        }));
+        assert(result.value === "forest plot", `typed "forest plot", the box holds "${result.value}"`);
+        assert(JSON.stringify(result.shown) === '["forest-plot"]', `rows shown: ${result.shown}`);
+        assert(result.focused === "plugin-manager-search", "the search box lost focus while typing");
+        // The same words as the insert menu: a category finds its plugins.
+        await page.fill("#plugin-manager-search", "");
+        await page.keyboard.type("statistics survival");
+        assert(await page.evaluate(() => [...document.querySelectorAll("#plugin-manager-modal [data-plugin-row]")].filter(row => !row.hidden).map(row => row.dataset.pluginRow).join()) === "kaplan-meier", "category and keyword search differ from the insert menu");
+        await page.keyboard.press("Escape");
+        await page.close();
+    });
+
+    await test("Audit 2026-10-15: a forest plot whose values are all equal still draws, and a NaN drawing is refused", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("forest-plot", { data: "Study,Estimate,Lower,Upper,Weight\nA,1,1,1,10\nOverall,1,1,1," }));
+        const drawn = await page.evaluate(id => { const e = state.slides[currentSlideIndex].elements.find(x => x.id === id); return { err: getPluginElementError(id), nan: /NaN/.test(decodeURIComponent(e.pluginPreview)), marks: (decodeURIComponent(e.pluginPreview).match(/<rect|<path/g) || []).length }; }, id);
+        assert(!drawn.err && !drawn.nan && drawn.marks >= 2, `degenerate range: ${JSON.stringify(drawn)}`);
+        const refused = await page.evaluate(async () => {
+            SlideForgePlugins.register({ id: "nan-test", name: "NaN test", render: () => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect x="NaN" width="5" height="5"/></svg>' });
+            const id = await insertPluginElement("nan-test", null, { ask: false });
+            const e = state.slides[currentSlideIndex].elements.find(x => x.id === id);
+            return { err: getPluginElementError(id), preview: e.pluginPreview };
+        });
+        assert(/invalid coordinates/.test(refused.err) && !refused.preview, `NaN drawing kept: ${JSON.stringify(refused)}`);
+        await page.close();
+    });
+
+    await test("Audit recheck 2026-10-15: redo after an undone lookup has finished brings the object back looked up", async () => {
+        const { page } = await openFreshEditor(context);
+        await routeCrossref(page, 1500);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        // An insert undone before its lookup answers, redone after.
+        await page.evaluate(() => { window.__insert = insertPluginElement("citation", { doi: "10.1000/slow-insert" }, { ask: false }); });
+        await page.waitForTimeout(200);
+        await page.evaluate(() => undo());
+        await page.evaluate(() => window.__insert);
+        await page.waitForTimeout(300);
+        await page.evaluate(() => redo());
+        await page.waitForFunction(() => { const e = state.slides[currentSlideIndex].elements.find(x => x.pluginId === "citation"); return e && e.pluginData.metaDoi === "10.1000/slow-insert" && e.pluginPreview && !getPluginElementError(e.id); }, null, { timeout: 8000 });
+        // A DOI edit undone before its lookup answers, redone after: the new DOI with its own details.
+        const id = await page.evaluate(() => state.slides[currentSlideIndex].elements.find(x => x.pluginId === "citation").id);
+        await page.evaluate(id => { window.__update = SlideForgePlugins.update(id, { doi: "10.1000/slow-edit" }); }, id);
+        await page.waitForTimeout(200);
+        await page.evaluate(() => undo());
+        await page.evaluate(() => window.__update);
+        await page.waitForTimeout(300);
+        await page.evaluate(() => redo());
+        await page.waitForFunction(id => { const e = state.slides[currentSlideIndex].elements.find(x => x.id === id); return e && e.pluginData.doi === "10.1000/slow-edit" && e.pluginData.metaDoi === "10.1000/slow-edit" && !getPluginElementError(id); }, id, { timeout: 8000 });
+        await page.close();
+    });
+
+    await test("Audit recheck 2026-10-15: a not-installed plugin's row in the manager follows the search", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        await page.evaluate(() => {
+            state.slides[currentSlideIndex].elements.push({ id: "ghost-obj", type: "plugin", pluginId: "ghost-plugin", pluginData: {}, pluginPreview: "", x: 40, y: 40, width: "100px", height: "60px", styles: {} });
+            renderSlidesFromState();
+        });
+        await openPluginManagerDialog(page);
+        await page.waitForSelector('[data-plugin-row="ghost-plugin"]');
+        const view = () => page.evaluate(() => ({
+            ghost: !document.querySelector('[data-plugin-row="ghost-plugin"]').hidden,
+            forest: !document.querySelector('[data-plugin-row="forest-plot"]').hidden,
+            empty: !document.getElementById("plugin-manager-empty").hidden,
+        }));
+        await page.click("#plugin-manager-search");
+        await page.keyboard.type("forest plot");
+        assert(JSON.stringify(await view()) === JSON.stringify({ ghost: false, forest: true, empty: false }), `"forest plot": ${JSON.stringify(await view())}`);
+        await page.fill("#plugin-manager-search", "");
+        await page.keyboard.type("zzzz");
+        assert(JSON.stringify(await view()) === JSON.stringify({ ghost: false, forest: false, empty: true }), `"zzzz": ${JSON.stringify(await view())}`);
+        await page.fill("#plugin-manager-search", "");
+        await page.keyboard.type("ghost");
+        assert(JSON.stringify(await view()) === JSON.stringify({ ghost: true, forest: false, empty: false }), `"ghost": ${JSON.stringify(await view())}`);
+        await page.keyboard.press("Escape");
+        await page.close();
+    });
+
     await test("HTML export: a picture stored as a URL-encoded (not base64) data URL is written out intact", async () => {
         const { page } = await openFreshEditor(context);
         const result = await page.evaluate(async () => {
@@ -5361,6 +5511,27 @@ async function test(name, fn) {
                 await page.evaluate(() => _apiFetch("/api/plugins/qa-badge/", { method: "DELETE" })).catch(() => {});
                 await page.close();
             }
+        });
+
+        await test("Audit 2026-10-15: renaming a presentation alone is saved", async () => {
+            const { page } = await openFreshEditor(context);
+            // Every save finished first: a save still pending from creating the deck carried the new title along.
+            await page.waitForTimeout(1500);
+            await page.evaluate(() => autosavePresentationNow().catch(() => {}));
+            await page.waitForFunction(() => /All changes saved/.test(document.getElementById("project-save-hint")?.textContent || ""));
+            await page.waitForTimeout(1500);
+            const id = await page.evaluate(() => currentPresentationId);
+            const name = `Renamed ${Date.now()}`;
+            await page.click("#project-title-input");
+            await page.keyboard.press("Control+A");
+            await page.keyboard.type(name);
+            // Leave the field with Enter: a click on the slide starts other saves that hid the bug.
+            await page.keyboard.press("Enter");
+            await page.waitForTimeout(2200);
+            const stored = await page.evaluate(id => _apiFetch(`/api/presentations/${id}/`).then(r => r.json()), id);
+            assert(stored.title === name, `server title "${stored.title}", toolbar "${name}"`);
+            assert(/saved/i.test(await page.evaluate(() => document.getElementById("project-save-hint")?.textContent || "")), "the toolbar still says the title is being edited");
+            await page.close();
         });
 
         await test("review: importing a SlideForge JSON adds one project, named apart from a deck with the same name", async () => {
