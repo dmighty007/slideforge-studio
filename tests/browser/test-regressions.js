@@ -6231,6 +6231,50 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("audit: the Export menu says what each format keeps", async () => {
+        const { page } = await openEditor(context);
+        await page.evaluate(() => toggleExportMenu());
+        await page.waitForTimeout(300);
+        const items = await page.evaluate(() =>
+            [...document.querySelectorAll("#export-menu-dropdown .toolbar-user-menu-item")].map(item => {
+                const icon = item.querySelector("i, svg");
+                const text = item.querySelector(".export-menu-text");
+                return { label: text?.firstElementChild?.textContent || item.textContent.trim(), note: text?.querySelector("small")?.textContent || "", textLeft: Math.round(text?.getBoundingClientRect().left || 0), iconWidth: Math.round(icon?.getBoundingClientRect().width || 0) };
+            }),
+        );
+        assert(items.length === 6 && items.every(item => item.note.length > 10), `notes: ${JSON.stringify(items)}`);
+        assert(/editable/.test(items.find(item => /PowerPoint/.test(item.label))?.note || ""), "the PowerPoint note does not say what stays editable");
+        assert(new Set(items.map(item => item.textLeft)).size === 1, `labels not lined up: ${JSON.stringify(items.map(item => item.textLeft))}`);
+        await page.evaluate(() => closeExportMenu());
+        await page.close();
+    });
+
+    await test("presenter view: the slide arrives even when the first one is missed", async () => {
+        const { page } = await openEditor(context);
+        // The window's script runs only once its stylesheets have loaded; the slide sent 300 ms after opening was
+        // missed when they took longer, and the presenter stayed blank. Simulated by dropping that first message.
+        await page.evaluate(() => {
+            const send = BroadcastChannel.prototype.postMessage;
+            let dropped = false;
+            BroadcastChannel.prototype.postMessage = function (message) {
+                if (!dropped && message?.type === "state") {
+                    dropped = true;
+                    return;
+                }
+                return send.call(this, message);
+            };
+            localStorage.removeItem(_PRESENTER_SYNC_STORAGE_KEY);
+            const store = localStorage.setItem.bind(localStorage);
+            localStorage.setItem = (key, value) => (key === _PRESENTER_SYNC_STORAGE_KEY && !dropped ? undefined : store(key, value));
+        });
+        const [popup] = await Promise.all([context.waitForEvent("page"), page.evaluate(() => openPresenterView())]);
+        const shown = await popup.waitForFunction(() => document.querySelector("#presenter-current section"), null, { timeout: 5000 }).then(() => true, () => false);
+        await popup.close();
+        await page.evaluate(() => { _presentationRuntimeState.presenterWindow = null; });
+        assert(shown, "the presenter view stayed blank");
+        await page.close();
+    });
+
     if (!FRONTEND_ONLY) {
         // ─── Plugin manager (js/ui/plugin-manager.js, studio/plugins.py) ───────────────────────────────────────
         // Plugin switches are kept by the server: each test puts them back as it found them.

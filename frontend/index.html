@@ -277,22 +277,28 @@
                         </button>
                         <div id="export-menu-dropdown" class="export-menu-dropdown">
                             <button onclick="closeExportMenu(); exportPresentationZip()" class="toolbar-user-menu-item">
-                                <i class="fa-solid fa-file-zipper w-4 text-center"></i> Web (ZIP)
+                                <i class="fa-solid fa-file-zipper w-4 text-center"></i>
+                                <span class="export-menu-text"><span>Web (ZIP)</span><small>Plays offline in a browser, with animations and bullet builds</small></span>
                             </button>
                             <button onclick="closeExportMenu(); exportPresentationPDF()" class="toolbar-user-menu-item">
-                                <i class="fa-solid fa-file-pdf w-4 text-center"></i> PDF Document
+                                <i class="fa-solid fa-file-pdf w-4 text-center"></i>
+                                <span class="export-menu-text"><span>PDF Document</span><small>One page per slide, as on screen; its text can be searched</small></span>
                             </button>
                             <button onclick="closeExportMenu(); exportPresentationPNG()" class="toolbar-user-menu-item">
-                                <i class="fa-regular fa-image w-4 text-center"></i> Slide Image (PNG)
+                                <i class="fa-regular fa-image w-4 text-center"></i>
+                                <span class="export-menu-text"><span>Slide Image (PNG)</span><small>The current slide as a picture</small></span>
                             </button>
                             <button onclick="closeExportMenu(); exportCurrentSlideSceneSVG()" class="toolbar-user-menu-item">
-                                <i class="fa-solid fa-vector-square w-4 text-center"></i> Deterministic SVG
+                                <i class="fa-solid fa-vector-square w-4 text-center"></i>
+                                <span class="export-menu-text"><span>Deterministic SVG</span><small>The current slide as vector graphics</small></span>
                             </button>
                             <button onclick="closeExportMenu(); exportPresentationPPTX()" class="toolbar-user-menu-item">
-                                <i class="fa-solid fa-file-powerpoint w-4 text-center"></i> PowerPoint (PPTX)
+                                <i class="fa-solid fa-file-powerpoint w-4 text-center"></i>
+                                <span class="export-menu-text"><span>PowerPoint (PPTX)</span><small>Text, tables, charts and citations stay editable; plots, diagrams and equations become pictures</small></span>
                             </button>
                             <button onclick="closeExportMenu(); exportPresentationJson()" class="toolbar-user-menu-item">
-                                <i class="fa-solid fa-file-code w-4 text-center"></i> Raw JSON State
+                                <i class="fa-solid fa-file-code w-4 text-center"></i>
+                                <span class="export-menu-text"><span>Raw JSON State</span><small>The whole deck as data, to import back later</small></span>
                             </button>
                         </div>
                     </div>

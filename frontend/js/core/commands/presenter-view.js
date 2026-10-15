@@ -87,6 +87,7 @@ function _ensurePresenterMessaging() {
                 if (msg.action === "next") presentationNextStep();
                 if (msg.action === "prev") presentationPrevStep();
                 if (msg.action === "jump") presentationGoToSlide(Number(msg.index) || 0);
+                if (msg.action === "ready") _syncPresenterPayload();
                 if (msg.action === "reset-timer") {
                     _presentationRuntimeState.presenterStartTs = Date.now();
                     _syncPresenterPayload();
@@ -101,6 +102,7 @@ function _ensurePresenterMessaging() {
             if (msg.action === "next") presentationNextStep();
             if (msg.action === "prev") presentationPrevStep();
             if (msg.action === "jump") presentationGoToSlide(Number(msg.index) || 0);
+            if (msg.action === "ready") _syncPresenterPayload();
             if (msg.action === "reset-timer") {
                 _presentationRuntimeState.presenterStartTs = Date.now();
                 _syncPresenterPayload();
@@ -255,6 +257,9 @@ document.querySelectorAll("[data-action]").forEach(button => {
   });
 });
 jumpEl.addEventListener("change", () => sendCommand("jump", Math.max(0, (parseInt(jumpEl.value, 10) || 1) - 1)));
+// Ask for the slide now that this window listens: this script runs only once the copied stylesheets have loaded,
+// and a slide sent before that was missed (the window stayed blank until the next slide).
+sendCommand("ready");
 </script>
 </body>
 </html>`;

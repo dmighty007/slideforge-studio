@@ -715,6 +715,9 @@ html[data-theme="dark"] #animation-preset-selector .preset-duration {
 html[data-theme="dark"] .toolbar-user-menu-item {
     color: var(--dk-text) !important;
 }
+html[data-theme="dark"] .export-menu-text small {
+    color: var(--dk-muted);
+}
 html[data-theme="dark"] .toolbar-user-menu-item:hover {
     background: var(--dk-hover) !important;
 }
