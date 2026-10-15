@@ -2283,6 +2283,48 @@ async function saveCurrentProject() {
     return true;
 }
 
+// Save from the toolbar button or Ctrl+S, with a visible answer: the save hint is hidden in the toolbar, so a
+// click on Save showed nothing at all. The button shows a tick and "Saved" for a moment; a failure says so.
+async function saveProjectFromUi() {
+    const button = document.querySelector(".toolbar-save-btn");
+    setProjectSaveHint("Saving project…", "muted");
+    let saved = false;
+    try {
+        saved = (await saveCurrentProject()) !== false;
+    } catch (error) {
+        console.warn("Manual save failed:", error);
+    }
+    if (!saved) {
+        setProjectSaveHint("Save failed", "danger");
+        if (typeof showNotification === "function") showNotification("The project could not be saved. Try again in a moment.", "error");
+        return false;
+    }
+    if (button) {
+        clearTimeout(button._savedTimer);
+        if (!button._savedTimer) button._idleHtml = button.innerHTML;
+        button.innerHTML = '<i class="fa-solid fa-check text-sm"></i><span class="toolbar-save-btn__done">Saved</span>';
+        button.classList.add("is-saved");
+        button.setAttribute("aria-label", "Saved");
+        button._savedTimer = setTimeout(() => {
+            button.innerHTML = button._idleHtml;
+            button.classList.remove("is-saved");
+            button.removeAttribute("aria-label");
+            button._savedTimer = null;
+        }, 1600);
+    }
+    let status = document.getElementById("project-save-status");
+    if (!status) {
+        status = document.createElement("span");
+        status.id = "project-save-status";
+        status.className = "sr-only";
+        status.setAttribute("role", "status");
+        document.body.appendChild(status);
+    }
+    status.textContent = "";
+    requestAnimationFrame(() => (status.textContent = "Project saved"));
+    return true;
+}
+
 async function createNewProject() {
     if (!_backendApiAvailable) {
         saveStateToUndo();

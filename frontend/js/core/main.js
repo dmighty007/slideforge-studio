@@ -750,6 +750,7 @@ window.nudgeSelectedElements = nudgeSelectedElements;
 window.schedulePresentationAutosave = schedulePresentationAutosave;
 window.adoptPresentationRecord = adoptPresentationRecord;
 window.saveCurrentProject = saveCurrentProject;
+window.saveProjectFromUi = saveProjectFromUi;
 window.createNewProject = createNewProject;
 window.openProjectsModal = openProjectsModal;
 window.closeProjectsModal = closeProjectsModal;

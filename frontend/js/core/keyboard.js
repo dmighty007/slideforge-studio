@@ -61,7 +61,28 @@ function closeEditorDialogs({ all = false } = {}) {
     return closed;
 }
 
+// Delete in an empty placeholder removes it. A click on an empty placeholder starts typing in it, so Delete did
+// nothing there; removing the unused body box took click, Escape, Delete. Captured: the list editor handles Delete
+// itself and stops it there.
+function _deleteEmptyPlaceholderOnDelete(e) {
+    if (e.key !== "Delete" || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+    if (document.body.classList.contains("play-mode-active")) return;
+    const target = e.target;
+    if (!target?.isContentEditable) return;
+    const host = target.closest(".canvas-element");
+    const data = host && state.slides?.[currentSlideIndex]?.elements?.find(el => el.id === host.id);
+    if (data?.type !== "text" || !data.placeholder || data.editableMasterFooterElement) return;
+    const editor = target.closest(".text-element-content") || target;
+    if (editor.textContent.replace(/[\s\u200b]/g, "")) return;
+    e.preventDefault();
+    e.stopPropagation();
+    editor.blur();
+    setSelectedIds([data.id]);
+    deleteSelectedElements();
+}
+
 function initKeyboard() {
+    document.addEventListener("keydown", _deleteEmptyPlaceholderOnDelete, true);
     // Keyboard shortcuts
     document.addEventListener("keydown", event => {
         const e = event || window.event || {};
@@ -92,15 +113,7 @@ function initKeyboard() {
         // Ctrl/Cmd+S: Save current project
         if ((e.ctrlKey || e.metaKey) && key === "s") {
             e.preventDefault();
-            if (typeof setProjectSaveHint === "function") {
-                setProjectSaveHint("Saving project…", "muted");
-            }
-            Promise.resolve(saveCurrentProject?.()).catch(err => {
-                console.warn("Manual save failed:", err);
-                if (typeof setProjectSaveHint === "function") {
-                    setProjectSaveHint("Save failed", "danger");
-                }
-            });
+            saveProjectFromUi();
             return;
         }
 

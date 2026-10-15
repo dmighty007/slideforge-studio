@@ -5799,6 +5799,77 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("research deck: a reaction's arrow text is in a sans-serif face, and the KM legend keeps off the curves and bands", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const reaction = await pageAwait(page, () => insertPluginElement("smiles", { smiles: "Cn1cnc2c1c(=O)n(C)c(=O)n2C>>Cn1cnc2c1c(=O)[nH]c(=O)n2C", aboveArrow: "CYP1A2" }, { ask: false }));
+        const font = await pluginSvgQuery(page, reaction, `return svg.getAttribute("font-family") || "";`);
+        assert(/sans-serif/.test(font), `reaction drawing font: ${font}`);
+        // Kaplan–Meier with the bands high on the right (few events in one group): the legend goes where they are not.
+        const rows = ["Time,Event,Group"];
+        for (let i = 0; i < 20; i++) rows.push(`${i < 2 ? 3 + i * 4 : 30 + (i % 5)},${i < 2 ? 1 : 0},High intake`);
+        for (let i = 0; i < 20; i++) rows.push(`${2 + i * 1.5},${i % 4 === 3 ? 0 : 1},Low intake`);
+        const km = await pageAwait(page, data => insertPluginElement("kaplan-meier", { data }, { ask: false }), rows.join("\n"));
+        await page.evaluate(id => updateElementState(id, { width: "640px", height: "420px" }), km);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { atRisk: false }), km);
+        const hits = await page.evaluate(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const holder = document.createElement("div");
+            holder.style.cssText = "position:fixed;left:0;top:0;width:640px;height:420px";
+            holder.innerHTML = decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1));
+            document.body.appendChild(holder);
+            const svg = holder.querySelector("svg");
+            const legend = [...svg.querySelectorAll("text")].filter(t => /\(n = \d+\)|Log-rank/.test(t.textContent));
+            const covered = [...svg.querySelectorAll("path")].filter(p => p.getAttribute("fill-opacity") === "0.15" || (p.getAttribute("fill") === "none" && p.getAttribute("stroke-width") === "2"));
+            let count = 0;
+            legend.forEach(text => {
+                const box = text.getBBox();
+                for (let i = 0; i <= 10; i++) {
+                    for (let j = 0; j <= 3; j++) {
+                        const point = svg.createSVGPoint();
+                        point.x = box.x + (box.width * i) / 10;
+                        point.y = box.y + (box.height * j) / 3;
+                        if (covered.some(path => path.isPointInFill(point) || path.isPointInStroke(point))) count++;
+                    }
+                }
+            });
+            holder.remove();
+            return { count, legend: legend.length };
+        }, km);
+        assert(hits.legend === 3 && hits.count === 0, `legend over the curves or bands: ${JSON.stringify(hits)}`);
+        await page.close();
+    });
+
+    await test("research deck: Save shows that the project was saved, and Delete removes an empty placeholder being typed in", async () => {
+        const { page } = await openEditor(context);
+        await page.click(".toolbar-save-btn");
+        await page.waitForFunction(() => document.querySelector(".toolbar-save-btn").classList.contains("is-saved"), null, { timeout: 5000 });
+        const label = await page.locator(".toolbar-save-btn").innerText();
+        assert(/Saved/.test(label), `Save button after a save: ${label}`);
+        await page.waitForFunction(() => !document.querySelector(".toolbar-save-btn").classList.contains("is-saved"), null, { timeout: 5000 });
+        const ids = await newContentSlide(page);
+        await page.waitForTimeout(300);
+        const box = await page.locator(`.slides [id="${ids.body}"]`).boundingBox();
+        await page.mouse.click(box.x + 40, box.y + 15);
+        await page.waitForTimeout(200);
+        const typing = await page.evaluate(() => document.activeElement?.isContentEditable === true);
+        await page.keyboard.press("Delete");
+        await page.waitForTimeout(200);
+        const left = await page.evaluate(id => state.slides[currentSlideIndex].elements.some(e => e.id === id), ids.body);
+        assert(!left, `the empty placeholder is still there after Delete (typing in it: ${typing})`);
+        // With text in it, Delete edits the text as usual.
+        await page.keyboard.press("Control+z");
+        await page.waitForTimeout(200);
+        const title = await page.locator(`.slides [id="${ids.title}"]`).boundingBox();
+        await page.mouse.click(title.x + 40, title.y + 20);
+        await page.keyboard.type("Results");
+        await page.keyboard.press("Home");
+        await page.keyboard.press("Delete");
+        const text = await page.evaluate(() => document.activeElement?.textContent || "");
+        assert(text.trim() === "esults", `Delete in a title with text: ${text}`);
+        await page.close();
+    });
+
     if (!FRONTEND_ONLY) {
         // ─── Plugin manager (js/ui/plugin-manager.js, studio/plugins.py) ───────────────────────────────────────
         // Plugin switches are kept by the server: each test puts them back as it found them.

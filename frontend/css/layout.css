@@ -4577,3 +4577,20 @@ button:focus:not(:focus-visible) {
         padding: 0 9px;
     }
 }
+
+/* Save button after a save from the toolbar or Ctrl+S: a tick and "Saved" for a moment. */
+.toolbar-primary-row .toolbar-save-btn.is-saved,
+.toolbar-primary-row .toolbar-save-btn.is-saved:hover,
+.toolbar-save-btn.is-saved,
+.toolbar-save-btn.is-saved:hover {
+    gap: 6px;
+    padding: 6px 10px;
+    color: #ffffff;
+    background: #0f766e;
+    border-color: #0f766e;
+}
+
+.toolbar-save-btn__done {
+    font-size: 12px;
+    font-weight: 600;
+}

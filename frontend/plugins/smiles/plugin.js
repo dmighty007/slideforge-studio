@@ -112,7 +112,7 @@
 
     SlideForgePlugins.register({
         id: "smiles",
-        version: "2",
+        version: "3",
         name: "Chemical Structure",
         description: "A 2D structure or reaction from SMILES, or a compound name looked up on PubChem",
         icon: "fa-solid fa-flask",
@@ -262,6 +262,9 @@
                     svg.setAttribute("viewBox", `${bounds.x - pad} ${bounds.y - pad} ${bounds.width + 2 * pad} ${bounds.height + 2 * pad}`);
                 }
                 svg.removeAttribute("style");
+                // Text SmilesDrawer writes without a font (the reagents over a reaction arrow) came out in the
+                // viewer's default serif.
+                svg.setAttribute("font-family", "Arial, Helvetica, sans-serif");
                 ["width", "height"].forEach(attribute => svg.removeAttribute(attribute));
                 return new XMLSerializer().serializeToString(svg);
             } catch (error) {
