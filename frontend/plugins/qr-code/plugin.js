@@ -38,7 +38,7 @@
 
     SlideForgePlugins.register({
         id: "qr-code",
-        version: "1",
+        version: "2",
         name: "QR Code",
         description: "A QR code for a link to a paper, dataset, code or poster",
         icon: "fa-solid fa-qrcode",
@@ -107,13 +107,23 @@
                     col += run - 1;
                 }
             }
-            const captionHeight = data.caption ? Math.max(4, side * 0.14) : 0;
-            const height = side + captionHeight;
-            const background = data.background === "white" ? `<rect width="${side}" height="${height}" fill="#ffffff"/>` : "";
+            // Drawn in units of a tenth of a module: text a few units high was laid out wider than it measures.
+            const unit = 10;
+            const width = side * unit;
+            // The caption at about an eighth of the code's width (it was 9%: 8 pt under a code 144 px wide), smaller
+            // only when a long caption would not fit across.
+            let captionSize = width * 0.13;
+            if (data.caption && typeof context?.measureText === "function") {
+                const wide = context.measureText(data.caption, { size: captionSize, family: "Arial, Helvetica, sans-serif", weight: 600 });
+                if (wide > width * 0.94) captionSize *= (width * 0.94) / wide;
+            }
+            const captionHeight = data.caption ? Math.max(40, captionSize * 1.6) : 0;
+            const height = width + captionHeight;
+            const background = data.background === "white" ? `<rect width="${width}" height="${height}" fill="#ffffff"/>` : "";
             const caption = data.caption
-                ? `<text x="${side / 2}" y="${side + captionHeight * 0.55}" font-family="Arial, Helvetica, sans-serif" font-size="${(captionHeight * 0.62).toFixed(2)}" font-weight="600" fill="${data.color}" text-anchor="middle" dominant-baseline="middle">${escapeXml(data.caption)}</text>`
+                ? `<text x="${width / 2}" y="${(width + captionHeight * 0.5).toFixed(1)}" font-family="Arial, Helvetica, sans-serif" font-size="${captionSize.toFixed(1)}" font-weight="600" fill="${data.color}" text-anchor="middle" dominant-baseline="middle">${escapeXml(data.caption)}</text>`
                 : "";
-            return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${side} ${height}" shape-rendering="crispEdges">${background}<path d="${path}" fill="${data.color}"/>${caption}</svg>`;
+            return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges">${background}<path d="${path}" fill="${data.color}" transform="scale(${unit})"/>${caption}</svg>`;
         },
     });
 })();

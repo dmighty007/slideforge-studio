@@ -492,10 +492,15 @@ function renderPluginElementContent(host, elData, { interactive = false } = {}) 
                 box.classList.remove("plugin-element-content--error");
                 if (img.getAttribute("src") !== drawing.dataUrl) img.src = drawing.dataUrl;
                 const stored = _findPluginElementInState(elData.id);
-                // autoHeight plugins (wrapped text) set the box's height to what they drew, outside undo.
-                if (interactive && plugin.sizeAware && plugin.autoHeight && stored && Math.abs(parseFloat(stored.height) - drawing.height) > 1) {
+                // autoHeight plugins (wrapped text) set the box's height to what they drew, outside undo. Whichever copy
+                // draws first: when the slide thumbnail redrew for a new width first, it stored the drawing, the editor's
+                // copy then had nothing new to draw, and the box kept its old height.
+                const drawnForThisWidth = stored && Math.abs(parseFloat(source.width) - parseFloat(stored.width)) <= 0.5;
+                if (plugin.sizeAware && plugin.autoHeight && drawnForThisWidth && Math.abs(parseFloat(stored.height) - drawing.height) > 1) {
                     stored.height = `${Math.round(drawing.height)}px`;
                     host.style.height = stored.height;
+                    const main = [...document.querySelectorAll(`[id="${stored.id}"]`)].find(node => !node.closest("#slide-previews"));
+                    if (main) main.style.height = stored.height;
                     if (state.selectedIds?.includes(stored.id) && typeof updateGroupBound === "function") updateGroupBound();
                 }
                 if (stored && stored.pluginPreviewKey !== drawing.key) {
@@ -1144,10 +1149,17 @@ async function showPluginPicturesForCapture(slideNode) {
 }
 
 // Plugin objects in an export copy of the state become pictures (PowerPoint and the standalone viewer).
-async function replacePluginElementsWithPictures(exportState) {
+// text: true (PowerPoint) writes plugins that are only text (a citation) as text boxes, which a co-author can edit;
+// as pictures, even a typo needed SlideForge.
+async function replacePluginElementsWithPictures(exportState, { text = false } = {}) {
     for (const slide of exportState?.slides || []) {
         for (const [index, el] of (slide.elements || []).entries()) {
             if (el?.type !== "plugin") continue;
+            const asText = text ? _pluginTextForExport(el) : null;
+            if (asText) {
+                slide.elements[index] = asText;
+                continue;
+            }
             const content = await _pluginPictureForBox(el);
             if (!content) continue;
             slide.elements[index] = {
@@ -1168,6 +1180,55 @@ async function replacePluginElementsWithPictures(exportState) {
             };
         }
     }
+}
+
+// A plugin's exportText(data) → { runs: [{ text, italic, bold }], fontSize, color } as a plain text element.
+function _pluginTextForExport(el) {
+    const plugin = getSlidePlugin(el.pluginId);
+    if (typeof plugin?.exportText !== "function") return null;
+    let result = null;
+    try {
+        result = plugin.exportText(normalizePluginData(plugin, el.pluginData));
+    } catch (error) {
+        console.warn(`${plugin.name}: exported as a picture:`, error);
+    }
+    const runs = (result?.runs || []).filter(run => run && String(run.text || ""));
+    if (!runs.length) return null;
+    const escape = text => String(text).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+    const html = runs
+        .map(run => {
+            let part = escape(run.text);
+            if (run.italic) part = `<em>${part}</em>`;
+            if (run.bold) part = `<strong>${part}</strong>`;
+            return part;
+        })
+        .join("");
+    const color = /^#[0-9a-f]{6}$/i.test(String(result.color || "")) ? result.color : _pluginThemeColor();
+    return {
+        id: el.id,
+        type: "text",
+        content: `<p>${html}</p>`,
+        x: el.x,
+        y: el.y,
+        width: el.width,
+        height: el.height,
+        rotation: el.rotation,
+        autoHeight: false,
+        textFitMode: "fixed",
+        styles: {
+            fontSize: `${Number(result.fontSize) || 16}px`,
+            color,
+            fontFamily: "Arial, Helvetica, sans-serif",
+            lineHeight: "1.35",
+            textAlign: "left",
+            backgroundColor: "transparent",
+            zIndex: el.styles?.zIndex,
+        },
+        animation: el.animation || null,
+        ...(el.fragment ? { fragment: el.fragment } : {}),
+        ...(el.fragmentIndex !== undefined ? { fragmentIndex: el.fragmentIndex } : {}),
+        exportedFrom: `plugin:${el.pluginId}`,
+    };
 }
 
 // A saved picture may come from a deck file made elsewhere: an SVG is cleaned like a plugin's own drawing before it is

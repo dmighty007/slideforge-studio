@@ -143,6 +143,30 @@ function initKeyboard() {
         }
 
 
+        // A table cell picked with one click (marked, not yet typed in): typing starts in it, replacing what it
+        // holds as a spreadsheet does, and Enter starts editing at the end. The keys used to go nowhere.
+        if (!e.ctrlKey && !e.metaKey && !e.altKey && (rawKey.length === 1 || rawKey === "Enter") && state.selectedIds.length === 1) {
+            const table = state.slides?.[currentSlideIndex]?.elements?.find(el => el.id === state.selectedIds[0] && el.type === "table");
+            const part = table?.tableData?.selection;
+            if (part?.type === "cell" && typeof _editTableCellAt === "function") {
+                e.preventDefault();
+                _editTableCellAt(table.id, part.row, part.col);
+                const cell = document.activeElement;
+                if (cell?.isContentEditable) {
+                    if (rawKey === "Enter") {
+                        const range = document.createRange();
+                        range.selectNodeContents(cell);
+                        range.collapse(false);
+                        window.getSelection()?.removeAllRanges();
+                        window.getSelection()?.addRange(range);
+                    } else {
+                        document.execCommand("insertText", false, rawKey);
+                    }
+                }
+                return;
+            }
+        }
+
         // Ctrl+A: Select all elements
         if ((e.ctrlKey || e.metaKey) && key === "a") {
             e.preventDefault();

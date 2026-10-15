@@ -1015,8 +1015,9 @@ async function exportPPTX() {
     if (typeof replaceMoleculesWithPictures === "function") await replaceMoleculesWithPictures(exportState);
     if (typeof replacePdfsWithPictures === "function") await replacePdfsWithPictures(exportState);
     await replaceMermaidWithPictures(exportState);
-    // Plugin objects are drawn as SVG; they become PNG pictures with the other SVGs just below.
-    if (typeof replacePluginElementsWithPictures === "function") await replacePluginElementsWithPictures(exportState);
+    // Plugin objects are drawn as SVG; they become PNG pictures with the other SVGs just below (text-only ones,
+    // such as citations, become text boxes).
+    if (typeof replacePluginElementsWithPictures === "function") await replacePluginElementsWithPictures(exportState, { text: true });
     await replaceSvgPicturesWithPng(exportState);
     // And HTML embeds: PowerPoint cannot run them, so a picture of the embed instead of a placeholder.
     if (typeof replaceHtmlEmbedsWithPictures === "function") await replaceHtmlEmbedsWithPictures(exportState);
@@ -3453,18 +3454,34 @@ function renderTextContent(elData) {
             });
             return styles.length ? '<span style="' + styles.join(';') + '">' + inner + '</span>' : inner;
         };
-        return elData.textDocument.blocks.map(block => {
+        // Consecutive list items share one bullet block (its gap spaces them as the editor does). Joined with <br>,
+        // each item was followed by an empty line: bullets sat half as far apart again as on the slide.
+        let html = '';
+        let previous = null;
+        elData.textDocument.blocks.forEach(block => {
             const inner = (block.children || []).map(runHtml).join('') || '<br>';
             if (block.type === 'listItem') {
                 const level = Math.max(0, Number(block.list?.level) || 0);
                 const style = block.list?.style || elData.bulletStyle || 'default';
                 const kind = block.list?.kind === 'numbered' ? 'numbered' : 'bullet';
                 const marker = kind === 'numbered' ? String(block.list?.ordinal || 1) + '.' : '•';
-                return '<div class="ppt-bullet-block" data-bullet-style="' + escape(style) + '"><div class="ppt-bullet-row" data-list-kind="' + kind + '" style="--bullet-indent:' + (level * 20) + 'px;"><span class="ppt-bullet-marker">' + marker + '</span><span class="ppt-bullet-text">' + inner + '</span></div></div>';
+                const row = '<div class="ppt-bullet-row" data-list-kind="' + kind + '" style="--bullet-indent:' + (level * 20) + 'px;"><span class="ppt-bullet-marker">' + marker + '</span><span class="ppt-bullet-text">' + inner + '</span></div>';
+                if (previous === 'list:' + style) html = html.slice(0, -'</div>'.length) + row + '</div>';
+                else html += '<div class="ppt-bullet-block" data-bullet-style="' + escape(style) + '">' + row + '</div>';
+                previous = 'list:' + style;
+                return;
             }
-            if (block.type === 'heading') return '<h' + (block.level || 1) + '>' + inner + '</h' + (block.level || 1) + '>';
-            return inner;
-        }).join('<br>');
+            if (block.type === 'heading') {
+                html += '<h' + (block.level || 1) + '>' + inner + '</h' + (block.level || 1) + '>';
+                previous = 'heading';
+                return;
+            }
+            // A paragraph after another paragraph starts on a new line; after a list or heading it already does.
+            if (previous === 'text') html += '<br>';
+            html += inner;
+            previous = 'text';
+        });
+        return html;
     }
     if (Array.isArray(elData.content)) {
         const bulletStyle = (elData.bulletStyle && BULLET_STYLE_THEMES[elData.bulletStyle]) ? elData.bulletStyle : 'default';

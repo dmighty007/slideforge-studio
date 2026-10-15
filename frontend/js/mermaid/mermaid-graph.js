@@ -379,8 +379,13 @@ export function layoutGraphModel(graph, options = {}) {
         if (!ranks.has(node.id)) ranks.set(node.id, 0);
     });
 
-    const rankList = [...new Set(model.nodes.map(node => ranks.get(node.id)))].sort((a, b) => a - b);
-    const byRank = rankList.map(rank => model.nodes.filter(node => ranks.get(node.id) === rank));
+    // Nodes with no links at all go on their own line after the chart: ranked with the chart's first column, an
+    // unconnected box in a left-to-right chart stacked under its first node and pushed the rest out of line.
+    const linked = new Set(edges.flatMap(edge => [edge.from, edge.to]));
+    const loose = model.nodes.filter(node => !linked.has(node.id));
+    const ranked = model.nodes.filter(node => !loose.includes(node));
+    const rankList = [...new Set(ranked.map(node => ranks.get(node.id)))].sort((a, b) => a - b);
+    const byRank = rankList.map(rank => ranked.filter(node => ranks.get(node.id) === rank));
     // Order each rank under its parents (average parent position), which untangles most crossings.
     const order = new Map();
     byRank.forEach((nodes, level) => {
@@ -401,27 +406,38 @@ export function layoutGraphModel(graph, options = {}) {
     const across = node => (horizontal ? node.height : node.width); // room a node takes beside its siblings
     const rankSpan = nodes => nodes.reduce((sum, node) => sum + across(node), 0) + nodeGap * Math.max(0, nodes.length - 1);
     const widest = Math.max(0, ...byRank.map(rankSpan));
+    const place = (node, x, y) => {
+        const hasPosition = Number.isFinite(Number(node.x)) && Number.isFinite(Number(node.y)) && node.x !== null && node.y !== null;
+        const stillAutoPlaced =
+            node.autoPlacedAt && Number(node.autoPlacedAt.x) === Number(node.x) && Number(node.autoPlacedAt.y) === Number(node.y);
+        const keep = preserve && hasPosition && !stillAutoPlaced && (node.autoPlacedAt || options.trustPositions !== false);
+        if (keep) return;
+        node.x = Math.round(x);
+        node.y = Math.round(y);
+        node.autoPlacedAt = { x: node.x, y: node.y };
+    };
     let major = margin;
     byRank.forEach(nodes => {
         const depth = Math.max(...nodes.map(along));
         let minor = margin + (widest - rankSpan(nodes)) / 2;
         nodes.forEach(node => {
-            const hasPosition = Number.isFinite(Number(node.x)) && Number.isFinite(Number(node.y)) && node.x !== null && node.y !== null;
-            const stillAutoPlaced =
-                node.autoPlacedAt && Number(node.autoPlacedAt.x) === Number(node.x) && Number(node.autoPlacedAt.y) === Number(node.y);
-            const keep = preserve && hasPosition && !stillAutoPlaced && (node.autoPlacedAt || options.trustPositions !== false);
-            if (!keep) {
-                const offset = (depth - along(node)) / 2;
-                const x = horizontal ? major + offset : minor;
-                const y = horizontal ? minor : major + offset;
-                node.x = Math.round(x);
-                node.y = Math.round(y);
-                node.autoPlacedAt = { x: node.x, y: node.y };
-            }
+            const offset = (depth - along(node)) / 2;
+            place(node, horizontal ? major + offset : minor, horizontal ? minor : major + offset);
             minor += across(node) + nodeGap;
         });
         major += depth + rankGap;
     });
+    if (loose.length) {
+        // One line along the flow: a row under a left-to-right chart, a column beside a top-down one.
+        const line = ranked.length ? margin + widest + nodeGap * 1.5 : margin;
+        const depth = Math.max(...loose.map(across));
+        let along_ = margin;
+        loose.forEach(node => {
+            const offset = (depth - across(node)) / 2;
+            place(node, horizontal ? along_ : line + offset, horizontal ? line + offset : along_);
+            along_ += along(node) + nodeGap;
+        });
+    }
 
     model.nodePositions = {};
     model.nodes.forEach(node => {

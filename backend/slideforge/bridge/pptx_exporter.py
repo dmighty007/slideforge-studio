@@ -1042,6 +1042,11 @@ class PPTXExporter:
         # The editor's text boxes have almost no inner margin; PowerPoint's default (0.1 in) shifted every text.
         tf.margin_left = tf.margin_right = self._px_to_inches_w(4)
         tf.margin_top = tf.margin_bottom = self._px_to_inches_h(2)
+        # The slide number is centred in its pill in the editor (flex, line-height 1); top-anchored, it sat at the
+        # top of the pill.
+        if el.get("footerRole") == "slide-number" or el.get("masterRole") == "slide-number":
+            tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+            tf.margin_top = tf.margin_bottom = 0
 
         # Handle structured bullet points or raw HTML
         tf.clear()

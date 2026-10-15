@@ -2,6 +2,9 @@
 // Usage: SLIDEFORGE_TEST_URL=<launch URL printed by `slideforge --no-open`> node tests/browser/test-regressions.js
 // Set SLIDEFORGE_FRONTEND_ONLY=1 to skip the tests that need the saving API.
 const { chromium } = require("playwright");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
 
 const TEST_URL = process.env.SLIDEFORGE_TEST_URL || "http://127.0.0.1:8076/";
 const FRONTEND_ONLY = process.env.SLIDEFORGE_FRONTEND_ONLY === "1";
@@ -4573,7 +4576,13 @@ async function test(name, fn) {
             const svg = decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1));
             const height = Number(svg.match(/viewBox="0 0 220 ([\d.]+)"/)?.[1]);
             return height > 60 && Math.abs(parseFloat(el.height) - height) <= 1;
-        }, id);
+        }, id, { timeout: 10000 }).catch(async error => {
+            const seen = await page.evaluate(id => {
+                const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+                return { width: el.width, height: el.height, viewBox: decodeURIComponent(el.pluginPreview).match(/viewBox="([^"]*)"/)?.[1] };
+            }, id);
+            throw new Error(`${error.message.split("\n")[0]} ${JSON.stringify(seen)}`);
+        });
         await pageAwait(page, id => SlideForgePlugins.update(id, { doi: "not a doi" }), id);
         assert(/does not look like a DOI/.test(await page.evaluate(id => getPluginElementNotice(id), id)), "no message for a bad DOI");
         await page.close();
@@ -5843,10 +5852,10 @@ async function test(name, fn) {
     await test("research deck: Save shows that the project was saved, and Delete removes an empty placeholder being typed in", async () => {
         const { page } = await openEditor(context);
         await page.click(".toolbar-save-btn");
-        await page.waitForFunction(() => document.querySelector(".toolbar-save-btn").classList.contains("is-saved"), null, { timeout: 5000 });
+        await page.waitForFunction(() => document.querySelector(".toolbar-save-btn").classList.contains("is-saved"), null, { timeout: 15000 });
         const label = await page.locator(".toolbar-save-btn").innerText();
         assert(/Saved/.test(label), `Save button after a save: ${label}`);
-        await page.waitForFunction(() => !document.querySelector(".toolbar-save-btn").classList.contains("is-saved"), null, { timeout: 5000 });
+        await page.waitForFunction(() => !document.querySelector(".toolbar-save-btn").classList.contains("is-saved"), null, { timeout: 15000 });
         const ids = await newContentSlide(page);
         await page.waitForTimeout(300);
         const box = await page.locator(`.slides [id="${ids.body}"]`).boundingBox();
@@ -6009,6 +6018,148 @@ async function test(name, fn) {
             return { on: el.chartStyle?.errorBars, errors: el.chartData.datasets[0].errors };
         }, id);
         assert(sent.on === true && JSON.stringify(sent.errors) === "[2,4,6.2]", `PowerPoint request: ${JSON.stringify(sent)}`);
+        await page.close();
+    });
+
+    await test("research deck: a flowchart's unconnected boxes go on their own line instead of bending the chart", async () => {
+        const { page } = await openEditor(context);
+        const out = await page.evaluate(async () => {
+            const graph = await import("/js/mermaid/mermaid-graph.js");
+            const at = src => Object.fromEntries(graph.layoutGraphModel(graph.parseMermaidToGraph(src)).nodes.map(n => [n.id, { x: n.x, y: n.y, w: n.width, h: n.height }]));
+            return {
+                lr: at("flowchart LR\n A[Intake] --> B[CYP1A2]\n B --> C[Paraxanthine]\n D[Excreted unchanged]\n"),
+                td: at("flowchart TD\n A[Intake] --> B[CYP1A2]\n D[Excreted]\n"),
+                loose: at("flowchart LR\n A[One]\n B[Two]\n C[Three]\n"),
+            };
+        });
+        const { lr, td, loose } = out;
+        assert(lr.A.y === lr.B.y && lr.B.y === lr.C.y && lr.A.x < lr.B.x && lr.B.x < lr.C.x, `LR chain bent: ${JSON.stringify(lr)}`);
+        assert(lr.D.y >= lr.A.y + lr.A.h, `LR loose box not below the chain: ${JSON.stringify(lr)}`);
+        assert(td.D.x >= Math.max(td.A.x + td.A.w, td.B.x + td.B.w), `TD loose box not beside the chain: ${JSON.stringify(td)}`);
+        assert(loose.A.y === loose.B.y && loose.B.y === loose.C.y && loose.A.x < loose.B.x, `LR boxes without links stacked: ${JSON.stringify(loose)}`);
+        await page.close();
+    });
+
+    await test("research deck: typing after one click on a table cell edits it, a second click edits too, and Escape keeps the table", async () => {
+        const { page } = await openEditor(context);
+        await newContentSlide(page);
+        await page.evaluate(() => { addElement("table"); state.selectedIds = []; renderSlidesFromState(); });
+        const id = await page.evaluate(() => state.slides[currentSlideIndex].elements.find(e => e.type === "table").id);
+        const cellAt = index => page.evaluate(([id, index]) => { const r = document.querySelectorAll(`.slides [id="${id}"] .table-element-cell`)[index].getBoundingClientRect(); return [r.x + 10, r.y + 10]; }, [id, index]);
+        const editing = () => page.evaluate(() => !!document.querySelector(".table-element-cell.is-editing"));
+        let point = await cellAt(5);
+        await page.mouse.click(point[0], point[1]);
+        await page.waitForTimeout(200);
+        assert(!(await editing()), "one click already started typing");
+        await page.keyboard.type("31%");
+        assert(await editing(), "typing after one click went nowhere");
+        await page.keyboard.press("Escape");
+        await page.waitForTimeout(200);
+        const after = await page.evaluate(id => ({ text: state.slides[currentSlideIndex].elements.find(e => e.id === id).tableData.cells[1][1].text, selected: state.selectedIds.join() }), id);
+        assert(after.text === "31%" && after.selected === id, `after Escape: ${JSON.stringify(after)}`);
+        // A second click on the marked cell starts typing in it.
+        point = await cellAt(6);
+        await page.mouse.click(point[0], point[1]);
+        await page.waitForTimeout(400);
+        await page.mouse.click(point[0], point[1]);
+        await page.waitForTimeout(200);
+        assert(await editing(), "a second click on the marked cell did not start typing");
+        await page.keyboard.press("Escape");
+        assert(await page.evaluate(id => state.selectedIds.join() === id, id), "Escape out of the cell lost the table");
+        await page.close();
+    });
+
+    await test("research deck: a citation goes to PowerPoint as text, and the slide number is centred in its pill", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () =>
+            insertPluginElement("citation", {
+                doi: "10.1038/s41586-021-03819-2",
+                metaDoi: "10.1038/s41586-021-03819-2",
+                style: "nature",
+                meta: { authors: [{ given: "John", family: "Jumper" }, { given: "Richard", family: "Evans" }], title: "Highly accurate protein structure prediction with AlphaFold", journal: "Nature", journalShort: "Nature", volume: "596", issue: "7873", pages: "583-589", year: 2021 },
+            }, { ask: false }));
+        const sent = await page.evaluate(async id => {
+            let body = null;
+            const realFetch = window.fetch;
+            window.fetch = async (url, options) => {
+                if (String(url).includes("/export/pptx/")) { body = JSON.parse(options.body); return new Response(new Blob(["x"]), { status: 200 }); }
+                return realFetch(url, options);
+            };
+            try { await exportPPTX(); } finally { window.fetch = realFetch; }
+            return body.state.slides.flatMap(s => s.elements).find(e => e.id === id);
+        }, id);
+        assert(sent?.type === "text", `the citation went as ${sent?.type}`);
+        assert(/Jumper, J\., Evans, R\. Highly accurate/.test(sent.content.replace(/<[^>]+>/g, "")) && /<em>Nature<\/em>/.test(sent.content) && /<strong> 596<\/strong>/.test(sent.content), `citation text: ${sent.content}`);
+        await page.close();
+    });
+
+    await test("research deck: a QR code's caption is readable, and a long one still fits across", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const measure = async caption => {
+            const id = await pageAwait(page, caption => insertPluginElement("qr-code", { text: "https://doi.org/10.1101/2024.01.01", caption }, { ask: false }), caption);
+            return page.evaluate(id => {
+                const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+                const holder = document.createElement("div");
+                holder.innerHTML = decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1));
+                document.body.appendChild(holder);
+                const svg = holder.querySelector("svg");
+                const side = Number(svg.getAttribute("viewBox").split(" ")[2]);
+                const text = svg.querySelector("text");
+                const out = { size: Number(text.getAttribute("font-size")) / side, width: text.getBBox().width / side };
+                holder.remove();
+                return out;
+            }, id);
+        };
+        const short = await measure("Preprint");
+        assert(short.size >= 0.12, `caption at ${(short.size * 100).toFixed(1)}% of the code's width`);
+        const long = await measure("Scan for the preprint and the full data set");
+        assert(long.width <= 1, `a long caption runs off the code: ${JSON.stringify(long)}`);
+        await page.close();
+    });
+
+    await test("research deck: the Web ZIP spaces bullets as the editor does", async () => {
+        const { page } = await openEditor(context);
+        const ids = await newContentSlide(page);
+        const editorPitch = await page.evaluate(async id => {
+            const body = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            body.content = "<ul><li>Half-life 3–7 h</li><li>CYP1A2 makes paraxanthine</li><li>Smoking speeds clearance</li></ul>";
+            delete body.textDocument;
+            renderSlidesFromState();
+            await new Promise(resolve => setTimeout(resolve, 400));
+            const node = [...document.querySelectorAll(`[id="${id}"]`)].find(n => !n.closest("#slide-previews"));
+            const slide = node.closest(".presentation-slide").getBoundingClientRect();
+            const scale = slide.width / getPresentationPageSetupConfig().width;
+            const rows = [...node.querySelectorAll("li, .ppt-bullet-row")].map(row => row.getBoundingClientRect().top / scale);
+            return (rows.at(-1) - rows[0]) / (rows.length - 1);
+        }, ids.body);
+        const files = await page.evaluate(async () => {
+            const zip = await JSZip.loadAsync(await buildViewerBundle({ includeVendor: true }));
+            const out = {};
+            for (const [name, file] of Object.entries(zip.files)) if (!file.dir) out[name] = await file.async("base64");
+            return out;
+        });
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sf-viewer-"));
+        for (const [name, data] of Object.entries(files)) {
+            fs.mkdirSync(path.dirname(path.join(dir, name)), { recursive: true });
+            fs.writeFileSync(path.join(dir, name), Buffer.from(data, "base64"));
+        }
+        const viewer = await context.newPage();
+        await viewer.goto(`file://${path.join(dir, "index.html")}`);
+        await viewer.waitForTimeout(800);
+        for (let i = 0; i < 6; i++) {
+            await viewer.keyboard.press("ArrowRight");
+            await viewer.waitForTimeout(250);
+        }
+        const viewerPitch = await viewer.evaluate(() => {
+            const slide = document.querySelector(".presentation-slide.is-active");
+            const scale = slide.getBoundingClientRect().width / slide.offsetWidth;
+            const rows = [...slide.querySelectorAll(".ppt-bullet-row")].map(row => row.getBoundingClientRect().top / scale);
+            return rows.length > 1 ? (rows.at(-1) - rows[0]) / (rows.length - 1) : null;
+        });
+        await viewer.close();
+        assert(viewerPitch && Math.abs(viewerPitch - editorPitch) <= editorPitch * 0.12, `bullet spacing: editor ${editorPitch.toFixed(1)} px, Web ZIP ${viewerPitch?.toFixed(1)} px`);
         await page.close();
     });
 

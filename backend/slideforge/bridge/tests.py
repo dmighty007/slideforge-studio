@@ -361,6 +361,18 @@ class PPTXExportMediaTests(TestCase):
         self.assertEqual(str(plot.series[0].format.fill.fore_color.rgb), "2563EB")
         self.assertFalse(any(shape.has_text_frame and "placeholder" in shape.text_frame.text for shape in slide.shapes))
 
+    def test_slide_number_is_centred_in_its_pill(self):
+        from pptx.enum.text import MSO_ANCHOR
+
+        slide = self._export([
+            {"type": "text", "content": "07", "footerRole": "slide-number", "editableMasterFooterElement": True,
+             "x": 912, "y": 718, "width": "62px", "height": "28px", "styles": {"fontSize": "12px", "textAlign": "center"}},
+            {"type": "text", "content": "Body", "x": 64, "y": 160, "width": "400px", "height": "60px", "styles": {"fontSize": "20px"}},
+        ])
+        boxes = {shape.text_frame.text: shape.text_frame for shape in slide.shapes if shape.has_text_frame}
+        self.assertEqual(boxes["07"].vertical_anchor, MSO_ANCHOR.MIDDLE)
+        self.assertNotEqual(boxes["Body"].vertical_anchor, MSO_ANCHOR.MIDDLE)
+
     def test_chart_error_bars_export_as_custom_plus_minus_values(self):
         slide = self._export([{
             "type": "chart", "chartType": "bar", "x": 100, "y": 100, "width": "500px", "height": "300px",

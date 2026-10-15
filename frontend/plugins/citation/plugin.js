@@ -192,6 +192,13 @@
             return { ...data, meta: fromCrossref(answer.message || {}), metaDoi: doi };
         },
 
+        // In PowerPoint the reference is text a co-author can correct, not a picture.
+        exportText(data) {
+            const doi = cleanDoi(data.doi);
+            if (!doi || !data.meta || data.metaDoi !== doi) return null;
+            return { runs: citationRuns(data.meta, doi, data), fontSize: data.fontSize, color: data.color };
+        },
+
         render(data, context) {
             const doi = cleanDoi(data.doi);
             if (!doi) throw new Error("Type the paper's DOI");

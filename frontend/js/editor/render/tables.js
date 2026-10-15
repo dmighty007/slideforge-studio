@@ -259,10 +259,11 @@ function _renderTableDom(container, elData, { interactive = true } = {}) {
         cell.addEventListener("click", (e) => {
           if (document.body.classList.contains("play-mode-active")) return;
           e.stopPropagation();
+          // A click on the cell that is already selected starts typing in it (the second click, as in
+          // PowerPoint). Read from the cell itself: selecting a cell marks it without drawing the table again, so
+          // the table data this handler was made with still had the old selection and typing never started.
           const alreadySelected =
-            tableData.selection?.type === "cell" &&
-            tableData.selection.row === rowIndex &&
-            tableData.selection.col === colIndex;
+            cell.classList.contains("is-active") && state.selectedIds?.length === 1 && state.selectedIds[0] === elData.id;
           setSelectedTablePart?.(elData.id, {
             type: "cell",
             row: rowIndex,
