@@ -13,6 +13,7 @@ function _chartTable(data) {
     series: datasets.map((dataset, index) => ({
       name: String(dataset.label ?? `Series ${index + 1}`),
       values: Array.from({ length: rows }, (_, i) => dataset.data?.[i] ?? ""),
+      errors: Array.from({ length: rows }, (_, i) => dataset.errors?.[i] ?? ""),
     })),
   };
 }
@@ -29,7 +30,9 @@ function buildChartPanel(panel, data) {
   const types = [["bar", "Bar"], ["line", "Line"], ["pie", "Pie"], ["doughnut", "Doughnut"]];
   const palette = typeof chartCategoryPalette === "function" ? chartCategoryPalette() : [];
   const picks = data.chartStyle?.seriesColors || [];
-  const columns = `minmax(64px, 1.2fr) repeat(${table.series.length}, minmax(52px, 1fr)) 18px`;
+  // With error bars, each series has a "±" column after its values (SD, SEM… as entered).
+  const errorBars = !round && Boolean(data.chartStyle?.errorBars);
+  const columns = `minmax(64px, 1.2fr) repeat(${table.series.length}, minmax(52px, 1fr)${errorBars ? " minmax(40px, 0.7fr)" : ""}) 18px`;
   group.innerHTML += `
     <div class="chart-editor" data-chart-id="${escapeHtml(data.id)}">
       <div class="chart-editor-row">
@@ -51,7 +54,7 @@ function buildChartPanel(panel, data) {
               ${round ? "" : `<input type="color" class="chart-series-color" value="${_chartColorInput(picks[index] || palette[index % (palette.length || 1)] || "#4f7cff")}" title="Colour of this series" aria-label="Series ${index + 1} colour">`}
               ${table.series.length > 1 ? `<button type="button" class="chart-series-remove" title="Remove this series" aria-label="Remove series ${index + 1}"><i class="fa-solid fa-xmark"></i></button>` : ""}
             </div>
-          </div>`,
+          </div>${errorBars ? `<span class="chart-error-head" title="Error bar: plus and minus this much">±</span>` : ""}`,
           )
           .join("")}
         <span></span>
@@ -61,7 +64,11 @@ function buildChartPanel(panel, data) {
           <input type="text" class="prop-input-sm chart-row-label" data-row="${row}" value="${escapeHtml(label)}" aria-label="Label ${row + 1}">
           ${table.series
             .map(
-              (series, index) => `<input type="number" step="any" class="prop-input-sm chart-row-value" data-row="${row}" data-series="${index}" value="${escapeHtml(String(series.values[row]))}" aria-label="${escapeHtml(series.name)}, row ${row + 1}">`,
+              (series, index) =>
+                `<input type="number" step="any" class="prop-input-sm chart-row-value" data-row="${row}" data-series="${index}" value="${escapeHtml(String(series.values[row]))}" aria-label="${escapeHtml(series.name)}, row ${row + 1}">` +
+                (errorBars
+                  ? `<input type="number" step="any" min="0" class="prop-input-sm chart-row-error" data-row="${row}" data-series="${index}" value="${escapeHtml(String(series.errors[row]))}" aria-label="${escapeHtml(series.name)}, row ${row + 1}, error ±">`
+                  : ""),
             )
             .join("")}
           <button type="button" class="chart-row-remove" data-row="${row}" tabindex="-1" title="Remove this row" aria-label="Remove row ${row + 1}"><i class="fa-solid fa-xmark"></i></button>`,
@@ -72,7 +79,7 @@ function buildChartPanel(panel, data) {
         <button type="button" id="prop-chart-add-row" class="chart-editor-add"><i class="fa-solid fa-plus"></i> Row</button>
         ${round ? "" : `<button type="button" id="prop-chart-add-series" class="chart-editor-add"><i class="fa-solid fa-plus"></i> Series</button>`}
       </div>
-      <p class="chart-editor-hint">Tip: paste a block copied from a spreadsheet into a label box: the first column becomes the labels, the others the series (a header row names them).</p>
+      <p class="chart-editor-hint">Tip: paste a block copied from a spreadsheet into a label box: the first column becomes the labels, the others the series (a header row names them; a column headed SD, SEM or ± after a series gives its error bars).</p>
     </div>`;
   panel.appendChild(group);
   panel.appendChild(_buildChartStyleGroup(data, round));
@@ -123,6 +130,10 @@ function _buildChartStyleGroup(data, round) {
       <label class="chart-style-check">
         <input type="checkbox" id="prop-chart-grid" ${style.grid === false ? "" : "checked"}>
         <span>Grid lines</span>
+      </label>
+      <label class="chart-style-check">
+        <input type="checkbox" id="prop-chart-error-bars" ${style.errorBars ? "checked" : ""}>
+        <span>Error bars (a ± column per series)</span>
       </label>`}
     </div>`;
   group.dataset.themeSurface = theme.surfaceColor || "";
@@ -151,6 +162,10 @@ function _bindChartStyleGroup(data) {
   on("prop-chart-x-title", "change", (e) => _commitChartStyle(data, { xTitle: e.target.value.trim() }));
   on("prop-chart-y-title", "change", (e) => _commitChartStyle(data, { yTitle: e.target.value.trim() }));
   on("prop-chart-grid", "change", (e) => _commitChartStyle(data, { grid: e.target.checked }));
+  on("prop-chart-error-bars", "change", (e) => {
+    _commitChartStyle(data, { errorBars: e.target.checked });
+    buildPropertiesPanel(); // shows or hides the ± columns
+  });
   on("prop-chart-background", "change", (e) => {
     const theme = getPresentationTheme();
     const backgroundColor = e.target.value === "white" ? "#ffffff" : e.target.value === "none" ? "transparent" : theme.surfaceColor || "#ffffff";
@@ -168,22 +183,35 @@ function _bindChartPanel(group, data) {
         return Number(input?.value) || 0;
       }),
     );
-    return { labels, series: names.map((name, index) => ({ name, values: values[index] })) };
+    // The ± boxes when they are shown; otherwise the errors already stored (switching the bars off keeps them).
+    const stored = data.chartData?.datasets || [];
+    const errors = names.map((_, series) =>
+      labels.map((_, row) => {
+        const input = group.querySelector(`.chart-row-error[data-row="${row}"][data-series="${series}"]`);
+        const value = input ? Number(input.value) : Number(stored[series]?.errors?.[row]);
+        return Number.isFinite(value) && value > 0 ? value : 0;
+      }),
+    );
+    return { labels, series: names.map((name, index) => ({ name, values: values[index], errors: errors[index] })) };
   };
   // Writes the panel's table to the chart. The panel is only rebuilt when rows or series are added or removed, so
   // typing in a box never loses the caret.
-  const commit = (table = read(), { rebuild = false, seriesColors = null } = {}) => {
+  // Set while a box is left on purpose before the panel is rebuilt: leaving it must not commit its old table.
+  let leaving = false;
+  const commit = (table = read(), { rebuild = false, seriesColors = null, errorBars = null } = {}) => {
     const chartType = group.querySelector("#prop-chart-type").value;
     const previous = data.chartData?.datasets || [];
     const datasets = table.series.map((series, index) => ({
       ...(previous[index] || {}),
       label: series.name,
       data: series.values.map((value) => Number(value) || 0),
+      errors: (series.errors || []).map((value) => Math.abs(Number(value)) || 0),
       borderWidth: chartType === "line" ? 2 : 1,
     }));
     const chartData = { ...(data.chartData || {}), labels: table.labels, datasets };
     saveStateToUndo();
-    const chartStyle = seriesColors ? { ...(data.chartStyle || {}), seriesColors } : data.chartStyle;
+    let chartStyle = seriesColors ? { ...(data.chartStyle || {}), seriesColors } : data.chartStyle;
+    if (errorBars !== null) chartStyle = { ...(chartStyle || {}), errorBars };
     updateElementState(data.id, { chartType, chartData, ...(chartStyle ? { chartStyle } : {}) });
     data.chartType = chartType;
     data.chartData = chartData;
@@ -195,7 +223,17 @@ function _bindChartPanel(group, data) {
     if (!node || !_redrawChart(node, data)) renderSlidesFromState();
     window.refreshPreviews?.();
     if (typeof schedulePresentationAutosave === "function") schedulePresentationAutosave();
-    if (rebuild) buildPropertiesPanel();
+    if (rebuild) {
+      // The panel is not rebuilt while one of its boxes has the caret: after a paste or Enter in the last row, the
+      // grid kept showing the old rows.
+      const focused = document.activeElement;
+      if (focused && group.contains(focused)) {
+        leaving = true;
+        focused.blur();
+        leaving = false;
+      }
+      buildPropertiesPanel();
+    }
   };
 
   // Ctrl+Z / Ctrl+Y in these boxes undo and redo the chart change itself. The browser's own text undo would put
@@ -215,18 +253,20 @@ function _bindChartPanel(group, data) {
   });
 
   group.querySelector("#prop-chart-type").addEventListener("change", () => commit(read(), { rebuild: true }));
-  group.querySelectorAll(".chart-series-name, .chart-row-label, .chart-row-value").forEach((input) => {
-    input.addEventListener("change", () => commit());
+  group.querySelectorAll(".chart-series-name, .chart-row-label, .chart-row-value, .chart-row-error").forEach((input) => {
+    input.addEventListener("change", () => {
+      if (!leaving) commit();
+    });
   });
-  group.querySelectorAll(".chart-row-label, .chart-row-value").forEach((input) => {
+  group.querySelectorAll(".chart-row-label, .chart-row-value, .chart-row-error").forEach((input) => {
     input.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;
       event.preventDefault();
       // Enter goes down the column like a spreadsheet; from the last row it adds one.
       const row = Number(input.dataset.row);
-      const selector = input.classList.contains("chart-row-label")
-        ? `.chart-row-label[data-row="${row + 1}"]`
-        : `.chart-row-value[data-row="${row + 1}"][data-series="${input.dataset.series}"]`;
+      const kind = input.classList.contains("chart-row-label") ? "chart-row-label" : input.classList.contains("chart-row-error") ? "chart-row-error" : "chart-row-value";
+      const selector =
+        kind === "chart-row-label" ? `.chart-row-label[data-row="${row + 1}"]` : `.${kind}[data-row="${row + 1}"][data-series="${input.dataset.series}"]`;
       const next = group.querySelector(selector);
       if (next) {
         next.focus();
@@ -234,7 +274,10 @@ function _bindChartPanel(group, data) {
       } else {
         const table = read();
         table.labels.push("");
-        table.series.forEach((series) => series.values.push(0));
+        table.series.forEach((series) => {
+          series.values.push(0);
+          series.errors.push(0);
+        });
         commit(table, { rebuild: true });
         _focusChartRow(-1);
       }
@@ -261,15 +304,24 @@ function _bindChartPanel(group, data) {
       if (!body.length || width < 2 || !body.every((row) => row.slice(1).every((cell) => cell === "" || numeric(cell)))) return;
       event.preventDefault();
       const current = read();
-      const seriesCount = width - 1;
-      const table = {
-        labels: body.map((row) => row[0]),
-        series: Array.from({ length: seriesCount }, (_, index) => ({
-          name: hasHeader ? cells[0][index + 1] || `Series ${index + 1}` : current.series[index]?.name || `Series ${index + 1}`,
-          values: body.map((row) => Number(String(row[index + 1] ?? "0").replace(/[%\s]/g, "")) || 0),
-        })),
-      };
-      commit(table, { rebuild: true });
+      const number = (row, column) => Number(String(row[column] ?? "0").replace(/[%\s±]/g, "")) || 0;
+      // A column headed SD, SEM, SE, ± or "error" holds the error bars of the series before it.
+      const isError = (column) => hasHeader && column > 1 && /^(±|\+\/?-|s\.?d\.?|s\.?e\.?m?\.?|std|error|err|ci)\b/i.test(String(cells[0][column] || "").trim());
+      const series = [];
+      for (let column = 1; column < width; column++) {
+        if (isError(column) && series.length) {
+          series.at(-1).errors = body.map((row) => Math.abs(number(row, column)));
+          continue;
+        }
+        const index = series.length;
+        series.push({
+          name: hasHeader ? cells[0][column] || `Series ${index + 1}` : current.series[index]?.name || `Series ${index + 1}`,
+          values: body.map((row) => number(row, column)),
+          errors: body.map(() => 0),
+        });
+      }
+      const withErrors = series.some((item) => item.errors.some((value) => value > 0));
+      commit({ labels: body.map((row) => row[0]), series }, { rebuild: true, ...(withErrors ? { errorBars: true } : {}) });
     });
   });
   group.querySelectorAll(".chart-row-remove").forEach((button) => {
@@ -278,7 +330,10 @@ function _bindChartPanel(group, data) {
       const table = read();
       if (table.labels.length <= 1) return;
       table.labels.splice(index, 1);
-      table.series.forEach((series) => series.values.splice(index, 1));
+      table.series.forEach((series) => {
+        series.values.splice(index, 1);
+        series.errors.splice(index, 1);
+      });
       commit(table, { rebuild: true });
     });
   });
@@ -295,13 +350,16 @@ function _bindChartPanel(group, data) {
   group.querySelector("#prop-chart-add-row")?.addEventListener("click", () => {
     const table = read();
     table.labels.push("");
-    table.series.forEach((series) => series.values.push(0));
+    table.series.forEach((series) => {
+      series.values.push(0);
+      series.errors.push(0);
+    });
     commit(table, { rebuild: true });
     _focusChartRow(-1);
   });
   group.querySelector("#prop-chart-add-series")?.addEventListener("click", () => {
     const table = read();
-    table.series.push({ name: `Series ${table.series.length + 1}`, values: table.labels.map(() => 0) });
+    table.series.push({ name: `Series ${table.series.length + 1}`, values: table.labels.map(() => 0), errors: table.labels.map(() => 0) });
     commit(table, { rebuild: true });
   });
 }

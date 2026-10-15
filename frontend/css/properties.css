@@ -1825,6 +1825,14 @@
     text-transform: uppercase;
     color: #64748b;
 }
+.chart-error-head {
+    align-self: end;
+    padding-bottom: 6px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 800;
+    color: #64748b;
+}
 .chart-series-head {
     display: flex;
     flex-direction: column;

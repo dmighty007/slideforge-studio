@@ -127,6 +127,18 @@ const PROPERTY_PANEL_TABS = [
 ];
 
 let _propertiesPanelActiveTab = "overview";
+// The tab last chosen for each kind of selection (an equation, a box plot, several objects…). Selecting another
+// object opens its kind's tab, Content the first time: kept from the last selection, Notes or Base stayed open and
+// the control you needed was elsewhere.
+const _propertiesPanelTabByKind = new Map();
+
+function _propertiesSelectionKind() {
+  const ids = state.selectedIds || [];
+  if (!ids.length) return "";
+  if (ids.length > 1) return "multiple";
+  const el = state.slides?.[currentSlideIndex]?.elements?.find((item) => item.id === ids[0]);
+  return el ? (el.type === "plugin" ? `plugin:${el.pluginId}` : el.type) : "";
+}
 
 function getPropertyGroupTitle(group) {
   return (
@@ -185,6 +197,8 @@ function organizePropertiesPanelTabs(panel) {
     `;
     button.onclick = () => {
       _propertiesPanelActiveTab = tab.id;
+      const kind = _propertiesSelectionKind();
+      if (kind) _propertiesPanelTabByKind.set(kind, tab.id);
       _propertiesPanelScrollTop = 0;
       buildPropertiesPanel();
       requestAnimationFrame(() => {
@@ -333,8 +347,8 @@ function _buildPropertiesPanelNow() {
   if (!shouldRestoreScroll) {
     if (!state.selectedIds.length) {
       if (hadSelection !== false) _propertiesPanelActiveTab = "overview";
-    } else if (_propertiesPanelActiveTab === "overview") {
-      _propertiesPanelActiveTab = "content";
+    } else {
+      _propertiesPanelActiveTab = _propertiesPanelTabByKind.get(_propertiesSelectionKind()) || "content";
     }
   }
   // Use the persistently-tracked value — never the DOM value, which may

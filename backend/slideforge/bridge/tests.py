@@ -361,6 +361,38 @@ class PPTXExportMediaTests(TestCase):
         self.assertEqual(str(plot.series[0].format.fill.fore_color.rgb), "2563EB")
         self.assertFalse(any(shape.has_text_frame and "placeholder" in shape.text_frame.text for shape in slide.shapes))
 
+    def test_chart_error_bars_export_as_custom_plus_minus_values(self):
+        slide = self._export([{
+            "type": "chart", "chartType": "bar", "x": 100, "y": 100, "width": "500px", "height": "300px",
+            "chartData": {"labels": ["Placebo", "100 mg", "200 mg"], "datasets": [
+                {"label": "Response", "data": [12, 31, 48], "errors": [3.5, 4, 6.25], "backgroundColor": "#2563eb"},
+                {"label": "No errors", "data": [1, 2, 3]},
+            ]},
+            "chartStyle": {"errorBars": True},
+        }])
+        chart = next(shape.chart for shape in slide.shapes if shape.has_chart)
+        ns = {"c": "http://schemas.openxmlformats.org/drawingml/2006/chart"}
+        series = chart.plots[0].series
+        bars = series[0]._element.findall("c:errBars", ns)
+        self.assertEqual(len(bars), 1)
+        self.assertEqual(bars[0].find("c:errValType", ns).get("val"), "cust")
+        for side in ("plus", "minus"):
+            values = [float(v.text) for v in bars[0].findall(f"c:{side}/c:numLit/c:pt/c:v", ns)]
+            self.assertEqual(values, [3.5, 4.0, 6.25])
+        # errBars comes before the categories, as the schema requires; a series without errors gets none.
+        tags = [child.tag.split("}")[-1] for child in series[0]._element]
+        self.assertLess(tags.index("errBars"), tags.index("cat"))
+        self.assertFalse(series[1]._element.findall("c:errBars", ns))
+        self.assertEqual(list(series[0].values), [12.0, 31.0, 48.0])
+        # Switched off in the editor, they stay out of the file.
+        plain = self._export([{
+            "type": "chart", "chartType": "bar", "x": 100, "y": 100, "width": "500px", "height": "300px",
+            "chartData": {"labels": ["A"], "datasets": [{"label": "R", "data": [1], "errors": [0.5]}]},
+            "chartStyle": {"errorBars": False},
+        }])
+        chart = next(shape.chart for shape in plain.shapes if shape.has_chart)
+        self.assertFalse(chart.plots[0].series[0]._element.findall("c:errBars", ns))
+
     def test_one_series_chart_has_no_automatic_title_beside_its_legend(self):
         slide = self._export([{
             "type": "chart", "chartType": "bar", "x": 100, "y": 100, "width": "500px", "height": "300px",

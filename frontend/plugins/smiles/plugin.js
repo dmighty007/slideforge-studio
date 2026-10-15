@@ -35,6 +35,50 @@
     };
     const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
+    // A reaction drawing holds one nested <svg> per structure (with SmilesDrawer's ".element" style), beside the plus
+    // signs, the arrow and its text. Each structure's box in the drawing's own units, left to right.
+    function structureBoxes(svg) {
+        return [...svg.children]
+            .filter(child => child.tagName.toLowerCase() === "svg" && /\.element\b/.test(child.querySelector("style")?.textContent || ""))
+            .map(child => {
+                const box = child.getBBox();
+                const view = String(child.getAttribute("viewBox") || "").split(/[\s,]+/).map(Number);
+                const width = Number(child.getAttribute("width")) || 0;
+                const height = Number(child.getAttribute("height")) || 0;
+                const scaleX = view.length === 4 && view[2] > 0 ? width / view[2] : 1;
+                const scaleY = view.length === 4 && view[3] > 0 ? height / view[3] : 1;
+                const scale = Math.min(scaleX, scaleY);
+                const offsetX = view.length === 4 ? (width - view[2] * scale) / 2 - view[0] * scale : 0;
+                const offsetY = view.length === 4 ? (height - view[3] * scale) / 2 - view[1] * scale : 0;
+                const x = (Number(child.getAttribute("x")) || 0) + offsetX + box.x * scale;
+                const y = (Number(child.getAttribute("y")) || 0) + offsetY + box.y * scale;
+                return { x, y, width: box.width * scale, height: box.height * scale };
+            })
+            .filter(box => box.width > 0 && box.height > 0)
+            .sort((a, b) => a.x - b.x);
+    }
+
+    // Names under a reaction's structures, on one line below the lowest of them.
+    function addStructureNames(svg, names, ink) {
+        const boxes = structureBoxes(svg);
+        if (!boxes.length) return;
+        const size = Math.max(10, Math.min(16, Math.max(...boxes.map(box => box.width)) / 8));
+        const baseline = Math.max(...boxes.map(box => box.y + box.height)) + size * 1.4;
+        boxes.forEach((box, index) => {
+            const name = names[index];
+            if (!name) return;
+            const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            text.setAttribute("x", String(box.x + box.width / 2));
+            text.setAttribute("y", String(baseline));
+            text.setAttribute("font-size", String(size));
+            text.setAttribute("fill", ink);
+            text.setAttribute("text-anchor", "middle");
+            text.setAttribute("class", "structure-name");
+            text.textContent = name;
+            svg.appendChild(text);
+        });
+    }
+
     let drawerLibrary = null;
     function loadDrawer(context) {
         if (!drawerLibrary) {
@@ -112,7 +156,7 @@
 
     SlideForgePlugins.register({
         id: "smiles",
-        version: "3",
+        version: "4",
         name: "Chemical Structure",
         description: "A 2D structure or reaction from SMILES, or a compound name looked up on PubChem",
         icon: "fa-solid fa-flask",
@@ -127,6 +171,7 @@
             caption: "none",
             aboveArrow: "",
             belowArrow: "",
+            names: "",
             color: "",
             atomColors: true,
             bondThickness: 1.2,
@@ -156,6 +201,13 @@
             },
             { key: "aboveArrow", label: "Above the arrow (reactions)", type: "text", placeholder: "The agents in the SMILES" },
             { key: "belowArrow", label: "Below the arrow (reactions)", type: "text", placeholder: "e.g. reflux, 2 h" },
+            {
+                key: "names",
+                label: "Names under the structures (reactions)",
+                type: "text",
+                placeholder: "e.g. caffeine; paraxanthine",
+                hint: "One name per structure, left to right, separated by semicolons. Leave one empty to skip that structure.",
+            },
             { key: "color", label: "Bond colour", type: "color", allowAuto: true },
             { key: "atomColors", label: "Atom colours", checkboxLabel: "Colour O, N, S… labels by element", type: "checkbox" },
             { key: "bondThickness", label: "Bond thickness", type: "number", min: 0.5, max: 4, step: 0.1 },
@@ -175,6 +227,7 @@
                 caption: ["none", "name", "formula", "name-formula", "name-formula-weight"].includes(data.caption) ? data.caption : "none",
                 aboveArrow: text(data.aboveArrow, 120),
                 belowArrow: text(data.belowArrow, 120),
+                names: text(data.names, 400),
                 color: HEX_COLOR.test(String(data.color || "")) ? data.color : "",
                 atomColors: data.atomColors !== false,
                 bondThickness: Number.isFinite(thickness) ? Math.min(4, Math.max(0.5, thickness)) : 1.2,
@@ -255,6 +308,7 @@
                     text.innerHTML = escapeXml(caption.join(" · "));
                     svg.appendChild(text);
                 }
+                if (isReaction && data.names) addStructureNames(svg, data.names.split(";").map(name => name.trim()), ink);
                 // SmilesDrawer pads the drawing out to a square; crop it to what was drawn so the box fits it.
                 const bounds = svg.getBBox();
                 if (bounds.width > 0 && bounds.height > 0) {

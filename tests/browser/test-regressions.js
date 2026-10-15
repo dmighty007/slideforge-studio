@@ -1940,7 +1940,7 @@ async function test(name, fn) {
         await page.close();
     });
 
-    // Bugs from the 2026-10-01 user review.
+    // Bugs from the 2026-10-01 user review (review.md).
 
     await test("review: align buttons line shapes up instead of sending them to 100,100", async () => {
         const { page } = await openFreshEditor(context);
@@ -5867,6 +5867,148 @@ async function test(name, fn) {
         await page.keyboard.press("Delete");
         const text = await page.evaluate(() => document.activeElement?.textContent || "");
         assert(text.trim() === "esults", `Delete in a title with text: ${text}`);
+        await page.close();
+    });
+
+    await test("research deck: the Properties panel opens each kind of object on its own tab; an equation's size is under Style", async () => {
+        const { page } = await openEditor(context);
+        await page.evaluate(() => setPropertiesPanelVisible(true, { persist: false }));
+        const ids = await page.evaluate(() => {
+            addSlide();
+            addChart("bar");
+            const chart = state.slides[currentSlideIndex].elements.find(e => e.type === "chart").id;
+            const body = state.slides[currentSlideIndex].elements.find(e => e.placeholder === "Click to add title").id;
+            return { chart, body };
+        });
+        const activeTab = () => page.evaluate(() => document.querySelector('.properties-tab[aria-selected="true"]')?.dataset.propertiesTab);
+        await page.evaluate(id => selectElement(id, "replace"), ids.body);
+        await page.locator('.properties-tab[data-properties-tab="notes"]').click();
+        await page.evaluate(id => selectElement(id, "replace"), ids.chart);
+        const chartTab = await activeTab();
+        await page.evaluate(id => selectElement(id, "replace"), ids.body);
+        const backTab = await activeTab();
+        assert(chartTab === "content" && backTab === "notes", `tabs: chart ${chartTab}, text again ${backTab}`);
+        // The equation's size and colour sit in the Style tab, like a text box's size.
+        const eq = await page.evaluate(() => {
+            const slide = state.slides[currentSlideIndex];
+            const el = { id: generateId("el"), type: "equation", latexSrc: "E = mc^2", x: 100, y: 300, width: "200px", height: "60px", styles: { fontSize: "32px", color: "#111111", zIndex: getNextZIndex() } };
+            slide.elements.push(el);
+            renderSlidesFromState();
+            selectElement(el.id, "replace");
+            return el.id;
+        });
+        await page.locator('.properties-tab[data-properties-tab="style"]').click();
+        const size = page.locator('[data-properties-pane="style"] #prop-eq-fs');
+        assert(await size.isVisible(), "no equation size in the Style tab");
+        // The panel's fields are wired a moment after it is built.
+        await page.waitForFunction(() => typeof document.getElementById("prop-eq-fs")?.onblur === "function");
+        await size.fill("48");
+        await size.press("Tab");
+        await page.waitForTimeout(200);
+        const stored = await page.evaluate(id => state.slides[currentSlideIndex].elements.find(e => e.id === id).styles.fontSize, eq);
+        assert(stored === "48px", `equation size: ${stored}`);
+        await page.close();
+    });
+
+    await test("research deck: a reaction scheme names its structures under each of them", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("smiles", { smiles: "Cn1cnc2c1c(=O)n(C)c(=O)n2C.O>>Cn1cnc2c1c(=O)[nH]c(=O)n2C", names: "caffeine; ; paraxanthine" }, { ask: false }));
+        const out = await page.evaluate(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const holder = document.createElement("div");
+            holder.innerHTML = decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1));
+            document.body.appendChild(holder);
+            const svg = holder.querySelector("svg");
+            const names = [...svg.querySelectorAll("text.structure-name")].map(t => ({ text: t.textContent, x: Number(t.getAttribute("x")), y: Number(t.getAttribute("y")) }));
+            const molecules = [...svg.children].filter(c => c.tagName === "svg" && /\.element\b/.test(c.querySelector("style")?.textContent || "")).map(c => { const r = c.getBoundingClientRect(); return { left: r.left, right: r.right, bottom: r.bottom }; });
+            const shown = [...svg.querySelectorAll("text.structure-name")].map(t => { const r = t.getBoundingClientRect(); return { centre: (r.left + r.right) / 2, top: r.top }; });
+            holder.remove();
+            return { names, molecules, shown };
+        }, id);
+        assert(out.names.map(n => n.text).join("|") === "caffeine|paraxanthine", `names: ${JSON.stringify(out.names)}`);
+        const [first, , last] = out.molecules;
+        assert(out.shown[0].centre > first.left && out.shown[0].centre < first.right && out.shown[1].centre > last.left && out.shown[1].centre < last.right, `names not under their structures: ${JSON.stringify(out)}`);
+        assert(out.shown.every(name => name.top >= Math.max(first.bottom, last.bottom) - 2), `names overlap the structures: ${JSON.stringify(out)}`);
+        await page.close();
+    });
+
+    await test("research deck: a box plot draws its own comparison brackets and computes Welch or Mann–Whitney p-values", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("box-plot", { comparisons: "Control,Drug A\n1,3\nDrug A,Drug B,typed" }, { ask: false }));
+        const read = () =>
+            pluginSvgQuery(page, id, `
+                const labels = [...svg.querySelectorAll("text.comparison-label")].map(t => t.textContent);
+                const brackets = [...svg.querySelectorAll("path.comparison")].map(p => p.getAttribute("d").match(/-?[\\d.]+/g).map(Number));
+                const names = [...svg.querySelectorAll("text")].filter(t => ["Control", "Drug A", "Drug B"].includes(t.textContent)).map(t => Number(t.getAttribute("x")));
+                const axisTop = Number(svg.querySelector('path[stroke-width="1.2"]').getAttribute("d").match(/^M[\\d.]+ ([\\d.]+)/)[1]);
+                return { labels, brackets, names, axisTop };`);
+        const first = await read();
+        // Welch's t-test on the example data (SciPy: Control–Drug A p = 0.000317, Control–Drug B p = 3.4e-6).
+        assert(first.labels.length === 3 && first.labels.includes("***") && first.labels.includes("****") && first.labels.includes("typed"), `labels: ${JSON.stringify(first.labels)}`);
+        assert(first.brackets.every(b => Math.max(b[1], b[2]) <= first.axisTop), `brackets inside the plot: ${JSON.stringify(first)}`);
+        const status = await page.evaluate(id => getSlidePlugin("box-plot").status(state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginData), id);
+        assert(/Welch's t-test: Control vs Drug A p = 0\.00032; Control vs Drug B p < 0\.0001/.test(status), `status: ${status}`);
+        // Mann–Whitney, as numbers: exact for 8 against 8 values without ties (SciPy: 0.0001554).
+        await pageAwait(page, id => SlideForgePlugins.update(id, { test: "mann-whitney", pShow: "p" }), id);
+        const mw = await read();
+        assert(mw.labels.includes("p = 0.00016"), `Mann–Whitney labels: ${JSON.stringify(mw.labels)}`);
+        // Resized, the brackets still end at the group centres.
+        await page.evaluate(id => { updateElementState(id, { width: "700px" }); renderSlidesFromState(); }, id);
+        await page.waitForFunction(id => decodeURIComponent(state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginPreview).includes('viewBox="0 0 700 '), id);
+        const wide = await read();
+        const ends = wide.brackets.flatMap(b => [b[0], b[3] ?? b[0]]);
+        const nearCentre = x => wide.names.some(centre => Math.abs(centre - x) <= 3);
+        assert(wide.brackets.every(b => nearCentre(b[0]) && nearCentre(b.at(-2) ?? b[0])), `brackets off the groups after a resize: ${JSON.stringify({ ends, names: wide.names, brackets: wide.brackets })}`);
+        await page.close();
+    });
+
+    await test("research deck: a bar chart takes error bars from a pasted SD column and keeps them in PowerPoint", async () => {
+        const { page } = await openEditor(context);
+        await page.evaluate(() => { setPropertiesPanelVisible(true, { persist: false }); addSlide(); addChart("bar"); });
+        const id = await page.evaluate(() => state.slides[currentSlideIndex].elements.find(e => e.type === "chart").id);
+        await page.evaluate(id => openChartEditor(id), id);
+        await page.waitForTimeout(300);
+        await page.locator(".chart-row-label").first().click();
+        await page.evaluate(() => {
+            const data = new DataTransfer();
+            data.setData("text/plain", "Dose\tResponse (%)\tSD\nPlacebo\t12\t3.5\n100 mg\t31\t4\n200 mg\t48\t6.2\n");
+            document.activeElement.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+        });
+        await page.waitForTimeout(400);
+        const out = await page.evaluate(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const config = buildChartJsConfig(el);
+            return {
+                on: el.chartStyle?.errorBars,
+                datasets: el.chartData.datasets.map(d => ({ label: d.label, data: d.data, errors: d.errors })),
+                plugins: (config.plugins || []).map(p => p.id),
+                max: config.options.scales.y.suggestedMax,
+                errorBoxes: [...document.querySelectorAll(".chart-row-error")].map(input => input.value),
+                labels: [...document.querySelectorAll(".chart-row-label")].map(input => input.value),
+            };
+        }, id);
+        assert(out.on === true && out.datasets.length === 1 && JSON.stringify(out.datasets[0].errors) === "[3.5,4,6.2]", `chart data: ${JSON.stringify(out)}`);
+        assert(out.plugins.includes("sfErrorBars") && out.max >= 54.2, `drawing: ${JSON.stringify(out)}`);
+        assert(out.errorBoxes.join(",") === "3.5,4,6.2" && out.labels.join(",") === "Placebo,100 mg,200 mg", `panel after the paste: ${JSON.stringify(out)}`);
+        // An error typed in its ± box is kept.
+        await page.locator('.chart-row-error[data-row="0"]').fill("2");
+        await page.locator('.chart-row-error[data-row="0"]').press("Tab");
+        const typed = await page.evaluate(id => state.slides[currentSlideIndex].elements.find(e => e.id === id).chartData.datasets[0].errors[0], id);
+        assert(typed === 2, `typed error: ${typed}`);
+        const sent = await page.evaluate(async id => {
+            let body = null;
+            const realFetch = window.fetch;
+            window.fetch = async (url, options) => {
+                if (String(url).includes("/export/pptx/")) { body = JSON.parse(options.body); return new Response(new Blob(["x"]), { status: 200 }); }
+                return realFetch(url, options);
+            };
+            try { await exportPPTX(); } finally { window.fetch = realFetch; }
+            const el = body.state.slides.flatMap(s => s.elements).find(e => e.id === id);
+            return { on: el.chartStyle?.errorBars, errors: el.chartData.datasets[0].errors };
+        }, id);
+        assert(sent.on === true && JSON.stringify(sent.errors) === "[2,4,6.2]", `PowerPoint request: ${JSON.stringify(sent)}`);
         await page.close();
     });
 

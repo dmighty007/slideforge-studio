@@ -7,19 +7,24 @@ function buildEquationPanel(panel, data) {
                     <button id="prop-eq-edit" class="w-full py-2 rounded bg-accent/20 border border-accent/40 text-accent text-xs font-semibold hover:bg-accent/30 transition-colors">
                         <i class="fa-solid fa-pen-to-square mr-2"></i>Edit LaTeX
                     </button>
-                    <div class="flex gap-2">
-                        <div class="flex-1 flex flex-col gap-1">
-                            <label class="text-xs text-slate-600 uppercase font-semibold">Size</label>
-                            <input type="number" id="prop-eq-fs" class="w-full text-xs" value="${parseInt(data.styles?.fontSize) || 24}">
-                        </div>
-                        <div class="flex-1 flex flex-col gap-1">
-                            <label class="text-xs text-slate-600 uppercase font-semibold">Color</label>
-                            <input type="color" id="prop-eq-color" class="w-full h-8 cursor-pointer rounded bg-transparent p-0 border-none" value="${escapeHtml(data.styles?.color || "#ffffff")}">
-                        </div>
-                    </div>
                 </div>
             `;
   panel.appendChild(eqGrp);
+  // Size and colour in the Style tab, where a text box has its text size (they were under Content).
+  const styleGrp = createGroup("Typography");
+  styleGrp.innerHTML += `
+                    <div class="flex gap-2">
+                        <div class="flex-1 flex flex-col gap-1">
+                            <label class="text-xs text-slate-600 uppercase font-semibold" for="prop-eq-fs">Size (px)</label>
+                            <input type="number" id="prop-eq-fs" class="w-full text-xs" min="6" max="400" value="${parseInt(data.styles?.fontSize) || 24}">
+                        </div>
+                        <div class="flex-1 flex flex-col gap-1">
+                            <label class="text-xs text-slate-600 uppercase font-semibold" for="prop-eq-color">Color</label>
+                            <input type="color" id="prop-eq-color" class="w-full h-8 cursor-pointer rounded bg-transparent p-0 border-none" value="${escapeHtml(data.styles?.color || "#ffffff")}">
+                        </div>
+                    </div>
+            `;
+  panel.appendChild(styleGrp);
 }
 
 function bindEquationPanel(data, onCommit) {

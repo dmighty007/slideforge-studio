@@ -951,7 +951,8 @@ html[data-theme="dark"] .preset-preview-box {
     background: var(--dk-accent) !important;
 }
 
-html[data-theme="dark"] .chart-editor-corner {
+html[data-theme="dark"] .chart-editor-corner,
+html[data-theme="dark"] .chart-error-head {
     color: var(--dk-muted) !important;
 }
 html[data-theme="dark"] .chart-style-check {

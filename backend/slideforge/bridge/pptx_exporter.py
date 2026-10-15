@@ -1278,6 +1278,57 @@ class PPTXExporter:
                         point.format.fill.solid()
                         point.format.fill.fore_color.rgb = self._parse_color(fills[point_index % len(fills)], self.theme["accent"])
 
+        # Error bars (the editor's ± column): custom plus and minus values on each series, as PowerPoint writes them.
+        if style.get("errorBars") and not single_series:
+            for series, dataset in zip(chart.plots[0].series, datasets, strict=False):
+                errors = [abs(self._chart_number(v) or 0.0) for v in list(dataset.get("errors") or [])[: len(labels)]]
+                if any(errors):
+                    self._add_chart_error_bars(series._element, errors + [0.0] * (len(labels) - len(errors)), ink)
+
+    @staticmethod
+    def _add_chart_error_bars(ser: Any, errors: list[float], colour: RGBColor):
+        def element(tag: str, **attrs: str):
+            node = OxmlElement(tag)
+            for key, value in attrs.items():
+                node.set(key, value)
+            return node
+
+        def values(tag: str):
+            holder = element(tag)
+            literal = element("c:numLit")
+            code = element("c:formatCode")
+            code.text = "General"
+            literal.append(code)
+            literal.append(element("c:ptCount", val=str(len(errors))))
+            for index, error in enumerate(errors):
+                point = element("c:pt", idx=str(index))
+                number = element("c:v")
+                number.text = repr(float(error))
+                point.append(number)
+                literal.append(point)
+            holder.append(literal)
+            return holder
+
+        bars = element("c:errBars")
+        bars.append(element("c:errBarType", val="both"))
+        bars.append(element("c:errValType", val="cust"))
+        bars.append(element("c:noEndCap", val="0"))
+        bars.append(values("c:plus"))
+        bars.append(values("c:minus"))
+        shape = element("c:spPr")
+        line = element("a:ln", w="19050")
+        fill = element("a:solidFill")
+        fill.append(element("a:srgbClr", val=str(colour)))
+        line.append(fill)
+        shape.append(line)
+        bars.append(shape)
+        # Schema order: …, dLbls, trendline, errBars, cat, val, …
+        anchor = next((child for child in ser if child.tag.split("}")[-1] in {"cat", "val", "smooth", "shape", "extLst"}), None)
+        if anchor is not None:
+            anchor.addprevious(bars)
+        else:
+            ser.append(bars)
+
     def _apply_image_crop_transform(self, pic: Any, crop: Optional[dict[str, Any]]):
         if not crop:
             return

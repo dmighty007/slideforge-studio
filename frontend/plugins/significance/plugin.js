@@ -73,7 +73,7 @@
             tip: 8,
         },
         fields: [
-            { key: "groups", label: "Groups in the chart", type: "number", min: 2, max: 30, step: 1, hint: "Spread evenly across the box: put it over the plot area, as wide as the bars." },
+            { key: "groups", label: "Groups in the chart", type: "number", min: 2, max: 30, step: 1, hint: "Spread evenly across the box: put it over the plot area, as wide as the bars. A box plot has its own brackets (Comparisons), which follow it and can compute the p-values." },
             {
                 key: "comparisons",
                 label: "Comparisons",

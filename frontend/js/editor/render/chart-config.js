@@ -99,6 +99,60 @@ function _chartWithAlpha(color, alpha) {
     return color;
 }
 
+// Error bars (chartStyle.errorBars): each series may hold a ± value per point in dataset.errors (SD, SEM or a
+// confidence half-width, as the user entered it), drawn as a whisker with caps over the bar or point.
+function chartHasErrorBars(elData) {
+    if (!elData?.chartStyle?.errorBars || _chartIsRound(elData.chartType || "bar")) return false;
+    return (elData.chartData?.datasets || []).some(dataset => (dataset.errors || []).some(value => Number(value) > 0));
+}
+
+function _chartErrorBarsPlugin(ink) {
+    return {
+        id: "sfErrorBars",
+        afterDatasetsDraw(chart) {
+            const { ctx } = chart;
+            const horizontal = chart.options.indexAxis === "y";
+            chart.data.datasets.forEach((dataset, datasetIndex) => {
+                const meta = chart.getDatasetMeta(datasetIndex);
+                if (meta.hidden || !Array.isArray(dataset.errors)) return;
+                const scale = chart.scales[horizontal ? meta.xAxisID : meta.yAxisID];
+                if (!scale) return;
+                meta.data.forEach((element, index) => {
+                    const value = Number(dataset.data?.[index]);
+                    const error = Math.abs(Number(dataset.errors[index]));
+                    if (!Number.isFinite(value) || !(error > 0)) return;
+                    const from = scale.getPixelForValue(value - error);
+                    const to = scale.getPixelForValue(value + error);
+                    const across = horizontal ? element.y : element.x;
+                    const size = element.width || element.height || 20;
+                    const cap = Math.max(4, Math.min(12, (horizontal ? element.height || size : element.width || size) * 0.25));
+                    ctx.save();
+                    ctx.strokeStyle = ink;
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    if (horizontal) {
+                        ctx.moveTo(from, across);
+                        ctx.lineTo(to, across);
+                        [from, to].forEach(x => {
+                            ctx.moveTo(x, across - cap);
+                            ctx.lineTo(x, across + cap);
+                        });
+                    } else {
+                        ctx.moveTo(across, from);
+                        ctx.lineTo(across, to);
+                        [from, to].forEach(y => {
+                            ctx.moveTo(across - cap, y);
+                            ctx.lineTo(across + cap, y);
+                        });
+                    }
+                    ctx.stroke();
+                    ctx.restore();
+                });
+            });
+        },
+    };
+}
+
 // The Chart.js settings for an element: its stored options, then the user's chart style, then colours that read on
 // its background.
 function buildChartJsConfig(elData, { forExport = false, theme = getPresentationTheme() } = {}) {
@@ -138,6 +192,22 @@ function buildChartJsConfig(elData, { forExport = false, theme = getPresentation
         axis("x", style.xTitle);
         axis("y", style.yTitle);
     }
+    const errorBars = chartHasErrorBars(elData);
+    if (errorBars) {
+        // The value axis reaches the ends of the error bars.
+        const datasets = elData.chartData.datasets || [];
+        const ends = datasets.flatMap(dataset =>
+            (dataset.data || []).flatMap((value, index) => {
+                const error = Math.abs(Number(dataset.errors?.[index])) || 0;
+                return Number.isFinite(Number(value)) ? [Number(value) - error, Number(value) + error] : [];
+            }),
+        );
+        const valueKey = options.indexAxis === "y" ? "x" : "y";
+        if (ends.length && options.scales?.[valueKey]) {
+            options.scales[valueKey].suggestedMax = Math.max(...ends);
+            if (Math.min(...ends) < 0) options.scales[valueKey].suggestedMin = Math.min(...ends);
+        }
+    }
     if (forExport) {
         options.animation = false;
         options.devicePixelRatio = 2;
@@ -146,6 +216,7 @@ function buildChartJsConfig(elData, { forExport = false, theme = getPresentation
         type,
         data: JSON.parse(JSON.stringify(elData?.chartData || { labels: [], datasets: [] })),
         options,
+        ...(errorBars ? { plugins: [_chartErrorBarsPlugin(ink)] } : {}),
     };
 }
 
@@ -155,3 +226,4 @@ window.chartSeriesColors = chartSeriesColors;
 window.applyChartSeriesColors = applyChartSeriesColors;
 window.chartInkColor = chartInkColor;
 window.buildChartJsConfig = buildChartJsConfig;
+window.chartHasErrorBars = chartHasErrorBars;
