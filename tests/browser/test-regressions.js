@@ -5402,10 +5402,20 @@ async function test(name, fn) {
     await test("Audit round 3: the deterministic SVG export draws plugin objects, and says when something could not be kept", async () => {
         const { page } = await openFreshEditor(context);
         await page.evaluate(() => SlideForgePlugins.ready);
-        const id = await pageAwait(page, () => insertPluginElement("heatmap", null, { ask: false }));
+        const id = await pageAwait(page, () => insertPluginElement("heatmap", { data: "Gene,A,B\nIL6,1,\nTNF,3,1" }, { ask: false }));
+        const other = await pageAwait(page, () => insertPluginElement("heatmap", { data: "Gene,A,B\nX,1,\nY,3,1" }, { ask: false }));
         const svg = await page.evaluate(() => window.exportCurrentSlideSceneSVG({ filename: "test.svg" })?.svg || "");
-        const node = svg.match(new RegExp(`<image[^>]*data-node-id="${id}"[^>]*>`))?.[0] || "";
-        assert(/href="data:image\/svg\+xml/.test(node) && /xMidYMid meet/.test(node), `heatmap in the SVG: ${node.slice(0, 160) || svg.match(new RegExp(`data-node-id="${id}"[^>]*>[\\s\\S]{0,200}`))?.[0]}`);
+        // Written in as vector (a nested <svg>, which LibreOffice reads), not an <image> of an SVG data URL (dropped).
+        const parsed = await page.evaluate(([svg, id, other]) => {
+            const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+            const group = doc.querySelector(`[data-node-id="${id}"]`);
+            const nested = group?.querySelector("svg");
+            const ids = [...doc.querySelectorAll("[id]")].map(n => n.id);
+            const hatchRefs = [...(doc.querySelector(`[data-node-id="${other}"]`)?.querySelectorAll("rect") || [])].map(r => r.getAttribute("fill")).filter(f => /url\(#/.test(f || ""));
+            return { tag: group?.tagName, nested: !!nested, ratio: nested?.getAttribute("preserveAspectRatio"), rects: nested?.querySelectorAll("rect").length || 0, svgImages: doc.querySelectorAll('image[href^="data:image/svg"]').length, duplicateIds: ids.length - new Set(ids).size, hatchRefs, refsResolve: hatchRefs.every(f => doc.getElementById(f.match(/#([^)]+)/)[1])) };
+        }, [svg, id, other]);
+        assert(parsed.nested && parsed.ratio === "xMidYMid meet" && parsed.rects > 4 && parsed.svgImages === 0, `heatmap in the SVG: ${JSON.stringify(parsed)}`);
+        assert(parsed.duplicateIds === 0 && parsed.hatchRefs.length > 0 && parsed.refsResolve, `ids of two plots: ${JSON.stringify(parsed)}`);
         assert(/Slide SVG exported\.$/.test(await page.evaluate(() => document.getElementById("project-save-hint")?.textContent || "")), "a full export did not just say exported");
         // An object an SVG cannot hold is named in the message.
         await page.evaluate(() => { state.slides[currentSlideIndex].elements.push({ id: "html-embed-x", type: "html", content: "<p>x</p>", x: 10, y: 10, width: "100px", height: "60px", styles: {} }); renderSlidesFromState(); window.exportCurrentSlideSceneSVG({ filename: "test2.svg" }); });
@@ -6501,6 +6511,40 @@ async function test(name, fn) {
         await page.keyboard.press("Escape");
         const kept = await page.evaluate(() => state.selectedIds.length);
         assert(kept === 1, "Escape on the dropdown deselected the object");
+        await page.close();
+    });
+
+    await test("study 2026-10-16: title master on the title slide, a reaction comes in at a useful size, diagrams in the theme font, SVG lines in one piece", async () => {
+        const { page } = await openFreshEditor(context);
+        // The first slide of a new deck uses the Title master; a slide added after it uses Content.
+        const masters = await page.evaluate(() => { addSlide(); return state.slides.map(s => s.masterId); });
+        assert(masters[0] === "title" && masters[1] === "content", `masters: ${JSON.stringify(masters)}`);
+        // A reaction scheme (a wide drawing) keeps about its default box's area, clear of the title and the footer.
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const rx = await pageAwait(page, () => insertPluginElement("smiles", { smiles: "CN1C=NC2=C1C(=O)N(C(=O)N2C)C>>CN1C=NC2=C1C(=O)N(C)C(=O)N2" }, { ask: false }));
+        const box = await page.evaluate(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const title = state.slides[currentSlideIndex].elements.find(e => e.placeholder === "Click to add title");
+            return { x: el.x, y: el.y, w: parseFloat(el.width), h: parseFloat(el.height), titleBottom: title.y + parseFloat(title.height), footer: _currentSlideFooterTop(), slideW: getPresentationPageSetupConfig().width };
+        }, rx);
+        assert(box.w >= 380 && box.y >= box.titleBottom && box.y + box.h <= box.footer && box.x >= 0 && box.x + box.w <= box.slideW, `reaction box: ${JSON.stringify(box)}`);
+        // A new flowchart is set in the theme's body font.
+        await page.evaluate(() => openMermaidDialog());
+        await page.waitForTimeout(800);
+        const font = await page.evaluate(() => ({ field: document.getElementById("mermaid-font-family").value, theme: getPresentationTheme().bodyFont.replace(/"/g, "'") }));
+        await page.keyboard.press("Escape");
+        assert(font.field === font.theme, `flowchart font: ${JSON.stringify(font)}`);
+        // SVG export: a title line is one <text>, its words following each other (not placed one by one).
+        const lines = await page.evaluate(async () => {
+            const title = state.slides[currentSlideIndex].elements.find(e => e.placeholder === "Click to add title");
+            title.content = "Drug B raises response";
+            delete title.textDocument;
+            renderSlidesFromState();
+            const svg = window.exportCurrentSlideSceneSVG({ filename: "t.svg" })?.svg || "";
+            const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+            return [...doc.querySelectorAll(`[data-node-id="${title.id}"] text`)].map(t => t.textContent);
+        });
+        assert(lines.length === 1 && lines[0] === "Drug B raises response", `title in the SVG: ${JSON.stringify(lines)}`);
         await page.close();
     });
 

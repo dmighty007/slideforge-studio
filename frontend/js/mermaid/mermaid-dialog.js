@@ -360,7 +360,19 @@ function setupControls(element) {
     const lineField = document.getElementById("mermaid-line-color");
     const handDrawnField = document.getElementById("mermaid-hand-drawn");
     const renderModeField = document.getElementById("mermaid-render-mode");
-    if (fontField) fontField.value = style.fontFamily;
+    // "Theme font": the slide's body font, the default for a new diagram (diagrams were always in Inter).
+    const themeFont = String((typeof getPresentationTheme === "function" && getPresentationTheme()?.bodyFont) || "").replace(/"/g, "'");
+    if (fontField && themeFont) {
+        let option = fontField.querySelector("option[data-theme-font]");
+        if (!option) {
+            option = document.createElement("option");
+            option.dataset.themeFont = "true";
+            fontField.prepend(option);
+        }
+        option.value = themeFont;
+        option.textContent = `Theme font (${themeFont.split(",")[0].replace(/'/g, "").trim()})`;
+    }
+    if (fontField) fontField.value = !element && themeFont ? themeFont : style.fontFamily;
     if (fontSizeField) fontSizeField.value = style.fontSize;
     if (fillField) fillField.value = style.primaryColor;
     if (textField) textField.value = style.primaryTextColor;

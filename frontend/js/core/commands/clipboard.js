@@ -138,10 +138,11 @@ function _currentSlideFooterTop() {
 }
 
 // Boxes of the user's content on the current slide (footer excluded; it limits placement instead).
-function _currentSlideContentBoxes() {
+// excludeId: an object being placed again (after it grew) is not in its own way.
+function _currentSlideContentBoxes(excludeId = null) {
     const elements = state.slides?.[currentSlideIndex]?.elements || [];
     return elements
-        .filter(el => !el?.isMasterElement && !el?.editableMasterFooterElement)
+        .filter(el => !el?.isMasterElement && !el?.editableMasterFooterElement && (!excludeId || el?.id !== excludeId))
         .map(el => {
             let w = parseFloat(el.width) || 0;
             let h = parseFloat(el.height) || 0;

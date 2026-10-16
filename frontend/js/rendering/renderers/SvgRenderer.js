@@ -214,7 +214,10 @@ function renderText(node = {}) {
                     : align === "right"
                       ? Math.max(0, b.width - lineWidth)
                       : 0;
-            let cursorX = b.x + (line.x || 0) + lineOffset;
+            // One <text> per line, its runs as <tspan>s that follow each other: placed word by word at fixed x, the
+            // words had uneven gaps wherever the font differed (another viewer, a missing font).
+            const lineX = b.x + (line.x || 0);
+            const anchorX = align === "center" ? lineX + Math.max(lineWidth, b.width - (line.x || 0)) / 2 : align === "right" ? b.x + b.width : lineX + lineOffset;
             const bullet =
                 lineIndex === 0 || layout.lines[lineIndex - 1]?.block?.id !== line.block?.id
                     ? line.block?.type === "listItem"
@@ -230,25 +233,30 @@ function renderText(node = {}) {
                       "font-size": baseFontSize,
                   })}>${bullet.list?.kind === "numbered" ? `${bullet.list?.ordinal || 1}.` : "•"}</text>`
                 : "";
-            const runNodes = runs.map(run => {
+            const spans = runs.map(run => {
                 const runStyle = run.style || style;
-                const attrs = {
-                    x: cursorX,
-                    y: b.y + line.y,
+                return `<tspan ${attrsToString({
                     fill: runStyle.color || style.color || "#111827",
                     "font-family": runStyle.fontFamily || style.fontFamily || "Inter, Arial, sans-serif",
                     "font-size": Number.parseFloat(String(runStyle.fontSize || style.fontSize || baseFontSize).replace("px", "")) || baseFontSize,
                     "font-weight": runStyle.fontWeight || style.fontWeight || "400",
                     "font-style": runStyle.fontStyle || style.fontStyle || undefined,
                     "text-decoration": runStyle.textDecoration || undefined,
-                };
-                if (style.textShadow && style.textShadow !== "none") {
-                    attrs.filter = `url(#text-shadow-${escapeAttr(node.id)})`;
-                }
-                const out = `<text ${attrsToString(attrs)}>${escapeXml(run.text)}</text>`;
-                cursorX += Number(run.width) || 0;
-                return out;
+                })}>${escapeXml(run.text)}</tspan>`;
             });
+            const lineAttrs = {
+                x: anchorX,
+                y: b.y + line.y,
+                "text-anchor": align === "center" ? "middle" : align === "right" ? "end" : undefined,
+                "xml:space": "preserve",
+                fill: style.color || "#111827",
+                "font-family": style.fontFamily || "Inter, Arial, sans-serif",
+                "font-size": baseFontSize,
+            };
+            if (style.textShadow && style.textShadow !== "none") {
+                lineAttrs.filter = `url(#text-shadow-${escapeAttr(node.id)})`;
+            }
+            const runNodes = spans.length ? [`<text ${attrsToString(lineAttrs)}>${spans.join("")}</text>`] : [];
             return `${bulletNode}${runNodes.join("")}`;
         });
         const shadowDef =
@@ -278,9 +286,48 @@ function renderText(node = {}) {
     return `<g data-node-id="${escapeAttr(node.id)}" opacity="${node.opacity ?? 1}" transform="${transformAttr(node).trim()}">${lines.join("")}</g>`;
 }
 
+// A plugin's drawing (an SVG picture) written into the export as a nested <svg>: as an <image> of an SVG data URL,
+// LibreOffice and other SVG readers dropped it, and it stays vector this way. Its ids get the object's id in front
+// (two plots both had a clip path "plot").
+function renderInlineSvgPicture(node = {}) {
+    if (!node.pluginId || typeof DOMParser === "undefined") return null;
+    const src = String(node.src || "");
+    if (!src.startsWith("data:image/svg+xml")) return null;
+    try {
+        const comma = src.indexOf(",");
+        const text = /;base64/i.test(src.slice(0, comma)) ? decodeURIComponent(escape(atob(src.slice(comma + 1)))) : decodeURIComponent(src.slice(comma + 1));
+        const doc = new DOMParser().parseFromString(text, "image/svg+xml");
+        const svg = doc.documentElement;
+        if (!svg || svg.nodeName.toLowerCase() !== "svg" || doc.querySelector("parsererror")) return null;
+        const b = node.bounds || {};
+        svg.setAttribute("x", String(b.x ?? 0));
+        svg.setAttribute("y", String(b.y ?? 0));
+        svg.setAttribute("width", String(b.width ?? 0));
+        svg.setAttribute("height", String(b.height ?? 0));
+        svg.setAttribute("preserveAspectRatio", node.fit === "meet" ? "xMidYMid meet" : "xMidYMid slice");
+        svg.setAttribute("overflow", "hidden");
+        let markup = new XMLSerializer().serializeToString(svg);
+        const prefix = `${String(node.id || "plugin").replace(/[^\w-]/g, "")}-`;
+        const ids = [...markup.matchAll(/\sid="([^"]+)"/g)].map(match => match[1]);
+        ids.forEach(id => {
+            const safe = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            markup = markup
+                .replace(new RegExp(`(\\sid=")${safe}"`, "g"), `$1${prefix}${id}"`)
+                .replace(new RegExp(`url\\(#${safe}\\)`, "g"), `url(#${prefix}${id})`)
+                .replace(new RegExp(`(href=")#${safe}"`, "g"), `$1#${prefix}${id}"`);
+        });
+        const transform = transformAttr(node).trim();
+        return `<g data-node-id="${escapeAttr(node.id)}" opacity="${node.opacity ?? 1}"${transform ? ` transform="${transform}"` : ""}>${markup}</g>`;
+    } catch (_error) {
+        return null;
+    }
+}
+
 function renderImage(node = {}) {
     const b = node.bounds || {};
     if (!node.src) return renderPlaceholder(node, node.pluginId ? `Plugin: ${node.pluginId}` : "Image");
+    const inline = renderInlineSvgPicture(node);
+    if (inline) return inline;
     return `<image ${attrsToString({
         "data-node-id": node.id,
         href: node.src,

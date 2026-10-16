@@ -904,12 +904,23 @@ async function insertPluginElement(pluginId, data = null, { ask = true } = {}) {
         if (plugin.sizeAware) {
             if (plugin.autoHeight) el.height = `${Math.round(drawing.height)}px`;
         } else if (drawing.width && drawing.height) {
-            const scale = Math.min(w / drawing.width, h / drawing.height);
+            let scale = Math.min(w / drawing.width, h / drawing.height);
+            // A drawing much wider (or taller) than the default box, such as a reaction scheme, keeps about the box's
+            // area instead of shrinking into it (a reaction came in 300 × 85), within the slide's content width.
+            const lost = (drawing.width * scale * drawing.height * scale) / (w * h) < 0.7;
+            const bounds = lost && typeof _getSlideInsertBounds === "function" ? _getSlideInsertBounds() : null;
+            if (bounds) {
+                const area = Math.sqrt((w * h * 0.85) / (drawing.width * drawing.height));
+                scale = Math.min(area, (bounds.slideW - bounds.margin * 2) / drawing.width, (bounds.slideH * 0.6) / drawing.height);
+            }
             const fitted = { width: Math.round(drawing.width * scale), height: Math.round(drawing.height * scale) };
             el.x = Math.round((parseFloat(el.x) || 0) + (w - fitted.width) / 2);
             el.y = Math.round((parseFloat(el.y) || 0) + (h - fitted.height) / 2);
             el.width = `${fitted.width}px`;
             el.height = `${fitted.height}px`;
+            // Grown, it goes where it covers the least of the slide (it would hang over the edge or the footer).
+            const slide = state.slides.find(item => (item.elements || []).includes(el));
+            if (bounds && slide === state.slides[currentSlideIndex] && typeof placeWhereFree === "function") placeWhereFree(slide, el, { claim: false });
         }
     }
     // The picture kept in the element, for its final box (thumbnails and exports use it).

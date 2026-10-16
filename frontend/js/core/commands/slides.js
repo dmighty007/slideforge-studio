@@ -70,7 +70,8 @@ function addSlide(targetIndex = null) {
         id: generateId("slide"),
         layoutId: "blank-titled",
         // The master of the slide it follows: in an imported deck (no master) a new slide got the SlideForge footer.
-        masterId: reference?.masterId || "content",
+        // A slide added after the title slide is a content slide: it does not copy the Title master.
+        masterId: reference?.masterId && reference.masterId !== "title" ? reference.masterId : "content",
         notes: "",
         presentationTransition: "none",
         elements: _titleAndContentPlaceholders(reference),

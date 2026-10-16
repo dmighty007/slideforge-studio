@@ -129,7 +129,7 @@ function placeInContentPlaceholder(slide, element, { anywhere = false, claim = t
     const bounds = _getSlideInsertBounds();
     const footerTop = typeof _currentSlideFooterTop === "function" ? _currentSlideFooterTop() : null;
     const floor = footerTop === null ? bounds.slideH - bounds.margin : footerTop - 12;
-    const boxes = _currentSlideContentBoxes();
+    const boxes = _currentSlideContentBoxes(element.id);
     let best = { ..._leastOverlapPosition(width, height, bounds, boxes, floor), width, height };
     // On a crowded slide, a smaller copy that fits beside the content beats a full-size one on top of it (text
     // boxes keep their size: their height follows the text).
@@ -169,7 +169,8 @@ function buildDefaultPresentationState() {
             {
                 id: generateId("slide"),
                 layoutId: "blank-titled",
-                masterId: "content",
+                // The Title master: no footer text or page number on the title slide (it had the Content master's).
+                masterId: "title",
                 notes: "",
                 presentationTransition: "none",
                 // Title slide: full-width, centred title and subtitle that wrap instead of running off the slide.

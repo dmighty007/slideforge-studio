@@ -924,6 +924,12 @@ function getCookie(name) {
 // turned the SVG into a picture itself and ignored Mermaid's CSS, so mind maps came out as black boxes without
 // labels and ER relationship labels as black blocks.
 async function mermaidSvgToPng(svgText, boxWidth, boxHeight, scale = 3, { stretch = false } = {}) {
+  // The theme's font inside the picture (a picture cannot use the page's web fonts): diagrams set in the theme font
+  // came out in a fallback font in PowerPoint.
+  if (typeof pluginPictureWithFonts === "function") {
+    const withFonts = await pluginPictureWithFonts(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(String(svgText || ""))}`);
+    svgText = decodeURIComponent(withFonts.slice(withFonts.indexOf(",") + 1));
+  }
   const svg = new DOMParser().parseFromString(String(svgText || ""), "image/svg+xml").documentElement;
   if (!svg || svg.nodeName.toLowerCase() !== "svg") throw new Error("not an SVG");
   const viewBox = String(svg.getAttribute("viewBox") || "").split(/[\s,]+/).map(Number);
