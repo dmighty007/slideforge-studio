@@ -5419,6 +5419,22 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("overnight: Ctrl+C on a shape and Ctrl+V on another slide pastes the shape, not a \"[shape]\" text box", async () => {
+        const { page } = await openFreshEditor(context);
+        const id = await page.evaluate(() => { addSlide(); addShape("rectangle"); return state.selectedIds[0]; });
+        await page.waitForTimeout(300);
+        await page.locator(`.slides .presentation-slide.present [id="${id}"]`).click();
+        await page.keyboard.press("Control+c");
+        await page.evaluate(() => addSlide());
+        await page.waitForTimeout(300);
+        await page.locator(".slides .presentation-slide.present").first().click({ position: { x: 20, y: 20 } });
+        await page.keyboard.press("Control+v");
+        await page.waitForTimeout(500);
+        const pasted = await page.evaluate(() => state.slides[currentSlideIndex].elements.map(e => e.type === "text" ? `text:${JSON.stringify(e.content)}` : e.type));
+        assert(pasted.includes("shape") && !pasted.some(p => p.includes("[shape]")), `pasted: ${JSON.stringify(pasted)}`);
+        await page.close();
+    });
+
     await test("overnight: two saves at once both land, and an unchanged deck counts as saved", async () => {
         const { page } = await openFreshEditor(context);
         const r = await pageAwait(page, async () => {
@@ -7419,6 +7435,8 @@ async function test(name, fn) {
 
     await test("study 2026-10-16b: a pasted table stays on the slide, and the SVG has the theme's top band and the fitted title", async () => {
         const { page } = await openEditor(context);
+        // A theme with a top band (Blank has none), whatever deck the earlier tests left open.
+        await page.evaluate(() => { if (getPresentationTheme().plainMaster) changePresentationTheme("editorial"); });
         await newContentSlide(page);
         const id = await page.evaluate(() => {
             addElement("table");

@@ -17,10 +17,19 @@ function _cloneSelectedElements() {
         .filter(Boolean);
 }
 
+// What the system clipboard gets as text for copied objects: their words, or "[shape]" and the like.
+function _clipboardTextSummary(selectedElements) {
+    return selectedElements
+        .map(el => (el.type === "text" ? String(parseTextFromHtml?.(el.content) || el.content || "") : `[${el.type}]`))
+        .filter(Boolean)
+        .join("\n");
+}
+
 function copyElement(clipboardEvent = null) {
     const selectedElements = _cloneSelectedElements();
     if (!selectedElements.length) return;
-    _clipboard = { elements: selectedElements };
+    const textSummary = _clipboardTextSummary(selectedElements) || "[SlideForge elements]";
+    _clipboard = { elements: selectedElements, text: textSummary };
 
     if (clipboardEvent?.clipboardData) {
         clipboardEvent.preventDefault();
@@ -28,18 +37,23 @@ function copyElement(clipboardEvent = null) {
             "application/x-slideforge-elements",
             JSON.stringify({ elements: selectedElements }),
         );
-        const textSummary = selectedElements
-            .map(el =>
-                el.type === "text" ? String(parseTextFromHtml?.(el.content) || el.content || "") : `[${el.type}]`,
-            )
-            .filter(Boolean)
-            .join("\n");
-        clipboardEvent.clipboardData.setData("text/plain", textSummary || "[SlideForge elements]");
+        clipboardEvent.clipboardData.setData("text/plain", textSummary);
+        // Written just above, objects included. Writing the text again through navigator.clipboard replaced the
+        // whole clipboard, objects too, and a copied shape pasted as a text box reading "[shape]". A picture still
+        // goes through it: the copy event cannot carry the image itself.
+        const [only] = selectedElements;
+        if (!(selectedElements.length === 1 && only.type === "image")) return;
     }
 
     _copySelectionToSystemClipboard(selectedElements).catch(err => {
         console.warn("System clipboard write failed:", err);
     });
+}
+
+// The clipboard's text is what this editor last copied (a browser that drops the objects' own format, or the
+// picture case above): paste the objects, not their summary as a text box.
+function _isOwnCopySummary(text) {
+    return Boolean(_clipboard.elements?.length && _clipboard.text && String(text || "").trim() === _clipboard.text.trim());
 }
 
 async function copySelectionToClipboard() {
@@ -48,7 +62,7 @@ async function copySelectionToClipboard() {
         setProjectSaveHint?.("Select a text or image element first", "warn");
         return false;
     }
-    _clipboard = { elements: selectedElements };
+    _clipboard = { elements: selectedElements, text: _clipboardTextSummary(selectedElements) };
     try {
         await _copySelectionToSystemClipboard(selectedElements);
         return true;
@@ -299,10 +313,7 @@ function _getImageSourceDimensions(src) {
 async function _copySelectionToSystemClipboard(selectedElements) {
     if (!navigator.clipboard) return;
 
-    const textSummary = selectedElements
-        .map(el => (el.type === "text" ? String(parseTextFromHtml?.(el.content) || el.content || "") : `[${el.type}]`))
-        .filter(Boolean)
-        .join("\n");
+    const textSummary = _clipboardTextSummary(selectedElements);
 
     if (navigator.clipboard.write && typeof ClipboardItem !== "undefined" && selectedElements.length === 1) {
         const [element] = selectedElements;
@@ -367,6 +378,10 @@ async function _pasteFromSystemClipboard(activeIndex) {
     if (navigator.clipboard.readText) {
         try {
             const text = (await navigator.clipboard.readText()).trim();
+            if (text && _isOwnCopySummary(text)) {
+                pasteElement();
+                return true;
+            }
             if (text) {
                 return _insertClipboardTextAsBestFit(text, 100, 100);
             }
@@ -517,6 +532,11 @@ async function handlePaste(e) {
         const incomingText =
             String(plainText || "").trim() ||
             (htmlText ? new DOMParser().parseFromString(htmlText, "text/html").body.innerText.trim() : "");
+        if (incomingText && _isOwnCopySummary(incomingText)) {
+            e.preventDefault();
+            pasteElement();
+            return;
+        }
         if (incomingText) {
             e.preventDefault();
             handled = _insertClipboardTextAsBestFit(incomingText, 100, 100);
