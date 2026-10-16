@@ -5303,7 +5303,7 @@ async function test(name, fn) {
             const newer = JSON.parse(JSON.stringify(oldState));
             newer.slides[0].elements[0].content = "latest typing";
             const backup = { presentationId: "recovery-test", autosaveVersion: 10, state: newer,
-                pendingFingerprints: [JSON.stringify(oldState)] };
+                pendingFingerprints: [_stateHash(JSON.stringify(oldState))] };
             localStorage.setItem(UNSAVED_BACKUP_STORAGE_KEY, JSON.stringify(backup));
             const recovered = _takeUnsavedBackup("recovery-test", 11, oldState);
             localStorage.setItem(UNSAVED_BACKUP_STORAGE_KEY, JSON.stringify(backup));
@@ -5328,6 +5328,39 @@ async function test(name, fn) {
         const recovered = await reopened.page.evaluate(id => state.slides.flatMap(s => s.elements).find(el => el.id === id)?.content, id);
         assert(String(recovered).includes("Last second text"), `lost typing: ${JSON.stringify(recovered)}`);
         await reopened.page.close();
+    });
+
+    await test("Field study: typing backs up only its box, and stale typing is refused", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(async () => { await autosavePresentationNow(); });
+        await page.waitForTimeout(1500);
+        const id = await page.evaluate(() => {
+            // A large picture: a full snapshot per keystroke would serialise it every time.
+            state.slides[currentSlideIndex].elements.push({ id: "typing-big-picture", type: "image", x: 0, y: 0, width: "10px", height: "10px",
+                content: "data:image/png;base64," + "A".repeat(2_000_000), styles: {} });
+            window.__snapshots = 0;
+            const original = getPersistableState;
+            getPersistableState = (...args) => { window.__snapshots++; return original(...args); };
+            return state.slides[currentSlideIndex].elements.find(el => el.type === "text").id;
+        });
+        await page.locator(`.slides [id="${id}"] .text-element-content`).dblclick();
+        await page.evaluate(() => { window.__snapshots = 0; });
+        await page.keyboard.type("twenty typed letters");
+        const result = await page.evaluate(id => {
+            const typing = JSON.parse(localStorage.getItem(UNSAVED_TYPING_STORAGE_KEY) || "null");
+            return { snapshots: window.__snapshots, kept: String(typing?.elements?.[id]?.content || ""), size: localStorage.getItem(UNSAVED_TYPING_STORAGE_KEY).length };
+        }, id);
+        assert(result.snapshots <= 2, `deck serialised ${result.snapshots} times for 20 keystrokes`);
+        assert(result.kept.includes("twenty typed letters") && result.size < 20_000, JSON.stringify({ ...result, kept: result.kept.slice(0, 80) }));
+        // Kept typing for a deck the server has since moved past (another save landed) is not applied.
+        const refused = await page.evaluate(id => {
+            localStorage.setItem(UNSAVED_TYPING_STORAGE_KEY, JSON.stringify({ scope: "typing-test", autosaveVersion: 3, pendingFingerprints: [],
+                elements: { [id]: { content: "stale" } } }));
+            const applied = _takeTypingBackup("typing-test", typing => typing.autosaveVersion === 5);
+            return { applied, left: localStorage.getItem(UNSAVED_TYPING_STORAGE_KEY) };
+        }, id);
+        assert(refused.applied === 0 && refused.left === null, JSON.stringify(refused));
+        await page.close();
     });
 
     await test("Field study: molecule drag releases over its iframe", async () => {

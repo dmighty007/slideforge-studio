@@ -477,6 +477,7 @@ function _applyTextTypeContent(el, elData, options) {
       elData.textDocument = nextTextDocument;
       captureInlineSelection();
     }
+    keepTypingBackup?.(el.id, elData);
     schedulePresentationAutosave?.();
     updateFloatingToolbars?.();
     // Skip panel rebuild on every input — it resets scroll during typing.

@@ -311,6 +311,8 @@ const PRESENTATION_STORAGE_KEY = "pptmaker_presentation_id";
 const LOCAL_PRESENTATION_STORAGE_KEY = "pptmaker_local_presentation";
 // Unsaved edits captured when the page closes before autosave ran; recovered on the next load.
 const UNSAVED_BACKUP_STORAGE_KEY = "pptmaker_unsaved_backup";
+// Text typed since that backup (or the last save), per box; small enough to write on every keystroke.
+const UNSAVED_TYPING_STORAGE_KEY = "pptmaker_unsaved_typing";
 let _pendingRecoverySave = false;
 const ENTRY_GATE_DISMISSED_KEY = "pptmaker_entry_gate_dismissed";
 const PRESENTATION_ANIMATION_EFFECTS = [
@@ -1787,6 +1789,7 @@ function saveLocalPresentationNow() {
     };
     try {
         localStorage.setItem(LOCAL_PRESENTATION_STORAGE_KEY, JSON.stringify(payload));
+        _clearTypingBackup("local");
         setProjectSaveHint("Saved locally", "success");
         return true;
     } catch (err) {
@@ -1805,6 +1808,8 @@ function loadLocalPresentation() {
         if (!loadedState || !Array.isArray(loadedState.slides) || !loadedState.slides.length) return false;
         state = loadedState;
         state.presentationTheme = state.presentationTheme || loaded.presentationTheme || "blank";
+        // Typing after the last local save (the local project is the only copy, so it always applies).
+        _takeTypingBackup("local", () => true);
         normalizeStateIds();
         syncPresentationThemeFromState?.({ persist: false });
         setCurrentPresentationTitle(loaded.title || "Untitled Presentation");
@@ -2065,18 +2070,29 @@ async function loadPresentationRecord(presentationId) {
         state = _convertBridgeExportToEditorState(loaded.bridgeResult);
         state.presentationTheme = state.presentationTheme || loaded.presentationTheme || "blank";
     }
-    const recovered = _takeUnsavedBackup(loaded.id, loaded.autosaveVersion || 1, loaded.state);
+    const serverVersion = loaded.autosaveVersion || 1;
+    let hadBackup = false;
+    try {
+        hadBackup = JSON.parse(localStorage.getItem(UNSAVED_BACKUP_STORAGE_KEY) || "null")?.presentationId === loaded.id;
+    } catch (_err) { /* unreadable: _takeUnsavedBackup drops it */ }
+    const recovered = _takeUnsavedBackup(loaded.id, serverVersion, loaded.state);
     if (recovered) {
         state = recovered.state;
         _pendingRecoverySave = true;
     }
+    // Typing kept after that backup goes on top of it. Without a backup it was typed on the server's deck, and is
+    // only used when the server still has that deck; a backup that was refused (a conflict) refuses it too.
+    const typed = _takeTypingBackup(loaded.id, typing => Boolean(recovered) || (!hadBackup &&
+        (typing.autosaveVersion === serverVersion || _pendingSaveLanded(typing, serverVersion, loaded.state))));
+    if (typed) _pendingRecoverySave = true;
     resetUndoHistory();
     normalizeStateIds();
     syncPresentationThemeFromState?.({ persist: false });
     localStorage.setItem(PRESENTATION_STORAGE_KEY, currentPresentationId);
     _lastPersistedFingerprint = JSON.stringify(hasSlides ? loaded.state : getPersistableState());
     _lastPersistedTitle = loaded.title || _inferPresentationTitle();
-    setProjectSaveHint(recovered ? "Recovered unsaved changes" : "All changes saved", recovered ? "warn" : "success");
+    const anyRecovered = recovered || typed;
+    setProjectSaveHint(anyRecovered ? "Recovered unsaved changes" : "All changes saved", anyRecovered ? "warn" : "success");
     return loaded;
 }
 
@@ -2165,15 +2181,16 @@ async function autosavePresentationNow() {
         autosaveVersion: currentPresentationAutosaveVersion,
     };
     let saved;
-    _pendingSaveFingerprints.add(fingerprint);
-    keepUnsavedBackup();
+    const fingerprintHash = _stateHash(fingerprint);
+    _pendingSaveHashes.add(fingerprintHash);
+    keepUnsavedBackup(payload.state);
     try {
         saved = await _presentationRequest(`/api/presentations/${presentationId}/`, {
             method: "PATCH",
             body: JSON.stringify(payload),
         });
     } catch (err) {
-        _pendingSaveFingerprints.delete(fingerprint);
+        _pendingSaveHashes.delete(fingerprintHash);
         if (!stillCurrent()) return false;
         if (err?.status === 409) {
             currentPresentationAutosaveVersion =
@@ -2182,7 +2199,7 @@ async function autosavePresentationNow() {
         }
         throw err;
     }
-    _pendingSaveFingerprints.delete(fingerprint);
+    _pendingSaveHashes.delete(fingerprintHash);
     if (!stillCurrent()) return false;
     currentPresentationAutosaveVersion = saved.autosaveVersion || currentPresentationAutosaveVersion;
     setCurrentPresentationTitle(payload.title);
@@ -2196,31 +2213,113 @@ async function autosavePresentationNow() {
     return true;
 }
 
-const _pendingSaveFingerprints = new Set();
+// Hashes of the snapshots of saves still in flight. A hash, not the snapshot: the backup would hold the deck twice.
+const _pendingSaveHashes = new Set();
 
-function keepUnsavedBackup() {
-    if (isPresentationHydrating()) return;
-    if (!_backendApiAvailable || !_presentationPersistenceEnabled) {
-        saveLocalPresentationNow();
-        return;
+// Two 32-bit FNV-1a hashes in one pass: enough to recognise a saved snapshot again, far smaller than the snapshot.
+function _stateHash(text) {
+    let a = 0x811c9dc5;
+    let b = 0x01000193;
+    for (let i = 0; i < text.length; i++) {
+        const c = text.charCodeAt(i);
+        a = Math.imul(a ^ c, 16777619);
+        b = Math.imul(b ^ c, 2246822519);
     }
-    if (!_presentationPersistenceReady || !currentPresentationId) return;
+    return (a >>> 0).toString(16).padStart(8, "0") + (b >>> 0).toString(16).padStart(8, "0");
+}
+
+// Where this session's recovery data belongs: the open server project, the local project, or nothing yet.
+function _unsavedBackupScope() {
+    if (isPresentationHydrating()) return null;
+    if (!_backendApiAvailable || !_presentationPersistenceEnabled) return "local";
+    return _presentationPersistenceReady && currentPresentationId ? currentPresentationId : null;
+}
+
+function _writeUnsavedBackup(snapshot) {
     try {
         localStorage.setItem(UNSAVED_BACKUP_STORAGE_KEY, JSON.stringify({
+            ...snapshot,
             presentationId: currentPresentationId,
-            autosaveVersion: currentPresentationAutosaveVersion,
-            state: getPersistableState(),
-            pendingFingerprints: [..._pendingSaveFingerprints],
+            pendingFingerprints: [..._pendingSaveHashes],
             savedAt: new Date().toISOString(),
         }));
+        // The snapshot holds that typing now.
+        localStorage.removeItem(UNSAVED_TYPING_STORAGE_KEY);
     } catch (err) {
         console.warn("Could not keep a backup of unsaved changes:", err);
     }
 }
 
+let _unsavedBackupTimer = null;
+
+function keepUnsavedBackup(snapshotState = null) {
+    clearTimeout(_unsavedBackupTimer);
+    _unsavedBackupTimer = null;
+    const scope = _unsavedBackupScope();
+    if (scope === "local") {
+        saveLocalPresentationNow();
+        return;
+    }
+    if (!scope) return;
+    _writeUnsavedBackup({ autosaveVersion: currentPresentationAutosaveVersion, state: snapshotState || getPersistableState() });
+}
+
+// A full snapshot costs a serialisation of the whole deck (pictures included), so take at most one a second.
+// Typing between snapshots is kept by keepTypingBackup, which only writes the box being typed in.
+function _scheduleUnsavedBackup() {
+    if (_unsavedBackupTimer) return;
+    _unsavedBackupTimer = setTimeout(() => keepUnsavedBackup(), 1000);
+}
+
+// Called on every keystroke: closing a browser page need not dispatch pagehide, so the last characters typed are
+// stored right away, as the text of their box only.
+function keepTypingBackup(elementId, fields) {
+    const scope = _unsavedBackupScope();
+    if (!scope || !elementId) return;
+    try {
+        const kept = JSON.parse(localStorage.getItem(UNSAVED_TYPING_STORAGE_KEY) || "null");
+        const typing = kept?.scope === scope ? kept : { scope, elements: {} };
+        typing.autosaveVersion = currentPresentationAutosaveVersion;
+        typing.pendingFingerprints = [..._pendingSaveHashes];
+        typing.elements[elementId] = { content: fields.content, textDocument: fields.textDocument };
+        localStorage.setItem(UNSAVED_TYPING_STORAGE_KEY, JSON.stringify(typing));
+    } catch (err) {
+        console.warn("Could not keep a backup of the text being typed:", err);
+    }
+}
+
+// Puts kept typing back into `state` when `usable(typing)` says its base is the deck just loaded.
+function _takeTypingBackup(scope, usable) {
+    let typing = null;
+    try {
+        typing = JSON.parse(localStorage.getItem(UNSAVED_TYPING_STORAGE_KEY) || "null");
+    } catch (_err) {
+        typing = null;
+    }
+    if (!typing || typing.scope !== scope) return 0;
+    localStorage.removeItem(UNSAVED_TYPING_STORAGE_KEY);
+    if (!usable(typing)) return 0;
+    let applied = 0;
+    (state.slides || []).forEach(slide => (slide.elements || []).forEach(el => {
+        const fields = typing.elements?.[el.id];
+        if (!fields) return;
+        Object.assign(el, fields);
+        applied++;
+    }));
+    return applied;
+}
+
+function _clearTypingBackup(scope) {
+    try {
+        const typing = JSON.parse(localStorage.getItem(UNSAVED_TYPING_STORAGE_KEY) || "null");
+        if (typing?.scope === scope) localStorage.removeItem(UNSAVED_TYPING_STORAGE_KEY);
+    } catch (_err) {
+        localStorage.removeItem(UNSAVED_TYPING_STORAGE_KEY);
+    }
+}
+
 function schedulePresentationAutosave(delay = 1200) {
-    // Closing a browser page need not dispatch pagehide. Persist recovery data while it is still alive.
-    keepUnsavedBackup();
+    _scheduleUnsavedBackup();
     if (!_backendApiAvailable || !_presentationPersistenceEnabled) {
         setProjectSaveHint("Unsaved local changes", "warn");
         clearTimeout(_autosaveTimer);
@@ -2256,10 +2355,14 @@ function _takeUnsavedBackup(presentationId, serverVersion, serverState = null) {
     // Same version as when the backup was taken: the server never received those edits.
     const sameVersion = backup.autosaveVersion === serverVersion;
     // A save already in flight can land after the page closes. Recover only if the server has that exact snapshot.
-    const pendingSaveLanded = serverVersion === backup.autosaveVersion + 1 &&
-        backup.pendingFingerprints?.includes(JSON.stringify(serverState));
+    const pendingSaveLanded = _pendingSaveLanded(backup, serverVersion, serverState);
     const usable = (sameVersion || pendingSaveLanded) && Array.isArray(backup.state?.slides) && backup.state.slides.length;
     return usable ? backup : null;
+}
+
+function _pendingSaveLanded(backup, serverVersion, serverState) {
+    return serverVersion === backup.autosaveVersion + 1 &&
+        Boolean(backup.pendingFingerprints?.includes(_stateHash(JSON.stringify(serverState))));
 }
 
 function _clearUnsavedBackup(presentationId) {
@@ -2269,6 +2372,7 @@ function _clearUnsavedBackup(presentationId) {
     } catch (_err) {
         localStorage.removeItem(UNSAVED_BACKUP_STORAGE_KEY);
     }
+    _clearTypingBackup(presentationId);
 }
 
 function _saveRecoveredChanges() {
@@ -2294,14 +2398,7 @@ function flushUnsavedChangesOnExit() {
         state: getPersistableState(),
         autosaveVersion: currentPresentationAutosaveVersion,
     };
-    try {
-        localStorage.setItem(
-            UNSAVED_BACKUP_STORAGE_KEY,
-            JSON.stringify({ ...payload, presentationId: currentPresentationId, pendingFingerprints: [..._pendingSaveFingerprints], savedAt: new Date().toISOString() }),
-        );
-    } catch (err) {
-        console.warn("Could not keep a backup of unsaved changes:", err);
-    }
+    _writeUnsavedBackup(payload);
     // keepalive requests are limited to 64 KB; larger decks rely on the backup above.
     _apiFetch(`/api/presentations/${currentPresentationId}/`, {
         method: "PATCH",
