@@ -193,20 +193,23 @@ function bindTablePanel(data) {
   const rowHeightInput = document.getElementById("prop-table-row-height");
   if (rowHeightInput) {
     const commit = () => {
-      const tableData = normalizeTableData(data.tableData);
+      const tableData = normalizeTableData((getSelectedElementData() || data).tableData);
       const row =
         tableData.selection?.type === "row" ||
         tableData.selection?.type === "cell"
           ? tableData.selection.row
           : null;
       if (row === null || row === undefined) return;
+      // Leaving the box after Enter would commit again: the table was redrawn between the press and the release of
+      // the click on the next cell, so that click was lost and the next size went to this row.
+      if (Math.round(Number(rowHeightInput.value)) === Math.round(tableData.rowHeights[row] || 0)) return;
       mutateSelectedTableData((nextTableData) => {
         nextTableData.rowHeights[row] = Math.max(
           24,
           Number(rowHeightInput.value) || 24,
         );
         nextTableData.selection = tableData.selection;
-      });
+      }, { keepRow: row });
     };
     rowHeightInput.addEventListener("change", commit);
     rowHeightInput.addEventListener("blur", commit);
@@ -215,21 +218,25 @@ function bindTablePanel(data) {
   const colWidthInput = document.getElementById("prop-table-col-width");
   if (colWidthInput) {
     const commit = () => {
-      const tableData = normalizeTableData(data.tableData);
+      const live = getSelectedElementData() || data;
+      const tableData = normalizeTableData(live.tableData);
       const col =
         tableData.selection?.type === "col" ||
         tableData.selection?.type === "cell"
           ? tableData.selection.col
           : null;
       if (col === null || col === undefined) return;
-      // In the box's pixels, and the box follows (the columns are shares of the box).
+      // Unchanged (leaving the box after Enter): see the row height above.
+      if (Math.round(Number(colWidthInput.value)) === Math.round(_tableColumnBoxWidth(tableData, live, col))) return;
+      // In the box's pixels, and the box follows (the columns are shares of the box). The other columns keep their
+      // widths unless the table must shrink to stay on the slide.
       mutateSelectedTableData((nextTableData) => {
         nextTableData.colWidths[col] = Math.max(
           36,
           Number(colWidthInput.value) || 36,
         );
         nextTableData.selection = tableData.selection;
-      }, { fitElement: true });
+      }, { fitElement: true, keepCol: col });
     };
     colWidthInput.addEventListener("change", commit);
     colWidthInput.addEventListener("blur", commit);

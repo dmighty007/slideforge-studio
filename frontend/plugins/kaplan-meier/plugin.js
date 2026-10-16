@@ -153,7 +153,7 @@
 
     SlideForgePlugins.register({
         id: "kaplan-meier",
-        version: "4",
+        version: "5",
         name: "Kaplan–Meier Curve",
         description: "Survival curves per group with censoring marks, confidence bands, numbers at risk and the log-rank test",
         icon: "fa-solid fa-chart-line",
@@ -235,13 +235,72 @@
             const nameWidth = data.atRisk ? Math.max(...groups.map(g => context.measureText(g.name, { size, family: FONT }))) : 0;
             const left = Math.max((data.yLabel ? size * 1.6 : 0) + tickWidth + size * 0.7, nameWidth + size * 1.8);
             const right = size;
-            const top = size * 0.8;
+            let top = size * 0.8;
             const riskHeight = data.atRisk ? size * 1.5 * (groups.length + 1) : 0;
             const axisHeight = size * 1.6 + (data.xLabel ? size * 1.4 : 0);
             const plotWidth = Math.max(40, width - left - right);
-            const plotHeight = Math.max(40, height - top - axisHeight - riskHeight);
+            let plotHeight = Math.max(40, height - top - axisHeight - riskHeight);
             const x = t => left + (t / xMax) * plotWidth;
             const y = s => top + (1 - s) * plotHeight;
+
+            // Legend with group sizes, and the log-rank result, in the corner of the plot the curves and their bands
+            // cross least (fixed top right, it sat over a band). When every corner is crossed, it goes on a line above
+            // the plot, which moves down to make room.
+            const legend = groups.map(g => `${g.name} (n = ${g.n}${data.medians ? `, median ${g.median === null ? "not reached" : Number(g.median.toPrecision(4))}` : ""})`);
+            const showLegend = groups.length > 1 || data.medians;
+            const lines = [...(showLegend ? legend : []), ...(test ? [`Log-rank ${formatP(test.p)}`] : [])];
+            let legendAt = null;
+            const blockWidth = lines.length ? Math.max(...lines.map(text => context.measureText(text, { size, family: FONT }))) + (showLegend ? size * 1.6 : 0) : 0;
+            const blockHeight = lines.length * size * 1.35 + (test && showLegend ? size * 0.2 : 0);
+            if (lines.length) {
+                const pad = size * 0.4;
+                const corners = [
+                    { right: true, top: true },
+                    { right: true, top: false },
+                    { right: false, top: false },
+                    { right: false, top: true },
+                ].map(corner => {
+                    const x0 = corner.right ? left + plotWidth - pad - blockWidth : left + pad + size * 0.4;
+                    const y0 = corner.top ? top + pad * 0.5 : top + plotHeight - pad - blockHeight;
+                    return { ...corner, x0, y0 };
+                });
+                // What a group covers at time t: its curve, and its band when bands are drawn.
+                const stepAt = (group, t) => {
+                    let found = null;
+                    for (const step of group.steps) {
+                        if (step.time > t) break;
+                        found = step;
+                    }
+                    return found;
+                };
+                const overlap = corner => {
+                    let hits = 0;
+                    for (let k = 0; k <= 16; k++) {
+                        const px = corner.x0 + (blockWidth * k) / 16;
+                        const t = ((px - left) / plotWidth) * xMax;
+                        groups.forEach(group => {
+                            const lastTime = Math.max(...group.subjects.map(s => s.time));
+                            if (t < 0 || t > lastTime) return;
+                            const step = stepAt(group, t);
+                            if (!step) return;
+                            const hi = data.bands && Number.isFinite(step.upper) ? Math.max(step.upper, step.survival) : step.survival;
+                            const lo = data.bands && Number.isFinite(step.lower) ? Math.min(step.lower, step.survival) : step.survival;
+                            const yTop = y(hi) - size * 0.3;
+                            const yBottom = y(lo) + size * 0.3;
+                            if (yTop < corner.y0 + blockHeight && yBottom > corner.y0) hits += data.bands ? 1 : 2;
+                        });
+                    }
+                    return hits;
+                };
+                const best = corners.reduce((winner, corner) => (overlap(corner) < overlap(winner) ? corner : winner), corners[0]);
+                if (overlap(best) > 0 && height - blockHeight - axisHeight - riskHeight > 120) {
+                    legendAt = { x0: Math.max(left, left + plotWidth - blockWidth), y0: size * 0.2 };
+                    top += blockHeight + size * 0.4;
+                    plotHeight = Math.max(40, height - top - axisHeight - riskHeight);
+                } else {
+                    legendAt = best;
+                }
+            }
             const parts = [];
             // Grid and axes
             yTickValues.forEach(v => {
@@ -289,64 +348,17 @@
                 }
             });
 
-            // Legend with group sizes, and the log-rank result, in the corner of the plot the curves and their bands
-            // cross least (fixed top right, it sat over a band).
-            const legend = groups.map(g => `${g.name} (n = ${g.n}${data.medians ? `, median ${g.median === null ? "not reached" : Number(g.median.toPrecision(4))}` : ""})`);
-            const showLegend = groups.length > 1 || data.medians;
-            const lines = [...(showLegend ? legend : []), ...(test ? [`Log-rank ${formatP(test.p)}`] : [])];
-            if (lines.length) {
-                const blockWidth = Math.max(...lines.map(text => context.measureText(text, { size, family: FONT }))) + (showLegend ? size * 1.6 : 0);
-                const blockHeight = lines.length * size * 1.35 + (test && showLegend ? size * 0.2 : 0);
-                const pad = size * 0.4;
-                const corners = [
-                    { right: true, top: true },
-                    { right: true, top: false },
-                    { right: false, top: false },
-                    { right: false, top: true },
-                ].map(corner => {
-                    const x0 = corner.right ? left + plotWidth - pad - blockWidth : left + pad + size * 0.4;
-                    const y0 = corner.top ? top + pad * 0.5 : axisY - pad - blockHeight;
-                    return { ...corner, x0, y0 };
-                });
-                // What a group covers at time t: its curve, and its band when bands are drawn.
-                const stepAt = (group, t) => {
-                    let found = null;
-                    for (const step of group.steps) {
-                        if (step.time > t) break;
-                        found = step;
-                    }
-                    return found;
-                };
-                const overlap = corner => {
-                    let hits = 0;
-                    for (let k = 0; k <= 16; k++) {
-                        const px = corner.x0 + (blockWidth * k) / 16;
-                        const t = ((px - left) / plotWidth) * xMax;
-                        groups.forEach(group => {
-                            const lastTime = Math.max(...group.subjects.map(s => s.time));
-                            if (t < 0 || t > lastTime) return;
-                            const step = stepAt(group, t);
-                            if (!step) return;
-                            const hi = data.bands && Number.isFinite(step.upper) ? Math.max(step.upper, step.survival) : step.survival;
-                            const lo = data.bands && Number.isFinite(step.lower) ? Math.min(step.lower, step.survival) : step.survival;
-                            const yTop = y(hi) - size * 0.3;
-                            const yBottom = y(lo) + size * 0.3;
-                            if (yTop < corner.y0 + blockHeight && yBottom > corner.y0) hits += data.bands ? 1 : 2;
-                        });
-                    }
-                    return hits;
-                };
-                const best = corners.reduce((winner, corner) => (overlap(corner) < overlap(winner) ? corner : winner), corners[0]);
-                const textX = best.x0 + (showLegend ? size * 1.6 : 0);
+            if (legendAt) {
+                const textX = legendAt.x0 + (showLegend ? size * 1.6 : 0);
                 if (showLegend) {
                     legend.forEach((text, i) => {
-                        const yy = best.y0 + size * 1.05 + i * size * 1.35;
-                        parts.push(`<line x1="${best.x0.toFixed(1)}" x2="${(best.x0 + size * 1.2).toFixed(1)}" y1="${(yy - size * 0.3).toFixed(1)}" y2="${(yy - size * 0.3).toFixed(1)}" stroke="${groups[i].color}" stroke-width="${data.lineWidth + 1}"/>`);
+                        const yy = legendAt.y0 + size * 1.05 + i * size * 1.35;
+                        parts.push(`<line x1="${legendAt.x0.toFixed(1)}" x2="${(legendAt.x0 + size * 1.2).toFixed(1)}" y1="${(yy - size * 0.3).toFixed(1)}" y2="${(yy - size * 0.3).toFixed(1)}" stroke="${groups[i].color}" stroke-width="${data.lineWidth + 1}"/>`);
                         parts.push(`<text x="${textX.toFixed(1)}" y="${yy.toFixed(1)}" font-size="${size}" fill="${ink}">${context.escapeXml(text)}</text>`);
                     });
                 }
                 if (test) {
-                    const yy = best.y0 + size * 1.05 + (lines.length - 1) * size * 1.35 + (showLegend ? size * 0.2 : 0);
+                    const yy = legendAt.y0 + size * 1.05 + (lines.length - 1) * size * 1.35 + (showLegend ? size * 0.2 : 0);
                     parts.push(`<text x="${textX.toFixed(1)}" y="${yy.toFixed(1)}" font-size="${size}" fill="${ink}">Log-rank ${context.escapeXml(formatP(test.p))}</text>`);
                 }
             }

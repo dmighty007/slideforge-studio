@@ -260,6 +260,16 @@ export function parseMermaidToGraph(source = "", previousGraph = null) {
         const match = header.match(/^(?:flowchart|graph)\s+([A-Z]{2})/i);
         model.direction = (match?.[1] || previousGraph?.direction || "TD").toUpperCase();
     }
+    // A chart turned to another direction is laid out afresh: a top-down template edited into a left-to-right chart
+    // kept its boxes where they were, top-down (the same ids, A, B, C…, were in both).
+    const turned = Boolean(previousGraph?.direction) && previousGraph.direction !== model.direction;
+    if (turned) {
+        previousGraph = {
+            ...previousGraph,
+            nodePositions: {},
+            nodes: (previousGraph.nodes || []).map(({ x, y, autoPlacedAt, ...rest }) => rest),
+        };
+    }
 
     lines.forEach(line => {
         if (IGNORED_STATEMENTS.test(line)) return;
@@ -291,7 +301,7 @@ export function parseMermaidToGraph(source = "", previousGraph = null) {
         });
     });
 
-    const previousPositions = previousGraph?.nodePositions || metadata.positions || {};
+    const previousPositions = previousGraph?.nodePositions || (turned ? {} : metadata.positions) || {};
     model.nodePositions = {};
     model.nodes.forEach(node => {
         const pos = previousPositions[node.id] || {};

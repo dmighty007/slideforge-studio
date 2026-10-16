@@ -30,6 +30,14 @@ function fitTextContentToBox(dom, data, contentHost) {
     // moved the text by a pixel (a reopened deck showed two of three title lines). The text's own height is measured
     // with the host at its natural height (scrollHeight is never less than the box's).
     const available = contentHost.clientHeight;
+    // A box that is not laid out (its slide is not the one shown) has no height to fit into: measured anyway, nothing
+    // fitted and titles fell to the smallest size, which then stayed after reopening, in the show and in the PDF.
+    // It keeps its own size and is fitted when its slide is shown.
+    if (available <= 0 || !dom.getClientRects().length) {
+        dom.dataset.fitPending = "true";
+        return baseSize;
+    }
+    delete dom.dataset.fitPending;
     // The host is a stretched flex item, so it is also kept from growing or stretching while measured.
     const naturalHeight = () => {
         const saved = ["height", "flex", "align-self"].map(name => [name, contentHost.style.getPropertyValue(name), contentHost.style.getPropertyPriority(name)]);
@@ -168,5 +176,8 @@ function refitAutofitTextBoxes() {
         document.fonts.addEventListener?.("loadingdone", later);
     }
     window.addEventListener("resize", later);
+    // A slide coming into view: its boxes could not be fitted while it was hidden.
+    document.addEventListener("slidechanged", later);
+    document.addEventListener("ready", later);
     window.addEventListener("slideforge:render-complete", () => document.fonts?.ready.then(later));
 })();

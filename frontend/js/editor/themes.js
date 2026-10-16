@@ -1055,9 +1055,18 @@ function _retintChart(el, previousTheme, nextTheme) {
 // table on the theme's card with an accent-tinted header and the theme's text, instead of a white block.
 const LIGHT_TABLE_COLORS = { headerFill: "#e2e8f0", bodyFill: "#ffffff", altFill: "#f8fafc", borderColor: "#cbd5e1", textColor: "#172033", headerTextColor: "#172033" };
 
+// On light themes the header row is a pale tint of the theme's accent (opaque, so PowerPoint draws the same), not the
+// one grey every theme got; the body stays white for reading.
+function _lightTableHeaderFill(theme) {
+    const accent = _themeHexToRgb(theme?.accentStrong || "");
+    if (!accent) return LIGHT_TABLE_COLORS.headerFill;
+    const mix = [accent.r, accent.g, accent.b].map(channel => Math.round(255 + (channel - 255) * 0.14));
+    return `#${mix.map(channel => channel.toString(16).padStart(2, "0")).join("")}`;
+}
+
 function themeTableColors(theme = getPresentationTheme()) {
     const isDark = _themeRelativeLuminance(theme.defaultTextColor) > 0.72;
-    if (!isDark) return { ...LIGHT_TABLE_COLORS };
+    if (!isDark) return { ...LIGHT_TABLE_COLORS, headerFill: _lightTableHeaderFill(theme) };
     return {
         headerFill: theme.accentSoft,
         bodyFill: theme.surfaceColor,
@@ -1117,6 +1126,9 @@ function _retintElementForTheme(el, previousTheme, nextTheme) {
     }
 
     if (el.type === "table" && el.tableData) {
+        // A table in the old theme's body font (or the old default, Manrope) takes the new theme's.
+        const font = String(el.tableData.fontFamily || "");
+        if (!font || font === previousTheme?.bodyFont || font === '"Manrope", sans-serif') el.tableData.fontFamily = nextTheme.bodyFont;
         // A table still in the default colours (the old theme's, or the white ones every theme used to
         // get) takes the new theme's; one the user coloured is retinted role by role.
         if (_sameTableColors(el.tableData, themeTableColors(previousTheme)) || _sameTableColors(el.tableData, LIGHT_TABLE_COLORS)) {

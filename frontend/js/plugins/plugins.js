@@ -641,6 +641,7 @@ function renderPluginElementContent(host, elData, { interactive = false } = {}) 
                     const main = [...document.querySelectorAll(`[id="${stored.id}"]`)].find(node => !node.closest("#slide-previews"));
                     if (main) main.style.height = stored.height;
                     if (state.selectedIds?.includes(stored.id) && typeof updateGroupBound === "function") updateGroupBound();
+                    if (typeof syncPanelGeometryFields === "function") syncPanelGeometryFields();
                 }
                 if (stored && stored.pluginPreviewKey !== drawing.key) {
                     // Kept outside undo: it is a cache of what the plugin draws, not an edit.
@@ -717,7 +718,8 @@ async function _askPluginPrimaryValue(plugin, data, { inserting = false } = {}) 
         label: field.label,
         value: data[field.key] ?? "",
         placeholder: field.placeholder || "",
-        hint: field.hint || "",
+        // The panel's "Press Enter to redraw" does not apply here: Enter inserts (or applies).
+        hint: String(field.hint || "").replace(/\s*Press Enter to [^.]*\.\s*/gi, " ").trim(),
         multiline: field.type === "textarea",
         okLabel: inserting ? "Insert" : "Apply",
     });

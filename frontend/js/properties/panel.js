@@ -242,6 +242,31 @@ function _buildGeometryFields(el) {
         </div>`;
 }
 
+// The panel's position and size numbers follow the object when its box changes without a panel rebuild (a plugin
+// placed after its drawing arrived, a table growing to hold its rows): they showed the old values. A field being
+// typed in is left alone.
+function syncPanelGeometryFields() {
+  const id = state.selectedIds?.length === 1 ? state.selectedIds[0] : null;
+  const el = id ? state.slides?.[currentSlideIndex]?.elements?.find((item) => item.id === id) : null;
+  if (!el) return;
+  const set = (fieldId, value) => {
+    const input = document.getElementById(fieldId);
+    if (!input || input === document.activeElement || !Number.isFinite(value)) return;
+    const next = String(Math.round(value));
+    if (input.value !== next) input.value = next;
+  };
+  set("prop-geom-x", Number(el.x));
+  set("prop-geom-y", Number(el.y));
+  set("prop-geom-w", parseFloat(el.width));
+  if (String(el.height).trim() !== "auto") set("prop-geom-h", parseFloat(el.height));
+  if (el.type === "table") {
+    set("prop-table-element-width", parseFloat(el.width));
+    set("prop-table-element-height", parseFloat(el.height));
+  }
+}
+window.syncPanelGeometryFields = syncPanelGeometryFields;
+window.addEventListener("slideforge:render-complete", () => requestAnimationFrame(syncPanelGeometryFields));
+
 function _bindGeometryFields() {
   const id = state.selectedIds.length === 1 ? state.selectedIds[0] : null;
   if (!id) return;

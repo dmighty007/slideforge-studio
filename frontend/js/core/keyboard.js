@@ -278,6 +278,14 @@ function initKeyboard() {
             }
         }
 
+        // Escape on a dropdown of the panel only leaves it, as in the panel's text boxes: it also deselected the object,
+        // and the panel jumped to the slide's settings.
+        if (rawKey === "Escape" && target?.tagName === "SELECT" && target.closest?.("#properties-panel")) {
+            e.preventDefault();
+            target.blur();
+            return;
+        }
+
         // Escape: Clear selection or close modal
         if (rawKey === "Escape") {
             const shortcutsModal = document.getElementById("shortcuts-modal");

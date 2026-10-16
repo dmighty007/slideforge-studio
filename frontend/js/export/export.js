@@ -2952,6 +2952,13 @@ function createViewerElement(elData, mediaOptions = {}) {
             altFill: tableData?.altFill || '#f8fafc',
             textColor: tableData?.textColor || '#172033',
             headerTextColor: tableData?.headerTextColor || '#172033',
+            // The table's text settings: left out here, the Web ZIP drew every table at 16 px Manrope whatever the
+            // Style tab said.
+            fontFamily: typeof tableData?.fontFamily === 'string' ? tableData.fontFamily : '"Manrope", sans-serif',
+            fontSize: typeof tableData?.fontSize === 'string' ? tableData.fontSize : '16px',
+            fontStyle: tableData?.fontStyle || 'normal',
+            fontWeight: tableData?.fontWeight || '400',
+            textAlign: tableData?.textAlign || 'left',
             rowHeights: Array.from({ length: rows }, (_, rowIndex) => {
                 const value = Number(rawRowHeights[rowIndex]);
                 return Number.isFinite(value) && value >= 24 ? value : 44;
@@ -3073,8 +3080,11 @@ function createViewerElement(elData, mediaOptions = {}) {
                 cell.style.padding = tableData.cellPadding + 'px';
                 cell.style.backgroundColor = styles.backgroundColor || (isHeader ? tableData.headerFill : zebraFill);
                 cell.style.color = styles.color || (isHeader ? tableData.headerTextColor : tableData.textColor);
-                cell.style.textAlign = styles.textAlign || 'left';
-                cell.style.fontWeight = styles.fontWeight || (isHeader ? '700' : '400');
+                cell.style.textAlign = styles.textAlign || tableData.textAlign;
+                cell.style.fontWeight = styles.fontWeight || (isHeader ? '700' : tableData.fontWeight);
+                cell.style.fontFamily = styles.fontFamily || tableData.fontFamily;
+                cell.style.fontSize = styles.fontSize || tableData.fontSize;
+                cell.style.fontStyle = styles.fontStyle || tableData.fontStyle;
                 cell.style.verticalAlign = 'top';
                 cell.style.whiteSpace = 'pre-wrap';
                 cell.textContent = cellData.text || '';

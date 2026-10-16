@@ -18,7 +18,9 @@ function _matchTableGridToBox(tableData, element) {
 
 // fitElement: after rows or columns are added or removed, the table's box follows its grid (a new column was cut
 // off by the old box). A grid that would run off the slide or into the footer is scaled down to fit instead.
-function mutateSelectedTableData(mutator, { fitElement = false } = {}) {
+// keepCol / keepRow: the column or row the user just sized keeps its size when the table must shrink to stay on the
+// slide; the others make the room (all of them shrank, the one typed in too).
+function mutateSelectedTableData(mutator, { fitElement = false, keepCol = null, keepRow = null } = {}) {
   const data = getSelectedElementData();
   if (!data || data.type !== "table") return;
   saveStateToUndo();
@@ -32,10 +34,15 @@ function mutateSelectedTableData(mutator, { fitElement = false } = {}) {
     const sum = (values) => values.reduce((total, value) => total + (Number(value) || 0), 0);
     const maxW = Math.max(120, (Number(page.width) || 1024) - (parseFloat(data.x) || 0) - 40);
     const maxH = Math.max(80, (Number(page.height) || 768) - (parseFloat(data.y) || 0) - 70);
-    const scaleW = Math.min(1, maxW / Math.max(1, sum(normalized.colWidths)));
-    const scaleH = Math.min(1, maxH / Math.max(1, sum(normalized.rowHeights)));
-    normalized.colWidths = normalized.colWidths.map((value) => Math.max(36, Math.floor(value * scaleW)));
-    normalized.rowHeights = normalized.rowHeights.map((value) => Math.max(24, Math.floor(value * scaleH)));
+    const shrink = (values, max, keep, least) => {
+      const kept = keep !== null && keep !== undefined && values[keep] !== undefined ? Math.min(values[keep], max - least * (values.length - 1)) : null;
+      const others = sum(values) - (kept === null ? 0 : values[keep]);
+      const room = max - (kept === null ? 0 : kept);
+      const scale = Math.min(1, room / Math.max(1, others));
+      return values.map((value, index) => (index === keep && kept !== null ? Math.max(least, Math.floor(kept)) : Math.max(least, Math.floor(value * scale))));
+    };
+    normalized.colWidths = shrink(normalized.colWidths, maxW, keepCol, 36);
+    normalized.rowHeights = shrink(normalized.rowHeights, maxH, keepRow, 24);
     patch.width = `${sum(normalized.colWidths)}px`;
     patch.height = `${sum(normalized.rowHeights)}px`;
     data.width = patch.width;

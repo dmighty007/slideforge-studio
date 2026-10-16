@@ -5730,12 +5730,16 @@ async function test(name, fn) {
         const id = await page.evaluate(() => state.slides[currentSlideIndex].elements.find(e => e.type === "table").id);
         const firstCell = await page.evaluate(id => { const r = document.querySelector(`.slides [id="${id}"] .table-element-cell`).getBoundingClientRect(); return [r.x + 15, r.y + 15]; }, id);
         await page.mouse.dblclick(firstCell[0], firstCell[1]);
+        const objectsBefore = await page.evaluate(() => state.slides[currentSlideIndex].elements.length);
         await page.evaluate(() => {
             const data = new DataTransfer();
             data.setData("text/plain", "Dose\tResponse\tn\n50 mg\t12%\t20\n100 mg\t31%\t21\n200 mg\t48%\t19\n400 mg\t52%\t18\n");
             document.activeElement.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
         });
         await page.waitForTimeout(300);
+        // The block goes into the table only: the slide's own paste also made a text box of it (study 2026-10-16, B2).
+        const objectsAfter = await page.evaluate(() => state.slides[currentSlideIndex].elements.map(e => e.type));
+        assert(objectsAfter.length === objectsBefore, `the paste also added an object: ${JSON.stringify(objectsAfter)}`);
         const table = await page.evaluate(id => state.slides[currentSlideIndex].elements.find(e => e.id === id).tableData, id);
         assert(table.rows >= 5 && table.cells[0][0].text === "Dose" && table.cells[4][1].text === "52%" && table.cells[2][2].text === "21", `pasted table: ${JSON.stringify(table.cells.map(r => r.map(c => c.text)))}`);
         // Long text in a narrow column wraps; the box grows to hold it instead of hiding rows behind a scrollbar.
@@ -6312,6 +6316,194 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("study 2026-10-16: a column width typed in the panel goes to the selected column only", async () => {
+        const { page } = await openEditor(context);
+        await page.evaluate(() => { setPropertiesPanelVisible(true, { persist: false }); addSlide(); addElement("table"); });
+        const id = await page.evaluate(() => state.slides[currentSlideIndex].elements.find(e => e.type === "table").id);
+        const cell = (r, c) => page.evaluate(([id, r, c]) => { const node = [...document.querySelectorAll(`[id="${id}"]`)].find(n => !n.closest("#slide-previews")); const b = node.querySelectorAll("tr")[r].querySelectorAll("th, td")[c].getBoundingClientRect(); return [b.x + b.width / 2, b.y + 10]; }, [id, r, c]);
+        const widths = () => page.evaluate(id => { const el = state.slides[currentSlideIndex].elements.find(e => e.id === id); const t = normalizeTableData(el.tableData); return t.colWidths.map((_, c) => Math.round(_tableColumnBoxWidth(t, el, c))); }, id);
+        const before = await widths();
+        let point = await cell(1, 0);
+        await page.mouse.click(point[0], point[1]);
+        await page.waitForTimeout(300);
+        await page.evaluate(() => document.querySelector('.properties-tab[data-properties-tab="content"]')?.click());
+        await page.waitForFunction(() => typeof document.getElementById("prop-table-col-width")?.onchange !== "undefined" && document.getElementById("prop-table-col-width"));
+        await page.waitForTimeout(100);
+        await page.locator("#prop-table-col-width").fill("80");
+        await page.locator("#prop-table-col-width").press("Enter");
+        await page.waitForTimeout(300);
+        point = await cell(1, 2);
+        await page.mouse.click(point[0], point[1]);
+        await page.waitForTimeout(400);
+        const label = await page.locator("#properties-panel").innerText().then(text => text.match(/Selected[^\n]*/)?.[0] || "");
+        assert(/C3/.test(label), `the click on the third column did not select it: ${label}`);
+        await page.waitForTimeout(100);
+        await page.locator("#prop-table-col-width").fill("300");
+        await page.locator("#prop-table-col-width").press("Enter");
+        await page.waitForTimeout(300);
+        const after = await widths();
+        assert(Math.abs(after[0] - 80) <= 1 && Math.abs(after[2] - 300) <= 1, `widths: ${JSON.stringify({ before, after })}`);
+        assert(Math.abs(after[1] - before[1]) <= 1 && Math.abs(after[3] - before[3]) <= 1, `the other columns changed: ${JSON.stringify({ before, after })}`);
+        await page.close();
+    });
+
+    await test("study 2026-10-16: the panel's position and size follow an object placed after its drawing arrives", async () => {
+        const { page } = await openEditor(context);
+        await page.evaluate(() => { setPropertiesPanelVisible(true, { persist: false }); addSlide(); });
+        await page.evaluate(() => SlideForgePlugins.ready);
+        // Base tab open while inserting, as in the study.
+        await page.evaluate(() => _propertiesPanelTabByKind.set("plugin:smiles", "overview"));
+        const id = await pageAwait(page, () => insertPluginElement("smiles", { smiles: "CN1C=NC2=C1C(=O)N(C(=O)N2C)C>>CN1C=NC2=C1C(=O)N(C)C(=O)N2" }, { ask: false }));
+        await page.waitForTimeout(600);
+        assert(await page.evaluate(() => !!document.getElementById("prop-geom-y")), "the Base tab is not shown");
+        const out = await page.evaluate(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const field = fieldId => Number(document.getElementById(fieldId)?.value);
+            return { object: [Math.round(el.x), Math.round(el.y), Math.round(parseFloat(el.width)), Math.round(parseFloat(el.height))], fields: ["prop-geom-x", "prop-geom-y", "prop-geom-w", "prop-geom-h"].map(field) };
+        }, id);
+        assert(JSON.stringify(out.object) === JSON.stringify(out.fields), `panel ${JSON.stringify(out.fields)} vs object ${JSON.stringify(out.object)}`);
+        // A table that grows to hold its rows: its width and height fields follow.
+        await page.evaluate(() => { addElement("table"); });
+        const table = await page.evaluate(() => state.selectedIds[0]);
+        await page.evaluate(() => document.querySelector('.properties-tab[data-properties-tab="content"]')?.click());
+        await page.evaluate(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const data = normalizeTableData(el.tableData);
+            data.cells[1][0].text = "A long line of text that wraps over several lines in this narrow column of the table";
+            updateElementState(id, { tableData: data });
+            renderSlidesFromState();
+        }, table);
+        await page.waitForTimeout(600);
+        const grown = await page.evaluate(id => ({ stored: Math.round(parseFloat(state.slides[currentSlideIndex].elements.find(e => e.id === id).height)), field: Number(document.getElementById("prop-table-element-height")?.value) }), table);
+        assert(grown.stored === grown.field, `table height: ${JSON.stringify(grown)}`);
+        await page.close();
+    });
+
+    await test("study 2026-10-16: a top-down flowchart edited into a left-to-right one is laid out left to right", async () => {
+        const { page } = await openEditor(context);
+        await page.evaluate(() => { addSlide(); openMermaidDialog(); });
+        await page.waitForTimeout(800);
+        // The dialog starts from a top-down template whose ids (A, B, C, D) the typed chart uses too.
+        await page.getByRole("button", { name: "Code", exact: true }).last().click();
+        await page.waitForTimeout(300);
+        await page.locator("textarea:visible").first().fill("flowchart LR\n  A[Recruit] --> B{Randomise}\n  B --> C[Placebo]\n  B --> D[100 mg/day]\n  B --> E[200 mg/day]\n  C --> F[Analysis]\n  D --> F\n  E --> F");
+        await page.waitForTimeout(1200);
+        await page.getByRole("button", { name: "Split", exact: true }).last().click();
+        await page.waitForTimeout(1000);
+        const boxes = await page.evaluate(() =>
+            Object.fromEntries([...document.querySelectorAll("#mermaid-preview .mermaid-graph-node")].map(node => {
+                const r = node.getBoundingClientRect();
+                return [node.textContent.trim(), { left: r.left, right: r.right, centre: r.top + r.height / 2 }];
+            })),
+        );
+        await page.keyboard.press("Escape");
+        const order = ["Recruit", "Randomise", "Placebo", "Analysis"].map(name => boxes[name]);
+        assert(order.every(Boolean) && order.every((box, i) => i === 0 || order[i - 1].right <= box.left), `not left to right: ${JSON.stringify(boxes)}`);
+        assert(Math.abs(boxes.Recruit.centre - boxes.Analysis.centre) <= 3, `the chain is not level: ${JSON.stringify(boxes)}`);
+        await page.close();
+    });
+
+    await test("study 2026-10-16: the Web ZIP draws a table in the font and size set in Style", async () => {
+        const { page } = await openEditor(context);
+        const tableId = await page.evaluate(() => {
+            addSlide();
+            addElement("table");
+            const el = state.slides[currentSlideIndex].elements.find(e => e.type === "table");
+            const data = normalizeTableData(el.tableData);
+            Object.assign(data, { fontSize: "20px", fontFamily: '"DM Sans", sans-serif', textAlign: "center" });
+            data.cells[1][0].styles = { fontSize: "24px" };
+            updateElementState(el.id, { tableData: data });
+            renderSlidesFromState();
+            return el.id;
+        });
+        const files = await page.evaluate(async () => {
+            const zip = await JSZip.loadAsync(await buildViewerBundle({ includeVendor: true }));
+            const out = {};
+            for (const [name, file] of Object.entries(zip.files)) if (!file.dir) out[name] = await file.async("base64");
+            return out;
+        });
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sf-viewer-table-"));
+        for (const [name, data] of Object.entries(files)) {
+            fs.mkdirSync(path.dirname(path.join(dir, name)), { recursive: true });
+            fs.writeFileSync(path.join(dir, name), Buffer.from(data, "base64"));
+        }
+        const viewer = await context.newPage();
+        await viewer.goto(`file://${path.join(dir, "index.html")}`);
+        await viewer.waitForTimeout(800);
+        const cells = await viewer.evaluate(id => {
+            const all = [...document.querySelectorAll(`[id="${id}"] .table-element-cell`)];
+            const style = cell => ({ size: getComputedStyle(cell).fontSize, family: getComputedStyle(cell).fontFamily, align: getComputedStyle(cell).textAlign });
+            return { body: all[5] && style(all[5]), own: all[4] && style(all[4]) };
+        }, tableId);
+        await viewer.close();
+        assert(cells.body?.size === "20px" && /DM Sans/.test(cells.body.family) && cells.body.align === "center", `table text in the Web ZIP: ${JSON.stringify(cells)}`);
+        assert(cells.own?.size === "24px", `a cell's own size in the Web ZIP: ${JSON.stringify(cells)}`);
+        await page.close();
+    });
+
+    await test("study 2026-10-16: the Kaplan–Meier legend keeps off the curves and bands even when every corner is crossed", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const data = "Time,Event,Group\n6,1,Low intake\n9,1,Low intake\n12,0,Low intake\n14,1,Low intake\n20,1,Low intake\n24,0,Low intake\n10,0,High intake\n18,1,High intake\n26,0,High intake\n30,0,High intake\n33,1,High intake\n36,0,High intake";
+        const id = await pageAwait(page, data => insertPluginElement("kaplan-meier", { data, xLabel: "Time (months)" }, { ask: false }), data);
+        await page.evaluate(id => updateElementState(id, { width: "610px", height: "495px" }), id);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { fontSize: 16 }), id);
+        const hits = await page.evaluate(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const holder = document.createElement("div");
+            holder.style.cssText = "position:fixed;left:0;top:0;width:610px;height:495px";
+            holder.innerHTML = decodeURIComponent(el.pluginPreview.slice(el.pluginPreview.indexOf(",") + 1));
+            document.body.appendChild(holder);
+            const svg = holder.querySelector("svg");
+            const legend = [...svg.querySelectorAll("text")].filter(t => /\(n = \d+\)|Log-rank/.test(t.textContent));
+            const covered = [...svg.querySelectorAll("path")].filter(p => p.getAttribute("fill-opacity") === "0.15" || (p.getAttribute("fill") === "none" && p.getAttribute("stroke-width") === "2"));
+            let count = 0;
+            legend.forEach(text => {
+                const box = text.getBBox();
+                for (let i = 0; i <= 10; i++) for (let j = 0; j <= 3; j++) {
+                    const point = svg.createSVGPoint();
+                    point.x = box.x + (box.width * i) / 10;
+                    point.y = box.y + (box.height * j) / 3;
+                    if (covered.some(path => path.isPointInFill(point) || path.isPointInStroke(point))) count++;
+                }
+            });
+            holder.remove();
+            return { count, legend: legend.length };
+        }, id);
+        assert(hits.legend === 3 && hits.count === 0, `legend over the curves or bands: ${JSON.stringify(hits)}`);
+        await page.close();
+    });
+
+    await test("study 2026-10-16: tables follow the theme, the insert box does not promise Enter redraws, Escape on a dropdown keeps the object", async () => {
+        const { page } = await openEditor(context);
+        // A new table on a light theme: the theme's body font and an accent-tinted header, not Manrope and grey.
+        const table = await page.evaluate(() => {
+            changePresentationTheme("porcelain");
+            addSlide();
+            addElement("table");
+            const el = state.slides[currentSlideIndex].elements.find(e => e.type === "table");
+            return { font: el.tableData.fontFamily, header: el.tableData.headerFill, body: el.tableData.bodyFill, theme: getPresentationTheme().bodyFont };
+        });
+        assert(table.font === table.theme && table.header.toLowerCase() !== "#e2e8f0" && table.body === "#ffffff", `new table: ${JSON.stringify(table)}`);
+        // The insert box for a QR code: Enter inserts, so no "Press Enter to redraw".
+        await page.evaluate(() => SlideForgePlugins.ready);
+        await page.evaluate(() => { window.__qrInsert = insertPluginElement("qr-code"); });
+        await page.waitForSelector("#sf-prompt-modal, .sf-prompt, [role=dialog]", { state: "visible" });
+        const dialogText = await page.evaluate(() => document.querySelector("#sf-prompt-modal, .sf-prompt, [role=dialog]")?.textContent || "");
+        await page.keyboard.press("Escape");
+        assert(!/Press Enter to redraw/i.test(dialogText), `insert box: ${dialogText}`);
+        // Escape on a closed dropdown of the panel leaves the dropdown; the object stays selected.
+        await page.evaluate(async () => { setPropertiesPanelVisible(true, { persist: false }); await insertPluginElement("box-plot", null, { ask: false }); });
+        await page.waitForTimeout(500);
+        const select = page.locator("#properties-content select").first();
+        await select.click();
+        await page.keyboard.press("Escape");
+        await page.keyboard.press("Escape");
+        const kept = await page.evaluate(() => state.selectedIds.length);
+        assert(kept === 1, "Escape on the dropdown deselected the object");
+        await page.close();
+    });
+
     if (!FRONTEND_ONLY) {
         // ─── Plugin manager (js/ui/plugin-manager.js, studio/plugins.py) ───────────────────────────────────────
         // Plugin switches are kept by the server: each test puts them back as it found them.
@@ -6320,6 +6512,56 @@ async function test(name, fn) {
                 ([id, enabled]) => _apiFetch(`/api/plugins/${id}/`, { method: "POST", body: JSON.stringify({ enabled }) }).then(r => r.ok),
                 [id, enabled],
             );
+
+        await test("study 2026-10-16: titles on slides not shown keep their size, after reopening too", async () => {
+            const first = await openEditor(context);
+            const titles = ["High intake tends to delay liver events, in line with earlier cohorts", "Caffeine induces CYP1A2 and XDH in liver", "Conclusions", "Backup"];
+            await first.page.evaluate(titles => {
+                titles.forEach(text => {
+                    addSlide();
+                    const title = state.slides[currentSlideIndex].elements.find(e => e.placeholder === "Click to add title");
+                    title.content = text;
+                    delete title.textDocument;
+                });
+                renderSlidesFromState();
+                switchSlide(1);
+                schedulePresentationAutosave?.(0);
+            }, titles);
+            await first.page.waitForTimeout(1200);
+            // Shown size of each added slide's title: on its own slide once shown, and while another slide is shown.
+            const sizes = page =>
+                page.evaluate(async count => {
+                    const out = [];
+                    const from = state.slides.length - count;
+                    const shownSize = index => {
+                        const el = state.slides[index].elements.find(e => e.placeholder === "Click to add title");
+                        const node = [...document.querySelectorAll(`[id="${el.id}"]`)].find(n => !n.closest("#slide-previews"));
+                        return { stored: parseFloat(el.styles.fontSize), shown: parseFloat(node.querySelector(".text-element-content").style.fontSize) || parseFloat(getComputedStyle(node.querySelector(".text-element-content")).fontSize) };
+                    };
+                    const hidden = shownSize(state.slides.length - 1);
+                    for (let i = from; i < state.slides.length; i++) {
+                        switchSlide(i);
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        out.push(shownSize(i));
+                    }
+                    return { hidden, onScreen: out };
+                }, titles.length);
+            const before = await sizes(first.page);
+            await first.page.evaluate(() => saveCurrentProject());
+            await first.page.waitForTimeout(800);
+            await first.page.close();
+            const second = await openEditor(context);
+            await second.page.waitForTimeout(1200);
+            const after = await sizes(second.page);
+            // "Conclusions" and "Backup" fit at their full stored size; the long titles may shrink, but not to the minimum.
+            for (const [when, result] of [["before", before], ["after reopening", after]]) {
+                assert(result.hidden.shown >= result.hidden.stored - 0.5, `${when}: a title on a slide not shown is drawn at ${result.hidden.shown}px of ${result.hidden.stored}px`);
+                const [longOne, , conclusions, backup] = result.onScreen;
+                assert(conclusions.shown >= conclusions.stored - 0.5 && backup.shown >= backup.stored - 0.5, `${when}: short titles shrank: ${JSON.stringify(result.onScreen)}`);
+                assert(longOne.shown > 20, `${when}: a long title fell to the minimum: ${JSON.stringify(result.onScreen)}`);
+            }
+            await second.page.close();
+        });
 
         await test("Plugin manager: switching a plugin off unloads it, keeps its objects' pictures, and lasts after reload", async () => {
             const { page, errors } = await openFreshEditor(context);

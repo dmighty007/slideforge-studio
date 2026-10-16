@@ -53,7 +53,14 @@ function addElement(type, options = {}) {
               }
             : {}),
         ...(type === "table"
-            ? { tableData: { ...createDefaultTableData(3, 4), ...(typeof themeTableColors === "function" ? themeTableColors(theme) : {}) } }
+            ? {
+                  // In the theme's body font and colours (tables came out in Manrope with a grey header on every theme).
+                  tableData: {
+                      ...createDefaultTableData(3, 4),
+                      ...(typeof themeTableColors === "function" ? themeTableColors(theme) : {}),
+                      ...(theme?.bodyFont ? { fontFamily: theme.bodyFont } : {}),
+                  },
+              }
             : {}),
         ...(type === "shape" ? { shapeType } : {}),
         ...(type === "image" ? { lockAspectRatio: true, imageAspectRatio: 1.5 } : {}),

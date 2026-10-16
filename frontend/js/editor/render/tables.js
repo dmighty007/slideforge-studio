@@ -90,6 +90,7 @@ function _fitTableBoxToContent(container, elData, table) {
   }
   if (elData !== stored) Object.assign(elData, { height: stored.height, tableHeightGrown: stored.tableHeightGrown, tableHeightBeforeGrowth: stored.tableHeightBeforeGrowth });
   if (state.selectedIds?.includes(elData.id) && typeof updateGroupBound === "function") updateGroupBound();
+  if (typeof syncPanelGeometryFields === "function") syncPanelGeometryFields();
 }
 
 function _renderTableDom(container, elData, { interactive = true } = {}) {
@@ -301,6 +302,9 @@ function _renderTableDom(container, elData, { interactive = true } = {}) {
           // Cells copied from a spreadsheet (tabs between cells, a line per row) fill the table from this cell,
           // adding rows and columns as needed; the whole block used to land in this one cell.
           if (normalizedText.includes("\t")) {
+            // Handled here: the slide's own paste (which makes a text box of pasted text) must not see it too. The
+            // cell is closed by now, so it took the paste for one made on the slide.
+            e.stopPropagation();
             _pasteTableBlock(elData, rowIndex, colIndex, normalizedText);
             return;
           }
