@@ -1013,13 +1013,14 @@ async function test(name, fn) {
         const title = String(await contentOf(page, plain));
         assert(/Title\s*more/.test(title.replace(/<[^>]+>/g, "")), `title: ${title}`);
         // An untouched body list is not shown outside the editor.
-        await page.evaluate(() => addSlide());
-        const shown = await page.evaluate(async () => {
+        // The new slide by id: addSlide puts it after the current slide, not at the end of the deck.
+        const newSlide = await page.evaluate(() => { addSlide(); return state.slides[currentSlideIndex].id; });
+        const shown = await page.evaluate(async id => {
             const bundle = await JSZip.loadAsync(await buildViewerBundle({ includeVendor: false }));
             const html = await bundle.file("index.html").async("string");
             const data = JSON.parse(new DOMParser().parseFromString(html, "text/html").getElementById("presentation-data").textContent);
-            return data.slides.at(-1).elements.filter(e => e.placeholderRole === "content").length;
-        });
+            return data.slides.find(slide => slide.id === id).elements.filter(e => e.placeholderRole === "content").length;
+        }, newSlide);
         assert(shown === 0, "an empty body box was exported");
         await page.close();
     });
@@ -2743,7 +2744,8 @@ async function test(name, fn) {
 
     await test("missing: equations, icons and HTML embeds are placed where they cover the least, not at a fixed spot", async () => {
         const { page } = await openFreshEditor(context);
-        const r = await page.evaluate(async () => {
+        // pageAwait: this waits in the page, which sometimes ended the evaluate with "Execution context was destroyed".
+        const r = await pageAwait(page, async () => {
             addSlide();
             addChart("bar");
             const overlap = (a, b) => {
@@ -6164,16 +6166,11 @@ async function test(name, fn) {
         const viewer = await context.newPage();
         await viewer.goto(`file://${path.join(dir, "index.html")}`);
         await viewer.waitForTimeout(800);
-        for (let i = 0; i < 6; i++) {
-            await viewer.keyboard.press("ArrowRight");
-            await viewer.waitForTimeout(250);
-        }
-        const viewerPitch = await viewer.evaluate(() => {
-            const slide = document.querySelector(".presentation-slide.is-active");
-            const scale = slide.getBoundingClientRect().width / slide.offsetWidth;
-            const rows = [...slide.querySelectorAll(".ppt-bullet-row")].map(row => row.getBoundingClientRect().top / scale);
+        // This text box's own rows, wherever its slide is in the deck (other tests add slides to it too).
+        const viewerPitch = await viewer.evaluate(id => {
+            const rows = [...document.querySelectorAll(`[id="${id}"] .ppt-bullet-row`)].map(row => row.offsetTop + row.closest(".ppt-bullet-block").offsetTop);
             return rows.length > 1 ? (rows.at(-1) - rows[0]) / (rows.length - 1) : null;
-        });
+        }, ids.body);
         await viewer.close();
         assert(viewerPitch && Math.abs(viewerPitch - editorPitch) <= editorPitch * 0.12, `bullet spacing: editor ${editorPitch.toFixed(1)} px, Web ZIP ${viewerPitch?.toFixed(1)} px`);
         await page.close();
