@@ -7155,7 +7155,8 @@ async function test(name, fn) {
         // Escape on a closed dropdown of the panel leaves the dropdown; the object stays selected.
         await page.evaluate(async () => { setPropertiesPanelVisible(true, { persist: false }); await insertPluginElement("box-plot", null, { ask: false }); });
         await page.waitForTimeout(500);
-        const select = page.locator("#properties-content select").first();
+        // The first dropdown shown (the Arrange tab, with its own dropdown, is not the open tab).
+        const select = page.locator("#properties-content select:visible").first();
         await select.click();
         await page.keyboard.press("Escape");
         await page.keyboard.press("Escape");
@@ -7617,7 +7618,8 @@ async function test(name, fn) {
 
         await test("importing a PowerPoint deck keeps its own design: background, fonts and colours from its master and theme", async () => {
             const { page, errors } = await openEditor(context);
-            const out = await page.evaluate(async () => {
+            // pageAwait: a long awaited evaluate (the import) was now and then dropped with "Execution context was destroyed".
+            const out = await pageAwait(page, async () => {
                 const A = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
                 const ns = `${A} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"`;
                 const rels = list => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${list.map(([id, type, target]) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`).join("")}</Relationships>`;
