@@ -212,9 +212,17 @@ function buildChartJsConfig(elData, { forExport = false, theme = getPresentation
         options.animation = false;
         options.devicePixelRatio = 2;
     }
+    // A series without colours (an imported or older deck, data set by hand) takes the theme palette rather than
+    // Chart.js's grey-blue default, so it looks as it will after any edit or theme change.
+    const data = JSON.parse(JSON.stringify(elData?.chartData || { labels: [], datasets: [] }));
+    (data.datasets || []).forEach((dataset, index) => {
+        if (dataset.backgroundColor || dataset.borderColor) return;
+        Object.assign(dataset, chartSeriesColors(elData.chartType || "bar", data.labels?.length || 0, getPresentationTheme(), index, elData?.chartStyle?.seriesColors?.[index] || null));
+        if (type === "line") dataset.pointBackgroundColor = dataset.borderColor;
+    });
     return {
         type,
-        data: JSON.parse(JSON.stringify(elData?.chartData || { labels: [], datasets: [] })),
+        data,
         options,
         ...(errorBars ? { plugins: [_chartErrorBarsPlugin(ink)] } : {}),
     };
