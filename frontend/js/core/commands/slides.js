@@ -42,7 +42,7 @@ function _slideOwnFonts(slide) {
     const size = (el) => parseFloat(el.styles?.fontSize) || 0;
     const title = texts.reduce((best, el) => (size(el) > size(best) ? el : best), texts[0]);
     const body = texts.find((el) => el !== title) || title;
-    return { heading: title.styles.fontFamily, body: body.styles.fontFamily, color: body.styles.color || title.styles.color };
+    return { heading: title.styles.fontFamily, body: body.styles.fontFamily, color: body.styles.color || title.styles.color, titleColor: title.styles.color || body.styles.color };
 }
 
 function _titleAndContentPlaceholders(referenceSlide = null) {
@@ -53,7 +53,7 @@ function _titleAndContentPlaceholders(referenceSlide = null) {
     return [
         buildPlaceholderText({
             x: 64, y: 52, width, fitHeight: 96, fontSize: 40, fontWeight: "700", zIndex: 1, placeholder: "Click to add title",
-            fontFamily: own?.heading || theme.headingFont || '"Manrope", sans-serif', color: own?.color || theme.defaultTextColor || "#172033",
+            fontFamily: own?.heading || theme.headingFont || '"Manrope", sans-serif', color: own?.titleColor || own?.color || theme.defaultTextColor || "#172033",
         }),
         buildPlaceholderText({
             x: 64, y: 168, width, fontSize: 24, zIndex: 2, placeholder: "Click to add text", role: "content",
@@ -74,7 +74,13 @@ function addSlide(targetIndex = null) {
         masterId: reference?.masterId && reference.masterId !== "title" ? reference.masterId : "content",
         notes: "",
         presentationTransition: "none",
-        elements: _titleAndContentPlaceholders(reference),
+        // In an imported deck, the deck's background (a colour, gradient or picture from its master) too: a new slide
+        // came in on SlideForge's default theme between the imported ones.
+        ...(reference?.masterId === "none" && reference.background ? { background: JSON.parse(JSON.stringify(reference.background)) } : {}),
+        elements: [
+            ...(reference?.masterId === "none" ? (reference.elements || []).filter((el) => el?.importedBackground).map((el) => ({ ...JSON.parse(JSON.stringify(el)), id: generateId("el") })) : []),
+            ..._titleAndContentPlaceholders(reference),
+        ],
     });
     setCurrentSlideIndex(activeIndex + 1);
     renderSlidesFromState();

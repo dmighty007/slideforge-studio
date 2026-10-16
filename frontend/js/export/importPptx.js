@@ -5,7 +5,9 @@
  * Brought in, in their stacking order: text boxes (paragraphs, bullet levels, numbering, alignment, font, size,
  * bold/italic/underline and colour per run), pictures, tables, charts (bar, line, pie, doughnut), basic shapes with
  * their fill, groups (flattened), speaker notes and the slide proportions. Placeholders without their own position
- * take it from the slide layout. Not imported: animations, SmartArt, video, theme/master artwork and connectors.
+ * take it from the slide layout; text without its own font, size or colour takes the layout's, the master's and the
+ * theme's, and a slide without its own background takes its layout's or master's. Not imported: animations, SmartArt,
+ * video, and shapes drawn on the master or layout.
  */
 
 const PPTX_EMU_PER_PX = 9525;
@@ -283,7 +285,7 @@ function _pptxRunsHtml(runs, box) {
         .join("");
 }
 
-function _pptxTextElement(sp, box, { fontScale, placeholder, zIndex, links }) {
+function _pptxTextElement(sp, box, { fontScale, placeholder, zIndex, links, design = null }) {
     const txBody = _pptxChild(sp, "p:txBody");
     const paragraphs = _pptxChildren(txBody, "a:p").map(p => _pptxParagraph(p, fontScale, links));
     if (!paragraphs.some(p => p.length)) return null;
@@ -298,11 +300,14 @@ function _pptxTextElement(sp, box, { fontScale, placeholder, zIndex, links }) {
         return best && best[1] * 2 >= Math.max(1, length) ? best[0] : null;
     };
     const isTitle = placeholder && /title/i.test(placeholder.type);
+    // What the text does not set itself comes from the deck's layout, master and theme.
+    const inherited = design ? _pptxTextDefaults(design, placeholder) : {};
+    const inheritedSize = inherited.size ? Math.round(inherited.size * (96 / 72) * fontScale) : null;
     const style = {
-        size: pick("size") || (isTitle ? 40 : placeholder ? 24 : 18),
-        color: pick("color") || "#172033",
-        bold: pick("bold") === true,
-        font: pick("font"),
+        size: pick("size") || inheritedSize || (isTitle ? 40 : placeholder ? 24 : 18),
+        color: pick("color") || inherited.color || "#172033",
+        bold: pick("bold") === true || (pick("bold") == null && inherited.bold === true),
+        font: _pptxFontName(pick("font"), design?.theme) || inherited.font || null,
         caps: pick("caps") === true,
     };
     const align = paragraphs.find(p => p.align)?.align || (placeholder?.type === "ctrTitle" || placeholder?.type === "subTitle" ? "center" : "left");
@@ -338,7 +343,7 @@ function _pptxTextElement(sp, box, { fontScale, placeholder, zIndex, links }) {
         styles: {
             color: style.color,
             fontSize: `${style.size}px`,
-            fontFamily: style.font ? `"${style.font.replace(/"/g, "")}", sans-serif` : '"Manrope", sans-serif',
+            fontFamily: style.font ? _pptxFontStack(style.font) : '"Manrope", sans-serif',
             fontWeight: style.bold ? "700" : "400",
             textAlign: align,
             zIndex,
@@ -574,19 +579,177 @@ async function _pptxSlideNotes(pkg, rels) {
         .trim();
 }
 
-// The deck theme's colour scheme (dk1, lt1, accent1… plus the tx1/bg1 aliases), for colours given by scheme name.
-async function _pptxThemeColors(pkg) {
+// The deck theme's colour scheme (dk1, lt1, accent1…) with the master's colour map on top (tx1, bg1, tx2, bg2…: a dark
+// design maps text to light 1), its heading and body fonts, and its background fill styles (for <p:bgRef>).
+async function _pptxTheme(pkg, themePath = null, clrMap = null) {
     const colors = {};
     const names = Object.keys(pkg.zip.files || {}).filter(name => /^ppt\/theme\/theme\d+\.xml$/.test(name)).sort();
-    const doc = names.length ? await pkg.xml(names[0]) : null;
+    const doc = await pkg.xml(themePath || names[0] || "");
     const scheme = doc && _pptxFirst(doc, "a:clrScheme");
     Array.from(scheme?.children || []).forEach(node => {
         const key = node.tagName.replace(/^a:/, "");
         const rgb = _pptxChild(node, "a:srgbClr")?.getAttribute("val") || _pptxChild(node, "a:sysClr")?.getAttribute("lastClr");
         if (rgb && /^[0-9a-f]{6}$/i.test(rgb)) colors[key] = `#${rgb}`;
     });
-    Object.assign(colors, { tx1: colors.dk1, bg1: colors.lt1, tx2: colors.dk2, bg2: colors.lt2 });
-    return colors;
+    const map = { bg1: "lt1", tx1: "dk1", bg2: "lt2", tx2: "dk2", ...(clrMap || {}) };
+    Object.entries(map).forEach(([alias, name]) => {
+        if (colors[name]) colors[alias] = colors[name];
+    });
+    const font = name => _pptxFirst(_pptxFirst(doc, name), "a:latin")?.getAttribute("typeface") || null;
+    return {
+        colors,
+        fonts: { major: font("a:majorFont"), minor: font("a:minorFont") },
+        bgFillStyles: Array.from(_pptxFirst(doc, "a:bgFillStyleLst")?.children || []),
+    };
+}
+
+async function _pptxThemeColors(pkg) {
+    return (await _pptxTheme(pkg)).colors;
+}
+
+// A slide's design: its layout and master, and the master's theme. Text without its own font, size or colour takes
+// them from here, and a slide without its own background takes the layout's or the master's. They used to come from
+// SlideForge's own default theme: a navy deck in Georgia came in white, in Manrope, with dark text.
+async function _pptxSlideDesign(pkg, slidePath) {
+    const slideRels = await pkg.rels(slidePath);
+    const layoutPath = Object.values(slideRels).find(rel => rel.type === "slideLayout")?.path || null;
+    const masterPath = layoutPath ? Object.values(await pkg.rels(layoutPath)).find(rel => rel.type === "slideMaster")?.path || null : null;
+    const themePath = masterPath ? Object.values(await pkg.rels(masterPath)).find(rel => rel.type === "theme")?.path || null : null;
+    const layout = layoutPath ? await pkg.xml(layoutPath) : null;
+    const master = masterPath ? await pkg.xml(masterPath) : null;
+    const clrMapNode = master && _pptxFirst(master, "p:clrMap");
+    const clrMap = clrMapNode ? Object.fromEntries(Array.from(clrMapNode.attributes).map(attr => [attr.name, attr.value])) : null;
+    const theme = await _pptxTheme(pkg, themePath, clrMap);
+    return { slidePath, layoutPath, masterPath, layout, master, theme };
+}
+
+// A font name as a CSS font list, with the generic family it belongs to behind it: a serif such as Georgia fell back
+// to a sans-serif where it is not installed.
+function _pptxFontStack(name) {
+    const font = String(name || "").replace(/"/g, "").trim();
+    const generic = /mono|courier|consolas|menlo/i.test(font)
+        ? "monospace"
+        : /georgia|times|cambria|garamond|palatino|baskerville|book antiqua|constantia|didot|bodoni|serif$|minion|charter|merriweather|playfair|lora|libre baskerville/i.test(font) && !/sans/i.test(font)
+          ? "serif"
+          : "sans-serif";
+    return `"${font}", ${generic}`;
+}
+
+// "+mj-lt" / "+mn-lt" (the theme's heading / body font) as the font's name.
+function _pptxFontName(typeface, theme) {
+    if (!typeface) return null;
+    if (/^\+mj/.test(typeface)) return theme?.fonts?.major || null;
+    if (/^\+mn/.test(typeface)) return theme?.fonts?.minor || null;
+    return typeface;
+}
+
+// The first-level run properties a placeholder (or a plain text box) inherits: the layout's placeholder, the
+// master's, then the master's text styles (title, body or other). Size in points, colour, font, bold.
+function _pptxTextDefaults(design, placeholder) {
+    const defaults = {};
+    const take = defRPr => {
+        if (!defRPr) return;
+        const size = Number(defRPr.getAttribute("sz"));
+        if (size && defaults.size == null) defaults.size = size / 100;
+        if (defaults.bold == null && defRPr.getAttribute("b") != null) defaults.bold = defRPr.getAttribute("b") === "1";
+        const color = _pptxColor(defRPr);
+        if (color && !defaults.color) defaults.color = color;
+        const font = _pptxChild(defRPr, "a:latin")?.getAttribute("typeface");
+        if (font && !defaults.font) defaults.font = font;
+    };
+    const isTitle = type => type === "title" || type === "ctrTitle";
+    const placeholderIn = doc => {
+        if (!doc || !placeholder) return null;
+        const shapes = Array.from(doc.getElementsByTagName("p:sp")).map(sp => ({ sp, ph: _pptxPlaceholder(sp) })).filter(item => item.ph);
+        return (
+            shapes.find(item => item.ph.type === placeholder.type && item.ph.idx === placeholder.idx) ||
+            shapes.find(item => placeholder.idx && item.ph.idx === placeholder.idx) ||
+            shapes.find(item => item.ph.type === placeholder.type || (isTitle(item.ph.type) && isTitle(placeholder.type)))
+        )?.sp || null;
+    };
+    const lvl1 = sp => _pptxFirst(_pptxFirst(_pptxChild(sp, "p:txBody"), "a:lstStyle"), "a:lvl1pPr");
+    [placeholderIn(design?.layout), placeholderIn(design?.master)].forEach(sp => sp && take(_pptxChild(lvl1(sp), "a:defRPr")));
+    const styles = design?.master && _pptxFirst(design.master, "p:txStyles");
+    const styleName = !placeholder ? "p:otherStyle" : isTitle(placeholder.type) ? "p:titleStyle" : "p:bodyStyle";
+    take(_pptxChild(_pptxFirst(_pptxFirst(styles, styleName), "a:lvl1pPr"), "a:defRPr"));
+    // Headings in the theme's heading font, the rest in its body font, unless a style names another.
+    defaults.font = _pptxFontName(defaults.font || (placeholder && isTitle(placeholder.type) ? "+mj-lt" : "+mn-lt"), design?.theme);
+    return defaults;
+}
+
+// A fill (solid, gradient or picture) as a background: { color } | { color, gradient } | { picture: { part, embed } }.
+// phColor stands in for "phClr" (the colour a <p:bgRef> gives the theme's background style).
+function _pptxFillBackground(fillHolder, part, colors, phColor = null) {
+    if (!fillHolder) return null;
+    const palette = phColor ? { ...colors, phClr: phColor } : colors;
+    const solid = fillHolder.tagName === "a:solidFill" ? fillHolder : _pptxChild(fillHolder, "a:solidFill");
+    if (solid) {
+        const color = _pptxColorValue(solid, palette);
+        return color ? { color } : null;
+    }
+    const gradient = fillHolder.tagName === "a:gradFill" ? fillHolder : _pptxChild(fillHolder, "a:gradFill");
+    if (gradient) {
+        const stops = _pptxChildren(_pptxChild(gradient, "a:gsLst"), "a:gs")
+            .map(gs => ({ pos: (Number(gs.getAttribute("pos")) || 0) / 1000, color: _pptxColorValue(gs, palette) }))
+            .filter(stop => stop.color)
+            .sort((a, b) => a.pos - b.pos);
+        if (!stops.length) return null;
+        const list = stops.map(stop => `${stop.color} ${Math.round(stop.pos)}%`).join(", ");
+        const linear = _pptxChild(gradient, "a:lin");
+        const css = linear || !_pptxChild(gradient, "a:path")
+            ? `linear-gradient(${Math.round((Number(linear?.getAttribute("ang")) || 0) / 60000 + 90)}deg, ${list})`
+            : `radial-gradient(circle at center, ${list})`;
+        return { color: stops[0].color, gradient: css };
+    }
+    const blip = fillHolder.tagName === "a:blipFill" ? fillHolder : _pptxChild(fillHolder, "a:blipFill");
+    const embed = blip && _pptxFirst(blip, "a:blip")?.getAttribute("r:embed");
+    return embed ? { picture: { part, embed } } : null;
+}
+
+// The background a slide shows: its own, else its layout's, else its master's (<p:bgPr> or a theme style by <p:bgRef>).
+function _pptxDesignBackground(design, slideDoc) {
+    const parts = [[slideDoc, design?.slidePath], [design?.layout, design?.layoutPath], [design?.master, design?.masterPath]];
+    for (const [doc, part] of parts) {
+        const bg = doc && _pptxFirst(_pptxFirst(doc, "p:cSld"), "p:bg");
+        if (!bg) continue;
+        const bgPr = _pptxChild(bg, "p:bgPr");
+        if (bgPr) {
+            if (_pptxChild(bgPr, "a:noFill")) return null;
+            const found = _pptxFillBackground(bgPr, part, design?.theme?.colors || _pptxCurrentThemeColors);
+            if (found) return found;
+        }
+        const ref = _pptxChild(bg, "p:bgRef");
+        if (ref) {
+            const index = Number(ref.getAttribute("idx")) || 0;
+            const style = index >= 1001 ? design?.theme?.bgFillStyles?.[index - 1001] : null;
+            const phColor = _pptxColorValue(ref, design?.theme?.colors || _pptxCurrentThemeColors);
+            const found = style ? _pptxFillBackground(style, part, design.theme.colors, phColor) : phColor ? { color: phColor } : null;
+            if (found) return found;
+        }
+    }
+    return null;
+}
+
+// A picture background's file, uploaded like an inserted picture (a data URL when there is no server).
+async function _pptxBackgroundPicture(pkg, picture) {
+    const rels = await pkg.rels(picture.part);
+    const path = rels[picture.embed]?.path;
+    const file = path && pkg.zip.file(path);
+    if (!file) return null;
+    const extension = path.split(".").pop().toLowerCase();
+    const mime = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", svg: "image/svg+xml", webp: "image/webp", bmp: "image/bmp" }[extension];
+    if (!mime) return null;
+    const blob = new Blob([await file.async("arraybuffer")], { type: mime });
+    try {
+        const uploaded = typeof _uploadAssetFile === "function" ? await _uploadAssetFile(new File([blob], path.split("/").pop(), { type: mime })) : null;
+        if (uploaded?.url) return uploaded.url;
+    } catch (_error) {}
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+    });
 }
 
 // Words inside a filled shape: in the shape's text colour (its style's fontRef, white in Office's default shape
@@ -615,7 +778,7 @@ function _pptxPlaceShapeText(sp, text, box, themeColors) {
     text.height = `${height}px`;
 }
 
-async function _pptxSlideElements(pkg, slidePath, scale) {
+async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
     const doc = await pkg.xml(slidePath);
     const rels = await pkg.rels(slidePath);
     const links = await pkg.links(slidePath);
@@ -650,7 +813,7 @@ async function _pptxSlideElements(pkg, slidePath, scale) {
                 const xfrm = _pptxXfrm(node) || layoutXfrm(placeholder);
                 if (!xfrm) continue;
                 const box = toBox(xfrm, t);
-                const text = _pptxTextElement(node, box, { fontScale: scale, placeholder, zIndex, links });
+                const text = _pptxTextElement(node, box, { fontScale: scale, placeholder, zIndex, links, design });
                 const shape = text && !_pptxChild(_pptxChild(node, "p:spPr"), "a:prstGeom") ? null : _pptxShapeElement(node, box, zIndex);
                 // A filled shape with words in it: the shape, then its text on top (text boxes have no outline).
                 if (shape && text) {
@@ -690,13 +853,24 @@ async function _pptxSlideElements(pkg, slidePath, scale) {
                 const box = toBox(xfrm, t);
                 const tbl = _pptxFirst(node, "a:tbl");
                 const made = tbl ? _pptxTableElement(tbl, box, scale, scale, zIndex) : await _pptxChartElement(pkg, node, rels, box, zIndex);
+                // Table text in the theme's body font (it came in as Manrope).
+                const bodyFont = tbl && design?.theme?.fonts?.minor;
+                if (made && bodyFont) {
+                    const family = _pptxFontStack(bodyFont);
+                    made.styles.fontFamily = family;
+                    made.tableData.fontFamily = family;
+                }
                 if (made) elements.push(made);
             }
         }
     };
     const tree = _pptxFirst(doc, "p:spTree");
     if (tree) await walk(tree, { sx: 1, sy: 1, cx: 0, cy: 0, ox: 0, oy: 0 });
-    return { elements, notes: await _pptxSlideNotes(pkg, rels), background: _pptxColor(_pptxFirst(_pptxFirst(doc, "p:bg"), "p:bgPr")) };
+    return {
+        elements,
+        notes: await _pptxSlideNotes(pkg, rels),
+        background: design ? _pptxDesignBackground(design, doc) : _pptxFillBackground(_pptxFirst(_pptxFirst(doc, "p:bg"), "p:bgPr"), slidePath, _pptxCurrentThemeColors),
+    };
 }
 
 async function importPptx(file) {
@@ -737,9 +911,17 @@ async function importPptx(file) {
         const slides = [];
         for (const [index, slidePath] of slidePaths.entries()) {
             setProjectSaveHint?.(`Importing slide ${index + 1} of ${slidePaths.length}…`, "muted");
-            const { elements, notes, background } = await _pptxSlideElements(pkg, slidePath, scale);
-            if (background) {
-                // A plain background colour comes in as a rectangle behind everything.
+            const design = await _pptxSlideDesign(pkg, slidePath);
+            _pptxCurrentThemeColors = design.theme.colors;
+            pkg.themeColors = design.theme.colors;
+            const { elements, notes, background } = await _pptxSlideElements(pkg, slidePath, scale, design);
+            let slideBackground = null;
+            if (background?.picture) {
+                // A picture background stays the slide's background (cover).
+                const url = await _pptxBackgroundPicture(pkg, background.picture);
+                if (url) slideBackground = { type: "image", content: url, fit: "cover" };
+            } else if (background?.color) {
+                // A colour or gradient background comes in as a rectangle behind everything.
                 elements.unshift({
                     id: generateId("el"),
                     type: "shape",
@@ -749,7 +931,13 @@ async function importPptx(file) {
                     width: `${setup.width}px`,
                     height: `${setup.height}px`,
                     content: "",
-                    styles: { backgroundColor: background, borderRadius: "0px", zIndex: 0 },
+                    importedBackground: true,
+                    styles: {
+                        backgroundColor: background.color,
+                        ...(background.gradient ? { background: background.gradient } : {}),
+                        borderRadius: "0px",
+                        zIndex: 0,
+                    },
                 });
             }
             slides.push({
@@ -758,6 +946,7 @@ async function importPptx(file) {
                 masterId: "none",
                 notes,
                 presentationTransition: "none",
+                ...(slideBackground ? { background: slideBackground } : {}),
                 elements,
             });
         }

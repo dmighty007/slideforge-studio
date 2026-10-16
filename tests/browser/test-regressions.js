@@ -6962,6 +6962,58 @@ async function test(name, fn) {
             await page.close();
         });
 
+        await test("importing a PowerPoint deck keeps its own design: background, fonts and colours from its master and theme", async () => {
+            const { page, errors } = await openEditor(context);
+            const out = await page.evaluate(async () => {
+                const A = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
+                const ns = `${A} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"`;
+                const rels = list => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${list.map(([id, type, target]) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`).join("")}</Relationships>`;
+                const ph = (id, type, xfrm = "") => `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="p${id}"/><p:cNvSpPr/><p:nvPr><p:ph type="${type}"/></p:nvPr></p:nvSpPr><p:spPr>${xfrm}</p:spPr>`;
+                const xfrm = (x, y, w, h) => `<a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${w}" cy="${h}"/></a:xfrm>`;
+                // Theme: navy dk2, orange accent, Georgia headings, Verdana body; background style 2 a gradient of phClr.
+                const theme = `<a:theme ${A} name="Pilot"><a:themeElements><a:clrScheme name="Pilot"><a:dk1><a:srgbClr val="000000"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="14213D"/></a:dk2><a:lt2><a:srgbClr val="EEECE1"/></a:lt2><a:accent1><a:srgbClr val="E4572E"/></a:accent1></a:clrScheme><a:fontScheme name="Pilot"><a:majorFont><a:latin typeface="Georgia"/></a:majorFont><a:minorFont><a:latin typeface="Verdana"/></a:minorFont></a:fontScheme><a:fmtScheme name="Pilot"><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:gradFill><a:gsLst><a:gs pos="0"><a:schemeClr val="phClr"/></a:gs><a:gs pos="100000"><a:schemeClr val="phClr"><a:shade val="50000"/></a:schemeClr></a:gs></a:gsLst><a:lin ang="5400000"/></a:gradFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>`;
+                // Master: navy background (bg2 → dk2 by its colour map), white text (tx1 → lt1), titles 44 pt in the accent.
+                const master = `<p:sldMaster ${ns}><p:cSld><p:bg><p:bgPr><a:solidFill><a:schemeClr val="bg2"/></a:solidFill><a:effectLst/></p:bgPr></p:bg><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>${ph(2, "title", xfrm(457200, 274638, 8229600, 1143000))}</p:sp>${ph(3, "body", xfrm(457200, 1600200, 8229600, 4525963))}</p:sp></p:spTree></p:cSld><p:clrMap bg1="dk1" tx1="lt1" bg2="dk2" tx2="lt2" accent1="accent1"/><p:txStyles><p:titleStyle><a:lvl1pPr><a:defRPr sz="4400"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill><a:latin typeface="+mj-lt"/></a:defRPr></a:lvl1pPr></p:titleStyle><p:bodyStyle><a:lvl1pPr><a:defRPr sz="3200"><a:solidFill><a:schemeClr val="tx1"/></a:solidFill><a:latin typeface="+mn-lt"/></a:defRPr></a:lvl1pPr></p:bodyStyle><p:otherStyle><a:lvl1pPr><a:defRPr sz="1800"/></a:lvl1pPr></p:otherStyle></p:txStyles></p:sldMaster>`;
+                const layout = bg => `<p:sldLayout ${ns}><p:cSld>${bg}<p:spTree><p:nvGrpSpPr/><p:grpSpPr/></p:spTree></p:cSld></p:sldLayout>`;
+                const slide = (title, body) => `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>${ph(2, "title")}<p:txBody><a:bodyPr/><a:p><a:r><a:t>${title}</a:t></a:r></a:p></p:txBody></p:sp>${ph(3, "body")}<p:txBody><a:bodyPr/><a:p><a:r><a:t>${body}</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>`;
+                const zip = new JSZip();
+                zip.file("ppt/presentation.xml", `<p:presentation ${ns}><p:sldIdLst><p:sldId id="256" r:id="rId1"/><p:sldId id="257" r:id="rId2"/></p:sldIdLst><p:sldSz cx="9144000" cy="6858000"/></p:presentation>`);
+                zip.file("ppt/_rels/presentation.xml.rels", rels([["rId1", "slide", "slides/slide1.xml"], ["rId2", "slide", "slides/slide2.xml"]]));
+                zip.file("ppt/slides/slide1.xml", slide("Caffeine metabolism", "A pilot cohort"));
+                zip.file("ppt/slides/_rels/slide1.xml.rels", rels([["rId1", "slideLayout", "../slideLayouts/slideLayout1.xml"]]));
+                zip.file("ppt/slides/slide2.xml", slide("Background", "Cleared by CYP1A2"));
+                zip.file("ppt/slides/_rels/slide2.xml.rels", rels([["rId1", "slideLayout", "../slideLayouts/slideLayout2.xml"]]));
+                zip.file("ppt/slideLayouts/slideLayout1.xml", layout(""));
+                zip.file("ppt/slideLayouts/_rels/slideLayout1.xml.rels", rels([["rId1", "slideMaster", "../slideMasters/slideMaster1.xml"]]));
+                // Layout 2: its own background, the theme's gradient style in the accent.
+                zip.file("ppt/slideLayouts/slideLayout2.xml", layout(`<p:bg><p:bgRef idx="1002"><a:schemeClr val="accent1"/></p:bgRef></p:bg>`));
+                zip.file("ppt/slideLayouts/_rels/slideLayout2.xml.rels", rels([["rId1", "slideMaster", "../slideMasters/slideMaster1.xml"]]));
+                zip.file("ppt/slideMasters/slideMaster1.xml", master);
+                zip.file("ppt/slideMasters/_rels/slideMaster1.xml.rels", rels([["rId1", "theme", "../theme/theme1.xml"]]));
+                zip.file("ppt/theme/theme1.xml", theme);
+                await importPptx(new File([await zip.generateAsync({ type: "blob" })], "Themed deck.pptx"));
+                const pick = slide => {
+                    const background = slide.elements.find(e => e.importedBackground);
+                    const texts = slide.elements.filter(e => e.type === "text");
+                    return { background: background?.styles.background || background?.styles.backgroundColor, texts: texts.map(t => ({ color: t.styles.color, font: t.styles.fontFamily, size: t.styles.fontSize })) };
+                };
+                const imported = state.slides.map(pick);
+                // A slide added after an imported one keeps the deck's look.
+                setCurrentSlideIndex(0);
+                addSlide();
+                const added = state.slides[1];
+                return { imported, added: { background: added.elements.find(e => e.importedBackground)?.styles.backgroundColor, title: added.elements.find(e => e.placeholder === "Click to add title")?.styles } };
+            });
+            const [first, second] = out.imported;
+            assert(first.background === "#14213d", `master background: ${JSON.stringify(first)}`);
+            assert(/^"Georgia"/.test(first.texts[0].font) && first.texts[0].color === "#e4572e" && parseFloat(first.texts[0].size) > 50, `title from the master: ${JSON.stringify(first.texts[0])}`);
+            assert(/^"Verdana"/.test(first.texts[1].font) && first.texts[1].color === "#ffffff", `body from the master: ${JSON.stringify(first.texts[1])}`);
+            assert(/^linear-gradient\(180deg, #e4572e 0%, #72(2b|2c)17 100%\)$/.test(second.background || ""), `layout background: ${JSON.stringify(second)}`);
+            assert(out.added.background === "#14213d" && /Georgia/.test(out.added.title?.fontFamily || "") && out.added.title?.color === "#e4572e", `a new slide: ${JSON.stringify(out.added)}`);
+            assert(!errors.length, errors.join("\n"));
+            await page.close();
+        });
+
         await test("importing a PowerPoint file makes a new project (the open one is untouched) with text, bullets and a table", async () => {
             const { page, errors } = await openEditor(context);
             const outcome = await page.evaluate(async () => {
