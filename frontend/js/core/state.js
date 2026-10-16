@@ -1221,7 +1221,22 @@ function _isSafeStateId(id) {
     return typeof id === "string" && /^[A-Za-z0-9_.:-]{1,200}$/.test(id);
 }
 
+// Normalising writes into the slide and element objects it was given instead of replacing them. Replaced, every
+// reference held across an await went stale: a trajectory added while its file uploaded (an autosave normalised the
+// deck meanwhile) was set on a copy and never reached the deck. An object met twice in one pass (the same object in
+// two places) gets a copy the second time, so the two keep separate ids.
+let _normalizedObjects = new WeakSet();
+function _normalizedInPlace(original, next) {
+    if (!original || typeof original !== "object" || Array.isArray(original) || _normalizedObjects.has(original)) return next;
+    _normalizedObjects.add(original);
+    Object.keys(original).forEach(key => {
+        if (!Object.prototype.hasOwnProperty.call(next, key)) delete original[key];
+    });
+    return Object.assign(original, next);
+}
+
 function normalizeStateIds() {
+    _normalizedObjects = new WeakSet();
     // Older imported decks did not carry a schema marker. They remain readable, but every
     // normalized state is written back in the current format for future migrations.
     state.schemaVersion = PRESENTATION_SCHEMA_VERSION;
@@ -1250,7 +1265,7 @@ function normalizeStateIds() {
         const nextElements = Array.isArray(safeSlide.elements)
             ? safeSlide.elements.slice(0, MAX_ELEMENTS_PER_SLIDE)
             : [];
-        const normalizedElements = nextElements.map(el => {
+        const normalizedElements = nextElements.map(el => _normalizedInPlace(el, (() => {
             const safeEl = el || {};
             const nextElId = _isSafeStateId(safeEl.id) && !usedElementIds.has(safeEl.id) ? safeEl.id : generateId("el");
             usedElementIds.add(nextElId);
@@ -1586,9 +1601,9 @@ function normalizeStateIds() {
                     return normalizedStyles;
                 })(),
             };
-        });
+        })()));
 
-        return {
+        return _normalizedInPlace(slide, {
             ...safeSlide,
             id: nextSlideId,
             layoutId:
@@ -1602,8 +1617,9 @@ function normalizeStateIds() {
                     : legacyDeckTransition,
             background: normalizeSlideBackground(safeSlide.background),
             elements: normalizedElements,
-        };
+        });
     });
+    _normalizedObjects = new WeakSet();
 
     if (!state.slides.length) {
         state.slides = [

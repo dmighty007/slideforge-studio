@@ -378,14 +378,29 @@ function normalizeViewMatrix(value) {
   const matrix = raw.map(Number);
   return matrix.length === 16 && matrix.every(Number.isFinite) ? matrix : null;
 }
+// The view is only reported once the structure is loaded and fitted at a real size. Asked earlier (every autosave
+// asks each viewer, also one still loading on a hidden slide) it was the empty stage's view, looking at the origin,
+// and that was saved: on the next load the molecule sat off in a corner of its box.
 function getViewState() {
+  if (!component || !initialOrientation || fittedWhileCollapsed) return null;
   const orientation = normalizeViewMatrix(stage?.viewerControls?.getOrientation?.());
   return orientation ? { orientation } : null;
+}
+// A saved view centred exactly on the origin, for a structure whose centre is elsewhere, is such an empty-stage view
+// (saved by older versions): it is not applied, and the molecule is fitted instead.
+function isEmptyStageView(orientation) {
+  if (!orientation || orientation.slice(12, 15).some(value => Math.abs(value) > 1e-6)) return false;
+  try {
+    const centre = component?.structure?.center || component?.structure?.getCenter?.();
+    return Boolean(centre) && Math.hypot(centre.x, centre.y, centre.z) > 1;
+  } catch (_err) {
+    return false;
+  }
 }
 function applyViewState(viewState) {
   const orientation = normalizeViewMatrix(viewState?.orientation);
   const controls = stage?.viewerControls;
-  if (!orientation || !controls) return false;
+  if (!orientation || !controls || isEmptyStageView(orientation)) return false;
   try {
     if (typeof controls.orient === "function") {
       let matrix = orientation;
@@ -418,7 +433,16 @@ function scheduleViewStateBroadcast() {
     }, "*");
   }, 180);
 }
+// While a picture is drawn (in tiles, over several frames) the viewer keeps the size it was given for it: a resize
+// in between (the page reporting a new scale, or the frame's own resize) put a hidden viewer back to 0 x 0 and NGL
+// failed drawing its next tile. Resizes asked for meanwhile happen once the picture is done.
+let snapshotting = false;
+let resizeAfterSnapshot = false;
 function resizeViewer() {
+  if (snapshotting) {
+    resizeAfterSnapshot = true;
+    return;
+  }
   if (!stage || resizeQueued) return;
   resizeQueued = true;
   requestAnimationFrame(() => {
@@ -907,7 +931,8 @@ window.addEventListener("message", event => {
   if (Math.abs(next - renderScale) < 0.01) return;
   renderScale = next;
   // The stage made later reads the ratio itself.
-  if (stage) {
+  if (snapshotting) resizeAfterSnapshot = true;
+  else if (stage) {
     stage.handleResize();
     requestRender();
   }
@@ -956,16 +981,23 @@ window.addEventListener("message", event => {
 window.addEventListener("message", async event => {
   const message = event.data || {};
   if (!message || message.type !== "pptmaker:molecule:snapshot-request") return;
+  // The page asks again every 300 ms until it has a picture. A second makeImage started meanwhile drew its tiles
+  // while the first one put the viewer back to its size (0 x 0 on a hidden slide): NGL failed on every tile. One
+  // picture at a time; the one being drawn answers.
+  if (snapshotting) return;
   let dataUrl = null;
+  snapshotting = true;
   try {
     if (stage && component) {
       // Transparent unless a background was asked for: the element's own background shows through on the slide.
       const factor = Math.max(1, Math.min(4, Number(message.factor) || 2));
       // A viewer on a slide Reveal has hidden (display: none) measures 0 x 0, and the picture came out 2 x 2
       // pixels (a black box in PowerPoint). Draw at the element's size for the picture, then fit back.
-      const wantWidth = Number(message.width) || 0;
-      const wantHeight = Number(message.height) || 0;
-      const collapsed = (stage.viewer.width || 0) < 8 || (stage.viewer.height || 0) < 8;
+      // Without a size from the page, the frame's own (a viewer left collapsed after its slide was hidden).
+      const wantWidth = Number(message.width) || window.innerWidth || 0;
+      const wantHeight = Number(message.height) || window.innerHeight || 0;
+      const canvas = stage.viewer.renderer?.domElement;
+      const collapsed = (stage.viewer.width || 0) < 8 || (stage.viewer.height || 0) < 8 || !canvas?.width || !canvas?.height;
       const resized = collapsed && wantWidth >= 8 && wantHeight >= 8;
       if (resized) {
         stage.viewer.setSize(wantWidth, wantHeight);
@@ -978,7 +1010,8 @@ window.addEventListener("message", async event => {
       try {
         blob = await stage.makeImage({ factor, antialias: true, trim: false, transparent: message.transparent !== false });
       } finally {
-        if (resized) stage.handleResize();
+        if (resized || resizeAfterSnapshot) stage.handleResize();
+        resizeAfterSnapshot = false;
       }
       dataUrl = await new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -989,6 +1022,8 @@ window.addEventListener("message", async event => {
     }
   } catch (_err) {
     dataUrl = null;
+  } finally {
+    snapshotting = false;
   }
   window.parent.postMessage({ type: "pptmaker:molecule:snapshot-response", requestId: message.requestId, dataUrl }, "*");
 });

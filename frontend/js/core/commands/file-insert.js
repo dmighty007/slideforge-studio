@@ -521,7 +521,8 @@ function _upsertMoleculeElement(moleculeData) {
                 zIndex: getNextZIndex(),
                 borderRadius: "8px",
                 backgroundColor: moleculeFogColor(state.slides[activeIndex]) || getPresentationTheme().surfaceColor || "#ffffff",
-                border: "1px solid #334155",
+                // The theme's border (a fixed dark slate looked heavy round a molecule on a light slide).
+                border: `1px solid ${getPresentationTheme().surfaceBorder || "#cbd5e1"}`,
             },
         }));
     }

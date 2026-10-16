@@ -1690,6 +1690,30 @@ async function test(name, fn) {
         return { id, viewer };
     };
 
+    await test("overnight: a molecule saved with the empty stage's view (looking at the origin) is fitted again", async () => {
+        const { page } = await openFreshEditor(context);
+        const fs = require("fs");
+        const os = require("os");
+        const path = require("path");
+        const { pdb } = writeTestProtein(fs.mkdtempSync(path.join(os.tmpdir(), "sf-mol-view-")));
+        // The test protein sits away from the origin; this is the view a viewer reported before it had loaded.
+        const id = await page.evaluate(data => {
+            addSlide();
+            const shifted = data.split("\n").map(line => /^ATOM/.test(line)
+                ? line.slice(0, 30) + [30, 40, 20].map((d, k) => (parseFloat(line.slice(30 + k * 8, 38 + k * 8)) + d).toFixed(3).padStart(8)).join("") + line.slice(54)
+                : line).join("\n");
+            _upsertMoleculeElement({ ...createMoleculeElementData({ data: shifted, name: "Shifted", format: "pdb" }), moleculeViewState: { orientation: [80, 0, 0, 0, 0, 80, 0, 0, 0, 0, 80, 0, 0, 0, 0, 1] } });
+            renderSlidesFromState();
+            return state.slides[currentSlideIndex].elements.find(e => e.type === "molecule").id;
+        }, fs.readFileSync(pdb, "utf8"));
+        const frame = await (await page.locator(`.slides [id="${id}"] iframe`).elementHandle()).contentFrame();
+        await frame.waitForFunction(() => window.sfMoleculeViewer?.component() && window.sfMoleculeViewer.initialOrientation(), null, { timeout: 20000 });
+        await page.waitForTimeout(400);
+        const translation = await frame.evaluate(() => sfMoleculeViewer.stage().viewerControls.getOrientation().elements.slice(12, 15));
+        assert(Math.hypot(...translation) > 10, `the empty-stage view was applied: translation ${translation}`);
+        await page.close();
+    });
+
     await test("molecules draw sharp in a scaled slide and are fitted to their drawn atoms, not far waters", async () => {
         const { page } = await openFreshEditor(context);
         const fs = require("fs");

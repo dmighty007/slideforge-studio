@@ -807,10 +807,14 @@ function _themeColorWithAlpha(color, alpha = 1) {
     return `rgba(${parsed.r}, ${parsed.g}, ${parsed.b}, ${Number(alpha.toFixed(3))})`;
 }
 
-function classifyThemeColor(color, theme) {
+// `target` "shape": a fill is read as the theme's shape colour before its accents. Graphite's second accent and its
+// shape colour are the same blue, so a shape filled with it came back from Sage → Graphite → Sage as Sage's second
+// accent (gold) instead of its shape green.
+function classifyThemeColor(color, theme, target = "text") {
     const parsed = _parseThemeColor(color);
     const normalized = String(color || "").trim().toLowerCase();
     const candidates = [
+        ...(target === "shape" ? [["shape", theme.defaultShapeColor]] : []),
         ["text", theme.defaultTextColor],
         ["text", theme.cssVars?.["--slide-fg"]],
         // The first Blank subtitle used this fixed colour. Migrate its theme role too.
@@ -1146,7 +1150,7 @@ function _retintElementForTheme(el, previousTheme, nextTheme) {
     }
 
     if (el.type === "shape") {
-        const bgKind = classifyThemeColor(el.styles.backgroundColor, previousTheme);
+        const bgKind = classifyThemeColor(el.styles.backgroundColor, previousTheme, "shape");
         const nextBg = resolveThemeColorRole(bgKind.role, nextTheme, bgKind.alpha, "shape");
         if (nextBg) el.styles.backgroundColor = nextBg;
     }

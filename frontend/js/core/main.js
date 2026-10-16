@@ -1,5 +1,12 @@
 // ─── Global window bindings (Exposed immediately for inline HTML onclick) ─────
 
+// Reveal.js starts a slide's video with play() and no catch; stepping on before it starts pauses it, and the
+// browser rejects that play() ("interrupted by a call to pause()"). Harmless, so it is not reported as an error.
+window.addEventListener("unhandledrejection", event => {
+    const reason = event.reason;
+    if (reason?.name === "AbortError" && /play\(\)/.test(String(reason.message || ""))) event.preventDefault();
+});
+
 // HIGH FIX: Centralized event listener tracking for cleanup (prevents memory leaks)
 const _trackedListeners = [];
 window._trackedListeners = _trackedListeners;

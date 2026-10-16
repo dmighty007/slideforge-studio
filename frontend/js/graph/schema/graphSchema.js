@@ -94,7 +94,9 @@ export function normalizeSemanticGraphDocument(document = {}) {
             updatedAt: document.layoutState?.updatedAt || Date.now(),
         },
         presentationState: document.presentationState || {},
-        metadata: { ...(document.metadata || {}), updatedAt: Date.now() },
+        // Normalising is not an edit: a fresh timestamp each time made an unchanged diagram look changed (an undo
+        // or a redraw then counted as an unsaved change of the whole deck).
+        metadata: { ...(document.metadata || {}), updatedAt: document.metadata?.updatedAt || Date.now() },
         mermaid: document.mermaid || { source: document.mermaidSource || "", exportCompatibility: "best-effort" },
     };
 }

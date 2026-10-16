@@ -102,7 +102,8 @@ export function normalizeGraphDocument(document = {}, options = {}) {
         groups: document.groups || graph.groups || [],
         viewport: document.viewport || graph.viewport || { x: 0, y: 0, zoom: 1 },
         animations: normalizeAnimations(document.animations || []),
-        metadata: { ...(document.metadata || {}), updatedAt: now() },
+        // Kept from the document (normalising is not an edit; see graphSchema.js).
+        metadata: { ...(document.metadata || {}), updatedAt: document.metadata?.updatedAt || now() },
         styles: document.styles || graph.style || {},
         layoutState: {
             ...layoutState,
