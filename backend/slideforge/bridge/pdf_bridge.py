@@ -530,7 +530,12 @@ class PDF2PPTxBridge(PDF2PPTx):
                     )
 
     def convert_to_json(self, pdf_path, json_output, pptx_output=None, start=0, end=-1, 
-                        max_slides=0, max_sections=0, json_progress=False, status_callback=None):
+                        max_slides=0, max_sections=0, json_progress=False, status_callback=None,
+                        allow_remote=None):
+        if allow_remote is None:
+            labels = self._provider_labels(self.llm)
+            allow_remote = not labels or not labels[0].startswith("ollama")
+        allow_remote = bool(allow_remote)
         
         stage_ranges = {
             "processing": (6, 18), "vision_extract": (18, 36), "vision": (36, 38), 
@@ -569,12 +574,12 @@ class PDF2PPTxBridge(PDF2PPTx):
         _unload_ollama_models()
         
         # 3. Plan
-        planning_llm = build_task_provider(task="planning", allow_remote=True)
+        planning_llm = build_task_provider(task="planning", allow_remote=allow_remote)
         paper_frame = self._frame_paper(planning_llm, enriched_catalog, mineru_summary, full_text, emit)
         document_outline = parse_document_outline(full_text)
         coarse_context = self._coarse_story_context(document_outline, full_text)
-        brief_llm = build_task_provider(task="paper_brief", allow_remote=True)
-        storyboard_llm = build_task_provider(task="storyboard", allow_remote=True)
+        brief_llm = build_task_provider(task="paper_brief", allow_remote=allow_remote)
+        storyboard_llm = build_task_provider(task="storyboard", allow_remote=allow_remote)
         paper_brief = self._build_paper_brief(brief_llm, paper_frame, document_outline, enriched_catalog, emit)
         storyboard = self._plan_storyboard(storyboard_llm, paper_frame, enriched_catalog, emit, document_outline, coarse_context, paper_brief)
         if isinstance(storyboard, list): storyboard = {"slides": storyboard}
@@ -592,7 +597,7 @@ class PDF2PPTxBridge(PDF2PPTx):
                 storyboard["sub"] = _truncate_words(core, 22)
         
         # 4. Generate
-        slide_llm = build_task_provider(task="slide_writing", allow_remote=True)
+        slide_llm = build_task_provider(task="slide_writing", allow_remote=allow_remote)
         llm_trace_providers = {
             "planning": planning_llm,
             "paper_brief": brief_llm,
@@ -1361,6 +1366,7 @@ def main():
         max_slides=args.slides,
         max_sections=args.sections,
         json_progress=args.json_progress,
+        allow_remote=args.allow_remote_llm,
     )
 
 if __name__ == "__main__":

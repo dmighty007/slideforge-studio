@@ -92,7 +92,7 @@ export function getMermaidRuntimeInfo() {
     return {
         version: MERMAID_VERSION,
         localUrl: MERMAID_LOCAL_URL,
-        fallbackUrl: MERMAID_CDN_URL,
+        fallbackUrl: null,
         pinned: true,
     };
 }

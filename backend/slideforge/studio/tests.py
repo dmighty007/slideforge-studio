@@ -1356,3 +1356,150 @@ class ShareLinkTests(TestCase):
         path = self.share().json()["path"]
         self.presentation.delete()
         self.assertEqual(Client().get(path).status_code, 404)
+
+
+class BugReviewRegressionTests(TestCase):
+    """Fixes from the October 2026 bug review."""
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()  # rate-limit counters
+        self.client = Client()
+
+    def export(self, **extra):
+        body = {"state": {"pageSetup": "standard-4-3", "slides": []}, **extra}
+        return self.client.post("/api/presentations/export/pptx/", data=json.dumps(body), content_type="application/json")
+
+    def test_exported_text_keeps_literal_entities(self):
+        from slideforge.bridge.pptx_exporter import html_to_text_runs
+
+        runs = html_to_text_runs("Tom &amp;amp; Jerry &amp;lt;b&amp;gt; &lt;i&gt;")
+        self.assertEqual("".join(run["text"] for run in runs), "Tom &amp; Jerry &lt;b&gt; <i>")
+
+    def test_export_filename_is_sanitized(self):
+        response = self.export(filename="deck\r\nX-Injected: 1")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("X-Injected", response)
+        self.assertIn('filename="deckX-Injected_1.pptx"', response["Content-Disposition"])
+
+    def test_export_bad_or_empty_filename_falls_back(self):
+        for name in (123, None, "", "???", ["a"]):
+            response = self.export(filename=name)
+            self.assertEqual(response.status_code, 200, name)
+            self.assertIn('filename="presentation.pptx"', response["Content-Disposition"])
+
+    def test_export_non_ascii_filename_uses_rfc6266(self):
+        response = self.export(filename="Présentation")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("filename*=utf-8''Pr%C3%A9sentation.pptx", response["Content-Disposition"])
+
+    def test_auth_rejects_non_object_and_non_utf8_bodies(self):
+        for url in ("/api/auth/login/", "/api/auth/register/"):
+            for body in ("[]", '"x"', "null"):
+                self.assertEqual(self.client.post(url, data=body, content_type="application/json").status_code, 400)
+            self.assertEqual(self.client.post(url, data=b"\xff\xfe", content_type="application/json").status_code, 400)
+
+    def test_register_validates_username(self):
+        for username in ("bad name", "<script>", "x" * 151):
+            response = self.client.post(
+                "/api/auth/register/",
+                data=json.dumps({"username": username, "password": "strong-password-123"}),
+                content_type="application/json",
+            )
+            self.assertEqual(response.status_code, 400, username)
+        self.assertFalse(get_user_model().objects.exists())
+
+    def test_login_is_rate_limited(self):
+        from unittest.mock import patch
+
+        body = json.dumps({"username": "nobody", "password": "wrong-password"})
+        with patch("time.time", return_value=1700000000.0):
+            statuses = [
+                self.client.post("/api/auth/login/", data=body, content_type="application/json").status_code
+                for _ in range(11)
+            ]
+        self.assertEqual(statuses[:10], [401] * 10)
+        self.assertEqual(statuses[10], 403)
+
+    def test_export_master_slide_numbers_increment_after_normalization(self):
+        from pptx import Presentation
+
+        from slideforge.bridge.pptx_exporter import PPTXExporter
+
+        # Slides with non-dict background or missing element styles trigger _normalized_slides() mutations,
+        # and identical slide dicts previously resolved to index 0 via list.index().
+        state = {
+            "pageSetup": "standard-4-3",
+            "presentationTheme": "editorial-light",
+            "slides": [
+                {"id": "s1", "background": "none", "elements": [{"id": "e1", "type": "text", "content": "One"}]},
+                {"id": "s2", "background": "none", "elements": [{"id": "e2", "type": "text", "content": "Two"}]},
+                {"id": "s2", "background": "none", "elements": [{"id": "e2", "type": "text", "content": "Two"}]},
+            ],
+        }
+        stream = PPTXExporter(state).export()
+        prs = Presentation(stream)
+        self.assertEqual(len(prs.slides), 3)
+        slide_texts = [
+            [shape.text_frame.text.strip() for shape in slide.shapes if shape.has_text_frame]
+            for slide in prs.slides
+        ]
+        self.assertIn("01", slide_texts[0])
+        self.assertIn("02", slide_texts[1])
+        self.assertIn("03", slide_texts[2])
+
+    def test_svg_sanitizer_and_converter_block_external_and_local_urls(self):
+        from unittest import mock
+
+        from slideforge.bridge.pptx_exporter import PPTXExporter
+
+        exporter = PPTXExporter({"slides": []})
+        raw_svg = (
+            '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="40" height="30">'
+            '<image href="http://169.254.169.254/latest/meta-data/" />'
+            '<image xlink:href="file:///etc/passwd" />'
+            '<rect fill="url(https://evil.example/x.svg#p)" />'
+            '<use href="#local-node" />'
+            "</svg>"
+        )
+        cleaned = exporter._sanitize_svg(raw_svg)
+        self.assertIn('xmlns="http://www.w3.org/2000/svg"', cleaned)
+        self.assertNotIn("169.254.169.254", cleaned)
+        self.assertNotIn("/etc/passwd", cleaned)
+        self.assertNotIn("evil.example", cleaned)
+        self.assertIn('href="#local-node"', cleaned)
+        # Even an SVG that skipped the sanitizer is converted without opening any outside or local URL.
+        with mock.patch("cairosvg.url.urlopen", side_effect=AssertionError("CairoSVG fetched a URL")) as urlopen:
+            stream = exporter._svg_to_png_stream(raw_svg, 40, 30)
+        urlopen.assert_not_called()
+        self.assertIsNotNone(stream)
+        self.assertTrue(stream.getvalue().startswith(b"\x89PNG"))
+
+    def test_export_handles_scientific_notation_and_malformed_dimensions(self):
+        from pptx import Presentation
+
+        from slideforge.bridge.pptx_exporter import PPTXExporter
+
+        state = {
+            "pageSetup": "standard-4-3",
+            "slides": [
+                {
+                    "id": "s1",
+                    "elements": [
+                        {
+                            "id": "e1",
+                            "type": "text",
+                            "x": 10,
+                            "y": 10,
+                            "width": "1e-5",
+                            "height": "100..5px",
+                            "content": "Survived",
+                        }
+                    ],
+                }
+            ],
+        }
+        prs = Presentation(PPTXExporter(state).export())
+        texts = [shape.text_frame.text.strip() for shape in prs.slides[0].shapes if shape.has_text_frame]
+        self.assertIn("Survived", texts)

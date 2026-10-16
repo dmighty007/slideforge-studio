@@ -889,6 +889,8 @@ def slide_cleanup_view(request):
 
 
 @require_http_methods(["POST"])
+# Open to guests ("Continue locally"), but exporting is CPU-heavy: bound it per address.
+@ratelimit(key="ip", rate="30/m", method="POST")
 def export_pptx_view(request):
     try:
         payload = _request_json(request)
@@ -905,18 +907,19 @@ def export_pptx_view(request):
         exporter = PPTXExporter(state)
         pptx_stream = exporter.export()
 
-        filename = payload.get("filename", "presentation.pptx")
-        # Sanitize filename
-        filename = re.sub(r'[^\w\s.-]', '', filename).strip().replace(' ', '_')
-        if not filename.endswith(".pptx"):
+        filename = payload.get("filename")
+        filename = filename if isinstance(filename, str) else ""
+        # Sanitize filename: letters, digits, "_", ".", "-" and spaces (not tabs/newlines), spaces as "_".
+        filename = re.sub(r"[^\w .-]", "", filename).strip().replace(" ", "_").lstrip(".") or "presentation"
+        if not filename.lower().endswith(".pptx"):
             filename += ".pptx"
 
-        response = FileResponse(
+        return FileResponse(
             pptx_stream,
-            content_type="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            as_attachment=True,
+            filename=filename,
+            content_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         )
-        response["Content-Disposition"] = f'attachment; filename="{filename}"'
-        return response
     except Exception:
         logger.exception("PPTX export failed")
         return JsonResponse({"error": "PPTX export failed"}, status=500)

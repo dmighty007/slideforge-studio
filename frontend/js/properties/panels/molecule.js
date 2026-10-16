@@ -16,8 +16,7 @@ function buildMoleculePanel(panel, data) {
     moleculeBackground,
     "#020617",
   );
-  const moleculeBackgroundTransparent =
-    moleculeBackground === "transparent";
+  const backgroundMode = data.moleculeBackgroundMode || (moleculeBackground === "transparent" ? "transparent" : "custom");
   const moleculeLayers = (
     Array.isArray(data.moleculeRepresentationLayers)
       ? data.moleculeRepresentationLayers
@@ -50,15 +49,12 @@ function buildMoleculePanel(panel, data) {
                 <button id="prop-molecule-toggle" class="w-full py-2 rounded border border-slate-300 bg-white text-xs text-slate-700 font-semibold mb-2">
                     ${data.moleculeInteractive ? '<i class="fa-solid fa-cube mr-1"></i> Drag rotates the molecule' : '<i class="fa-solid fa-up-down-left-right mr-1"></i> Drag moves the box'}
                 </button>
-                <div class="grid grid-cols-[1fr_auto] items-end gap-2 mb-2">
-                    <label class="flex flex-col gap-1 text-[11px] text-slate-500">
-                        Background
-                        <input id="prop-molecule-bg" type="color" class="w-full h-8 rounded bg-transparent" value="${moleculeBackgroundInput}" ${moleculeBackgroundTransparent ? "disabled" : ""}>
-                    </label>
-                    <label class="flex items-center gap-2 h-8 px-2 rounded border border-slate-300 bg-white text-[11px] text-slate-700">
-                        <input id="prop-molecule-bg-transparent" type="checkbox" ${moleculeBackgroundTransparent ? "checked" : ""}>
-                        Transparent
-                    </label>
+                <div class="flex flex-col gap-2 mb-2">
+                    <label class="text-[11px] text-slate-500" for="prop-molecule-bg-mode">Background</label>
+                    <select id="prop-molecule-bg-mode" class="w-full text-xs">
+                        ${[["theme", "Match slide"], ["transparent", "Transparent"], ["custom", "Custom colour"]].map(([value, label]) => `<option value="${value}" ${backgroundMode === value ? "selected" : ""}>${label}</option>`).join("")}
+                    </select>
+                    <input id="prop-molecule-bg" aria-label="Molecule background colour" type="color" class="w-full h-8 rounded bg-transparent" value="${moleculeBackgroundInput}" ${backgroundMode === "custom" ? "" : "disabled"}>
                 </div>
                 <div class="grid grid-cols-2 gap-2 mb-2">
                     <label class="flex flex-col gap-1 text-[11px] text-slate-500">
@@ -226,41 +222,23 @@ function bindMoleculePanel(data, onCommit) {
   }
 
   const bgInput = document.getElementById("prop-molecule-bg");
-  const bgTransparent = document.getElementById(
-    "prop-molecule-bg-transparent",
-  );
-  const applyMoleculeBackground = (next, commit = false) => {
-    const normalized =
-      typeof normalizeMoleculeBackgroundColor === "function"
-        ? normalizeMoleculeBackgroundColor(next)
-        : next;
-    // Only the background changes: passing { backgroundColor } as the styles dropped the border, corner radius
-    // and stacking order.
-    const styles = { ...(data.styles || {}), backgroundColor: normalized };
-    data.styles = styles;
-    if (commit) {
-      onCommit(() => updateElementState(data.id, { styles: { ...styles } }));
-    } else {
-      updateElementState(data.id, { styles: { ...styles } });
-    }
-    refreshMoleculeDom({ styles: { backgroundColor: normalized } });
+  const bgMode = document.getElementById("prop-molecule-bg-mode");
+  const applyBackground = (mode, color) => {
+    onCommit(() => {
+      data.moleculeBackgroundMode = mode;
+      data.styles = { ...data.styles, ...(color ? { backgroundColor: color } : {}) };
+      syncElementSurface(data, state.slides[currentSlideIndex]);
+      updateElementState(data.id, { moleculeBackgroundMode: mode, styles: { ...data.styles } });
+      refreshMoleculeDom({ moleculeBackgroundMode: mode, styles: { ...data.styles } });
+      refreshPreviews?.();
+      schedulePresentationAutosave?.(150);
+    });
   };
-  if (bgInput) {
-    bgInput.oninput = (event) =>
-      applyMoleculeBackground(event.target.value);
-    bgInput.onchange = (event) =>
-      applyMoleculeBackground(event.target.value, true);
-  }
-  if (bgTransparent) {
-    bgTransparent.onchange = (event) => {
-      const transparent = event.target.checked;
-      if (bgInput) bgInput.disabled = transparent;
-      applyMoleculeBackground(
-        transparent ? "transparent" : bgInput?.value || "#020617",
-        true,
-      );
-    };
-  }
+  if (bgInput) bgInput.onchange = event => applyBackground("custom", event.target.value);
+  if (bgMode) bgMode.onchange = () => {
+    applyBackground(bgMode.value, bgMode.value === "custom" ? bgInput.value : null);
+    buildPropertiesPanel();
+  };
 
   const removeTrajectoryBtn = document.getElementById("prop-molecule-remove-trajectory");
   if (removeTrajectoryBtn) removeTrajectoryBtn.onclick = () => removeMoleculeTrajectory(data.id);

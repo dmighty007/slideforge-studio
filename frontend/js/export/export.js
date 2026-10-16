@@ -47,6 +47,7 @@ function sanitizeHtml(html) {
     "data-bullet-style",
     "tabindex",
     "aria-readonly",
+    "aria-hidden",
   ]);
 
   function sanitizeNode(node) {
@@ -154,6 +155,7 @@ async function buildViewerBundle({ includeVendor = true } = {}) {
   // for new decks) was shown in a 4:3 frame with its right side cut off.
   const exportPage = getExportPageSetup();
   exportState.pageSize = { width: exportPage.width, height: exportPage.height };
+  fillMeasuredTextHeights(exportState);
   await drawChartsAndDiagramsAsPictures(exportState);
   if (typeof replaceEquationsWithPictures === "function") await replaceEquationsWithPictures(exportState);
   if (typeof replacePluginElementsWithPictures === "function") await replacePluginElementsWithPictures(exportState);
@@ -176,7 +178,16 @@ async function buildViewerBundle({ includeVendor = true } = {}) {
 
   // 4. Generate viewer.js
   await addAnimationRuntimeScriptsToZip(zip);
-  const viewerJs = generateViewerJs();
+  // A sandboxed srcdoc frame cannot load a file: script beside index.html. Embed NGL for disk viewing.
+  const hasMolecules = exportState.slides.some(slide => slide.elements?.some(el => el.type === "molecule"));
+  const moleculeRuntime = includeVendor && hasMolecules ? await fetchLocalAsset("vendor/ngl/ngl.js") : null;
+  const moleculeScriptUrl = moleculeRuntime ? await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(new Blob([moleculeRuntime], { type: "application/javascript" }));
+  }) : null;
+  const viewerJs = generateViewerJs(moleculeScriptUrl);
   zip.file("js/viewer.js", viewerJs);
 
   // 5. Generate viewer.css
@@ -621,6 +632,13 @@ function fillMeasuredTextHeights(exportState) {
           section.style.display = display;
           section.style.visibility = visibility;
         });
+      }
+      // Carry the editor's fitted font size into viewers and PowerPoint, which otherwise use the larger stored size.
+      if (el.textFitMode === "autofit" && typeof syncTextBoxLayout === "function") {
+        const layout = syncTextBoxLayout(node, el);
+        if (Number.isFinite(layout?.effectiveFontSize)) {
+          el.styles = { ...el.styles, fontSize: `${layout.effectiveFontSize}px` };
+        }
       }
       // Line spacing as drawn (it comes from the theme and the list styles, not from the element), so lists keep
       // their air in PowerPoint.
@@ -2095,12 +2113,12 @@ body {
 `;
 }
 
-function generateViewerJs() {
+function generateViewerJs(moleculeScriptUrl = null) {
   return `
 ${sanitizeHtml.toString()}
 
 const animationEffects = ['fade-in', 'slide-up', 'slide-down', 'slide-left', 'slide-right', 'zoom-in', 'pop-in', 'wipe-in', 'pulse', 'glow'];
-const MOLECULE_EMBED_NGL_SRC = ${JSON.stringify(typeof MOLECULE_EMBED_NGL_SRC === "string" ? MOLECULE_EMBED_NGL_SRC : "vendor/ngl/ngl.js")};
+const MOLECULE_EMBED_NGL_SRC = ${JSON.stringify(moleculeScriptUrl || (typeof MOLECULE_EMBED_NGL_SRC === "string" ? MOLECULE_EMBED_NGL_SRC : "vendor/ngl/ngl.js"))};
 
 const BULLET_STYLE_THEMES = {
     default: { levels: [
@@ -3314,7 +3332,7 @@ function createViewerElement(elData, mediaOptions = {}) {
         const container = document.createElement("div");
         container.className = "equation-container";
         container.style.cssText = "width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:4px;line-height:1;";
-        container.innerHTML = elData.content || elData.latexSrc || "";
+        container.innerHTML = sanitizeHtml(elData.content || elData.latexSrc || "");
         el.appendChild(container);
     }
 

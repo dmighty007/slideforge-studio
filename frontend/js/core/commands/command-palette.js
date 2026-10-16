@@ -80,9 +80,17 @@ const COMMANDS = [
         title: `Align ${mode[0].toUpperCase()}${mode.slice(1)}`,
         icon: ["top", "middle", "bottom"].includes(mode) ? "fa-grip-lines" : "fa-align-center",
         keywords: "line up arrange distribute",
-        needs: 2,
+        needs: 1,
         action: () => alignSelection(mode),
     })),
+
+    ...["horizontal", "vertical"].map(axis => ({
+        id: `distribute-${axis}`, title: `Distribute ${axis === "horizontal" ? "Horizontally" : "Vertically"}`,
+        icon: "fa-arrows-left-right", needs: 3, keywords: "space equal gaps arrange",
+        action: () => distributeSelection(axis),
+    })),
+    { id: "fit-content", title: "Fit Selection to Content Area", icon: "fa-expand", needs: 1,
+      keywords: "resize figure plot fill", action: () => fitSelectionToContentArea() },
 
     { id: "paste", title: "Paste", icon: "fa-paste", keywords: "clipboard", action: () => pasteFromClipboard() },
     { id: "undo", title: "Undo", icon: "fa-rotate-left", keywords: "back revert", action: () => undo() },

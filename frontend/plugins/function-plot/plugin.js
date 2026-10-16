@@ -153,7 +153,8 @@
                 if (!startsAtom(peek()) && !(peek()?.type === "op" && peek().value === "-")) {
                     throw new Error(`Position ${token.at}: ${token.value} needs an argument, e.g. ${token.value}(x)`);
                 }
-                const argument = peek()?.type === "op" ? unary() : power();
+                // Parenthesized arguments end at the closing bracket; a following power belongs to the call.
+                const argument = peek()?.type === "(" ? atom() : peek()?.type === "op" ? unary() : power();
                 return x => fn(argument(x));
             }
             throw new Error(`Position ${token.at}: unexpected “${token.value}”`);

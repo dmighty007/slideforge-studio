@@ -154,7 +154,7 @@ function addElement(type, options = {}) {
                       : "0px",
             backgroundColor:
                 type === "molecule"
-                    ? "#020617"
+                    ? moleculeFogColor(state.slides[activeIndex]) || theme.surfaceColor || "#ffffff"
                     : type === "sketch"
                       ? "#ffffff"
                       : type === "shape"

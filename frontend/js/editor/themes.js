@@ -812,6 +812,8 @@ function classifyThemeColor(color, theme) {
     const candidates = [
         ["text", theme.defaultTextColor],
         ["text", theme.cssVars?.["--slide-fg"]],
+        // The first Blank subtitle used this fixed colour. Migrate its theme role too.
+        ["muted", theme === PRESENTATION_THEMES.blank ? "#4b5563" : null],
         ["muted", theme.defaultMutedColor],
         ["muted", theme.cssVars?.["--slide-muted"]],
         ["accent", theme.accentStrong],

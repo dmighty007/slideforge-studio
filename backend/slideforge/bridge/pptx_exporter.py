@@ -165,7 +165,8 @@ class HtmlTextRunParser(HTMLParser):
 
     def handle_data(self, data):
         if data:
-            self.runs.append({"text": unescape(data), **self.current_style})
+            # Already decoded (convert_charrefs=True); decoding again would turn a typed "&amp;" into "&".
+            self.runs.append({"text": data, **self.current_style})
 
 
 class HtmlListParser(HTMLParser):
@@ -507,7 +508,15 @@ class PPTXExporter:
 
     def _set_text_common(self, run: Any, styles: dict[str, Any], *, extra: Optional[dict[str, bool]] = None):
         extra = extra or {}
-        font_size = int(self._parse_px(extra.get("fontSize") or styles.get("fontSize", "18"), 18))
+        base_size = self._parse_px(styles.get("fontSize", "18"), 18)
+        size = str(extra.get("fontSize") or styles.get("fontSize", "18")).strip()
+        font_size = self._parse_px(size, base_size)
+        if size.endswith("em"):
+            font_size *= base_size
+        elif size.endswith("%"):
+            font_size *= base_size / 100
+        elif extra.get("verticalAlign") in {"super", "sub"} and not extra.get("fontSize"):
+            font_size *= 0.72
         font_color = self._parse_color(extra.get("color") or styles.get("color"), self.theme["text"])
         font_name = str(extra.get("fontFamily") or styles.get("fontFamily", DesignSystem.DEFAULT_FONT)).split(",")[0].replace('"', "").strip()
         run.font.size = self._px_to_pt(font_size)
@@ -519,10 +528,9 @@ class PPTXExporter:
         # "All caps" is a display setting in PowerPoint too: the text itself keeps its case.
         if str(styles.get("textTransform", "")).lower() == "uppercase":
             run.font._element.set("cap", "all")
-        if extra.get("verticalAlign") == "super" and hasattr(run.font, "superscript"):
-            run.font.superscript = True
-        if extra.get("verticalAlign") == "sub" and hasattr(run.font, "subscript"):
-            run.font.subscript = True
+        if extra.get("verticalAlign") in {"super", "sub"}:
+            # python-pptx exposes no superscript/subscript property; DrawingML stores a percentage baseline.
+            run.font._element.set("baseline", "30000" if extra["verticalAlign"] == "super" else "-25000")
         if extra.get("link"):
             run.hyperlink.address = extra["link"]
 
@@ -701,7 +709,7 @@ class PPTXExporter:
     def export(self) -> io.BytesIO:
         for index, slide_data in enumerate(self._normalized_slides()):
             try:
-                self._add_slide(slide_data)
+                self._add_slide(slide_data, slide_index=index)
             except Exception:
                 # One broken slide should not cost the user the whole deck.
                 logger.exception("Skipping slide %s that could not be exported", index + 1)
@@ -741,7 +749,7 @@ class PPTXExporter:
         except (TypeError, ValueError):
             return 0.0
 
-    def _add_slide(self, slide_data: Dict[str, Any]):
+    def _add_slide(self, slide_data: Dict[str, Any], slide_index: Optional[int] = None):
         self.slide_bg_rgb = self.theme["background"]
         # Use a blank layout (index 6 is usually blank)
         slide_layout = self.prs.slide_layouts[6]
@@ -781,7 +789,7 @@ class PPTXExporter:
             slide.notes_slide.notes_text_frame.text = str(slide_data.get("notes") or "")
 
         # 2. Elements
-        elements = [*self._build_master_elements(slide_data), *slide_data.get("elements", [])]
+        elements = [*self._build_master_elements(slide_data, slide_index=slide_index), *slide_data.get("elements", [])]
         # Sort by zIndex
         sorted_elements = sorted(elements, key=self._z_index)
 
@@ -882,7 +890,7 @@ class PPTXExporter:
             "styles": {"zIndex": -19, "backgroundColor": "transparent", **styles},
         }
 
-    def _build_master_elements(self, slide_data: dict[str, Any]) -> list[dict[str, Any]]:
+    def _build_master_elements(self, slide_data: dict[str, Any], slide_index: Optional[int] = None) -> list[dict[str, Any]]:
         # The editor sends the layout decorations it draws as elements; drawing ours too would duplicate them.
         if self.state.get("masterElementsIncluded"):
             return []
@@ -893,10 +901,11 @@ class PPTXExporter:
         config = self._master_config(master_id)
         if not config:
             return []
-        try:
-            slide_index = self.state.get("slides", []).index(slide_data)
-        except ValueError:
-            slide_index = 0
+        if slide_index is None:
+            try:
+                slide_index = self.state.get("slides", []).index(slide_data)
+            except ValueError:
+                slide_index = 0
         slide_number = str(slide_index + 1).zfill(2)
         sx = self.base_w / 1024
         sy = self.base_h / 768
@@ -975,8 +984,8 @@ class PPTXExporter:
             w_raw = el.get("width", "100")
             h_raw = el.get("height", "100")
 
-            w = self._px_to_inches_w(float(re.sub(r"[^\d.]", "", str(w_raw)) or 100))
-            h = self._px_to_inches_h(float(re.sub(r"[^\d.]", "", str(h_raw)) or 100))
+            w = self._px_to_inches_w(max(1.0, self._parse_px(w_raw, 100.0)))
+            h = self._px_to_inches_h(max(1.0, self._parse_px(h_raw, 100.0)))
 
             el_type = el.get("type")
             if el_type == "text":
@@ -1143,6 +1152,12 @@ class PPTXExporter:
         if not img_stream:
             return
 
+        # Plugin plots are exported as pictures with transparent pixels. Keep the object's surface behind them.
+        styles = el.get("styles") or {}
+        if not self._is_transparent(styles.get("backgroundColor")):
+            card = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, x, y, w, h)
+            self._apply_fill(card, styles["backgroundColor"], self.slide_bg_rgb)
+            card.line.fill.background()
         pic = slide.shapes.add_picture(img_stream, x, y, width=w, height=h)
         self._apply_image_crop_transform(pic, el.get("cropTransform"))
 
@@ -1591,14 +1606,26 @@ class PPTXExporter:
         cleaned = str(svg or "")
         cleaned = re.sub(r"<\s*(script|foreignObject)\b[^>]*>.*?<\s*/\s*\1\s*>", "", cleaned, flags=re.I | re.S)
         cleaned = re.sub(r"\s+on[a-zA-Z]+\s*=\s*(['\"]).*?\1", "", cleaned, flags=re.I | re.S)
-        cleaned = re.sub(r"\s+(href|xlink:href)\s*=\s*(['\"])\s*(javascript:|data:text/html).*?\2", "", cleaned, flags=re.I | re.S)
-        cleaned = re.sub(r"url\s*\(\s*(['\"]?)\s*(javascript:|data:text/html).*?\)", "none", cleaned, flags=re.I | re.S)
+        cleaned = re.sub(
+            r"\s+(?:xlink:)?href\s*=\s*(['\"])\s*(?!#|data:image/).*?\1",
+            "",
+            cleaned,
+            flags=re.I | re.S,
+        )
+        cleaned = re.sub(
+            r"url\s*\(\s*(['\"]?)\s*(?!#|data:image/)[^)]*?\)",
+            "none",
+            cleaned,
+            flags=re.I | re.S,
+        )
         return cleaned.strip()
 
     def _svg_to_png_stream(self, svg: str, width_px: int, height_px: int) -> Optional[io.BytesIO]:
         try:
             import cairosvg
 
+            # svg2png takes no url_fetcher (passing one raised and lost the picture). Left in its default safe mode,
+            # CairoSVG >= 2.7 fetches only data: URLs, so a reference the sanitizer missed still reaches nothing outside.
             png = cairosvg.svg2png(
                 bytestring=svg.encode("utf-8"),
                 output_width=max(1, width_px),

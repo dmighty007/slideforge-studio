@@ -826,7 +826,8 @@ async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
                         // Plain words go into the shape itself, so they move and resize with it; a bulleted list
                         // stays a text box on top (shape text has no bullets).
                         const anchor = _pptxChild(_pptxChild(node, "p:txBody"), "a:bodyPr")?.getAttribute("anchor") || "t";
-                        const scratch = document.createElement("div");
+                        const inertDoc = document.implementation.createHTMLDocument("");
+                        const scratch = inertDoc.createElement("div");
                         scratch.innerHTML = text.content.replace(/<br\s*\/?>/gi, "\n");
                         shape.shapeText = scratch.textContent;
                         shape.shapeTextStyle = {

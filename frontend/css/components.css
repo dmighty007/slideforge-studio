@@ -4512,3 +4512,6 @@ body.whiteboard-mode-active
 .plugin-switch:has(input:disabled) {
     cursor: default;
 }
+
+/* Embedded frames must not swallow the pointer release during an object drag. */
+body.sf-moving-element iframe { pointer-events: none !important; }

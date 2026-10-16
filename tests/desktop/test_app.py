@@ -72,6 +72,75 @@ class PywebviewQtInternalsTests(SimpleTestCase):
             self.skipTest(f"pywebview Qt backend unavailable: {exc}")
         self.assertTrue(hasattr(pywebview_qt.BrowserView, "WebPage"))
         self.assertTrue(hasattr(pywebview_qt.BrowserView.WebPage, "createWindow"))
+        self.assertTrue(hasattr(pywebview_qt.BrowserView, "on_download_requested"))
+        self.assertTrue(hasattr(pywebview_qt, "QFileDialog"))
+
+
+class QtDownloadTests(SimpleTestCase):
+    def _download(self, qt6=True):
+        methods = ["url", "accept", "cancel"]
+        methods += (["downloadDirectory", "downloadFileName", "setDownloadDirectory", "setDownloadFileName"]
+                    if qt6 else ["path", "suggestedFileName", "setPath"])
+        download = mock.Mock(spec=methods)
+        if qt6:
+            download.downloadDirectory.return_value = "/tmp/exports"
+            download.downloadFileName.return_value = "Scientific talk.zip"
+        else:
+            download.path.return_value = "/tmp/exports/temporary-name"
+            download.suggestedFileName.return_value = "Scientific talk.zip"
+        download.url.return_value.fileName.return_value = "blob-uuid"
+        return download
+
+    def _save(self, download, chooser):
+        from slideforge.desktop import qt_support
+
+        browser = mock.Mock(localization={"global.saveFile": "Save file"})
+        qt_support._handle_download(browser, download, chooser)
+        return browser
+
+    def test_qt6_sets_directory_and_filename_before_accepting(self):
+        download = self._download()
+        chooser = mock.Mock(return_value=("/tmp/chosen/My talk.zip", "*.zip"))
+        browser = self._save(download, chooser)
+        chooser.assert_called_once_with(browser, "Save file", "/tmp/exports/Scientific talk.zip", "*.zip")
+        self.assertEqual(download.method_calls[-3:], [
+            mock.call.setDownloadDirectory("/tmp/chosen"),
+            mock.call.setDownloadFileName("My talk.zip"), mock.call.accept(),
+        ])
+        download.cancel.assert_not_called()
+
+    def test_qt5_keeps_the_legacy_path_api(self):
+        download = self._download(qt6=False)
+        self._save(download, mock.Mock(return_value=("/tmp/talk.zip", "*.zip")))
+        download.setPath.assert_called_once_with("/tmp/talk.zip")
+        download.accept.assert_called_once_with()
+
+    def test_cancel_does_not_accept_or_set_a_destination(self):
+        download = self._download()
+        self._save(download, mock.Mock(return_value=("", "")))
+        download.cancel.assert_called_once_with()
+        download.accept.assert_not_called()
+        download.setDownloadDirectory.assert_not_called()
+
+    def test_dialog_and_download_errors_cannot_escape_the_qt_callback(self):
+        for stage in ("dialog", "destination", "accept"):
+            with self.subTest(stage=stage), self.assertLogs("slideforge.desktop.qt_support", level="ERROR"):
+                download = self._download()
+                chooser = mock.Mock(return_value=("/tmp/talk.zip", "*.zip"))
+                if stage == "dialog":
+                    chooser.side_effect = RuntimeError("dialog failed")
+                elif stage == "destination":
+                    download.setDownloadFileName.side_effect = RuntimeError("destination failed")
+                else:
+                    download.accept.side_effect = RuntimeError("download failed")
+                self._save(download, chooser)
+                download.cancel.assert_called_once_with()
+
+    def test_failed_cancel_also_cannot_escape_the_qt_callback(self):
+        download = self._download()
+        download.cancel.side_effect = RuntimeError("request already deleted")
+        with self.assertLogs("slideforge.desktop.qt_support", level="ERROR"):
+            self._save(download, mock.Mock(side_effect=RuntimeError("dialog failed")))
 
 
 class DesktopPolishTests(SimpleTestCase):

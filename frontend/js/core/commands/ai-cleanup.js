@@ -106,6 +106,8 @@ async function aiCleanUpSlide() {
     }
 
     if (typeof _apiFetch === "function") {
+        const expectedPresentationId = typeof currentPresentationId !== "undefined" ? currentPresentationId : null;
+        const expectedSlideId = slide?.id;
         try {
             if (typeof setProjectSaveHint === "function") {
                 setProjectSaveHint("Tidying the slide layout…", "muted");
@@ -129,8 +131,14 @@ async function aiCleanUpSlide() {
             });
             const result = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(result.error || `AI cleanup failed (${response.status})`);
+            const currentPresId = typeof currentPresentationId !== "undefined" ? currentPresentationId : null;
+            if (currentPresId !== expectedPresentationId) return;
+            const currentSlide = expectedSlideId
+                ? (state.slides || []).find(s => s && s.id === expectedSlideId)
+                : state.slides?.[activeIndex];
+            if (!currentSlide) return;
             saveStateToUndo();
-            const changedCount = _applyAiCleanupUpdates(slide, result.elements);
+            const changedCount = _applyAiCleanupUpdates(currentSlide, result.elements);
             // The server says when it fell back to the layout rules (no AI model, or it failed or was busy).
             _finishSlideCleanup(changedCount, result.summary || null, { usedAi: !result.fallback });
             return;

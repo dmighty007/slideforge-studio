@@ -663,6 +663,21 @@ function _insertSymbol(sym) {
 
 // ─── Equation Element ─────────────────────────────────────────────────────────
 
+// Measure at the chosen font size before placement so wide equations get room without manual sizing.
+function equationLayout(content, fontSize = 24) {
+    const probe = document.createElement("div");
+    probe.style.cssText = `position:fixed;visibility:hidden;width:max-content;font-size:${fontSize}px;line-height:1;`;
+    probe.innerHTML = DOMPurify.sanitize(content);
+    document.body.appendChild(probe);
+    const naturalWidth = probe.getBoundingClientRect().width + 16;
+    const naturalHeight = probe.getBoundingClientRect().height + 16;
+    probe.remove();
+    const maxWidth = getPresentationPageSetupConfig().width - 128;
+    const ratio = Math.min(1, maxWidth / Math.max(1, naturalWidth));
+    return { width: `${Math.ceil(Math.min(maxWidth, Math.max(160, naturalWidth)))}px`,
+        height: `${Math.ceil(naturalHeight * ratio)}px`, fontSize: `${fontSize * ratio}px` };
+}
+
 function addEquationElement(latexSrc) {
     const activeIndex = typeof currentSlideIndex !== "undefined" ? currentSlideIndex : 0;
     saveStateToUndo();
@@ -679,18 +694,19 @@ function addEquationElement(latexSrc) {
         renderedHtml = `<span style="color:red">${latexSrc}</span>`;
     }
 
+    const layout = equationLayout(renderedHtml);
     state.slides[activeIndex].elements.push(placeWhereFree(state.slides[activeIndex], {
         id,
         type: "equation",
         latexSrc,
         x: 200,
         y: 200,
-        width: "400px",
-        height: "auto",
+        width: layout.width,
+        height: layout.height,
         content: renderedHtml,
         styles: {
             color: theme.defaultTextColor || "#ffffff",
-            fontSize: "24px",
+            fontSize: layout.fontSize,
             zIndex: getNextZIndex(),
             backgroundColor: "transparent",
         },

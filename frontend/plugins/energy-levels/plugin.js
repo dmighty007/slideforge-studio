@@ -161,7 +161,11 @@
                 const named = new Set();
                 paths.forEach((path, pathIndex) => {
                     const color = paths.length > 1 ? PATH_COLORS[pathIndex % PATH_COLORS.length] : ink;
-                    const route = states.filter(state => state.path === path).map((state, index) => ({ ...state, x: left + slot * (index + 0.5) }));
+                    const pathStates = states.filter(state => state.path === path);
+                    const route = pathStates.map((state, index) => ({
+                        ...state,
+                        x: left + slot / 2 + (plotWidth - slot) * index / Math.max(1, pathStates.length - 1),
+                    }));
                     if (data.curve) {
                         // A smooth line through the level centres (Catmull–Rom as cubic Béziers).
                         let d = `M${route[0].x - barHalf} ${y(route[0].energy)}H${route[0].x}`;

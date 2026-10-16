@@ -60,7 +60,7 @@
         return sites;
     }
 
-    // Moves labels on one side apart vertically (at least `gap` between them), keeping them inside top..bottom.
+    // Moves labels on one side apart vertically. Dense labels may extend below bottom; the viewBox includes them.
     function spread(labels, gap, top, bottom) {
         labels.sort((a, b) => a.y - b.y);
         for (let i = 1; i < labels.length; i++) labels[i].y = Math.max(labels[i].y, labels[i - 1].y + gap);
@@ -69,7 +69,10 @@
             labels.at(-1).y -= overflow;
             for (let i = labels.length - 2; i >= 0; i--) labels[i].y = Math.min(labels[i].y, labels[i + 1].y - gap);
         }
-        labels.forEach(label => (label.y = Math.max(top, label.y)));
+        if (labels.length && labels[0].y < top) {
+            const shift = top - labels[0].y;
+            labels.forEach(label => (label.y += shift));
+        }
     }
 
     SlideForgePlugins.register({
@@ -205,7 +208,8 @@
 
             if (data.name) parts.push(`<text x="${fmt(cx)}" y="${fmt(cy - size * 0.1)}" font-size="${fmt(size * 1.35)}" font-weight="700" text-anchor="middle" fill="${ink}">${context.escapeXml(data.name)}</text>`);
             parts.push(`<text x="${fmt(cx)}" y="${fmt(cy + size * 1.2)}" font-size="${size}" text-anchor="middle" fill="${ink}" opacity="0.75">${length.toLocaleString("en-US")} bp</text>`);
-            return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" font-family="${FONT}">${parts.join("")}</svg>`;
+            const layoutHeight = Math.max(height, ...labels.map(label => label.y + size));
+            return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${layoutHeight}" font-family="${FONT}">${parts.join("")}</svg>`;
         },
     });
 })();

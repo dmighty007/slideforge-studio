@@ -96,6 +96,8 @@ function buildTextPanel(panel, data) {
         <button id="prop-italic" class="prop-icon-btn italic ${data.styles.fontStyle === "italic" ? "active" : ""}" title="Italic">I</button>
         <button id="prop-underline" class="prop-icon-btn underline ${isUnderline ? "active" : ""}" title="Underline">U</button>
         <button id="prop-strikethrough" class="prop-icon-btn line-through ${isStrike ? "active" : ""}" title="Strikethrough">S</button>
+        <button id="prop-subscript" class="prop-icon-btn" title="Subscript (select the characters first)" aria-label="Subscript">X<sub>2</sub></button>
+        <button id="prop-superscript" class="prop-icon-btn" title="Superscript (select the characters first)" aria-label="Superscript">X<sup>2</sup></button>
         <button id="prop-clear-format" class="prop-icon-btn" title="Clear formatting"><i class="fa-solid fa-eraser"></i></button>
     `;
 
@@ -339,6 +341,13 @@ function buildTextPanel(panel, data) {
         normalizeFontFamily(getThemeTextStyleDefaults().fontFamily),
     );
   }
+  for (const action of ["subscript", "superscript"]) {
+    const button = document.getElementById(`prop-${action}`);
+    if (!button) continue;
+    bindInlineFormattingGuard(button);
+    button.onclick = () => applyTextFormatting(action, null, { inlineAction: action });
+  }
+
   const bold = document.getElementById("prop-bold");
   if (bold) {
     bindInlineFormattingGuard(bold);

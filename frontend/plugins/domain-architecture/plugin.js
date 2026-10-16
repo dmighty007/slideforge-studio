@@ -108,17 +108,27 @@
             const siteRoom = sites.length ? size * 4.4 : 0;
             const domainHeight = Math.max(12, Math.min(size * 2.2, height * 0.28));
             const outside = domains.filter(domain => context.measureText(domain.name, style) > (domain.end - domain.start) * scale - size * 0.6);
-            const outsideRoom = outside.length ? size * 1.4 : 0;
+            // Allocate every collision row before positioning the protein and ruler.
+            const labelRows = new Map();
+            let lastEnd = -Infinity;
+            let labelRow = 0;
+            outside.forEach(domain => {
+                const textWidth = context.measureText(domain.name, style);
+                const centre = Math.min(Math.max((x(domain.start) + x(domain.end)) / 2, textWidth / 2), width - textWidth / 2);
+                labelRow = centre - textWidth / 2 < lastEnd + size * 0.4 ? labelRow + 1 : 0;
+                lastEnd = centre + textWidth / 2;
+                labelRows.set(domain, labelRow);
+            });
+            const outsideRoom = outside.length ? size * (1.4 + Math.max(...labelRows.values()) * 1.1) : 0;
             const rulerRoom = data.ruler ? size * 2 : 0;
             const used = siteRoom + domainHeight + outsideRoom + rulerRoom;
-            const midY = Math.max(siteRoom + domainHeight / 2, (height - used) / 2 + siteRoom + domainHeight / 2);
+            const layoutHeight = Math.max(height, used + size);
+            const midY = (layoutHeight - used) / 2 + siteRoom + domainHeight / 2;
             const parts = [];
             if (data.name) parts.push(`<text x="0" y="${fmt(midY + size * 0.35)}" font-size="${size}" font-weight="700" fill="${ink}">${context.escapeXml(data.name)}</text>`);
             parts.push(`<line x1="${fmt(x(1))}" x2="${fmt(x(length))}" y1="${fmt(midY)}" y2="${fmt(midY)}" stroke="${ink}" stroke-opacity="0.55" stroke-width="${fmt(Math.max(3, domainHeight * 0.18))}" stroke-linecap="round"/>`);
 
             // Names that do not fit inside go below their domain, alternating rows when neighbours would touch.
-            let lastBelowEnd = -Infinity;
-            let row = 0;
             domains.forEach(domain => {
                 const x0 = x(domain.start);
                 const x1 = x(domain.end);
@@ -133,8 +143,7 @@
                     parts.push(`<text x="${fmt(x0 + w / 2)}" y="${fmt(midY + size * 0.35)}" font-size="${size}" font-weight="600" text-anchor="middle" fill="${textOn(domain.color)}">${context.escapeXml(domain.name)}</text>`);
                 } else {
                     const centre = Math.min(Math.max(x0 + w / 2, textWidth / 2), width - textWidth / 2);
-                    row = centre - textWidth / 2 < lastBelowEnd + size * 0.4 ? row + 1 : 0;
-                    lastBelowEnd = centre + textWidth / 2;
+                    const row = labelRows.get(domain);
                     parts.push(`<text x="${fmt(centre)}" y="${fmt(midY + domainHeight / 2 + size * (1.1 + row * 1.1))}" font-size="${fmt(size * 0.9)}" text-anchor="middle" fill="${ink}">${context.escapeXml(domain.name)}</text>`);
                 }
             });
@@ -155,7 +164,7 @@
             });
 
             if (data.ruler) {
-                const rulerY = midY + domainHeight / 2 + outsideRoom + (outside.length > 1 ? size * 0.9 : 0) + size * 0.6;
+                const rulerY = midY + domainHeight / 2 + outsideRoom + size * 0.6;
                 const step = context.niceTicks(0, length, Math.max(3, Math.round((width - left) / 80))).step;
                 parts.push(`<line x1="${fmt(x(1))}" x2="${fmt(x(length))}" y1="${fmt(rulerY)}" y2="${fmt(rulerY)}" stroke="${ink}" stroke-opacity="0.6"/>`);
                 const marks = [1];
@@ -167,7 +176,7 @@
                     parts.push(`<text x="${fmt(x(value))}" y="${fmt(rulerY + size * 1.3)}" font-size="${fmt(size * 0.75)}" text-anchor="middle" fill="${ink}" opacity="0.75">${value}</text>`);
                 });
             }
-            return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" font-family="${FONT}">${parts.join("")}</svg>`;
+            return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${layoutHeight}" font-family="${FONT}">${parts.join("")}</svg>`;
         },
     });
 })();

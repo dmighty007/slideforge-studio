@@ -96,7 +96,8 @@ function claimContentPlaceholder(slide, element) {
     const width = parseFloat(element.width);
     const height = parseFloat(element.height);
     if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
-        const scale = Math.min(1, maxW / width, maxH / height);
+        const grow = ["chart", "molecule", "image", "video", "pdf", "plugin", "mermaid", "drawing"].includes(element.type);
+        const scale = Math.min(grow ? 2 : 1, maxW / width, maxH / height);
         element.width = `${Math.round(width * scale)}px`;
         element.height = `${Math.round(height * scale)}px`;
         element.x = Math.round(x + (maxW - width * scale) / 2);
@@ -136,7 +137,10 @@ function placeInContentPlaceholder(slide, element, { anywhere = false, claim = t
     // boxes keep their size: their height follows the text).
     if (best.overlap > 0 && element.type !== "text" && Number.isFinite(parseFloat(element.height))) {
         for (const share of [0.8, 0.62, 0.48]) {
-            const w = Math.round(width * share);
+            // Size-aware plots lay out their own labels. Keep their width when fitting a shorter free band;
+            // narrowing them can leave no space for labels and estimates even though the slide has room.
+            const keepWidth = element.type === "plugin" && typeof getSlidePlugin === "function" && getSlidePlugin(element.pluginId)?.sizeAware;
+            const w = Math.round(keepWidth ? width : width * share);
             const h = Math.round(height * share);
             const spot = _leastOverlapPosition(w, h, bounds, boxes, floor);
             if (spot.overlap < best.overlap) best = { ...spot, width: w, height: h };
@@ -183,7 +187,7 @@ function buildDefaultPresentationState() {
                     }),
                     buildPlaceholderText({
                         x: 64, y: titleY + 174, width: textWidth, fontSize: 26, textAlign: "center", zIndex: 2,
-                        placeholder: "Click to add subtitle", fontFamily: "Arial, sans-serif", color: "#4b5563",
+                        placeholder: "Click to add subtitle", fontFamily: "Arial, sans-serif", color: "#6b7280",
                     }),
                 ],
             },
@@ -1339,6 +1343,7 @@ function normalizeStateIds() {
                               typeof isMoleculeContentUrl === "function" && isMoleculeContentUrl(safeEl.content)
                                   ? "url"
                                   : "inline",
+                          moleculeBackgroundMode: ["theme", "transparent", "custom"].includes(safeEl.moleculeBackgroundMode) ? safeEl.moleculeBackgroundMode : "custom",
                           moleculeInteractive: safeEl.moleculeInteractive ?? true,
                           moleculeAutoRotate: Boolean(safeEl.moleculeAutoRotate),
                           moleculeProjection:
@@ -1741,8 +1746,20 @@ function getNextZIndex() {
     return maxZ + 1;
 }
 
+// Resolve automatic surfaces into ordinary styles so every renderer and export sees the same colour.
+function syncElementSurface(element, slide) {
+    const mode = element.type === "plugin" ? element.pluginSurfaceMode : element.type === "molecule" ? element.moleculeBackgroundMode : null;
+    if (!mode || mode === "custom") return;
+    const theme = getPresentationTheme();
+    const backgroundColor = mode === "transparent" ? "transparent"
+        : element.type === "molecule" ? (moleculeFogColor(slide) || theme.surfaceColor || "#ffffff")
+        : theme.surfaceColor || "#ffffff";
+    element.styles = { ...element.styles, backgroundColor };
+}
+
 function getPersistableState() {
     normalizeStateIds();
+    state.slides?.forEach(slide => slide.elements?.forEach(el => syncElementSurface(el, slide)));
     return {
         presentationTheme: state.presentationTheme,
         presentationTransition: state.presentationTransition,
@@ -2048,7 +2065,7 @@ async function loadPresentationRecord(presentationId) {
         state = _convertBridgeExportToEditorState(loaded.bridgeResult);
         state.presentationTheme = state.presentationTheme || loaded.presentationTheme || "blank";
     }
-    const recovered = _takeUnsavedBackup(loaded.id, loaded.autosaveVersion || 1);
+    const recovered = _takeUnsavedBackup(loaded.id, loaded.autosaveVersion || 1, loaded.state);
     if (recovered) {
         state = recovered.state;
         _pendingRecoverySave = true;
@@ -2148,12 +2165,15 @@ async function autosavePresentationNow() {
         autosaveVersion: currentPresentationAutosaveVersion,
     };
     let saved;
+    _pendingSaveFingerprints.add(fingerprint);
+    keepUnsavedBackup();
     try {
         saved = await _presentationRequest(`/api/presentations/${presentationId}/`, {
             method: "PATCH",
             body: JSON.stringify(payload),
         });
     } catch (err) {
+        _pendingSaveFingerprints.delete(fingerprint);
         if (!stillCurrent()) return false;
         if (err?.status === 409) {
             currentPresentationAutosaveVersion =
@@ -2162,18 +2182,45 @@ async function autosavePresentationNow() {
         }
         throw err;
     }
+    _pendingSaveFingerprints.delete(fingerprint);
     if (!stillCurrent()) return false;
     currentPresentationAutosaveVersion = saved.autosaveVersion || currentPresentationAutosaveVersion;
     setCurrentPresentationTitle(payload.title);
     _lastPersistedFingerprint = fingerprint;
     _lastPersistedTitle = payload.title;
-    _clearUnsavedBackup(presentationId);
-    setProjectSaveHint("All changes saved", "success");
+    const current = _persistedStateIsCurrent();
+    if (current) _clearUnsavedBackup(presentationId);
+    else keepUnsavedBackup();
+    setProjectSaveHint(current ? "All changes saved" : "Unsaved changes", current ? "success" : "warn");
     window.dispatchEvent(new CustomEvent("slideforge:presentation-saved", { detail: { id: presentationId } }));
     return true;
 }
 
+const _pendingSaveFingerprints = new Set();
+
+function keepUnsavedBackup() {
+    if (isPresentationHydrating()) return;
+    if (!_backendApiAvailable || !_presentationPersistenceEnabled) {
+        saveLocalPresentationNow();
+        return;
+    }
+    if (!_presentationPersistenceReady || !currentPresentationId) return;
+    try {
+        localStorage.setItem(UNSAVED_BACKUP_STORAGE_KEY, JSON.stringify({
+            presentationId: currentPresentationId,
+            autosaveVersion: currentPresentationAutosaveVersion,
+            state: getPersistableState(),
+            pendingFingerprints: [..._pendingSaveFingerprints],
+            savedAt: new Date().toISOString(),
+        }));
+    } catch (err) {
+        console.warn("Could not keep a backup of unsaved changes:", err);
+    }
+}
+
 function schedulePresentationAutosave(delay = 1200) {
+    // Closing a browser page need not dispatch pagehide. Persist recovery data while it is still alive.
+    keepUnsavedBackup();
     if (!_backendApiAvailable || !_presentationPersistenceEnabled) {
         setProjectSaveHint("Unsaved local changes", "warn");
         clearTimeout(_autosaveTimer);
@@ -2197,7 +2244,7 @@ function schedulePresentationAutosave(delay = 1200) {
     }, delay);
 }
 
-function _takeUnsavedBackup(presentationId, serverVersion) {
+function _takeUnsavedBackup(presentationId, serverVersion, serverState = null) {
     let backup = null;
     try {
         backup = JSON.parse(localStorage.getItem(UNSAVED_BACKUP_STORAGE_KEY) || "null");
@@ -2207,7 +2254,11 @@ function _takeUnsavedBackup(presentationId, serverVersion) {
     if (!backup || backup.presentationId !== presentationId) return null;
     localStorage.removeItem(UNSAVED_BACKUP_STORAGE_KEY);
     // Same version as when the backup was taken: the server never received those edits.
-    const usable = backup.autosaveVersion === serverVersion && Array.isArray(backup.state?.slides) && backup.state.slides.length;
+    const sameVersion = backup.autosaveVersion === serverVersion;
+    // A save already in flight can land after the page closes. Recover only if the server has that exact snapshot.
+    const pendingSaveLanded = serverVersion === backup.autosaveVersion + 1 &&
+        backup.pendingFingerprints?.includes(JSON.stringify(serverState));
+    const usable = (sameVersion || pendingSaveLanded) && Array.isArray(backup.state?.slides) && backup.state.slides.length;
     return usable ? backup : null;
 }
 
@@ -2246,7 +2297,7 @@ function flushUnsavedChangesOnExit() {
     try {
         localStorage.setItem(
             UNSAVED_BACKUP_STORAGE_KEY,
-            JSON.stringify({ ...payload, presentationId: currentPresentationId, savedAt: new Date().toISOString() }),
+            JSON.stringify({ ...payload, presentationId: currentPresentationId, pendingFingerprints: [..._pendingSaveFingerprints], savedAt: new Date().toISOString() }),
         );
     } catch (err) {
         console.warn("Could not keep a backup of unsaved changes:", err);

@@ -2,6 +2,15 @@
 
 // ─── Layer Management ───────────────────────────────────────────────────────
 
+function _escapeLayerHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function renderLayersList() {
   const container = document.getElementById("layers-list");
   if (!container) return;
@@ -38,7 +47,8 @@ function renderLayersList() {
     .map((el) => {
       const isSelected = state.selectedIds.includes(el.id);
       const icon = getElementIcon(el.type);
-      const name = getElementDisplayName(el);
+      const name = _escapeLayerHtml(getElementDisplayName(el));
+      const safeId = _escapeLayerHtml(el.id);
       const hiddenClass = el.hidden
         ? "opacity-55 cursor-default"
         : "cursor-pointer";
@@ -48,10 +58,10 @@ function renderLayersList() {
       return `
             <div class="layer-list-item flex items-center gap-2 p-2 rounded-lg transition-colors border ${hiddenClass} ${isSelected ? "bg-primary/5 border-primary/20 text-primary" : "bg-white border-transparent text-slate-700 hover:bg-slate-50"}"
                  ${hiddenAttrs}
-                 onclick="layerItemClicked('${el.id}', event)">
+                 onclick="layerItemClicked('${safeId}', event)">
                 <i class="${icon} w-4 text-center ${isSelected ? "text-primary" : "text-slate-400"}"></i>
                 <span class="text-[11px] font-medium truncate flex-1">${name}</span>
-                <button class="w-5 h-5 rounded hover:bg-slate-200 flex items-center justify-center text-slate-400 transition-colors" onclick="toggleLayerVisibility('${el.id}', event)" title="Toggle Visibility">
+                <button class="w-5 h-5 rounded hover:bg-slate-200 flex items-center justify-center text-slate-400 transition-colors" onclick="toggleLayerVisibility('${safeId}', event)" title="Toggle Visibility">
                     <i class="fa-regular ${el.hidden ? "fa-eye-slash text-slate-300" : "fa-eye"} text-[10px]"></i>
                 </button>
             </div>
@@ -118,15 +128,22 @@ function getElementIcon(type) {
 
 function getElementDisplayName(el) {
   if (el.type === "text") {
-    let text = String(el.content || "")
-      .replace(/<[^>]+>/g, "")
-      .trim();
+    let text =
+      typeof plainTextFromHtmlSnippet === "function"
+        ? plainTextFromHtmlSnippet(
+            Array.isArray(el.content)
+              ? el.content.map((item) => item?.html ?? item?.text ?? "").join(" ")
+              : el.content,
+          ).trim()
+        : String(el.content || "")
+            .replace(/<[^>]*>?/g, "")
+            .trim();
     if (!text) return "Text Box";
     return text.length > 20 ? text.substring(0, 20) + "..." : text;
   }
   if (el.type === "image") return "Image";
   if (el.type === "shape") {
-    const shapeType = el.shapeType || "Rectangle";
+    const shapeType = String(el.shapeType || "Rectangle");
     return shapeType.charAt(0).toUpperCase() + shapeType.slice(1);
   }
   if (el.type === "connector") return "Connector";
@@ -136,7 +153,8 @@ function getElementDisplayName(el) {
   if (el.type === "table") return "Table";
   if (el.type === "molecule") return "Molecule";
   if (el.type === "plugin") return getSlidePlugin?.(el.pluginId)?.name || "Plugin object";
-  return el.type.charAt(0).toUpperCase() + el.type.slice(1);
+  const rawType = String(el.type || "Element");
+  return rawType.charAt(0).toUpperCase() + rawType.slice(1);
 }
 
 function toggleLayerVisibility(id, event) {
@@ -169,14 +187,18 @@ function moveSelectedLayer(direction) {
   const id = state.selectedIds[0];
 
   const slide = state.slides[currentSlideIndex];
-  if (!slide) return;
+  if (!slide || !Array.isArray(slide.elements)) return;
 
   saveStateToUndo();
 
-  // Sort all elements by current Z index
+  // Sort all elements by current Z index and normalize to sequential indices so equal zIndex values can still swap
   slide.elements.sort(
-    (a, b) => (a.styles?.zIndex || 0) - (b.styles?.zIndex || 0),
+    (a, b) => (Number(a.styles?.zIndex) || 0) - (Number(b.styles?.zIndex) || 0),
   );
+  slide.elements.forEach((el, idx) => {
+    if (!el.styles || typeof el.styles !== "object") el.styles = {};
+    el.styles.zIndex = idx + 1;
+  });
 
   const currentIndex = slide.elements.findIndex((e) => e.id === id);
   if (currentIndex === -1) return;

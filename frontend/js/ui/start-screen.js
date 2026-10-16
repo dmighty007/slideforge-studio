@@ -30,6 +30,7 @@ function _startIcon(className) {
 function _startCover(themeId, title, slideCount = null, font = "") {
     const theme = (typeof PRESENTATION_THEMES !== "undefined" && PRESENTATION_THEMES[themeId]) || PRESENTATION_THEMES?.blank;
     const cover = _startEl("div", "sf-cover");
+    if (theme?.plainMaster) cover.classList.add("sf-cover--plain");
     if (theme) {
         cover.style.setProperty("--cover-bg", theme.cssVars?.["--slide-bg"] || "#fff");
         cover.style.setProperty("--cover-fg", theme.cssVars?.["--slide-fg"] || theme.defaultTextColor || "#0f172a");

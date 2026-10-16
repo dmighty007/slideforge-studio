@@ -143,6 +143,7 @@ function renderSlidesFromState(options = {}) {
     ? document.body.dataset.presentationTheme || state.presentationTheme
     : state.presentationTheme;
   const theme = getPresentationTheme(themeId);
+  state.slides.forEach(slide => slide.elements?.forEach(el => syncElementSurface(el, slide)));
   const slideConfig = getPresentationPageSetupConfig();
   const slideWidth = Number(slideConfig.width) || 1024;
   const slideHeight = Number(slideConfig.height) || 768;

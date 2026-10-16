@@ -306,7 +306,7 @@ function _bindChartPanel(group, data) {
       const current = read();
       const number = (row, column) => Number(String(row[column] ?? "0").replace(/[%\s±]/g, "")) || 0;
       // A column headed SD, SEM, SE, ± or "error" holds the error bars of the series before it.
-      const isError = (column) => hasHeader && column > 1 && /^(±|\+\/?-|s\.?d\.?|s\.?e\.?m?\.?|std|error|err|ci)\b/i.test(String(cells[0][column] || "").trim());
+      const isError = (column) => hasHeader && column > 1 && /^(?:±$|\+\/?-$|(?:s\.?d\.?|s\.?e\.?m?\.?|std|error|err|ci)\b)/i.test(String(cells[0][column] || "").trim());
       const series = [];
       for (let column = 1; column < width; column++) {
         if (isError(column) && series.length) {

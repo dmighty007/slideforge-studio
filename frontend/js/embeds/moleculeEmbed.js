@@ -77,6 +77,7 @@ function createMoleculeElementData({ data, name = "Molecule", format = "pdb", is
         content,
         moleculeSourceType: sourceUrl ? "url" : "inline",
         moleculeInteractive: true,
+        moleculeBackgroundMode: "theme",
         moleculeAutoRotate: false,
         moleculeDepthCue: true,
         moleculeProjection: "perspective",
@@ -1101,6 +1102,7 @@ function moleculeEmbedSettingsMessage(elData, slide) {
 // background, orbit/select mode and the viewer's settings.
 function syncMoleculeElementNode(node, elData, slide) {
     if (!node || !elData) return;
+    syncElementSurface(elData, slide);
     const background = normalizeMoleculeBackgroundColor(elData.styles?.backgroundColor || "#020617");
     node.style.transform = typeof canvasElementTransform === "function" ? canvasElementTransform(elData) : `translate(${elData.x}px, ${elData.y}px)`;
     node.setAttribute("data-x", elData.x);
@@ -1131,7 +1133,7 @@ function syncMoleculeElementNode(node, elData, slide) {
 // What a molecule's viewer must be reloaded for (its file); everything else is changed in place.
 const MOLECULE_IN_PLACE_KEYS = new Set([
     "x", "y", "width", "height", "moleculeName", "moleculeInteractive", "moleculeAutoRotate", "moleculeProjection",
-    "moleculeDefaultStyle", "moleculeDefaultColor", "moleculeRepresentationLayers", "moleculeDepthCue", "moleculeViewState",
+    "moleculeDefaultStyle", "moleculeDefaultColor", "moleculeRepresentationLayers", "moleculeDepthCue", "moleculeViewState", "moleculeBackgroundMode",
 ]);
 function moleculeReloadSignature(elData) {
     const rest = {};

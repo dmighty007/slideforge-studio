@@ -49,7 +49,11 @@ function updateMasterSlide(masterId, updates = {}) {
 }
 
 function _plainMasterText(content) {
-    const box = document.createElement("div");
+    if (typeof plainTextFromHtmlSnippet === "function") {
+        return plainTextFromHtmlSnippet(content).trim();
+    }
+    const doc = document.implementation.createHTMLDocument("");
+    const box = doc.createElement("div");
     box.innerHTML = String(content ?? "");
     return (box.textContent || "").trim();
 }

@@ -103,6 +103,7 @@ const PROPERTY_PANEL_TABS = [
       "Shared Text Style",
       "Shared Text Styles",
       "Typography",
+      "Plot Surface",
       "Table Text",
       "Table Style",
       "Chart Style",
@@ -193,7 +194,7 @@ function organizePropertiesPanelTabs(panel) {
     );
     button.innerHTML = `
       <i class="fa-solid ${tab.icon}" aria-hidden="true"></i>
-      <span>${tab.label}</span>
+      <span>${tab.id === "overview" && state.selectedIds.length ? "Arrange" : tab.label}</span>
     `;
     button.onclick = () => {
       _propertiesPanelActiveTab = tab.id;
@@ -442,20 +443,20 @@ function _buildPropertiesPanelNow() {
             <h3 class="text-xs font-bold text-slate-700 uppercase tracking-widest">${state.selectedIds.length} Object${isSingle ? "" : "s"}</h3>
             ${!isSingle ? `<span class="text-[10px] text-accent font-bold px-2 py-0.5 rounded bg-accent/10 border border-accent/20">${isGrouped ? "GROUPED" : "MULTIPLE"}</span>` : ""}
         </div>
-        ${
-          !isSingle
-            ? `
-        <div class="grid grid-cols-6 gap-1 mb-3 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
-            <button class="prop-align-btn" onclick="alignSelection('left')" title="Align Left"><i class="fa-solid fa-align-left text-xs"></i></button>
-            <button class="prop-align-btn" onclick="alignSelection('center')" title="Align Center"><i class="fa-solid fa-align-center text-xs"></i></button>
-            <button class="prop-align-btn" onclick="alignSelection('right')" title="Align Right"><i class="fa-solid fa-align-right text-xs"></i></button>
-            <button class="prop-align-btn" onclick="alignSelection('top')" title="Align Top"><i class="fa-solid fa-align-left rotate-90 text-xs"></i></button>
-            <button class="prop-align-btn" onclick="alignSelection('middle')" title="Align Middle"><i class="fa-solid fa-align-center rotate-90 text-xs"></i></button>
-            <button class="prop-align-btn" onclick="alignSelection('bottom')" title="Align Bottom"><i class="fa-solid fa-align-right rotate-90 text-xs"></i></button>
+        <label class="prop-field-hint" for="prop-align-reference">Align relative to</label>
+        <select id="prop-align-reference" class="w-full mb-2" onchange="selectionAlignmentReference=this.value">
+            <option value="auto" ${selectionAlignmentReference === "auto" ? "selected" : ""}>Automatic (one: slide; multiple: selection)</option>
+            <option value="slide" ${selectionAlignmentReference === "slide" ? "selected" : ""}>Slide</option>
+            <option value="selection" ${selectionAlignmentReference === "selection" ? "selected" : ""}>Selection</option>
+        </select>
+        <div class="grid grid-cols-6 gap-1 mb-2">
+            ${["left", "center", "right", "top", "middle", "bottom"].map(mode => `<button class="prop-align-btn" onclick="alignSelection('${mode}')" title="Align ${mode}" aria-label="Align ${mode}"><i class="fa-solid fa-align-${["top", "middle", "bottom"].includes(mode) ? ({top:"left",middle:"center",bottom:"right"})[mode] : mode}${["top", "middle", "bottom"].includes(mode) ? " rotate-90" : ""}"></i></button>`).join("")}
         </div>
-        `
-            : ""
-        }
+        <div class="flex gap-2 mb-2">
+            <button class="prop-action-btn flex-1" onclick="distributeSelection('horizontal')" ${_getSelectionAlignmentUnits(state.slides[currentSlideIndex]).length < 3 ? "disabled" : ""}>Distribute horizontally</button>
+            <button class="prop-action-btn flex-1" onclick="distributeSelection('vertical')" ${_getSelectionAlignmentUnits(state.slides[currentSlideIndex]).length < 3 ? "disabled" : ""}>Distribute vertically</button>
+        </div>
+        ${selectedElements.some(el => el.type !== "text") ? '<button id="prop-fit-content" class="prop-action-btn w-full mb-2" onclick="fitSelectionToContentArea()">Fit to content area</button>' : ""}
         ${isSingle ? _buildGeometryFields(state.slides[currentSlideIndex].elements.find((e) => e.id === state.selectedIds[0])) : ""}
         <div class="flex gap-2">
             <button id="prop-group" class="prop-action-btn prop-action-primary flex-1" ${canGroup ? "" : "disabled"} title="${canGroup ? "Group the selected objects" : "Select two or more objects to group them"}">

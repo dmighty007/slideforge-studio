@@ -2,9 +2,11 @@ import json
 
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model, login, logout
+from django.core.exceptions import ValidationError
 from django.http import HttpResponseBadRequest, JsonResponse
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods
+from django_ratelimit.decorators import ratelimit
 
 
 User = get_user_model()
@@ -12,9 +14,12 @@ User = get_user_model()
 
 def _request_json(request):
     try:
-        return json.loads(request.body.decode("utf-8") or "{}")
-    except json.JSONDecodeError as exc:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise ValueError(str(exc)) from exc
+    if not isinstance(payload, dict):
+        raise ValueError("Request body must be a JSON object")
+    return payload
 
 
 def _session_payload(request):
@@ -42,6 +47,7 @@ def auth_session(request):
 
 
 @require_http_methods(["POST"])
+@ratelimit(key="ip", rate="10/h", method="POST")
 def auth_register(request):
     try:
         payload = _request_json(request)
@@ -53,6 +59,11 @@ def auth_register(request):
 
     if len(username) < 3:
         return JsonResponse({"error": "Username must be at least 3 characters"}, status=400)
+    # create_user() does not run model validation: check characters and length like the admin would.
+    try:
+        User._meta.get_field(User.USERNAME_FIELD).run_validators(username)
+    except ValidationError as exc:
+        return JsonResponse({"error": " ".join(exc.messages)}, status=400)
     if len(password) < 8:
         return JsonResponse({"error": "Password must be at least 8 characters"}, status=400)
     if User.objects.filter(username=username).exists():
@@ -64,6 +75,7 @@ def auth_register(request):
 
 
 @require_http_methods(["POST"])
+@ratelimit(key="ip", rate="10/m", method="POST")
 def auth_login(request):
     try:
         payload = _request_json(request)

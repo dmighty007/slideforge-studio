@@ -405,7 +405,7 @@
                 xHigh *= 1.6;
             } else {
                 const pad = (xHigh - xLow || 1) * 0.05;
-                xLow -= pad;
+                xLow = xLow >= 0 ? Math.max(0, xLow - pad) : xLow - pad;
                 xHigh += pad;
             }
             const toX = x => (logX ? Math.log10(x) : x);

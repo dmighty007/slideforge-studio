@@ -58,6 +58,37 @@ class PPTXExportTextTests(TestCase):
         main = next(node for node in timing.iter(f"{self.P}cTn") if node.get("nodeType") == "mainSeq")
         return timing, list(main.find(f"{self.P}childTnLst"))
 
+    def test_picture_surface_is_kept_behind_transparent_plot_pixels(self):
+        import base64
+        import io
+        from PIL import Image
+
+        image = io.BytesIO()
+        Image.new("RGBA", (2, 2), (0, 0, 0, 0)).save(image, format="PNG")
+        content = "data:image/png;base64," + base64.b64encode(image.getvalue()).decode()
+        prs = self._export({"masterElementsIncluded": True, "slides": [{"elements": [{
+            "type": "image", "content": content, "x": 50, "y": 80,
+            "width": "500px", "height": "300px", "styles": {"backgroundColor": "#f4eee0"},
+        }]}]})
+        card, picture = list(prs.slides[0].shapes)[-2:]
+        self.assertEqual(str(card.fill.fore_color.rgb), "F4EEE0")
+        self.assertEqual((card.left, card.top, card.width, card.height),
+                         (picture.left, picture.top, picture.width, picture.height))
+
+    def test_formula_scripts_have_editable_runs_with_baselines_and_readable_sizes(self):
+        prs = self._export({"slides": [{"elements": [{
+            "type": "text", "x": 50, "y": 50, "width": "500px", "height": "80px",
+            "content": 'H<sub>2</sub>O and x<span style="vertical-align:super;font-size:0.72em">2</span>',
+            "styles": {"fontSize": "24px", "color": "#111827"},
+        }]}]})
+        runs = [run for shape in prs.slides[0].shapes if shape.has_text_frame
+                for paragraph in shape.text_frame.paragraphs for run in paragraph.runs]
+        scripts = [run for run in runs if run.text == "2"]
+        self.assertEqual(len(scripts), 2)
+        self.assertEqual([run.font._element.get("baseline") for run in scripts], ["-25000", "30000"])
+        for run in scripts:
+            self.assertAlmostEqual(run.font.size.pt, 24 * 0.72 * 0.75, places=1)
+
     def test_rotation_is_written_to_the_shapes(self):
         prs = self._export({"pageSetup": "talk-16-9", "slides": [{"elements": [
             {"type": "shape", "shapeType": "rectangle", "x": 100, "y": 100, "width": "200px", "height": "100px", "rotation": 45, "styles": {"backgroundColor": "#2563eb"}},

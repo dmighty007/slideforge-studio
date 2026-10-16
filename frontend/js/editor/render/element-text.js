@@ -477,6 +477,7 @@ function _applyTextTypeContent(el, elData, options) {
       elData.textDocument = nextTextDocument;
       captureInlineSelection();
     }
+    schedulePresentationAutosave?.();
     updateFloatingToolbars?.();
     // Skip panel rebuild on every input — it resets scroll during typing.
     const layout = syncTextBoxLayout(el, elData);

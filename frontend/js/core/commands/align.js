@@ -8,8 +8,9 @@ function _getElementNumber(value, fallback = 0) {
 function _getElementBox(el) {
     const x = _getElementNumber(el.x);
     const y = _getElementNumber(el.y);
-    const width = _getElementNumber(el.width);
-    const height = _getElementNumber(el.height);
+    const node = document.querySelector(`.slides [id="${el.id}"]`);
+    const width = _getElementNumber(el.width, node?.offsetWidth || 0);
+    const height = _getElementNumber(el.height, node?.offsetHeight || 0);
     return {
         x,
         y,
@@ -60,13 +61,15 @@ function _getSelectionAlignmentUnits(slide) {
         .filter(unit => unit.elements.length && !unit.locked);
 }
 
-function alignSelection(alignment) {
-    if (state.selectedIds.length < 2) return;
+let selectionAlignmentReference = "auto";
+
+function alignSelection(alignment, reference = selectionAlignmentReference) {
+    if (!state.selectedIds.length) return;
     const slide = state.slides[currentSlideIndex];
     if (!slide) return;
 
     const units = _getSelectionAlignmentUnits(slide);
-    if (units.length < 2) return;
+    if (!units.length || !["left", "center", "right", "top", "middle", "bottom"].includes(alignment)) return;
 
     saveStateToUndo();
 
@@ -76,6 +79,11 @@ function alignSelection(alignment) {
         maxX: Math.max(...units.map(unit => unit.maxX)),
         maxY: Math.max(...units.map(unit => unit.maxY)),
     };
+
+    if (reference === "slide" || (reference === "auto" && units.length === 1)) {
+        const page = getPresentationPageSetupConfig();
+        Object.assign(bounds, { minX: 0, minY: 0, maxX: page.width, maxY: page.height });
+    }
 
     units.forEach(unit => {
         let nextX = unit.minX;
@@ -128,5 +136,62 @@ function alignSelection(alignment) {
     if (window.renderSlidesFromState) window.renderSlidesFromState();
     updateGroupBound?.();
     refreshPreviews?.();
+    schedulePresentationAutosave?.(150);
+}
+
+
+function distributeSelection(axis) {
+    const slide = state.slides[currentSlideIndex];
+    if (!slide || !["horizontal", "vertical"].includes(axis)) return;
+    const horizontal = axis === "horizontal";
+    const start = horizontal ? "minX" : "minY";
+    const end = horizontal ? "maxX" : "maxY";
+    const size = horizontal ? "width" : "height";
+    const units = _getSelectionAlignmentUnits(slide).sort((a, b) => a[start] - b[start]);
+    if (units.length < 3) return;
+    saveStateToUndo();
+    const low = units[0][start];
+    const high = Math.max(...units.map(unit => unit[end]));
+    const gap = (high - low - units.reduce((sum, unit) => sum + unit[size], 0)) / (units.length - 1);
+    let cursor = low;
+    units.forEach(unit => {
+        const delta = cursor - unit[start];
+        unit.elements.forEach(el => updateElementState(el.id, horizontal
+            ? { x: _getElementNumber(el.x) + delta }
+            : { y: _getElementNumber(el.y) + delta }));
+        cursor += unit[size] + gap;
+    });
+    renderSlidesFromState();
+    schedulePresentationAutosave?.(150);
+}
+
+function fitSelectionToContentArea() {
+    const slide = state.slides[currentSlideIndex];
+    if (!slide) return;
+    const units = _getSelectionAlignmentUnits(slide);
+    if (!units.length) return;
+    const selected = units.flatMap(unit => unit.elements);
+    const area = _pluginContentArea(slide, new Set(selected.map(el => el.id)));
+    if (!area) return;
+    const x = Math.min(...units.map(unit => unit.minX));
+    const y = Math.min(...units.map(unit => unit.minY));
+    const width = Math.max(...units.map(unit => unit.maxX)) - x;
+    const height = Math.max(...units.map(unit => unit.maxY)) - y;
+    if (!width || !height) return;
+    saveStateToUndo();
+    const scale = Math.min(parseFloat(area.width) / width, parseFloat(area.height) / height);
+    const left = area.x + (parseFloat(area.width) - width * scale) / 2;
+    const top = area.y + (parseFloat(area.height) - height * scale) / 2;
+    selected.forEach(el => {
+        const box = _getElementBox(el);
+        const plugin = el.type === "plugin" && getSlidePlugin(el.pluginId);
+        const fill = selected.length === 1 && plugin?.sizeAware;
+        updateElementState(el.id, fill ? area : {
+            x: left + (box.x - x) * scale, y: top + (box.y - y) * scale,
+            width: `${box.width * scale}px`, height: `${box.height * scale}px`,
+        });
+    });
+    renderSlidesFromState();
+    buildPropertiesPanel?.();
     schedulePresentationAutosave?.(150);
 }

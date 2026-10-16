@@ -60,7 +60,7 @@ function _setupElementInteract() {
             (item) => item.id === canvasTarget.id,
           );
           if (elementData?.locked) return false;
-          document.body.classList.add("sf-moving-element"); // floating toolbars step aside until the drop
+
 
           const sourceEvent = event.sourceEvent || event;
           const isMultiSelect =
@@ -77,6 +77,13 @@ function _setupElementInteract() {
               return;
             }
           }
+
+          // Keep the release in the editor even when the pointer crosses an embedded iframe.
+          const pointerId = event.pointerId ?? event.originalEvent?.pointerId;
+          if (Number.isFinite(pointerId)) {
+            try { canvasTarget.setPointerCapture(pointerId); } catch (_err) { /* pointer already released */ }
+          }
+          document.body.classList.add("sf-moving-element"); // floating toolbars step aside until the drop
 
           saveStateToUndo();
           state.selectedIds.forEach((id) =>
@@ -243,6 +250,11 @@ function _setupElementInteract() {
             (item) => item.id === canvasTarget.id,
           );
           if (elementData?.locked) return false;
+          // Keep the release in the editor even when the pointer crosses an embedded iframe.
+          const pointerId = event.pointerId ?? event.originalEvent?.pointerId;
+          if (Number.isFinite(pointerId)) {
+            try { canvasTarget.setPointerCapture(pointerId); } catch (_err) { /* pointer already released */ }
+          }
           document.body.classList.add("sf-moving-element"); // floating toolbars step aside until the drop
 
           selectElement(canvasTarget.id, "replace");

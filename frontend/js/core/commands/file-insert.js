@@ -503,7 +503,9 @@ function _upsertMoleculeElement(moleculeData) {
     let targetMoleculeId = selectedMoleculeId;
     if (selectedMoleculeId) {
         const target = state.slides[activeIndex].elements.find(el => el.id === selectedMoleculeId);
+        const backgroundMode = target.moleculeBackgroundMode || "custom";
         Object.assign(target, moleculeData);
+        target.moleculeBackgroundMode = backgroundMode;
     } else {
         const id = generateId("el");
         targetMoleculeId = id;
@@ -512,13 +514,13 @@ function _upsertMoleculeElement(moleculeData) {
             type: "molecule",
             ...moleculeData,
             x: 100,
-            y: 90,
+            y: 100,
             width: "620px",
             height: "420px",
             styles: {
                 zIndex: getNextZIndex(),
                 borderRadius: "8px",
-                backgroundColor: "#020617",
+                backgroundColor: moleculeFogColor(state.slides[activeIndex]) || getPresentationTheme().surfaceColor || "#ffffff",
                 border: "1px solid #334155",
             },
         }));

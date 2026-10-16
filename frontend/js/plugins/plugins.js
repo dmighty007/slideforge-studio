@@ -262,8 +262,7 @@ function _pluginFont(family) {
 
 // The faces of the theme's font, loaded before a plugin measures its text (measured with a fallback font, labels
 // would not fit once the real font arrived).
-async function _loadPluginFont() {
-    const stack = pluginFontStack();
+async function _loadPluginFont(stack = pluginFontStack()) {
     if (stack === SF_PLUGIN_DEFAULT_FONT || !document.fonts?.load) return;
     await Promise.all(["400", "700", "italic 400"].map(face => document.fonts.load(`${face} 16px ${stack}`).catch(() => null)));
 }
@@ -276,10 +275,10 @@ function pluginEscapeXml(text) {
 
 let _sfMeasureCanvas = null;
 // The width of a line of text in px, as an SVG <text> with these settings draws it.
-function pluginMeasureText(text, { size = 16, weight = 400, italic = false, family = "Arial, Helvetica, sans-serif" } = {}) {
+function pluginMeasureText(text, { size = 16, weight = 400, italic = false, family = "Arial, Helvetica, sans-serif", resolvedFamily = "" } = {}) {
     _sfMeasureCanvas = _sfMeasureCanvas || document.createElement("canvas");
     const g = _sfMeasureCanvas.getContext("2d");
-    g.font = `${italic ? "italic " : ""}${weight} ${size}px ${_pluginFont(family)}`;
+    g.font = `${italic ? "italic " : ""}${weight} ${size}px ${resolvedFamily || _pluginFont(family)}`;
     return g.measureText(String(text ?? "")).width;
 }
 
@@ -343,6 +342,7 @@ function _pluginBoxSize(plugin, elData) {
 }
 
 function _pluginRenderContext(plugin, elData = null) {
+    const stack = pluginFontStack();
     const theme = typeof getPresentationTheme === "function" ? getPresentationTheme() : null;
     return {
         textColor: _pluginThemeColor(),
@@ -350,7 +350,8 @@ function _pluginRenderContext(plugin, elData = null) {
         baseUrl: plugin.baseUrl,
         loadScript: url => loadPluginScript(new URL(url, plugin.baseUrl).href),
         parseTable: parsePluginTable,
-        measureText: pluginMeasureText,
+        measureText: (text, options = {}) => pluginMeasureText(text, { ...options,
+            resolvedFamily: !options.family || options.family === SF_PLUGIN_DEFAULT_FONT ? stack : options.family }),
         niceTicks: pluginNiceTicks,
         escapeXml: pluginEscapeXml,
         fetchJson: pluginFetchJson,
@@ -372,7 +373,7 @@ function normalizePluginData(plugin, data) {
 
 function _pluginPreviewKey(plugin, data, elData = null) {
     const box = plugin.sizeAware ? _pluginBoxSize(plugin, elData) : null;
-    return JSON.stringify([plugin.id, plugin.version, _pluginThemeColor(), pluginFontStack(), data, ...(box ? [box.width, box.height] : [])]);
+    return JSON.stringify([plugin.id, plugin.version, getPresentationTheme(), _pluginThemeColor(), pluginFontStack(), data, ...(box ? [box.width, box.height] : [])]);
 }
 
 // A plugin's SVG made safe to keep and show: no scripts, handlers or outside references, and a viewBox so it scales.
@@ -541,12 +542,14 @@ async function drawPluginElement(elData) {
     if (!plugin) throw new Error(`The "${elData?.pluginId}" plugin is not installed`);
     const data = normalizePluginData(plugin, elData.pluginData);
     const key = _pluginPreviewKey(plugin, data, elData);
+    const context = _pluginRenderContext(plugin, elData);
+    const stack = pluginFontStack();
     if (!_sfPluginDrawings.has(key)) {
         const drawing = (async () => {
-            await _loadPluginFont();
-            const result = await plugin.render(data, _pluginRenderContext(plugin, elData));
+            await _loadPluginFont(stack);
+            const result = await plugin.render(data, context);
             const raw = typeof result === "string" ? result : new XMLSerializer().serializeToString(result);
-            const svgText = cleanPluginSvg(raw.split(`font-family="${SF_PLUGIN_DEFAULT_FONT}"`).join(`font-family="${pluginFontStack()}"`));
+            const svgText = cleanPluginSvg(raw.split(`font-family="${SF_PLUGIN_DEFAULT_FONT}"`).join(`font-family="${stack}"`));
             const svg = new DOMParser().parseFromString(svgText, "image/svg+xml").documentElement;
             const dataUrl = _svgDataUrl(svgText);
             _sfCleanPreviews.add(dataUrl);
@@ -626,11 +629,12 @@ function renderPluginElementContent(host, elData, { interactive = false } = {}) 
     const redraw = source =>
         drawPluginElement(source)
             .then(drawing => {
+                const stored = _findPluginElementInState(elData.id);
+                if (!stored || _pluginPreviewKey(plugin, normalizePluginData(plugin, stored.pluginData), stored) !== drawing.key) return;
                 _sfPluginErrors.delete(elData.id);
                 showNote("");
                 box.classList.remove("plugin-element-content--error");
                 if (img.dataset.picture !== drawing.dataUrl) _setPluginPicture(img, drawing.dataUrl);
-                const stored = _findPluginElementInState(elData.id);
                 // autoHeight plugins (wrapped text) set the box's height to what they drew, outside undo. Whichever copy
                 // draws first: when the slide thumbnail redrew for a new width first, it stored the drawing, the editor's
                 // copy then had nothing new to draw, and the box kept its old height.
@@ -848,7 +852,9 @@ window.addEventListener("slideforge:render-complete", () => {
 async function insertPluginElement(pluginId, data = null, { ask = true } = {}) {
     const plugin = getSlidePlugin(pluginId);
     if (!plugin) return null;
-    let pluginData = normalizePluginData(plugin, data || plugin.defaultData);
+    const defaults = { ...plugin.defaultData };
+    if (Number.isFinite(Number(defaults.fontSize))) defaults.fontSize = Math.max(18, Number(defaults.fontSize));
+    let pluginData = normalizePluginData(plugin, data ? { ...defaults, ...data } : defaults);
     if (ask && plugin.askOnInsert !== false) {
         pluginData = await _askPluginPrimaryValue(plugin, pluginData, { inserting: true });
         if (!pluginData) return null;
@@ -865,6 +871,7 @@ async function insertPluginElement(pluginId, data = null, { ask = true } = {}) {
         pluginId,
         pluginData,
         pluginPreview: "",
+        pluginSurfaceMode: plugin.insert?.fill ? "theme" : "transparent",
         pluginPreviewKey: "",
         x: 200,
         y: 160,
@@ -872,6 +879,7 @@ async function insertPluginElement(pluginId, data = null, { ask = true } = {}) {
         height: `${box.height}px`,
         styles: { zIndex: getNextZIndex(), backgroundColor: "transparent" },
     };
+    syncElementSurface(element, slide);
     const fill = plugin.insert?.fill && slide === state.slides[currentSlideIndex] && _pluginSlideHasOnlyTitle(slide) && _pluginContentArea(slide, id);
     if (fill) {
         // It takes the empty content placeholder's place.
@@ -926,8 +934,10 @@ async function insertPluginElement(pluginId, data = null, { ask = true } = {}) {
     // The picture kept in the element, for its final box (thumbnails and exports use it).
     try {
         const finalDrawing = await drawPluginElement(el);
-        el.pluginPreview = finalDrawing.dataUrl;
-        el.pluginPreviewKey = finalDrawing.key;
+        if (_pluginPreviewKey(plugin, normalizePluginData(plugin, el.pluginData), el) === finalDrawing.key) {
+            el.pluginPreview = finalDrawing.dataUrl;
+            el.pluginPreviewKey = finalDrawing.key;
+        }
     } catch (_error) {}
     renderSlidesFromState();
     return id;
@@ -980,16 +990,19 @@ function fitPluginElementToContentArea(id) {
 
 // The content area of the current slide (see above), as x, y, width and height, leaving out the object `id`.
 function _pluginContentArea(slide, id) {
+    const excluded = id instanceof Set ? id : new Set([id]);
     if (!slide || typeof _getSlideInsertBounds !== "function") return null;
     const { slideW, slideH, margin } = _getSlideInsertBounds();
     const footerTop = typeof _currentSlideFooterTop === "function" ? _currentSlideFooterTop() : null;
     // A reference placed as a footnote (still in the lower half) is the floor instead of the footer.
     const footnoteTops = slide.elements
-        .filter(item => item.id !== id && item.placedAsFootnote && (parseFloat(item.y) || 0) > slideH / 2)
+        .filter(item => !excluded.has(item.id) && item.placedAsFootnote && (parseFloat(item.y) || 0) > slideH / 2)
         .map(item => (parseFloat(item.y) || 0) - 12);
     const floor = Math.min(footerTop === null ? slideH - margin : footerTop - 12, ...footnoteTops);
     const titleBottoms = slide.elements
-        .filter(item => item.id !== id && item.type === "text" && !item.isMasterElement && !item.editableMasterFooterElement && (parseFloat(item.y) || 0) < slideH / 3)
+        .filter(item => !excluded.has(item.id) && item.type === "text" && !item.isMasterElement && !item.editableMasterFooterElement &&
+            !(item.placeholderRole === "content" && typeof _isEmptyTextElement === "function" && _isEmptyTextElement(item)) &&
+            ((parseFloat(item.y) || 0) < slideH / 3 || /title|subtitle/.test(item.placeholderRole || item.placeholder || "")))
         .map(item => {
             const node = [...document.querySelectorAll(`[id="${item.id}"]`)].find(n => !n.closest("#slide-previews"));
             const height = parseFloat(item.height) || node?.offsetHeight || 0;
@@ -1480,6 +1493,7 @@ function sanitizePluginElementFields(el) {
     return {
         pluginId,
         pluginData,
+        pluginSurfaceMode: ["theme", "transparent", "custom"].includes(el.pluginSurfaceMode) ? el.pluginSurfaceMode : "custom",
         pluginPreview: safePreview,
         pluginPreviewKey: safePreview && typeof el?.pluginPreviewKey === "string" ? el.pluginPreviewKey.slice(0, SF_PLUGIN_MAX_DATA_LENGTH) : "",
     };

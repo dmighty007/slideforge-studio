@@ -1385,7 +1385,11 @@
                         renderedHtml = katex.renderToString(src, { throwOnError: false, displayMode: true });
                     }
                 } catch(e) {}
-                updateElementState(editId, { latexSrc: src, content: renderedHtml });
+                const equation = state.slides[currentSlideIndex].elements.find(el => el.id === editId);
+                const layout = equationLayout(renderedHtml, parseFloat(equation?.styles?.fontSize) || 24);
+                updateElementState(editId, { latexSrc: src, content: renderedHtml,
+                    width: layout.width, height: layout.height,
+                    styles: { ...equation.styles, fontSize: layout.fontSize } });
                 if (typeof renderSlidesFromState === 'function') renderSlidesFromState();
             } else if (typeof addEquationElement === 'function') {
                 addEquationElement(src);

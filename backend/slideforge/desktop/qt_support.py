@@ -6,12 +6,14 @@
   Same-app popups open as real windows sharing the editor's session; external links still go to the browser.
 - Permission requests (clipboard, microphone, ...): pywebview's handler passes a plain int where PyQt6 wants an enum,
   and the TypeError aborts the whole app. Ours answers them correctly and never raises.
+- Downloads: Qt 6 replaced setPath() with separate directory and filename setters.
 
 pywebview runs its event handlers on worker threads, so view changes are queued to the Qt GUI thread.
 """
 
 import logging
 import webbrowser
+from pathlib import Path
 
 log = logging.getLogger(__name__)
 _bridge = None
@@ -41,6 +43,7 @@ def prepare(window) -> None:
 
     _patch_popups()
     _patch_permissions()
+    _patch_downloads()
     _quit_on_terminate()
     _bridge = _Bridge()  # created on the GUI thread, so emits from worker threads are queued to it
     _bridge.configure.connect(_configure_window, Qt.ConnectionType.QueuedConnection)
@@ -157,6 +160,59 @@ def _patch_permissions() -> None:
 
     # WebPage.__init__ connects self.onFeaturePermissionRequested, so replacing it on the class covers every page.
     page_class.onFeaturePermissionRequested = on_feature_permission_requested
+
+
+def _handle_download(browser, download, choose_path) -> None:
+    """Save an export using the Qt 5 or Qt 6 download API, without raising out of a Qt slot."""
+    try:
+        filename = ""
+        for getter in ("downloadFileName", "suggestedFileName"):
+            if hasattr(download, getter):
+                filename = getattr(download, getter)()
+                if filename:
+                    break
+        filename = Path(filename or download.url().fileName() or "download").name
+        if hasattr(download, "downloadDirectory"):
+            directory = download.downloadDirectory()
+        elif hasattr(download, "path") and download.path():
+            directory = str(Path(download.path()).parent)
+        else:
+            directory = str(Path.home())
+        proposed = str(Path(directory) / filename)
+        suffix = Path(filename).suffix
+        file_filter = f"*{suffix}" if suffix else "All files (*)"
+        path, _ = choose_path(browser, browser.localization["global.saveFile"], proposed, file_filter)
+        if not path:
+            download.cancel()
+            return
+        if hasattr(download, "setDownloadDirectory"):
+            destination = Path(path)
+            download.setDownloadDirectory(str(destination.parent))
+            download.setDownloadFileName(destination.name)
+        else:
+            download.setPath(path)
+        download.accept()
+    except Exception:  # an exception escaping a Qt callback aborts the entire desktop app
+        log.exception("Could not save the exported file")
+        try:
+            download.cancel()
+        except Exception:
+            log.exception("Could not cancel the failed download")
+
+
+def _patch_downloads() -> None:
+    from webview.platforms import qt as pywebview_qt
+
+    browser_class = getattr(pywebview_qt, "BrowserView", None)
+    if browser_class is None or not hasattr(browser_class, "on_download_requested"):
+        log.warning("Unexpected pywebview Qt internals; download compatibility handler was not installed")
+        return
+
+    def on_download_requested(browser, download):
+        _handle_download(browser, download, pywebview_qt.QFileDialog.getSaveFileName)
+
+    # BrowserView.__init__ connects this bound method to profile.downloadRequested.
+    browser_class.on_download_requested = on_download_requested
 
 
 def _route_popup_navigation(view, url, is_main_frame, later) -> bool:

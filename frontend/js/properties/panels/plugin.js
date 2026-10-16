@@ -154,8 +154,24 @@ function buildPluginPanel(panel, data) {
   }
   wrap.appendChild(errorNote);
   wrap.appendChild(fit);
+  if (plugin.fields.some(field => field.key === "fontSize" && field.type === "number")) {
+    const readable = document.createElement("button");
+    readable.type = "button";
+    readable.id = "prop-plugin-readable";
+    readable.className = "plugin-panel-refresh";
+    readable.textContent = "Readable labels (at least 18 px)";
+    wrap.appendChild(readable);
+  }
   group.appendChild(wrap);
   panel.appendChild(group);
+  const surface = createGroup("Plot Surface");
+  const mode = data.pluginSurfaceMode || "custom";
+  surface.innerHTML = `<label class="prop-field-hint" for="prop-plugin-surface">Background</label>
+    <select id="prop-plugin-surface" class="w-full">
+      ${[["theme", "Theme surface"], ["transparent", "Transparent"], ["custom", "Custom colour"]].map(([value, label]) => `<option value="${value}" ${mode === value ? "selected" : ""}>${label}</option>`).join("")}
+    </select>
+    <input type="color" id="prop-plugin-surface-color" aria-label="Plot background colour" class="w-full h-8 mt-2" value="${_normalizeColorForInput(data.styles?.backgroundColor, "#ffffff")}" ${mode === "custom" ? "" : "disabled"}>`;
+  panel.appendChild(surface);
 }
 
 function bindPluginPanel(data) {
@@ -165,11 +181,26 @@ function bindPluginPanel(data) {
     if (manage) manage.onclick = () => window.openPluginManager?.();
     return;
   }
+  const surfaceMode = document.getElementById("prop-plugin-surface");
+  const surfaceColor = document.getElementById("prop-plugin-surface-color");
+  const setSurface = (mode, color) => {
+    saveStateToUndo();
+    const styles = { ...data.styles, ...(color ? { backgroundColor: color } : {}) };
+    updateElementState(data.id, { pluginSurfaceMode: mode, styles });
+    renderSlidesFromState();
+    buildPropertiesPanel();
+    schedulePresentationAutosave?.(150);
+  };
+  if (surfaceMode) surfaceMode.onchange = () => setSurface(surfaceMode.value,
+      surfaceMode.value === "custom" ? surfaceColor.value : null);
+  if (surfaceColor) surfaceColor.onchange = () => setSurface("custom", surfaceColor.value);
   const commit = (key, value) => {
     const current = normalizePluginData(plugin, data.pluginData);
     if (current[key] === value) return;
     updatePluginElementData(data.id, { [key]: value });
   };
+  const readable = document.getElementById("prop-plugin-readable");
+  if (readable) readable.onclick = () => commit("fontSize", Math.max(18, Number(data.pluginData?.fontSize) || 18));
   const refresh = document.getElementById("prop-plugin-refresh");
   if (refresh) refresh.onclick = () => refreshPluginElement(data.id);
   const fit = document.getElementById("prop-plugin-fit");

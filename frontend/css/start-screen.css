@@ -709,3 +709,5 @@
     }
 }
 
+
+.sf-cover--plain::before { display: none; }

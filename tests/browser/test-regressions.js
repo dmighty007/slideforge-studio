@@ -1702,7 +1702,7 @@ async function test(name, fn) {
         let frame = await viewer();
         await page.evaluate(id => { document.querySelector(`.slides [id="${id}"] iframe`).__kept = true; selectElement(id, "replace"); }, id);
         await showPanelTab(page, "Content");
-        await page.locator("#prop-molecule-bg-transparent").check();
+        await page.locator("#prop-molecule-bg-mode").selectOption("transparent");
         await page.waitForTimeout(400);
         const box = await page.evaluate(id => {
             const node = document.querySelector(`.slides [id="${id}"]`);
@@ -4587,7 +4587,10 @@ async function test(name, fn) {
             node.style.width = "420px";
             updateElementState(id, { width: "420px" });
         }, id);
-        await page.waitForFunction(id => state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginPreviewKey.includes("420"), id);
+        await page.waitForFunction(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            return el.pluginPreviewKey === _pluginPreviewKey(getSlidePlugin(el.pluginId), normalizePluginData(getSlidePlugin(el.pluginId), el.pluginData), el);
+        }, id);
         const after = await measure();
         assert(after.bar === 420 && after.viewBox.startsWith("0 0 420 "), `after resize: ${JSON.stringify(after)}`);
         assert(after.font === before.font, `label size changed with the box: ${before.font} → ${after.font}`);
@@ -5051,6 +5054,355 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("workflow: alignment, distribution and fit respect geometry and locks", async () => {
+        const { page } = await openFreshEditor(context);
+        const result = await page.evaluate(() => {
+            const slide = state.slides[currentSlideIndex];
+            const shape = (id, x, y, locked = false) => ({ id, type: "shape", shapeType: "rectangle", x, y, width: "100px", height: "80px", locked, styles: {} });
+            slide.elements = [shape("wf-a", 100, 120), shape("wf-b", 300, 220), shape("wf-c", 700, 320), shape("wf-lock", 800, 400, true)];
+            state.selectedIds = ["wf-a", "wf-b", "wf-c", "wf-lock"];
+            renderSlidesFromState();
+            distributeSelection("horizontal");
+            const distributed = state.slides[currentSlideIndex].elements.map(el => el.x);
+            undo();
+            const restored = state.slides[currentSlideIndex].elements.map(el => el.x);
+            state.selectedIds = ["wf-a"];
+            alignSelection("center", "slide");
+            const centred = state.slides[currentSlideIndex].elements[0].x;
+            fitSelectionToContentArea();
+            const fitted = state.slides[currentSlideIndex].elements[0];
+            return { distributed, restored, centred, expected: (getPresentationPageSetupConfig().width - 100) / 2,
+                fitted: { x: fitted.x, y: fitted.y, width: parseFloat(fitted.width), height: parseFloat(fitted.height) },
+                locked: state.slides[currentSlideIndex].elements[3].x };
+        });
+        assert(JSON.stringify(result.distributed) === "[100,400,700,800]", JSON.stringify(result));
+        assert(JSON.stringify(result.restored) === "[100,300,700,800]" && result.locked === 800, JSON.stringify(result));
+        assert(result.centred === result.expected && result.fitted.width > 100 && result.fitted.y >= 0, JSON.stringify(result));
+        await showPanelTab(page, "Arrange");
+        await page.locator("#prop-align-reference").selectOption("slide");
+        await page.locator('#properties-panel .prop-align-btn[aria-label="Align left"]').click();
+        assert(await page.evaluate(() => getSelectedElementData().x === 0), "Arrange controls did not align to the slide");
+        await page.close();
+    });
+
+    await test("workflow: new media fills a content placeholder below the title", async () => {
+        const { page } = await openFreshEditor(context);
+        const result = await page.evaluate(() => {
+            addSlide();
+            const slide = state.slides[currentSlideIndex];
+            const title = slide.elements.find(el => el.placeholderRole === "title" || el.placeholder === "Click to add title");
+            addElement("molecule");
+            const molecule = slide.elements.find(el => el.type === "molecule");
+            return { width: parseFloat(molecule.width), y: molecule.y,
+                titleBottom: title.y + parseFloat(title.height),
+                hasPlaceholder: slide.elements.some(el => el.placeholderRole === "content"),
+                mode: molecule.moleculeBackgroundMode, color: molecule.styles.backgroundColor,
+                expected: moleculeFogColor(slide) };
+        });
+        assert(result.width > 620 && result.y >= result.titleBottom && !result.hasPlaceholder, JSON.stringify(result));
+        assert(result.mode === "theme" && result.color === result.expected, JSON.stringify(result));
+        await page.close();
+    });
+
+    await test("workflow: plots follow light-dark-light themes and preserve chosen colours", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const result = await page.evaluate(async () => {
+            const plots = SlideForgePlugins.list().filter(plugin => plugin.insert?.fill);
+            const rows = [];
+            for (const plugin of plots) {
+                const el = { pluginId: plugin.id, pluginData: plugin.defaultData, width: "900px", height: "500px" };
+                state.presentationTheme = "blank";
+                const light = await drawPluginElement(el);
+                state.presentationTheme = "graphite";
+                const dark = await drawPluginElement(el);
+                state.presentationTheme = "blank";
+                const restored = await drawPluginElement(el);
+                rows.push({ id: plugin.id, changed: light.key !== dark.key, restored: restored.dataUrl === light.dataUrl });
+            }
+            const plugin = getSlidePlugin("energy-levels");
+            const el = { pluginId: plugin.id, pluginData: { ...plugin.defaultData, color: "#c12345" }, width: "900px", height: "500px" };
+            state.presentationTheme = "graphite";
+            const chosen = decodeURIComponent((await drawPluginElement(el)).dataUrl);
+            state.presentationTheme = "blank";
+            return { rows, chosen: chosen.includes("#c12345") };
+        });
+        assert(result.rows.length >= 10 && result.rows.every(row => row.changed && row.restored), JSON.stringify(result));
+        assert(result.chosen, "explicit plot colour lost on theme change");
+        await page.close();
+    });
+
+    await test("workflow: late plugin drawings cannot overwrite a newer theme", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        await page.evaluate(() => {
+            window.__wfDraws = {};
+            SlideForgePlugins.register({ id: "wf-delayed", name: "Delayed", defaultSize: { width: 500, height: 300 },
+                render(data, context) { return new Promise(resolve => { window.__wfDraws[context.textColor] = () => resolve(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 300"><text x="10" y="30" fill="${context.textColor}">Theme</text></svg>`); }); } });
+            state.slides[currentSlideIndex].elements.push({ id: "wf-delayed-el", type: "plugin", pluginId: "wf-delayed", pluginData: {}, x: 100, y: 150, width: "500px", height: "300px", styles: {} });
+            state.presentationTheme = "blank";
+            renderSlidesFromState();
+        });
+        await page.waitForFunction(() => window.__wfDraws[PRESENTATION_THEMES.blank.defaultTextColor]);
+        await page.evaluate(() => changePresentationTheme("graphite"));
+        await page.waitForFunction(() => window.__wfDraws[PRESENTATION_THEMES.graphite.defaultTextColor]);
+        await page.evaluate(() => window.__wfDraws[PRESENTATION_THEMES.graphite.defaultTextColor]());
+        await page.waitForFunction(() => decodeURIComponent(_findPluginElementInState("wf-delayed-el").pluginPreview).includes(PRESENTATION_THEMES.graphite.defaultTextColor));
+        await page.evaluate(() => window.__wfDraws[PRESENTATION_THEMES.blank.defaultTextColor]());
+        await page.waitForTimeout(200);
+        assert(await page.evaluate(() => decodeURIComponent(_findPluginElementInState("wf-delayed-el").pluginPreview).includes(PRESENTATION_THEMES.graphite.defaultTextColor)), "late light drawing replaced dark drawing");
+        await page.close();
+    });
+
+    await test("workflow: plot surfaces are opaque by default and explicit transparency survives export", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        await page.evaluate(() => addSlide());
+        const id = await pageAwait(page, () => insertPluginElement("function-plot", null, { ask: false }));
+        const initial = await page.evaluate(id => {
+            const el = _findPluginElementInState(id);
+            return { font: el.pluginData.fontSize, mode: el.pluginSurfaceMode, color: el.styles.backgroundColor,
+                expected: getPresentationTheme().surfaceColor, width: parseFloat(el.width) };
+        }, id);
+        assert(initial.font >= 18 && initial.mode === "theme" && initial.color === initial.expected && initial.width > 900, JSON.stringify(initial));
+        await showPanelTab(page, "Style");
+        await page.locator("#prop-plugin-surface").selectOption("transparent");
+        const result = await page.evaluate(async id => {
+            changePresentationTheme("graphite");
+            const snapshot = getPersistableState();
+            await replacePluginElementsWithPictures(snapshot);
+            const el = snapshot.slides.flatMap(slide => slide.elements).find(el => el.id === id);
+            const stored = _findPluginElementInState(id);
+            return { color: stored.styles.backgroundColor, exported: el.styles.backgroundColor,
+                savedMode: sanitizePluginElementFields(stored).pluginSurfaceMode };
+        }, id);
+        assert(result.color === "transparent" && result.exported === "transparent" && result.savedMode === "transparent", JSON.stringify(result));
+        await page.close();
+    });
+
+    await test("workflow: molecule backgrounds match the slide and retain explicit choices", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => { addSlide(); addElement("molecule"); });
+        await showPanelTab(page, "Content");
+        const initial = await page.locator("#prop-molecule-bg-mode").inputValue();
+        assert(initial === "theme", `new molecule background: ${initial}`);
+        await page.evaluate(() => changePresentationTheme("graphite"));
+        const dark = await page.evaluate(() => {
+            const el = getSelectedElementData();
+            return { color: el.styles.backgroundColor, expected: moleculeFogColor(state.slides[currentSlideIndex]) };
+        });
+        assert(dark.color === dark.expected, JSON.stringify(dark));
+        await showPanelTab(page, "Content");
+        await page.locator("#prop-molecule-bg-mode").selectOption("custom");
+        await page.locator("#prop-molecule-bg").evaluate(input => { input.value = "#e8d1b1"; input.dispatchEvent(new Event("change", { bubbles: true })); });
+        await page.evaluate(() => changePresentationTheme("blank"));
+        const custom = await page.evaluate(() => getSelectedElementData().styles.backgroundColor);
+        assert(custom === "#e8d1b1", `custom molecule colour changed: ${custom}`);
+        await showPanelTab(page, "Content");
+        await page.locator("#prop-molecule-bg-mode").selectOption("transparent");
+        const saved = await page.evaluate(() => {
+            const id = getSelectedElementData().id;
+            const snapshot = getPersistableState();
+            const el = snapshot.slides.flatMap(slide => slide.elements).find(el => el.id === id);
+            return { mode: el.moleculeBackgroundMode, color: el.styles.backgroundColor };
+        });
+        assert(saved.mode === "transparent" && saved.color === "transparent", JSON.stringify(saved));
+        await page.close();
+    });
+
+    await test("workflow: sidebar subscript formats selected formula characters", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => addElement("text"));
+        await page.keyboard.type("H2O");
+        await page.evaluate(() => {
+            const host = document.querySelector(".editing-text .text-element-content");
+            const text = [...host.childNodes].find(node => node.nodeType === Node.TEXT_NODE);
+            const range = document.createRange();
+            range.setStart(text, 1); range.setEnd(text, 2);
+            window.getSelection().removeAllRanges(); window.getSelection().addRange(range);
+            captureInlineSelection();
+        });
+        await showPanelTab(page, "Style");
+        await page.locator("#prop-subscript").click();
+        const result = await page.evaluate(() => {
+            const el = getSelectedElementData();
+            return { content: el.content, document: JSON.stringify(el.textDocument), html: renderTextContent(el) };
+        });
+        assert(result.document.includes('"subscript"') && /sub|vertical-align:sub/.test(result.html), JSON.stringify(result));
+        assert(!result.content.includes("undefined"), JSON.stringify(result));
+        await page.close();
+    });
+
+    await test("Field study: nonnegative curve-fit data does not extrapolate before zero", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const ranges = await page.evaluate(async () => {
+            const plugin = getSlidePlugin("curve-fit");
+            const context = _pluginRenderContext(plugin, { width: "600px", height: "400px" });
+            const ranges = [];
+            const niceTicks = context.niceTicks;
+            context.niceTicks = (low, high, count) => {
+                ranges.push([low, high]);
+                return niceTicks(low, high, count);
+            };
+            await plugin.render(normalizePluginData(plugin, {
+                model: "linear", xScale: "linear", data: "Time,Signal\n0,1\n1,3\n2,5\n3,7",
+            }), context);
+            return ranges;
+        });
+        assert(ranges.length >= 2 && ranges[1][0] === 0, `negative time range: ${JSON.stringify(ranges)}`);
+        await page.close();
+    });
+
+    await test("Field study: exported titles keep the editor's fitted size", async () => {
+        const { page } = await openFreshEditor(context);
+        const result = await page.evaluate(async () => {
+            const title = state.slides[0].elements[0];
+            title.content = "Observing a complete photonic band gap in a 2D silicon crystal";
+            title.width = "500px";
+            delete title.textDocument;
+            renderSlidesFromState();
+            await document.fonts.ready;
+            const node = document.getElementById(title.id);
+            syncTextBoxLayout(node, title);
+            const editorSize = parseFloat(getComputedStyle(node.querySelector(".text-element-content")).fontSize);
+            const snapshot = getPersistableState();
+            fillMeasuredTextHeights(snapshot);
+            const exportedSize = parseFloat(snapshot.slides[0].elements[0].styles.fontSize);
+            return { editorSize, exportedSize, storedSize: parseFloat(title.styles.fontSize) };
+        });
+        assert(result.editorSize < result.storedSize && Math.abs(result.exportedSize - result.editorSize) < 0.2, JSON.stringify(result));
+        await page.close();
+    });
+
+    await test("Field study: shorter pathways span the plot and domain labels stay in view", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const result = await page.evaluate(async () => {
+            const render = async (id, data, width, height) => {
+                const plugin = getSlidePlugin(id);
+                const svg = await plugin.render(normalizePluginData(plugin, data), _pluginRenderContext(plugin, { width, height }));
+                return new DOMParser().parseFromString(svg, "image/svg+xml").documentElement;
+            };
+            const energy = await render("energy-levels", { profile: "R,0,Long\nI,5,Long\nP,-5,Long\nR,0,Short\nP,-5,Short" }, "600px", "300px");
+            const domain = await render("domain-architecture", { name: "", domains: "Long domain alpha,300,302\nLong domain beta,303,305\nLong domain gamma,306,308\nLong domain delta,309,311", sites: "" }, "600px", "100px");
+            const bars = [...energy.querySelectorAll('line[stroke-width="3"]')];
+            return { ends: [bars[2], bars[4]].map(t => Number(t.getAttribute("x2"))),
+                domainHeight: domain.viewBox.baseVal.height,
+                lowerLabels: [...domain.querySelectorAll("text")].map(t => Number(t.getAttribute("y"))) };
+        });
+        assert(result.ends.length === 2 && Math.min(...result.ends) > 400 && Math.abs(result.ends[0] - result.ends[1]) < 1, `short pathway squeezed: ${JSON.stringify(result)}`);
+        assert(result.lowerLabels.every(y => y < result.domainHeight), `clipped domain labels: ${JSON.stringify(result)}`);
+        await page.close();
+    });
+
+    await test("Field study: recovery distinguishes an in-flight save from a conflicting edit", async () => {
+        const { page } = await openFreshEditor(context);
+        const result = await page.evaluate(() => {
+            const oldState = getPersistableState();
+            const newer = JSON.parse(JSON.stringify(oldState));
+            newer.slides[0].elements[0].content = "latest typing";
+            const backup = { presentationId: "recovery-test", autosaveVersion: 10, state: newer,
+                pendingFingerprints: [JSON.stringify(oldState)] };
+            localStorage.setItem(UNSAVED_BACKUP_STORAGE_KEY, JSON.stringify(backup));
+            const recovered = _takeUnsavedBackup("recovery-test", 11, oldState);
+            localStorage.setItem(UNSAVED_BACKUP_STORAGE_KEY, JSON.stringify(backup));
+            const conflicting = { ...oldState, presentationTheme: "graphite" };
+            const rejected = _takeUnsavedBackup("recovery-test", 11, conflicting);
+            return { recovered: recovered?.state.slides[0].elements[0].content, rejected };
+        });
+        assert(result.recovered === "latest typing" && result.rejected === null, JSON.stringify(result));
+        await page.close();
+    });
+
+    await test("Field study: typing survives closing before autosave without pagehide", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(async () => { await autosavePresentationNow(); });
+        await page.waitForTimeout(1500);
+        await page.evaluate(() => window.removeEventListener("pagehide", flushUnsavedChangesOnExit));
+        const id = await page.evaluate(() => state.slides[currentSlideIndex].elements.find(el => el.type === "text").id);
+        await page.locator(`.slides [id="${id}"] .text-element-content`).dblclick();
+        await page.keyboard.type("Last second text");
+        await page.close();
+        const reopened = await openEditor(context);
+        const recovered = await reopened.page.evaluate(id => state.slides.flatMap(s => s.elements).find(el => el.id === id)?.content, id);
+        assert(String(recovered).includes("Last second text"), `lost typing: ${JSON.stringify(recovered)}`);
+        await reopened.page.close();
+    });
+
+    await test("Field study: molecule drag releases over its iframe", async () => {
+        const { page } = await openFreshEditor(context);
+        const id = await page.evaluate(() => {
+            addElement("molecule");
+            return state.slides[currentSlideIndex].elements.find(el => el.type === "molecule").id;
+        });
+        await page.evaluate(id => selectElement(id, "replace"), id);
+        const grip = await page.locator(`.slides [id="${id}"] .molecule-editor-grip`).boundingBox();
+        await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(grip.x + 70, grip.y + 60, { steps: 10 });
+        await page.mouse.up();
+        const position = () => page.evaluate(id => {
+            const el = state.slides[currentSlideIndex].elements.find(el => el.id === id);
+            return [el.x, el.y];
+        }, id);
+        const dropped = await position();
+        await page.mouse.move(900, 600, { steps: 10 });
+        assert(JSON.stringify(await position()) === JSON.stringify(dropped), "molecule kept following after release");
+        assert(!await page.evaluate(() => document.body.classList.contains("sf-moving-element")), "drag stayed active");
+        await page.close();
+    });
+
+    await test("Field study: exported molecule loads when index.html opens from disk", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => { state = buildDefaultPresentationState(); currentSlideIndex = 0; state.slides[0].elements = []; renderSlidesFromState(); addElement("molecule"); });
+        const base64 = await pageAwait(page, async () => (await buildViewerBundle()).arrayBuffer().then(bytes => {
+            const data = new Uint8Array(bytes);
+            let binary = "";
+            for (let i = 0; i < data.length; i += 8192) binary += String.fromCharCode(...data.subarray(i, i + 8192));
+            return btoa(binary);
+        }));
+        const zip = await require("jszip").loadAsync(base64, { base64: true });
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sf-field-offline-"));
+        for (const [name, entry] of Object.entries(zip.files)) {
+            if (entry.dir) continue;
+            const destination = path.join(dir, name);
+            fs.mkdirSync(path.dirname(destination), { recursive: true });
+            fs.writeFileSync(destination, await entry.async("nodebuffer"));
+        }
+        const offline = await context.newPage();
+        try {
+            await offline.goto(require("url").pathToFileURL(path.join(dir, "index.html")).href);
+            const frame = offline.frameLocator('iframe[data-molecule="true"]');
+            await frame.locator("canvas").first().waitFor({ timeout: 60000 });
+            assert(await frame.locator("canvas").count() > 0, "no molecule canvas from disk");
+        } finally {
+            await offline.close();
+            await page.close();
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    await test("Field study: wide equations fit and Blank subtitles follow dark themes", async () => {
+        const { page } = await openFreshEditor(context);
+        const result = await page.evaluate(() => {
+            state = buildDefaultPresentationState();
+            state.slides[0].elements[1].styles.color = "#4b5563";
+            renderSlidesFromState();
+            changePresentationTheme("graphite");
+            const subtitle = state.slides[0].elements[1].styles.color;
+            addEquationElement(String.raw`\Delta G = \Delta H - T\Delta S + RT\ln\left(\frac{[C]^c[D]^d}{[A]^a[B]^b}\right) + \sum_{i=1}^{n} \mu_i n_i`);
+            const equation = state.slides[0].elements.find(el => el.type === "equation");
+            const host = document.getElementById(equation.id).querySelector(".equation-container");
+            const math = host.querySelector(".katex-html");
+            return { subtitle, expected: getPresentationTheme().defaultMutedColor,
+                width: parseFloat(equation.width), hostWidth: host.clientWidth, mathWidth: math.getBoundingClientRect().width / getCanvasScale() };
+        });
+        assert(result.subtitle === result.expected, JSON.stringify(result));
+        assert(result.width > 400 && result.mathWidth <= result.hostWidth, JSON.stringify(result));
+        await page.close();
+    });
+
     await test("Plugins: the function plot's parser follows precedence, reads 2x and 2sin(x), and points at errors", async () => {
         const { page } = await openFreshEditor(context);
         await pageAwait(page, () => SlideForgePlugins.ready.then(() => true));
@@ -5068,6 +5420,9 @@ async function test(name, fn) {
             return {
                 precedence: value("2+3*4"),
                 power: value("2^3^2"),
+                cosineSquared: value("cos(pi x)^2", 0.25),
+                explicitCosineSquared: value("(cos(pi x))^2", 0.25),
+                sineSquared: value("sin(x)^2", 1),
                 negativeSquare: value("-x^2", 3),
                 negativeExponent: value("2^-1"),
                 implicit: value("2x", 3),
@@ -5089,6 +5444,7 @@ async function test(name, fn) {
             };
         });
         const near = (a, b) => Math.abs(a - b) < 1e-9;
+        assert(near(results.cosineSquared, 0.5) && near(results.cosineSquared, results.explicitCosineSquared) && near(results.sineSquared, Math.sin(1) ** 2), `function powers: ${JSON.stringify(results)}`);
         assert(results.precedence === 14 && results.power === 512 && results.negativeSquare === -9 && results.negativeExponent === 0.5, `precedence: ${JSON.stringify(results)}`);
         assert(results.implicit === 6 && near(results.implicitFunction, 2) && results.implicitBrackets === 8 && near(results.spaceArgument, 1), `implicit multiplication: ${JSON.stringify(results)}`);
         assert(near(results.letters, 2 * Math.PI) && near(results.functions, 4 + 2 + 2 + 1 + 2 + 1) && near(results.exp, 5) && results.division === 2, `functions: ${JSON.stringify(results)}`);
@@ -6173,7 +6529,7 @@ async function test(name, fn) {
         await page.close();
     });
 
-    await test("research deck: a bar chart takes error bars from a pasted SD column and keeps them in PowerPoint", async () => {
+    await test("research deck: a bar chart takes error bars from a pasted ± column and keeps them in PowerPoint", async () => {
         const { page } = await openEditor(context);
         await page.evaluate(() => { setPropertiesPanelVisible(true, { persist: false }); addSlide(); addChart("bar"); });
         const id = await page.evaluate(() => state.slides[currentSlideIndex].elements.find(e => e.type === "chart").id);
@@ -6182,7 +6538,7 @@ async function test(name, fn) {
         await page.locator(".chart-row-label").first().click();
         await page.evaluate(() => {
             const data = new DataTransfer();
-            data.setData("text/plain", "Dose\tResponse (%)\tSD\nPlacebo\t12\t3.5\n100 mg\t31\t4\n200 mg\t48\t6.2\n");
+            data.setData("text/plain", "Dose\tResponse (%)\t±\nPlacebo\t12\t3.5\n100 mg\t31\t4\n200 mg\t48\t6.2\n");
             document.activeElement.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
         });
         await page.waitForTimeout(400);
