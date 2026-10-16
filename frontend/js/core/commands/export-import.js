@@ -71,7 +71,7 @@ function importPresentationJson() {
                     const { title: _exportedTitle, ...deck } = imported; // the name is the project's, not part of the deck
                     importedState = {
                         ...deck,
-                        presentationTheme: imported.presentationTheme || state.presentationTheme || "editorial",
+                        presentationTheme: imported.presentationTheme || state.presentationTheme || "blank",
                     };
                 }
                 if (!importedState) {

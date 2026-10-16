@@ -126,7 +126,8 @@ async function test(name, fn) {
         await page.locator(".sf-more-themes").click();
         const after = await page.locator(".sf-theme").count();
         const total = await page.evaluate(() => Object.keys(PRESENTATION_THEMES).length);
-        assert(before === 6 && after === total && !(await page.locator(".sf-more-themes").count()), `tiles ${before} -> ${after} of ${total}`);
+        const featured = await page.evaluate(() => START_SCREEN_THEMES.length);
+        assert(before === featured && after === total && !(await page.locator(".sf-more-themes").count()), `tiles ${before} -> ${after} of ${total}`);
         await page.keyboard.press("Escape");
         await page.waitForFunction(() => !isStartScreenOpen());
     });

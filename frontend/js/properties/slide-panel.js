@@ -240,7 +240,8 @@ function _buildSlideWorkspacePanel(panel) {
   panel.appendChild(masterGrp);
 
   const bgGrp = createGroup("Slide Background");
-  const bgIsThree = background?.type === "three";
+  const bgIsThree = background?.type === "three" || background?.type === "3d";
+  const threeOptions = bgIsThree ? normalizeSlideBackground(background) : null;
   bgGrp.innerHTML += `
         <div class="space-y-2">
             <input id="prop-slide-bg-url" class="w-full text-xs" type="text" value="${bgIsThree ? "" : escapeHtml(background?.content || "")}" placeholder="Paste image/GIF/MP4 URL">
@@ -251,14 +252,35 @@ function _buildSlideWorkspacePanel(panel) {
             </select>
             <div class="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
                 <button id="prop-slide-bg-three" class="w-full py-2 rounded-lg ${bgIsThree ? "bg-primary text-white" : "border border-slate-300 bg-white text-slate-700"} text-xs font-semibold" type="button">${bgIsThree ? '<i class="fa-solid fa-check mr-1"></i> 3D background on (click to turn off)' : "Use the theme's 3D background"}</button>
-                <select id="prop-slide-bg-three-style" class="w-full text-xs">
-                    <option value="orbital" ${(background?.style || "orbital") === "orbital" ? "selected" : ""}>Orbital field</option>
-                    <option value="mesh" ${background?.style === "mesh" ? "selected" : ""}>Connected mesh</option>
-                    <option value="particles" ${background?.style === "particles" ? "selected" : ""}>Soft spheres</option>
-                    <option value="lattice" ${background?.style === "lattice" ? "selected" : ""}>Depth lattice</option>
-                    <option value="wave" ${background?.style === "wave" ? "selected" : ""}>Wave surface</option>
-                    <option value="vortex" ${background?.style === "vortex" ? "selected" : ""}>Vortex spiral</option>
+                <select id="prop-slide-bg-three-style" class="w-full text-xs" title="3D background style">
+                    ${(typeof THEME_MOTION_ENGINE !== "undefined" ? THEME_MOTION_ENGINE.styles : [{ id: "orbital", label: "Orbits" }])
+                      .map(({ id, label }) => `<option value="${id}" ${(threeOptions?.style || "orbital") === id ? "selected" : ""}>${escapeHtml(label)}</option>`)
+                      .join("")}
                 </select>
+                ${bgIsThree ? `
+                <div class="grid grid-cols-3 gap-2">
+                    <label class="flex flex-col gap-1 text-[10px] font-bold uppercase tracking-wide text-slate-600">Place
+                        <select id="prop-slide-bg-three-side" class="w-full text-xs normal-case font-normal tracking-normal">
+                            ${[["right", "Right"], ["left", "Left"], ["center", "Across"]].map(([value, label]) => `<option value="${value}" ${threeOptions.side === value ? "selected" : ""}>${label}</option>`).join("")}
+                        </select>
+                    </label>
+                    <label class="flex flex-col gap-1 text-[10px] font-bold uppercase tracking-wide text-slate-600">Strength
+                        <select id="prop-slide-bg-three-strength" class="w-full text-xs normal-case font-normal tracking-normal">
+                            ${[["subtle", "Subtle"], ["standard", "Standard"], ["bold", "Bold"]].map(([value, label]) => `<option value="${value}" ${threeOptions.strength === value ? "selected" : ""}>${label}</option>`).join("")}
+                        </select>
+                    </label>
+                    <label class="flex flex-col gap-1 text-[10px] font-bold uppercase tracking-wide text-slate-600">Motion
+                        <select id="prop-slide-bg-three-motion" class="w-full text-xs normal-case font-normal tracking-normal">
+                            ${[["still", "Still"], ["slow", "Slow"], ["normal", "Lively"]].map(([value, label]) => `<option value="${value}" ${threeOptions.motion === value ? "selected" : ""}>${label}</option>`).join("")}
+                        </select>
+                    </label>
+                </div>
+                <div class="flex items-center justify-between gap-2">
+                    <label class="flex items-center gap-2 text-xs text-slate-700" title="Fades the scene where titles and text usually sit">
+                        <input id="prop-slide-bg-three-calm" type="checkbox" ${threeOptions.calm ? "checked" : ""}> Quieter behind text
+                    </label>
+                    <button id="prop-slide-bg-three-shuffle" class="px-2 py-1 rounded-md border border-slate-300 bg-white text-slate-700 text-xs font-semibold" type="button" title="Another arrangement of the same style"><i class="fa-solid fa-shuffle mr-1"></i>Shuffle</button>
+                </div>` : ""}
             </div>
             <div class="grid grid-cols-2 gap-3">
                 <div class="flex flex-col gap-1">
@@ -296,7 +318,7 @@ function _buildSlideWorkspacePanel(panel) {
                 <button id="prop-slide-bg-upload" class="py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-semibold">Upload</button>
                 <button id="prop-slide-bg-clear" class="py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-semibold">Clear</button>
             </div>
-            <div class="text-xs text-slate-600">Supports PNG, GIF, MP4/WebM, and theme-adaptive 3D motion backgrounds.</div>
+            <div class="text-xs text-slate-600">Supports PNG, GIF, MP4/WebM, and 3D motion backgrounds in the theme colours (PowerPoint gets a still frame).</div>
         </div>
     `;
   panel.appendChild(bgGrp);
@@ -495,7 +517,8 @@ function _buildSlideWorkspacePanel(panel) {
     if (bgThreeBtn) {
       // A real toggle: on again turns it off (it used to read "Active" and do nothing visible).
       bgThreeBtn.onclick = () => {
-        const active = normalizeSlideBackground(state.slides[currentSlideIndex]?.background)?.type === "three";
+        const activeType = normalizeSlideBackground(state.slides[currentSlideIndex]?.background)?.type;
+        const active = activeType === "three" || activeType === "3d";
         if (active) clearCurrentSlideBackground?.();
         else setCurrentSlideBackgroundThree?.(bgThreeStyleInput?.value || "orbital");
       };
@@ -504,6 +527,22 @@ function _buildSlideWorkspacePanel(panel) {
       bgThreeStyleInput.onchange = (e) => {
         setCurrentSlideBackgroundThree?.(e.target.value || "orbital");
       };
+    }
+    [
+      ["prop-slide-bg-three-side", "side"],
+      ["prop-slide-bg-three-strength", "strength"],
+      ["prop-slide-bg-three-motion", "motion"],
+    ].forEach(([inputId, key]) => {
+      const input = document.getElementById(inputId);
+      if (input) input.onchange = (e) => setCurrentSlideBackgroundThree?.({ [key]: e.target.value });
+    });
+    const bgThreeCalmInput = document.getElementById("prop-slide-bg-three-calm");
+    if (bgThreeCalmInput) {
+      bgThreeCalmInput.onchange = (e) => setCurrentSlideBackgroundThree?.({ calm: e.target.checked });
+    }
+    const bgThreeShuffleBtn = document.getElementById("prop-slide-bg-three-shuffle");
+    if (bgThreeShuffleBtn) {
+      bgThreeShuffleBtn.onclick = () => setCurrentSlideBackgroundThree?.({ seed: 1 + Math.floor(Math.random() * 99999) });
     }
     if (bgClearBtn) {
       bgClearBtn.onclick = () => {

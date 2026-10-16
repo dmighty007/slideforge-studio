@@ -25,7 +25,7 @@ function setCurrentSlideBackgroundFit(fit) {
     const slide = state.slides[activeIndex];
     if (!slide?.background) return;
     const current = normalizeSlideBackground(slide.background);
-    if (!current || current.type === "three") return;
+    if (!current || current.type === "three" || current.type === "3d") return;
     const nextFit = ["cover", "contain", "fill"].includes(fit) ? fit : "cover";
     saveStateToUndo();
     slide.background = {
@@ -52,15 +52,25 @@ function setCurrentSlideBackgroundAdjustments(updates = {}) {
     schedulePresentationAutosave?.(150);
 }
 
-function setCurrentSlideBackgroundThree(style = "orbital") {
+// Turns the 3D background on, or changes it: `changes` is a style name or any of style, side, strength, motion,
+// calm and seed. A new background gets its own seed, so two slides with the same style are not identical.
+function setCurrentSlideBackgroundThree(changes = "orbital") {
     const activeIndex = ensureActiveSlideSync();
     const current = normalizeSlideBackground(state.slides?.[activeIndex]?.background);
+    const updates = typeof changes === "string" ? { style: changes } : { ...(changes || {}) };
+    const previous = current?.type === "three" ? current : null;
     saveStateToUndo();
     setCurrentSlideBackground({
         type: "three",
         content: "theme-motion",
-        style,
-        opacity: current?.opacity ?? 0.92,
+        style: previous?.style || "orbital",
+        side: previous?.side,
+        strength: previous?.strength,
+        motion: previous?.motion,
+        calm: previous?.calm,
+        seed: previous?.seed || 1 + Math.floor(Math.random() * 99999),
+        ...updates,
+        opacity: current?.opacity ?? 1,
         blur: current?.blur ?? 0,
         brightness: current?.brightness ?? 100,
         saturate: current?.saturate ?? 100,

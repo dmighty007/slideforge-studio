@@ -1546,7 +1546,7 @@ async function test(name, fn) {
         await page.close();
     });
 
-    await test("3D background: readable on/off toggle, saturation 0 is grey, light slides use normal blending", async () => {
+    await test("3D background: readable on/off toggle, saturation 0 is grey, the scene still shows on light slides", async () => {
         const { page } = await openEditor(context);
         await page.mouse.click(5, 500);
         await showPanelTab(page, "Style");
@@ -1565,8 +1565,22 @@ async function test(name, fn) {
         await page.waitForTimeout(400);
         const filter = await page.evaluate(() => getComputedStyle(document.querySelector(".reveal .slides section.present .slide-background-media")).filter);
         assert((await bg()).saturate === 0 && /saturate\(0\)/.test(filter), `saturation 0 ignored: ${JSON.stringify(await bg())} ${filter}`);
-        const source = await page.evaluate(() => _tryRenderThreeThemeMotion.toString());
-        assert(/NormalBlending/.test(source) && /lightSlide/.test(source), "light slides still use additive blending only");
+        // Adding light on a white slide bleaches the scene away: on light slides it must still show.
+        const darkest = await page.evaluate(() => {
+            const canvas = document.createElement("canvas");
+            canvas.width = 640;
+            canvas.height = 360;
+            const ctx = canvas.getContext("2d");
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, 640, 360);
+            const scene = THEME_MOTION_ENGINE.buildScene({ style: "lattice", seed: 3 }, 16 / 9);
+            THEME_MOTION_ENGINE.draw(ctx, scene, 640, 360, { fg: "#111827", accent: "#93c5fd", accent2: "#e0f2fe" }, 0);
+            const data = ctx.getImageData(0, 0, 640, 360).data;
+            let min = 255;
+            for (let i = 0; i < data.length; i += 4) min = Math.min(min, (data[i] + data[i + 1] + data[i + 2]) / 3);
+            return min;
+        });
+        assert(darkest < 200, `the scene vanished on a light slide (darkest pixel ${darkest})`);
         await page.locator("#prop-slide-bg-three").click();
         await page.waitForTimeout(400);
         assert((await bg()) === null, "clicking the active toggle did not turn the background off");
@@ -1841,38 +1855,156 @@ async function test(name, fn) {
         const { page, errors } = await openEditor(context);
         await page.mouse.click(5, 500);
         await showPanelTab(page, "Style");
-        const hooked = await page.evaluate(() => {
-            if (!window.THREE?.WebGLRenderer) return false;
-            window.__sf3d = { created: 0, setSize: 0, frames: 0 };
-            const Original = window.THREE.WebGLRenderer;
-            window.THREE.WebGLRenderer = function (...args) {
-                const renderer = new Original(...args);
-                window.__sf3d.created++;
-                const setSize = renderer.setSize.bind(renderer);
-                renderer.setSize = (...a) => { window.__sf3d.setSize++; return setSize(...a); };
-                const render = renderer.render.bind(renderer);
-                renderer.render = (...a) => { window.__sf3d.frames++; return render(...a); };
-                return renderer;
-            };
-            return true;
+        await page.locator("#prop-slide-bg-three").click();
+        await page.waitForTimeout(800);
+        await page.evaluate(() => {
+            window.__sfLiveBackground = () => [...document.querySelectorAll(".slide-background-three")].find(n => !n.closest("#slide-previews"));
+            const wrapper = window.__sfLiveBackground();
+            const canvas = wrapper.querySelector("canvas");
+            window.__sf3d = { resized: 0, motion: wrapper._themeMotion, time: wrapper._themeMotion.time };
+            const width = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, "width");
+            Object.defineProperty(canvas, "width", { get() { return width.get.call(this); }, set(v) { window.__sf3d.resized++; width.set.call(this, v); } });
         });
-        if (hooked) {
-            await page.locator("#prop-slide-bg-three").click();
-            await page.waitForTimeout(1500);
-            await page.evaluate(() => { window.__sf3d.setSize = 0; window.__sf3d.frames = 0; });
-            await page.waitForTimeout(1500);
-            const idle = await page.evaluate(() => ({ ...window.__sf3d }));
-            assert(idle.frames > 3 && idle.setSize === 0, `surface reallocated while idle: ${JSON.stringify(idle)}`);
-            await page.locator("#prop-slide-bg-opacity").evaluate(node => { node.value = 50; node.dispatchEvent(new Event("input", { bubbles: true })); node.dispatchEvent(new Event("change", { bubbles: true })); });
-            await page.evaluate(() => addElement("text"));
-            await page.keyboard.press("Escape");
-            await page.waitForTimeout(600);
-            const after = await page.evaluate(() => ({ created: window.__sf3d.created, opacity: document.querySelector(".slides section.present .slide-background-media")?.style.opacity, filter: document.querySelector(".slides section.present .slide-background-media")?.style.filter }));
-            if (await page.evaluate(() => typeof Element.prototype.moveBefore === "function")) {
-                assert(after.created === 1, `the 3D scene was rebuilt ${after.created - 1} time(s) by a slider and an edit`);
-            }
-            assert(after.opacity === "0.5" && after.filter === "", `adjustments not applied in place: ${JSON.stringify(after)}`);
+        await page.waitForTimeout(1200);
+        const idle = await page.evaluate(() => {
+            const wrapper = window.__sfLiveBackground();
+            return { resized: window.__sf3d.resized, advanced: wrapper._themeMotion.time > window.__sf3d.time, animating: wrapper.dataset.animating };
+        });
+        assert(idle.advanced && idle.resized === 0 && idle.animating === "true", `idle: ${JSON.stringify(idle)}`);
+        await page.locator("#prop-slide-bg-opacity").evaluate(node => { node.value = 50; node.dispatchEvent(new Event("input", { bubbles: true })); node.dispatchEvent(new Event("change", { bubbles: true })); });
+        await page.evaluate(() => addElement("text"));
+        await page.keyboard.press("Escape");
+        await page.waitForTimeout(600);
+        const after = await page.evaluate(() => {
+            const node = window.__sfLiveBackground();
+            return { same: node._themeMotion === window.__sf3d.motion, opacity: node.style.opacity, filter: node.style.filter };
+        });
+        if (await page.evaluate(() => typeof Element.prototype.moveBefore === "function")) {
+            assert(after.same, "the 3D scene was rebuilt by a slider or an edit");
         }
+        assert(after.opacity === "0.5" && after.filter === "", `adjustments not applied in place: ${JSON.stringify(after)}`);
+        assert(!errors.length, errors.join("; "));
+        await page.close();
+    });
+
+    await test("Blank theme: new decks start plain white, with no accent rule, corner badge or footer line", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => addSlide());
+        await page.waitForTimeout(300);
+        const deck = await page.evaluate(() => {
+            const roles = index => buildMasterSlideElements(state.slides[index], index, getPresentationTheme(), { includeEditableFooter: true }).map(el => el.masterRole || el.type);
+            return {
+                theme: state.presentationTheme,
+                slideBg: getComputedStyle(document.documentElement).getPropertyValue("--slide-bg").trim(),
+                titleFont: state.slides[0].elements[0].styles?.fontFamily,
+                titleRoles: roles(0),
+                contentRoles: roles(1),
+                decorations: [...document.querySelectorAll('.slides [id^="master_shape"]')].filter(n => !n.closest("#slide-previews")).length,
+            };
+        });
+        assert(deck.theme === "blank" && deck.slideBg === "#ffffff", `new deck theme: ${JSON.stringify(deck)}`);
+        assert(/Arial/.test(deck.titleFont), `title font: ${deck.titleFont}`);
+        assert(deck.titleRoles.length === 0, `title slide decorations: ${deck.titleRoles}`);
+        assert(JSON.stringify(deck.contentRoles) === JSON.stringify(["slide-number"]), `content slide master: ${deck.contentRoles}`);
+        assert(deck.decorations === 0, `${deck.decorations} decoration shape(s) drawn on the slide`);
+        // The other themes keep their decorations.
+        await page.evaluate(() => changePresentationTheme("editorial"));
+        await page.waitForTimeout(300);
+        const editorial = await page.evaluate(() => buildMasterSlideElements(state.slides[0], 0, getPresentationTheme()).length);
+        assert(editorial > 0, "Editorial lost its title decorations");
+        await page.close();
+    });
+
+    await test("3D backgrounds: eight styles with options, quieter behind text, only the slide on screen moves, and exports get them", async () => {
+        const { page, errors } = await openFreshEditor(context);
+        await page.mouse.click(5, 500);
+        await showPanelTab(page, "Style");
+        const bg = () => page.evaluate(() => state.slides[currentSlideIndex].background || null);
+        await page.locator("#prop-slide-bg-three").click();
+        await page.waitForTimeout(500);
+        const styles = await page.locator("#prop-slide-bg-three-style option").evaluateAll(options => options.map(o => o.value));
+        assert(styles.length === 8 && styles.includes("network") && styles.includes("globe"), `styles: ${styles}`);
+        await page.locator("#prop-slide-bg-three-style").selectOption("network");
+        await page.waitForTimeout(300);
+        await page.locator("#prop-slide-bg-three-side").selectOption("left");
+        await page.waitForTimeout(300);
+        await page.locator("#prop-slide-bg-three-strength").selectOption("bold");
+        await page.waitForTimeout(300);
+        const before = await bg();
+        await page.locator("#prop-slide-bg-three-shuffle").click();
+        await page.waitForTimeout(300);
+        const shuffled = await bg();
+        assert(before.style === "network" && before.side === "left" && before.strength === "bold", `options not kept: ${JSON.stringify(before)}`);
+        assert(shuffled.seed !== before.seed && shuffled.side === "left" && shuffled.style === "network", `shuffle: ${JSON.stringify(shuffled)}`);
+        await page.evaluate(() => undo());
+        await page.waitForTimeout(300);
+        assert((await bg()).seed === before.seed, "undo did not bring the arrangement back");
+
+        // Every style draws, and with "Quieter behind text" the middle of the slide holds less of the scene than the rest.
+        const ink = await page.evaluate(() => THEME_MOTION_ENGINE.styles.map(({ id }) => {
+            const ratio = calm => {
+                const canvas = document.createElement("canvas");
+                canvas.width = 480;
+                canvas.height = 270;
+                const ctx = canvas.getContext("2d");
+                THEME_MOTION_ENGINE.draw(ctx, THEME_MOTION_ENGINE.buildScene({ style: id, seed: 9, calm }, 16 / 9), 480, 270, { fg: "#111827", accent: "#2563eb", accent2: "#64748b" }, 0);
+                const data = ctx.getImageData(0, 0, 480, 270).data;
+                let middle = 0;
+                let all = 0;
+                for (let y = 0; y < 270; y += 1) {
+                    for (let x = 0; x < 480; x += 1) {
+                        const strong = data[(y * 480 + x) * 4 + 3] > 40 ? 1 : 0;
+                        all += strong;
+                        if (x > 144 && x < 336 && y > 70 && y < 180) middle += strong;
+                    }
+                }
+                return { all, share: middle / (192 * 110) / Math.max(1e-9, all / (480 * 270)) };
+            };
+            const calm = ratio(true);
+            const plain = ratio(false);
+            return { id, all: calm.all, calm: calm.share, plain: plain.share };
+        }));
+        ink.forEach(entry => {
+            assert(entry.all > 100, `${entry.id} drew nothing: ${JSON.stringify(entry)}`);
+            assert(entry.calm < 1 && entry.calm <= entry.plain + 1e-9, `${entry.id} is not quieter behind text: ${JSON.stringify(entry)}`);
+        });
+
+        // Two slides with backgrounds: only the one on screen animates; the other keeps its clock where it stopped.
+        await page.evaluate(() => { addSlide(); setCurrentSlideBackgroundThree({ style: "globe" }); });
+        await page.waitForTimeout(500);
+        const go = index => page.evaluate(i => { setCurrentSlideIndex(i); Reveal.slide(i); syncActiveSlideMedia(); }, index);
+        await go(0);
+        await page.waitForTimeout(400);
+        const wrappers = () => page.evaluate(() => [...document.querySelectorAll(".slides .slide-background-three")]
+            .filter(n => !n.closest("#slide-previews"))
+            .map(n => ({ slide: n.closest("section")?.id, animating: n.dataset.animating, time: n._themeMotion?.time })));
+        const first = await wrappers();
+        await page.waitForTimeout(500);
+        const second = await wrappers();
+        const firstSlide = await page.evaluate(() => state.slides[0].id);
+        const moving = second.filter(w => w.animating === "true");
+        assert(moving.length === 1 && moving[0].slide === firstSlide, `animating: ${JSON.stringify(second)}`);
+        const other = (list) => list.find(w => w.slide !== firstSlide);
+        assert(other(first) && other(first).time === other(second).time, `the slide off screen kept moving: ${JSON.stringify([first, second])}`);
+        const thumbnailInk = await page.evaluate(() => {
+            const canvas = document.querySelector("#slide-previews .slide-background-three canvas");
+            if (!canvas || !canvas.width) return 0;
+            const data = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+            let ink = 0;
+            for (let i = 3; i < data.length; i += 4) ink += data[i] > 40 ? 1 : 0;
+            return ink;
+        });
+        assert(thumbnailInk > 20, `thumbnail scene not drawn (${thumbnailInk})`);
+
+        // PowerPoint gets a picture of each background; the HTML viewer carries the engine itself.
+        const exported = await page.evaluate(() => {
+            const copy = JSON.parse(JSON.stringify(state));
+            replaceMotionBackgroundsWithPictures(copy);
+            return copy.slides.map(slide => `${slide.background?.type}:${String(slide.background?.content || "").slice(0, 22)}`);
+        });
+        assert(exported.every(entry => entry === "image:data:image/png;base64,"), `PowerPoint backgrounds: ${exported}`);
+        const viewerJs = await page.evaluate(() => generateViewerJs());
+        assert(/function createThemeMotionEngine/.test(viewerJs) && /viewerStartMotion\(wrapper, canvas, background\)/.test(viewerJs), "the viewer does not draw 3D backgrounds with the engine");
         assert(!errors.length, errors.join("; "));
         await page.close();
     });
@@ -3638,7 +3770,8 @@ async function test(name, fn) {
         await page.locator('.properties-tab[data-properties-tab="overview"]').click().catch(() => {});
         await page.waitForTimeout(200);
         const swatches = await page.locator(".sf-theme-swatch").count();
-        assert(swatches === 17, `theme gallery swatches: ${swatches}`);
+        const themeCount = await page.evaluate(() => Object.keys(PRESENTATION_THEMES).length);
+        assert(swatches === themeCount, `theme gallery swatches: ${swatches} of ${themeCount}`);
         await page.locator('.sf-theme-swatch[data-theme-id="tidepool"]').click();
         await page.waitForTimeout(300);
         assert(await page.evaluate(() => state.presentationTheme) === "tidepool", "clicking a theme swatch did not apply it");
@@ -5404,8 +5537,16 @@ async function test(name, fn) {
     await test("Audit round 3: the deterministic SVG export draws plugin objects, and says when something could not be kept", async () => {
         const { page } = await openFreshEditor(context);
         await page.evaluate(() => SlideForgePlugins.ready);
+        await page.evaluate(() => addSlide());
         const id = await pageAwait(page, () => insertPluginElement("heatmap", { data: "Gene,A,B\nIL6,1,\nTNF,3,1" }, { ask: false }));
         const other = await pageAwait(page, () => insertPluginElement("heatmap", { data: "Gene,A,B\nX,1,\nY,3,1" }, { ask: false }));
+        await page.waitForFunction(
+            ([firstId, secondId]) =>
+                [firstId, secondId].every(pluginId =>
+                    state.slides[currentSlideIndex].elements.some(element => element.id === pluginId && element.pluginPreview),
+                ),
+            [id, other],
+        );
         const svg = await page.evaluate(() => window.exportCurrentSlideSceneSVG({ filename: "test.svg" })?.svg || "");
         // Written in as vector (a nested <svg>, which LibreOffice reads), not an <image> of an SVG data URL (dropped).
         const parsed = await page.evaluate(([svg, id, other]) => {
@@ -5418,7 +5559,11 @@ async function test(name, fn) {
         }, [svg, id, other]);
         assert(parsed.nested && parsed.ratio === "xMidYMid meet" && parsed.rects > 4 && parsed.svgImages === 0, `heatmap in the SVG: ${JSON.stringify(parsed)}`);
         assert(parsed.duplicateIds === 0 && parsed.hatchRefs.length > 0 && parsed.refsResolve, `ids of two plots: ${JSON.stringify(parsed)}`);
-        assert(/Slide SVG exported\.$/.test(await page.evaluate(() => document.getElementById("project-save-hint")?.textContent || "")), "a full export did not just say exported");
+        await page.waitForFunction(
+            () => /^Slide SVG exported\./.test(document.getElementById("project-save-hint")?.textContent || ""),
+            null,
+            { timeout: 3000 },
+        );
         // An object an SVG cannot hold is named in the message.
         await page.evaluate(() => { state.slides[currentSlideIndex].elements.push({ id: "html-embed-x", type: "html", content: "<p>x</p>", x: 10, y: 10, width: "100px", height: "60px", styles: {} }); renderSlidesFromState(); window.exportCurrentSlideSceneSVG({ filename: "test2.svg" }); });
         const hint = await page.evaluate(() => document.getElementById("project-save-hint")?.textContent || "");
@@ -6178,6 +6323,8 @@ async function test(name, fn) {
 
     await test("research deck: plots draw in the theme's body font, carried inside the picture but not saved with it", async () => {
         const { page } = await openFreshEditor(context);
+        // A theme with a bundled web font (Blank uses Arial, which is not embedded).
+        await page.evaluate(() => changePresentationTheme("editorial"));
         await page.evaluate(() => SlideForgePlugins.ready);
         const id = await pageAwait(page, () => insertPluginElement("box-plot", null, { ask: false }));
         const read = () =>
@@ -6203,7 +6350,7 @@ async function test(name, fn) {
         assert(first.family.startsWith(`'${first.body}'`) && first.family.includes("Arial"), `plot font: ${JSON.stringify(first)}`);
         assert(!first.storedHasFont && first.shownHasFont && first.exportedHasFont, `font inside the pictures: ${JSON.stringify(first)}`);
         // Another theme with another body font: the plot follows it.
-        const other = await page.evaluate(body => Object.keys(PRESENTATION_THEMES).find(key => !String(PRESENTATION_THEMES[key].bodyFont || "").includes(body)), first.body);
+        const other = await page.evaluate(body => Object.keys(PRESENTATION_THEMES).find(key => /^["']/.test(String(PRESENTATION_THEMES[key].bodyFont || "")) && !String(PRESENTATION_THEMES[key].bodyFont).includes(body)), first.body);
         await page.evaluate(theme => changePresentationTheme(theme), other);
         await page.waitForFunction(([id, body]) => {
             const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);

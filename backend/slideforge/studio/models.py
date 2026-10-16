@@ -14,7 +14,7 @@ class Presentation(models.Model):
         related_name="presentations",
     )
     title = models.CharField(max_length=255, default="Untitled Presentation")
-    presentation_theme = models.CharField(max_length=64, default="editorial")
+    presentation_theme = models.CharField(max_length=64, default="blank")
     state_json = models.JSONField(default=dict)
     bridge_result_json = models.JSONField(default=dict, blank=True)
     source_pdf = models.FileField(upload_to="source_pdfs/", null=True, blank=True)

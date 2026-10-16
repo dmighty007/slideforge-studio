@@ -272,7 +272,13 @@ function buildMasterSlideElements(slide, slideIndex, theme = getPresentationThem
     const slideNumber = String((slideIndex || 0) + 1).padStart(2, "0");
     const elements = [];
 
-    if (masterId === "title") {
+    // A plain theme (Blank) is a white page: no accent rule, corner badge or footer line, only the words and number.
+    const plain = theme?.plainMaster === true;
+    if (plain) {
+        if (masterId === "title" && logoText) {
+            elements.push(_masterText(64, 724, 360, logoText, { color: muted, fontFamily: bodyFont, fontSize: "12px", fontWeight: "600" }, "logo"));
+        }
+    } else if (masterId === "title") {
         if (config.showTopRule) elements.push(_masterEl("shape", 0, 0, 1024, 8, { backgroundColor: accent, borderRadius: "0px" }));
         elements.push(_masterEl("shape", 882, 48, 88, 88, { backgroundColor: accent2, opacity: "0.18", borderRadius: "22px" }));
         elements.push(_masterEl("shape", 930, 96, 40, 40, { backgroundColor: accent, opacity: "0.82", borderRadius: "999px" }));
@@ -316,7 +322,15 @@ function buildMasterSlideElements(slide, slideIndex, theme = getPresentationThem
         }
     }
 
-    if (config.showSlideNumber) {
+    if (config.showSlideNumber && plain) {
+        elements.push(_masterText(912, 722, 62, slideNumber, {
+            color: muted,
+            fontFamily: bodyFont,
+            fontSize: "12px",
+            fontWeight: "600",
+            textAlign: "right",
+        }, "slide-number"));
+    } else if (config.showSlideNumber) {
         elements.push(_masterEl("shape", 912, 718, 62, 28, {
             backgroundColor: surface,
             border: `1px solid ${border}`,

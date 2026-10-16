@@ -149,7 +149,7 @@ PPTMAKER_MAX_MOLECULE_UPLOAD_BYTES = _env_int("PPTMAKER_MAX_MOLECULE_UPLOAD_BYTE
 PPTMAKER_MAX_USER_ASSET_STORAGE_BYTES = _env_int("PPTMAKER_MAX_USER_ASSET_STORAGE_BYTES", 5000 * 1024 * 1024)
 PPTMAKER_ALLOW_SERVER_LOCAL_FILE_UPLOAD = _env_bool("PPTMAKER_ALLOW_SERVER_LOCAL_FILE_UPLOAD", False)
 # Sign-in and per-user projects. The desktop app (slideforge.desktop) turns this off and runs as one local user.
-SLIDEFORGE_ACCOUNTS_ENABLED = True
+SLIDEFORGE_ACCOUNTS_ENABLED = _env_bool("SLIDEFORGE_ACCOUNTS_ENABLED", True)
 # Plugins (slideforge/studio/plugins.py). Staff users switch them on and off; a folder for plugins added on this
 # server is optional (they run in every user's editor, so only set it if staff are trusted with that).
 SLIDEFORGE_USER_PLUGINS_DIR = os.getenv("SLIDEFORGE_USER_PLUGINS_DIR") or None

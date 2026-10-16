@@ -672,7 +672,7 @@ def presentation_create(request):
     except ValueError as exc:
         return HttpResponseBadRequest(str(exc))
     state_json = payload.get("state") or {
-        "presentationTheme": payload.get("presentationTheme") or "editorial",
+        "presentationTheme": payload.get("presentationTheme") or "blank",
         "pageSetup": "standard-4-3",
         "slides": payload.get("slides") or [],
         "selectedIds": [],
@@ -685,7 +685,7 @@ def presentation_create(request):
     presentation = Presentation.objects.create(
         owner=request.user,
         title=payload.get("title") or "Untitled Presentation",
-        presentation_theme=payload.get("presentationTheme") or "editorial",
+        presentation_theme=payload.get("presentationTheme") or "blank",
         state_json=state_json,
     )
     return JsonResponse(
@@ -832,7 +832,7 @@ def slide_cleanup_view(request):
     page_setup = payload.get("pageSetup") if isinstance(payload.get("pageSetup"), dict) else {}
     slide_width = _as_float(page_setup.get("width"), 1024.0, min_val=320.0, max_val=16000.0)
     slide_height = _as_float(page_setup.get("height"), 768.0, min_val=240.0, max_val=12000.0)
-    theme = _limited_text(payload.get("theme") or "editorial", 80)
+    theme = _limited_text(payload.get("theme") or "blank", 80)
     selected_only = bool(payload.get("selectedOnly"))
     target_elements = [_cleanup_element_summary(el) for el in elements[:80]]
 

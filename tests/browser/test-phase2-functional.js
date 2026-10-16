@@ -96,7 +96,7 @@ function assert(name, condition, details = "") {
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     const startMemory = memory();
     const startSlides = window.state.slides.length;
-    const styles = ["orbital", "constellation", "waves"];
+    const styles = ["orbital", "network", "wave"];
     for (let i = 0; i < 100; i += 1) {
       window.app.commands.addSlide();
       window.app.commands.setCurrentSlideBackgroundThree(styles[i % styles.length]);
@@ -162,6 +162,7 @@ function assert(name, condition, details = "") {
     if (firstCanvas) firstCanvas.dataset.phase2CanvasId = "retained-canvas";
     await sleep(700);
     const beforeLeaveImage = firstCanvas?.toDataURL("image/png") || "";
+    const beforeLeaveTime = firstWrapper?._themeMotion?.time ?? null;
     await go(6);
     window.setCurrentSlideIndex?.(5);
     window.Reveal.slide(5);
@@ -170,6 +171,7 @@ function assert(name, condition, details = "") {
     const returnedWrapper = document.querySelector('.presentation-slide[data-slide-index="5"] .slide-background-three');
     const returnedCanvas = returnedWrapper?.querySelector("canvas.slide-background-three-canvas");
     const afterReturnImage = returnedCanvas?.toDataURL("image/png") || "";
+    const afterReturnTime = returnedWrapper?._themeMotion?.time ?? null;
     await sleep(700);
     const afterResumeImage = returnedCanvas?.toDataURL("image/png") || "";
     for (let i = 1; i < window.state.slides.length; i += 1) {
@@ -177,18 +179,21 @@ function assert(name, condition, details = "") {
     }
     return {
       retainedRecentRenderer:
-        returnedWrapper?.dataset.renderer === "three" &&
+        Boolean(returnedWrapper?._themeMotion) &&
         returnedCanvas?.dataset.phase2CanvasId === "retained-canvas",
-      liveWebglBackgrounds: document.querySelectorAll('.slide-background-three[data-renderer="three"]').length,
+      // Only the slide on screen animates; the others hold a still frame.
+      animatingBackgrounds: [...document.querySelectorAll('.slide-background-three[data-animating="true"]')]
+        .filter(node => !node.closest("#slide-previews")).length,
       slideCount: window.state.slides.length,
-      returnFrameDelta: sampleDistance(beforeLeaveImage, afterReturnImage),
+      // Seconds of motion between leaving and coming back: the clock paused, so only the ~80 ms since returning.
+      returnTimeJump: beforeLeaveTime === null || afterReturnTime === null ? Infinity : afterReturnTime - beforeLeaveTime,
       resumeFrameDelta: sampleDistance(afterReturnImage, afterResumeImage),
     };
   });
   assert("recent 3D renderer is retained across navigation", lifecycle.retainedRecentRenderer, JSON.stringify(lifecycle));
-  assert("3D renderer returns without animation jump", lifecycle.returnFrameDelta <= 2, JSON.stringify(lifecycle));
+  assert("3D renderer returns without animation jump", lifecycle.returnTimeJump >= 0 && lifecycle.returnTimeJump < 0.3, JSON.stringify(lifecycle));
   assert("3D renderer resumes after return", lifecycle.resumeFrameDelta > 0, JSON.stringify(lifecycle));
-  assert("live 3D WebGL backgrounds are capped", lifecycle.liveWebglBackgrounds <= 6, JSON.stringify(lifecycle));
+  assert("only the slide on screen animates its 3D background", lifecycle.animatingBackgrounds <= 1, JSON.stringify(lifecycle));
   assert("3D lifecycle setup created test slides", lifecycle.slideCount >= 9, JSON.stringify(lifecycle));
 
   console.log("TEST 2 XSS payload injection");

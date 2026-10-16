@@ -74,7 +74,8 @@ function _collectReusableSlideNodes(container, { mode }) {
   // Opacity, blur, brightness and saturation are styles on the kept node (applied below), not reasons to rebuild.
   const backgroundSignature = (slide, slideIndex) => {
     const { opacity: _o, blur: _b, brightness: _br, saturate: _s, ...rest } = slide.background || {};
-    return `${mode}|${slideIndex}|${JSON.stringify(rest)}`;
+    // The theme too: the scene is drawn in its colours.
+    return `${mode}|${slideIndex}|${state.presentationTheme || ""}|${JSON.stringify(rest)}`;
   };
   const move = (section, node) => {
     try {

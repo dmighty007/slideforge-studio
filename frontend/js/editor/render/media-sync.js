@@ -21,29 +21,8 @@ function syncActiveSlideMedia() {
     const isActive = pageActive && index === activeIndex;
     section.toggleAttribute("data-media-active", isActive);
 
-    const threeBackground = section.querySelector(".slide-background-three");
-    if (threeBackground) {
-      const normalized = normalizeSlideBackground(
-        state.slides?.[index]?.background,
-      );
-      if (normalized?.type === "three") {
-        const theme =
-          typeof getPresentationTheme === "function"
-            ? getPresentationTheme()
-            : null;
-        if (isActive && threeBackground.dataset.renderer !== "three") {
-          _resetThemeThreeBackgroundRenderer(threeBackground, normalized, {
-            forPreview: false,
-            slideIndex: index,
-            theme,
-            useThree: true,
-          });
-        } else if (isActive) {
-          _touchThemeMotionWebglWrapper(threeBackground);
-          _pruneThemeMotionWebglWrappers(threeBackground);
-        }
-      }
-    }
+    // 3D backgrounds: only the slide on screen animates; the others hold a still frame.
+    section.querySelectorAll(".slide-background-three").forEach((wrapper) => setThemeMotionActive(wrapper, isActive));
 
     section.querySelectorAll("video").forEach((video) => {
       if (!isActive) {

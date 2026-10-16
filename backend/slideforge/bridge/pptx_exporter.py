@@ -267,7 +267,7 @@ class PPTXExporter:
         self.prs.slide_width = Inches(self.base_w / 96)
         self.prs.slide_height = Inches(self.base_h / 96)
         self.theme_background_css = str(state.get("themeBackgroundCss") or "")
-        self.theme = self._theme_defaults(str(state.get("presentationTheme") or "editorial"))
+        self.theme = self._theme_defaults(str(state.get("presentationTheme") or "blank"))
         self.slide_bg_rgb = self.theme["background"]
 
     PAGE_SETUPS = {
@@ -300,6 +300,7 @@ class PPTXExporter:
 
     def _theme_defaults(self, theme_id: str) -> dict[str, RGBColor]:
         themes = {
+            "blank": ("#FFFFFF", "#111827", "#6B7280", "#2563EB", "#64748B"),
             "editorial": ("#EEF2F7", "#2E2E2E", "#6B7280", "#3B82F6", "#A7C7E7"),
             "blueprint": ("#F1F7FD", "#10233B", "#5F7287", "#2563EB", "#0F766E"),
             "fieldnotes": ("#EFE4D0", "#2F261D", "#6F6559", "#7A8F47", "#B48A4A"),
@@ -318,7 +319,7 @@ class PPTXExporter:
             "midnightGarden": ("#10231A", "#EFF7ED", "#B7C9B7", "#9AE6B4", "#5FAF79"),
             "retroPop": ("#FFE7DF", "#28212A", "#745F76", "#EF476F", "#06D6A0"),
         }
-        bg, text, muted, accent, accent2 = themes.get(theme_id, themes["editorial"])
+        bg, text, muted, accent, accent2 = themes.get(theme_id, themes["blank"])
         return {
             "background": self._parse_color(bg, DesignSystem.BG_COLOR),
             "text": self._parse_color(text, DesignSystem.TEXT_COLOR),
@@ -919,7 +920,11 @@ class PPTXExporter:
             return next_el
 
         elements: list[dict[str, Any]] = []
-        if master_id == "title":
+        # Blank is a plain white page: no accent rule, corner badge or footer line (as in the editor).
+        plain = str(self.state.get("presentationTheme") or "blank") == "blank"
+        if plain:
+            pass
+        elif master_id == "title":
             if config.get("showTopRule", True):
                 elements.append(self._master_shape(0, 0, 1024, 8, accent))
             elements.append(self._master_shape(882, 48, 88, 88, accent2, opacity="0.18", radius="22px"))

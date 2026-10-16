@@ -8,6 +8,7 @@ MAX_SLIDES = 2000
 MAX_ELEMENTS_PER_SLIDE = 5000
 MAX_ID_LENGTH = 160
 MAX_ELEMENT_TYPE_LENGTH = 64
+CURRENT_SCHEMA_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,15 @@ def validate_presentation_state(state: Any) -> None:
     """
     if not isinstance(state, dict):
         raise StateValidationError("Presentation state must be a JSON object")
+
+    schema_version = state.get("schemaVersion", CURRENT_SCHEMA_VERSION)
+    if isinstance(schema_version, bool) or not isinstance(schema_version, int) or schema_version < 1:
+        raise StateValidationError("Presentation schemaVersion must be a positive integer")
+    if schema_version > CURRENT_SCHEMA_VERSION:
+        raise StateValidationError(
+            f"Presentation schemaVersion {schema_version} is newer than the supported version "
+            f"{CURRENT_SCHEMA_VERSION}",
+        )
 
     slides = state.get("slides")
     if not isinstance(slides, list):

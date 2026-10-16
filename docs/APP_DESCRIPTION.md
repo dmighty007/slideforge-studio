@@ -76,6 +76,7 @@ The shell references vendored libraries with local paths such as `vendor/chart.j
 
 The editor state is centered around a presentation object that contains slide-level metadata and element arrays. Each slide typically includes:
 
+- A `schemaVersion` marker used to migrate and reject incompatible deck formats safely.
 - A unique slide id.
 - Layout and master slide identifiers.
 - Notes.
@@ -133,10 +134,10 @@ Text rendering uses a semantic text document model when available. The text modu
 - `contextMenu.js` manages contextual actions.
 - `crop.js` controls image crop mode.
 - `zoom.js` manages canvas zoom and viewport sizing.
-- `themes.js`, `theme-ecosystem.js`, and `theme-optimizer.js` define and apply presentation themes.
+- `themes.js`, `theme-ecosystem.js`, and `theme-optimizer.js` define and apply presentation themes; new decks start with the neutral white `blank` theme while Editorial remains available for existing and explicitly themed decks.
 - `slide-presets/` (one file per preset family, plus `catalog.js`, `metadata.js` and `apply.js`) and `preset-optimizer.js` provide template/preset slide generation.
 - `masterSlides.js` manages master slide behavior.
-- `background-3d.js` and `background-3d-integration.js` support live 3D slide backgrounds.
+- `render/motion-engine.js` draws the 3D slide backgrounds (eight scenes in perspective on a 2D canvas, seeded so each slide keeps its arrangement); `render/theme-motion.js` animates the slide on screen and keeps the others as still frames. The HTML viewer embeds the same engine, and PowerPoint gets a still picture.
 
 ### Properties
 

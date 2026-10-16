@@ -58,6 +58,31 @@ function buildFontOptions(selectedFont = "") {
 }
 
 const PRESENTATION_THEMES = {
+    // The default for new decks: a plain white page in Arial, like a blank PowerPoint or Google Slides deck.
+    blank: {
+        label: "Blank",
+        revealTheme: "white",
+        plainMaster: true,
+        headingFont: "Arial, sans-serif",
+        bodyFont: "Arial, sans-serif",
+        defaultTextColor: "#111827",
+        defaultMutedColor: "#6b7280",
+        defaultShapeColor: "#d1d5db",
+        accentStrong: "#2563eb",
+        accentSoft: "rgba(37, 99, 235, 0.12)",
+        surfaceColor: "#ffffff",
+        surfaceBorder: "#e5e7eb",
+        cssVars: {
+            "--slide-bg": "#ffffff",
+            "--slide-fg": "#111827",
+            "--slide-muted": "#6b7280",
+            "--slide-accent": "#2563eb",
+            "--slide-accent-2": "#64748b",
+            "--slide-grid": "transparent",
+            "--editor-accent": "#2563eb",
+            "--editor-accent-soft": "rgba(37, 99, 235, 0.12)",
+        },
+    },
     editorial: {
         label: "Editorial",
         revealTheme: "white",
@@ -468,6 +493,12 @@ const PRESENTATION_THEMES = {
 };
 
 const THEME_SYSTEM_FAMILIES = {
+    blank: {
+        family: "corporate",
+        tone: "neutral",
+        bestFor: ["any talk", "decks that will be styled later", "documents that must match PowerPoint"],
+        density: "standard",
+    },
     editorial: {
         family: "editorial",
         tone: "editorial",
@@ -929,11 +960,11 @@ function classifyColor(color, theme) {
 }
 
 function getPresentationTheme(themeId = state.presentationTheme) {
-    return PRESENTATION_THEMES[themeId] || PRESENTATION_THEMES.editorial;
+    return PRESENTATION_THEMES[themeId] || PRESENTATION_THEMES.blank;
 }
 
 function getPresentationThemeSystem(themeId = state.presentationTheme) {
-    return getPresentationTheme(themeId)?.system || buildThemeDesignSystem("editorial", PRESENTATION_THEMES.editorial);
+    return getPresentationTheme(themeId)?.system || buildThemeDesignSystem("blank", PRESENTATION_THEMES.blank);
 }
 
 function getPresentationThemeTokens(themeId = state.presentationTheme) {
@@ -941,11 +972,11 @@ function getPresentationThemeTokens(themeId = state.presentationTheme) {
 }
 
 function normalizePresentationThemeId(themeId) {
-    return PRESENTATION_THEMES[themeId] ? themeId : "editorial";
+    return PRESENTATION_THEMES[themeId] ? themeId : "blank";
 }
 
 function syncPresentationThemeFromState({ persist = false } = {}) {
-    if (typeof state === "undefined" || !state) return "editorial";
+    if (typeof state === "undefined" || !state) return "blank";
     const safeThemeId = normalizePresentationThemeId(state.presentationTheme);
     if (state.presentationTheme !== safeThemeId) {
         state.presentationTheme = safeThemeId;
@@ -977,8 +1008,8 @@ function applyPresentationTheme(themeId, { persist = true } = {}) {
 }
 
 function changePresentationTheme(themeId) {
-    const previousThemeId = state.presentationTheme || "editorial";
-    const nextThemeId = PRESENTATION_THEMES[themeId] ? themeId : "editorial";
+    const previousThemeId = state.presentationTheme || "blank";
+    const nextThemeId = PRESENTATION_THEMES[themeId] ? themeId : "blank";
     if (previousThemeId === nextThemeId) {
         applyPresentationTheme(nextThemeId);
         return false;

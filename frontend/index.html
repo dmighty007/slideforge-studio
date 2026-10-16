@@ -1180,7 +1180,6 @@
     <!-- Pre-declare the global reveal.js's bundled regenerator-runtime assigns to, so it does not fall back to Function() (blocked by CSP). -->
     <script>window.regeneratorRuntime = undefined;</script>
     <script src="vendor/reveal.js/reveal.js"></script>
-    <script src="vendor/three/three.min.js"></script>
     <script src="vendor/interactjs/interact.min.js"></script>
     <link rel="stylesheet" href="vendor/reveal.js-plugins/chalkboard/style.css" />
     <script src="vendor/reveal.js-plugins/chalkboard/plugin.js"></script>
@@ -1220,8 +1219,9 @@
     <script src="js/editor/crop.js?v=20260503-crop-margin"></script>
     <!-- Renderer (classic scripts; order matters, init.js last) -->
     <script src="js/editor/render/structured-editor.js?v=20260929-split"></script>
-    <script src="js/editor/render/theme-motion.js?v=20260929-split"></script>
-    <script src="js/editor/render/media-sync.js?v=20260929-split"></script>
+    <script src="js/editor/render/motion-engine.js?v=20261016-motion"></script>
+    <script src="js/editor/render/theme-motion.js?v=20261016-motion"></script>
+    <script src="js/editor/render/media-sync.js?v=20261016-motion"></script>
     <script src="js/editor/render/slide-previews.js?v=20260929-split"></script>
     <script src="js/editor/render/connectors.js?v=20260929-split"></script>
     <script src="js/editor/render/shapes.js?v=20260929-split"></script>

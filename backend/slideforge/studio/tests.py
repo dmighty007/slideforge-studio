@@ -81,6 +81,21 @@ class PresentationApiRegressionTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json(), {"error": "Duplicate slide id: slide-1"})
 
+    def test_presentation_create_rejects_newer_schema_versions(self):
+        response = self.client.post(
+            "/api/presentations/",
+            data=json.dumps(
+                {
+                    "title": "Future deck",
+                    "state": {"schemaVersion": 2, "slides": []},
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("newer than the supported version", response.json()["error"])
+
     def test_presentation_update_rejects_duplicate_element_ids(self):
         presentation = Presentation.objects.create(
             owner=self.user,

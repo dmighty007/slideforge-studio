@@ -986,6 +986,21 @@ async function replaceSvgPicturesWithPng(exportState) {
   }
 }
 
+function replaceMotionBackgroundsWithPictures(exportState) {
+  if (typeof renderThemeMotionPicture !== "function") return;
+  const page = (typeof getPresentationPageSetupConfig === "function" && getPresentationPageSetupConfig()) || { width: 1024, height: 768 };
+  const pixelScale = Math.min(2, 1920 / (Number(page.width) || 1024));
+  (exportState.slides || []).forEach((slide) => {
+    if (slide?.background?.type !== "three") return;
+    const picture = renderThemeMotionPicture(slide.background, {
+      width: Math.round((Number(page.width) || 1024) * pixelScale),
+      height: Math.round((Number(page.height) || 768) * pixelScale),
+      pixelScale,
+    });
+    slide.background = picture ? { type: "image", content: picture, fit: "cover" } : null;
+  });
+}
+
 async function replaceMermaidWithPictures(exportState) {
   for (const slide of exportState?.slides || []) {
     for (const [index, el] of (slide.elements || []).entries()) {
@@ -1055,6 +1070,8 @@ async function exportPPTX() {
     if (typeof replaceMoleculesWithPictures === "function") await replaceMoleculesWithPictures(exportState);
     if (typeof replacePdfsWithPictures === "function") await replacePdfsWithPictures(exportState);
     await replaceMermaidWithPictures(exportState);
+    // PowerPoint cannot animate the 3D backgrounds: each one goes in as a still picture of its first frame.
+    replaceMotionBackgroundsWithPictures(exportState);
     // Plugin objects are drawn as SVG; they become PNG pictures with the other SVGs just below (text-only ones,
     // such as citations, become text boxes).
     if (typeof replacePluginElementsWithPictures === "function") await replacePluginElementsWithPictures(exportState, { text: true });
@@ -1451,10 +1468,7 @@ body {
 }
 
 .slide-background-three {
-    background:
-        radial-gradient(circle at 72% 22%, color-mix(in srgb, var(--slide-accent, #2563eb) 18%, transparent), transparent 32%),
-        radial-gradient(circle at 22% 78%, color-mix(in srgb, var(--slide-accent-2, #0f766e) 18%, transparent), transparent 34%),
-        var(--slide-bg);
+    background: var(--slide-bg);
 }
 
 .standalone-presentation-ui {
@@ -2142,6 +2156,52 @@ function _viewerGetBulletIndent(level, levelStyle) {
 
 const VIEWER_SHAPE_POLYGONS = ${JSON.stringify(typeof SHAPE_POLYGONS !== "undefined" ? SHAPE_POLYGONS : {})};
 ${typeof createDefaultMoleculeContent === "function" ? createDefaultMoleculeContent.toString() : ""}
+${typeof createThemeMotionEngine === "function" ? createThemeMotionEngine.toString() : ""}
+// 3D backgrounds: the editor's own engine draws them, so they look as they did there. Only the slide on screen moves.
+const VIEWER_MOTION_ENGINE = typeof createThemeMotionEngine === 'function' ? createThemeMotionEngine() : null;
+const viewerMotions = new Set();
+let viewerMotionFrame = null;
+function viewerMotionColors() {
+    const style = getComputedStyle(document.documentElement);
+    const read = name => style.getPropertyValue(name).trim();
+    return { fg: read('--slide-fg') || '#172033', accent: read('--slide-accent') || '#2563eb', accent2: read('--slide-accent-2') || read('--slide-accent') || '#0f766e' };
+}
+function viewerDrawMotion(motion) {
+    const width = motion.wrapper.offsetWidth;
+    const height = motion.wrapper.offsetHeight;
+    if (!width || !height) return false;
+    const ratio = Math.min(2, window.devicePixelRatio || 1);
+    const pixelWidth = Math.round(width * ratio);
+    const pixelHeight = Math.round(height * ratio);
+    if (!motion.scene || Math.abs(motion.aspect - width / height) > 0.001) {
+        motion.scene = VIEWER_MOTION_ENGINE.buildScene(motion.background, width / height);
+        motion.aspect = width / height;
+    }
+    if (motion.canvas.width !== pixelWidth || motion.canvas.height !== pixelHeight) {
+        motion.canvas.width = pixelWidth;
+        motion.canvas.height = pixelHeight;
+    }
+    VIEWER_MOTION_ENGINE.draw(motion.ctx, motion.scene, pixelWidth, pixelHeight, viewerMotionColors(), motion.time);
+    return true;
+}
+function viewerMotionTick(timestamp) {
+    viewerMotionFrame = requestAnimationFrame(viewerMotionTick);
+    const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    viewerMotions.forEach(motion => {
+        if (!document.contains(motion.wrapper)) return viewerMotions.delete(motion);
+        const section = motion.wrapper.parentElement;
+        const active = !still && document.visibilityState !== 'hidden' && section && section.classList.contains('is-active');
+        if (active && motion.last) motion.time += (Math.min(80, Math.max(0, timestamp - motion.last)) / 1000) * (motion.scene ? motion.scene.speed : 1);
+        motion.last = active ? timestamp : 0;
+        if (active || !motion.drawn) motion.drawn = viewerDrawMotion(motion);
+    });
+}
+function viewerStartMotion(wrapper, canvas, background) {
+    const ctx = canvas.getContext('2d');
+    if (!VIEWER_MOTION_ENGINE || !ctx) return;
+    viewerMotions.add({ wrapper, canvas, ctx, background, time: 0, last: 0, scene: null, aspect: 0, drawn: false });
+    if (viewerMotionFrame === null) viewerMotionFrame = requestAnimationFrame(viewerMotionTick);
+}
 ${typeof MOLECULE_SUPPORTED_FORMATS !== "undefined" ? `const MOLECULE_SUPPORTED_FORMATS = new Set(${JSON.stringify(Array.from(MOLECULE_SUPPORTED_FORMATS))});` : ""}
 ${typeof MOLECULE_INLINE_CONTENT_LIMIT !== "undefined" ? `const MOLECULE_INLINE_CONTENT_LIMIT = ${Number(MOLECULE_INLINE_CONTENT_LIMIT) || 2097152};` : ""}
 ${typeof MOLECULE_LARGE_CONTENT_LIMIT !== "undefined" ? `const MOLECULE_LARGE_CONTENT_LIMIT = ${Number(MOLECULE_LARGE_CONTENT_LIMIT) || 26214400};` : ""}
@@ -3279,33 +3339,7 @@ function createViewerSlideBackgroundNode(background, mediaOptions = {}) {
         canvas.className = 'slide-background-three-canvas';
         canvas.setAttribute('aria-hidden', 'true');
         wrapper.appendChild(canvas);
-        requestAnimationFrame(() => {
-            const ctx = canvas.getContext('2d');
-            const rect = wrapper.getBoundingClientRect();
-            const width = Math.max(1, Math.round(rect.width || 1024));
-            const height = Math.max(1, Math.round(rect.height || 768));
-            const ratio = Math.min(2, window.devicePixelRatio || 1);
-            canvas.width = Math.round(width * ratio);
-            canvas.height = Math.round(height * ratio);
-            canvas.style.width = width + 'px';
-            canvas.style.height = height + 'px';
-            if (!ctx) return;
-            ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-            const gradient = ctx.createLinearGradient(0, 0, width, height);
-            gradient.addColorStop(0, getComputedStyle(document.documentElement).getPropertyValue('--slide-bg').trim() || '#ffffff');
-            gradient.addColorStop(1, getComputedStyle(document.documentElement).getPropertyValue('--slide-accent').trim() || '#2563eb');
-            ctx.globalAlpha = 0.16;
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, width, height);
-            ctx.globalAlpha = 0.42;
-            for (let i = 0; i < 56; i += 1) {
-                const x = ((i * 73) % 997) / 997 * width;
-                const y = ((i * 151) % 761) / 761 * height;
-                ctx.beginPath();
-                ctx.arc(x, y, 1.5 + (i % 5), 0, Math.PI * 2);
-                ctx.fill();
-            }
-        });
+        viewerStartMotion(wrapper, canvas, background);
     } else if (background.type === 'video') {
         const video = document.createElement('video');
         video.className = 'slide-background-video';

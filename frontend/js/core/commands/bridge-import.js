@@ -102,7 +102,7 @@ function _bridgeInferPresentationTitle(data) {
 }
 
 function _convertBridgeExportToEditorState(data) {
-    const themeId = state.presentationTheme || "editorial";
+    const themeId = state.presentationTheme || "blank";
     const theme = getPresentationTheme(themeId);
     const targetPageSetup = getPresentationPageSetupId();
     const bridgeBaseConfig = PRESENTATION_PAGE_SETUPS[DEFAULT_PRESENTATION_PAGE_SETUP];

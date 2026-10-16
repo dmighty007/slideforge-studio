@@ -1,5 +1,6 @@
 // --- Core State Layer ---
 let _idCounter = 0;
+const PRESENTATION_SCHEMA_VERSION = 1;
 
 function generateId(prefix) {
     const hasUUID = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function";
@@ -160,7 +161,8 @@ function buildDefaultPresentationState() {
     const textWidth = page.width - 128;
     const titleY = Math.round(page.height * 0.3);
     return {
-        presentationTheme: "editorial",
+        schemaVersion: PRESENTATION_SCHEMA_VERSION,
+        presentationTheme: "blank",
         presentationTransition: "none",
         pageSetup,
         masterSlides: createDefaultMasterSlidesState(),
@@ -177,11 +179,11 @@ function buildDefaultPresentationState() {
                 elements: [
                     buildPlaceholderText({
                         x: 64, y: titleY, width: textWidth, fitHeight: 150, fontSize: 56, textAlign: "center", zIndex: 1,
-                        placeholder: "Click to add title", fontFamily: '"Manrope", sans-serif', color: "#172033",
+                        placeholder: "Click to add title", fontFamily: "Arial, sans-serif", color: "#111827",
                     }),
                     buildPlaceholderText({
                         x: 64, y: titleY + 174, width: textWidth, fontSize: 26, textAlign: "center", zIndex: 2,
-                        placeholder: "Click to add subtitle", fontFamily: '"Manrope", sans-serif', color: "#475569",
+                        placeholder: "Click to add subtitle", fontFamily: "Arial, sans-serif", color: "#4b5563",
                     }),
                 ],
             },
@@ -559,14 +561,23 @@ function normalizeSlideBackground(background) {
     }
     if (typeof background !== "object") return null;
     if (background.type === "three" || background.type === "3d") {
-        const styles = ["orbital", "mesh", "particles", "lattice", "wave", "vortex"];
-        const style = styles.includes(background.style) ? background.style : "orbital";
+        // "3d" and its style names came from an earlier canvas renderer that was never switched on.
+        const earlierStyles = { "particle-float": "particles", "gradient-orbit": "orbital", "wave-mesh": "mesh", "grid-3d": "lattice" };
+        const options = (typeof THEME_MOTION_ENGINE !== "undefined" ? THEME_MOTION_ENGINE.normalizeOptions : o => o)({
+            ...background,
+            style: earlierStyles[background.style] || background.style,
+        });
         return {
             type: "three",
             content: "theme-motion",
             mimeType: "",
             fit: "cover",
-            style,
+            style: options.style || "orbital",
+            seed: options.seed || 1,
+            side: options.side || "right",
+            strength: options.strength || "standard",
+            motion: options.motion || "slow",
+            calm: options.calm !== false,
             ...clampBackgroundAdjustments(background),
         };
     }
@@ -589,12 +600,16 @@ function updateProjectTitleUi() {
     input.value = currentPresentationTitle || "Untitled Presentation";
 }
 
+let _projectHintLockUntil = 0;
+
 function setProjectSaveHint(message, tone = "muted") {
     const hint = document.getElementById("project-save-hint");
     if (!hint) return;
+    if (_projectHintLockUntil > Date.now() && /saved|saving/i.test(String(message))) return;
     hint.textContent = message;
     hint.style.color =
         tone === "success" ? "#047857" : tone === "warn" ? "#b45309" : tone === "danger" ? "#b91c1c" : "#94a3b8";
+    if (/generating .*svg|exported\./i.test(String(message))) _projectHintLockUntil = Date.now() + 5000;
 }
 
 function markBackendUnavailable(reason = "Backend API unavailable") {
@@ -1201,8 +1216,11 @@ function _isSafeStateId(id) {
 }
 
 function normalizeStateIds() {
+    // Older imported decks did not carry a schema marker. They remain readable, but every
+    // normalized state is written back in the current format for future migrations.
+    state.schemaVersion = PRESENTATION_SCHEMA_VERSION;
     if (!state.presentationTheme || typeof state.presentationTheme !== "string") {
-        state.presentationTheme = "editorial";
+        state.presentationTheme = "blank";
     }
     if (
         !state.presentationTransition ||
@@ -1767,7 +1785,7 @@ function loadLocalPresentation() {
         const loadedState = loaded?.state;
         if (!loadedState || !Array.isArray(loadedState.slides) || !loadedState.slides.length) return false;
         state = loadedState;
-        state.presentationTheme = state.presentationTheme || loaded.presentationTheme || "editorial";
+        state.presentationTheme = state.presentationTheme || loaded.presentationTheme || "blank";
         normalizeStateIds();
         syncPresentationThemeFromState?.({ persist: false });
         setCurrentPresentationTitle(loaded.title || "Untitled Presentation");
@@ -2018,7 +2036,7 @@ async function loadPresentationRecord(presentationId) {
     const hasSlides = loaded.state && Array.isArray(loaded.state.slides) && loaded.state.slides.length > 0;
     if (hasSlides) {
         state = loaded.state;
-        state.presentationTheme = state.presentationTheme || loaded.presentationTheme || "editorial";
+        state.presentationTheme = state.presentationTheme || loaded.presentationTheme || "blank";
     } else if (
         loaded.bridgeResult &&
         typeof _looksLikeBridgeExport === "function" &&
@@ -2026,7 +2044,7 @@ async function loadPresentationRecord(presentationId) {
         typeof _convertBridgeExportToEditorState === "function"
     ) {
         state = _convertBridgeExportToEditorState(loaded.bridgeResult);
-        state.presentationTheme = state.presentationTheme || loaded.presentationTheme || "editorial";
+        state.presentationTheme = state.presentationTheme || loaded.presentationTheme || "blank";
     }
     const recovered = _takeUnsavedBackup(loaded.id, loaded.autosaveVersion || 1);
     if (recovered) {

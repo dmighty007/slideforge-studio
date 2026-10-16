@@ -65,3 +65,57 @@ jobs:
           /tmp/wheel-check/bin/pip install dist/slideforge_studio-*.whl
           /tmp/wheel-check/bin/slideforge --version
 
+  browser:
+    runs-on: ubuntu-latest
+    env:
+      DJANGO_DEBUG: "1"
+      DJANGO_SECRET_KEY: ci-browser-only-secret-key
+      DJANGO_ALLOWED_HOSTS: 127.0.0.1,localhost
+      SLIDEFORGE_ACCOUNTS_ENABLED: "0"
+      SLIDEFORGE_TEST_URL: http://127.0.0.1:8076/
+      SLIDEFORGE_FRONTEND_ONLY: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: requirements.lock
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Start Django
+        run: |
+          python backend/manage.py migrate --noinput
+          python backend/manage.py runserver 127.0.0.1:8076 > /tmp/slideforge-browser-server.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent "$SLIDEFORGE_TEST_URL" > /dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent "$SLIDEFORGE_TEST_URL" > /dev/null
+      - name: Run browser regressions
+        run: |
+          npm run test:ui
+          npm run test:phase2
+          npm run test:animations
+          npm run test:regressions
+      - name: Upload browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-diagnostics
+          path: |
+            /tmp/slideforge-browser-server.log
+            test-results/
+          if-no-files-found: ignore

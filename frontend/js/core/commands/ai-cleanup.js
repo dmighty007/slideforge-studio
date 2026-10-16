@@ -120,7 +120,7 @@ async function aiCleanUpSlide() {
                     width: Number(slideConfig.width) || 1024,
                     height: Number(slideConfig.height) || 768,
                 },
-                theme: state.presentationTheme || "editorial",
+                theme: state.presentationTheme || "blank",
                 selectedOnly: Boolean(targetIds),
             };
             const response = await _apiFetch("/api/slides/cleanup/", {

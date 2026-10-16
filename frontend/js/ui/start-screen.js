@@ -2,7 +2,7 @@
 // offers a new blank deck, a deck in a chosen theme, or an import. Opening, creating and importing reuse the
 // editor's own functions (loadProjectById, createNewProject, changePresentationTheme, import helpers).
 
-const START_SCREEN_THEMES = ["editorial", "blueprint", "graphite", "horizon", "sage", "afterglow"];
+const START_SCREEN_THEMES = ["blank", "editorial", "blueprint", "graphite", "horizon", "sage", "afterglow"];
 const START_SCREEN_FEATURES = [
     ["fa-solid fa-shapes", "Text, tables, charts, shapes and connectors"],
     ["fa-solid fa-square-root-variable", "Equations, diagrams and 3D molecules"],
@@ -28,7 +28,7 @@ function _startIcon(className) {
 }
 
 function _startCover(themeId, title, slideCount = null, font = "") {
-    const theme = (typeof PRESENTATION_THEMES !== "undefined" && PRESENTATION_THEMES[themeId]) || PRESENTATION_THEMES?.editorial;
+    const theme = (typeof PRESENTATION_THEMES !== "undefined" && PRESENTATION_THEMES[themeId]) || PRESENTATION_THEMES?.blank;
     const cover = _startEl("div", "sf-cover");
     if (theme) {
         cover.style.setProperty("--cover-bg", theme.cssVars?.["--slide-bg"] || "#fff");
