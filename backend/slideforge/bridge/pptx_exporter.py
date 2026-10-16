@@ -912,8 +912,7 @@ class PPTXExporter:
         text = self._rgb_to_hex(self.theme["text"])
         muted = self._rgb_to_hex(self.theme["muted"])
         accent = self._rgb_to_hex(self.theme["accent"])
-        accent2 = self._rgb_to_hex(self.theme["accent2"])
-        border = self._rgb_to_rgba(self.theme["muted"], 0.28)
+        border =self._rgb_to_rgba(self.theme["muted"], 0.28)
         surface = self._rgb_to_rgba(self.theme["text"], 0.06)
         heading_font = "Aptos Display"
         body_font = DesignSystem.DEFAULT_FONT
@@ -929,15 +928,13 @@ class PPTXExporter:
             return next_el
 
         elements: list[dict[str, Any]] = []
-        # Blank is a plain white page: no accent rule, corner badge or footer line (as in the editor).
+        # Blank is a plain white page: no accent rule or footer line (as in the editor).
         plain = str(self.state.get("presentationTheme") or "blank") == "blank"
         if plain:
             pass
         elif master_id == "title":
             if config.get("showTopRule", True):
                 elements.append(self._master_shape(0, 0, 1024, 8, accent))
-            elements.append(self._master_shape(882, 48, 88, 88, accent2, opacity="0.18", radius="22px"))
-            elements.append(self._master_shape(930, 96, 40, 40, accent, opacity="0.82", radius="999px"))
             if config.get("logoText"):
                 elements.append(self._master_text(64, 702, 420, str(config.get("logoText")), {
                     "color": muted, "fontFamily": body_font, "fontSize": "12px", "fontWeight": "700",

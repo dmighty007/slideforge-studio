@@ -3305,6 +3305,36 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("themes: preset slides show the theme's own background and colours; no corner badge or hard-edged bands", async () => {
+        const { page } = await openFreshEditor(context);
+        const problems = await page.evaluate(() => {
+            const out = [];
+            const rainbow = ["#0F766E", "#B45309", "#7C3AED", "#BE185D", "#0369A1", "#5EEAD4", "#FBBF24", "#C4B5FD", "#FDA4AF", "#93C5FD"];
+            for (const [id, theme] of Object.entries(PRESENTATION_THEMES)) {
+                // Every theme accent is made from the theme's own two accents.
+                const p = _modernPalette(theme);
+                if (p.accents.some(c => rainbow.includes(String(c).toUpperCase()) && ![p.a, p.a2].map(x => String(x).toUpperCase()).includes(String(c).toUpperCase()))) out.push(`${id}: fixed accents ${p.accents}`);
+                // The title master has no rounded-square-and-dot badge in the corner.
+                const badge = buildMasterSlideElements({ masterId: "title", elements: [] }, 0, theme).filter(el => el.type === "shape" && parseFloat(el.width) < 120 && parseFloat(el.height) > 30);
+                if (badge.length) out.push(`${id}: corner badge`);
+                // Decorative bands fade out (soft glows); only Retro Pop keeps a hard band, on purpose.
+                const bg = theme.cssVars["--slide-bg"];
+                if (id !== "retroPop" && /rgba\([^)]*\)\s+0\s+\d+%\s*,\s*transparent\s+\d+%/.test(bg)) out.push(`${id}: hard-edged band`);
+            }
+            // A preset slide shows the slide's theme background through its backdrop.
+            changePresentationTheme("chalkboard");
+            insertPresetSlide("cards-grid");
+            renderSlidesFromState();
+            const backdrop = state.slides[currentSlideIndex].elements.find(e => e.presetBackground);
+            const node = backdrop && [...document.querySelectorAll(`[id="${backdrop.id}"]`)].find(n => !n.closest("#slide-previews"));
+            const fill = node && getComputedStyle(node);
+            if (fill && (fill.backgroundColor !== "rgba(0, 0, 0, 0)" || fill.backgroundImage !== "none")) out.push(`preset backdrop painted: ${fill.backgroundColor} ${fill.backgroundImage}`);
+            return out;
+        });
+        assert(!problems.length, problems.join("; "));
+        await page.close();
+    });
+
     await test("review: after a theme change, preset slides (also edited ones) take the new background and their text stays readable", async () => {
         const { page } = await openFreshEditor(context);
         const result = await page.evaluate(async () => {
@@ -3333,11 +3363,13 @@ async function test(name, fn) {
                 const titleColor = title && getComputedStyle(title).color;
                 const canvas = toRgb(palette.canvas);
                 const contrast = titleColor ? (Math.max(lum(titleColor), lum(canvas)) + 0.05) / (Math.min(lum(titleColor), lum(canvas)) + 0.05) : null;
-                return { layout: slide.layoutId, bgColor: bg?.styles.backgroundColor, bgOk: !bg || (bg.styles.backgroundColor === palette.canvas && bg.styles.background === palette.canvasBackground), contrast: contrast && Math.round(contrast * 10) / 10, footer: footer?.styles?.color };
+                // The preset's backdrop is see-through and the slide paints the new theme's gradient (its base colour #FCFCF4).
+                const slideBg = getComputedStyle(root).backgroundImage;
+                return { layout: slide.layoutId, bgColor: bg?.styles.backgroundColor, bgOk: (!bg || (bg.styles.backgroundColor === "transparent" && !bg.styles.background)) && slideBg.includes("252, 252, 244"), slideBg: slideBg.slice(0, 80), contrast: contrast && Math.round(contrast * 10) / 10, footer: footer?.styles?.color };
             });
         });
         result.forEach(slide => {
-            assert(slide.bgOk, `${slide.layout}: background after the theme change is ${slide.bgColor}`);
+            assert(slide.bgOk, `${slide.layout}: backdrop ${slide.bgColor}, slide background ${slide.slideBg} after the theme change`);
             assert(slide.contrast === null || slide.contrast >= 4.5, `${slide.layout}: title contrast ${slide.contrast} on the new background`);
         });
         assert(result.some(s => s.layout === "lecture-concept") && result.some(s => s.layout === "talk-key-message"), JSON.stringify(result));

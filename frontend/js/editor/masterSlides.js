@@ -270,13 +270,14 @@ function buildMasterSlideElements(slide, slideIndex, theme = getPresentationThem
     const slideConfig = getPresentationPageSetupConfig?.() || { width: 1024, height: 768 };
     const sx = (Number(slideConfig.width) || 1024) / 1024;
     const sy = (Number(slideConfig.height) || 768) / 768;
-    const { accent, accent2, accentText, text, muted, headingFont, bodyFont, surface, border } = _masterThemeParts(theme);
+    const { accent, accentText, text, muted, headingFont, bodyFont, surface, border } = _masterThemeParts(theme);
     const footerText = config.footerText || "";
     const logoText = config.logoText || "";
     const slideNumber = String((slideIndex || 0) + 1).padStart(2, "0");
     const elements = [];
 
-    // A plain theme (Blank) is a white page: no accent rule, corner badge or footer line, only the words and number.
+    // A plain theme (Blank) is a white page: no accent rule or footer line, only the words and number. (The title
+    // master's corner badge, a rounded square with a dot, is gone from every theme: it read as a toggle switch.)
     const plain = theme?.plainMaster === true;
     if (plain) {
         if (masterId === "title" && logoText) {
@@ -284,8 +285,6 @@ function buildMasterSlideElements(slide, slideIndex, theme = getPresentationThem
         }
     } else if (masterId === "title") {
         if (config.showTopRule) elements.push(_masterEl("shape", 0, 0, 1024, 8, { backgroundColor: accent, borderRadius: "0px" }));
-        elements.push(_masterEl("shape", 882, 48, 88, 88, { backgroundColor: accent2, opacity: "0.18", borderRadius: "22px" }));
-        elements.push(_masterEl("shape", 930, 96, 40, 40, { backgroundColor: accent, opacity: "0.82", borderRadius: "999px" }));
         elements.push(_masterEl("shape", 52, 714, 920, 1, { backgroundColor: border, borderRadius: "0px", opacity: "0.85" }, "", "footer-rule"));
         if (logoText) {
             elements.push(_masterText(64, 724, 360, logoText, {

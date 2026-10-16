@@ -96,7 +96,8 @@ const PRESENTATION_THEMES = {
         surfaceColor: "rgba(248, 250, 252, 0.88)",
         surfaceBorder: "rgba(209, 213, 219, 0.80)",
         cssVars: {
-            "--slide-bg": "linear-gradient(135deg, rgba(59,130,246,0.07) 0 18%, transparent 18% 100%), linear-gradient(180deg, #FFFFFF 0%, #F6F8FB 56%, #EEF2F7 100%)",
+            "--slide-bg":
+                "radial-gradient(70% 60% at 0% 0%, rgba(59,130,246,0.09), transparent 70%), radial-gradient(60% 50% at 100% 100%, rgba(167,199,231,0.20), transparent 70%), linear-gradient(180deg, #FFFFFF 0%, #F6F8FB 56%, #EEF2F7 100%)",
             "--slide-fg": "#2E2E2E",
             "--slide-muted": "#6B7280",
             "--slide-accent": "#3B82F6",
@@ -120,7 +121,7 @@ const PRESENTATION_THEMES = {
         surfaceBorder: "rgba(29, 78, 216, 0.12)",
         cssVars: {
             "--slide-bg":
-                "linear-gradient(135deg, rgba(37,99,235,0.10) 0 1px, transparent 1px 100%), repeating-linear-gradient(90deg, rgba(37,99,235,0.055) 0 1px, transparent 1px 64px), repeating-linear-gradient(0deg, rgba(37,99,235,0.050) 0 1px, transparent 1px 64px), linear-gradient(180deg, #fcfeff 0%, #f1f7fd 100%)",
+                "repeating-linear-gradient(90deg, rgba(37,99,235,0.05) 0 1px, transparent 1px 64px), repeating-linear-gradient(0deg, rgba(37,99,235,0.045) 0 1px, transparent 1px 64px), radial-gradient(70% 60% at 100% 0%, rgba(37,99,235,0.08), transparent 70%), linear-gradient(180deg, #fcfeff 0%, #f1f7fd 100%)",
             "--slide-fg": "#10233b",
             "--slide-muted": "#5f7287",
             "--slide-accent": "#2563eb",
@@ -144,7 +145,7 @@ const PRESENTATION_THEMES = {
         surfaceBorder: "rgba(47, 38, 29, 0.10)",
         cssVars: {
             "--slide-bg":
-                "repeating-linear-gradient(0deg, rgba(47,38,29,0.035) 0 1px, transparent 1px 34px), linear-gradient(115deg, rgba(122,143,71,0.13) 0 26%, transparent 26% 100%), linear-gradient(180deg, #fbf6ea 0%, #efe4d0 100%)",
+                "repeating-linear-gradient(0deg, rgba(47,38,29,0.035) 0 1px, transparent 1px 34px), radial-gradient(70% 60% at 0% 0%, rgba(122,143,71,0.15), transparent 70%), linear-gradient(180deg, #fbf6ea 0%, #efe4d0 100%)",
             "--slide-fg": "#2f261d",
             "--slide-muted": "#6f6559",
             "--slide-accent": "#7a8f47",
@@ -192,7 +193,7 @@ const PRESENTATION_THEMES = {
         surfaceBorder: "rgba(226, 232, 240, 0.14)",
         cssVars: {
             "--slide-bg":
-                "linear-gradient(135deg, transparent 0 58%, rgba(34,211,238,0.10) 58% 59%, transparent 59% 100%), repeating-linear-gradient(90deg, rgba(255,255,255,0.035) 0 1px, transparent 1px 72px), linear-gradient(155deg, #090E1A 0%, #111827 52%, #202938 100%)",
+                "radial-gradient(70% 60% at 100% 0%, rgba(34,211,238,0.10), transparent 70%), repeating-linear-gradient(90deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 72px), linear-gradient(155deg, #090E1A 0%, #111827 52%, #202938 100%)",
             "--slide-fg": "#f5f7fb",
             "--slide-muted": "#94a3b8",
             "--slide-accent": "#22d3ee",
@@ -216,7 +217,7 @@ const PRESENTATION_THEMES = {
         surfaceBorder: "rgba(238, 244, 255, 0.14)",
         cssVars: {
             "--slide-bg":
-                "linear-gradient(120deg, rgba(125,211,252,0.13) 0 1px, transparent 1px 34%), linear-gradient(180deg, #06111F 0%, #0B2442 54%, #153A66 100%)",
+                "radial-gradient(90% 55% at 50% 115%, rgba(125,211,252,0.20), transparent 70%), linear-gradient(180deg, #06111F 0%, #0B2442 54%, #153A66 100%)",
             "--slide-fg": "#eef4ff",
             "--slide-muted": "#afbdd6",
             "--slide-accent": "#7dd3fc",
@@ -240,7 +241,7 @@ const PRESENTATION_THEMES = {
         surfaceBorder: "rgba(248, 243, 231, 0.15)",
         cssVars: {
             "--slide-bg":
-                "repeating-linear-gradient(-2deg, rgba(255,255,255,0.035) 0 1px, transparent 1px 36px), linear-gradient(115deg, rgba(245,215,110,0.08) 0 24%, transparent 24% 100%), linear-gradient(180deg, #19362D 0%, #10261F 100%)",
+                "repeating-linear-gradient(-2deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 36px), radial-gradient(70% 60% at 0% 0%, rgba(245,215,110,0.08), transparent 70%), linear-gradient(180deg, #19362D 0%, #10261F 100%)",
             "--slide-fg": "#F8F3E7",
             "--slide-muted": "#D4CBB7",
             "--slide-accent": "#F5D76E",
@@ -264,7 +265,7 @@ const PRESENTATION_THEMES = {
         surfaceBorder: "rgba(195, 236, 231, 0.14)",
         cssVars: {
             "--slide-bg":
-                "linear-gradient(90deg, rgba(99,230,216,0.11) 0 1px, transparent 1px 20%), repeating-linear-gradient(90deg, rgba(99,230,216,0.045) 0 1px, transparent 1px 76px), repeating-linear-gradient(0deg, rgba(99,230,216,0.040) 0 1px, transparent 1px 76px), linear-gradient(160deg, #061716 0%, #0A2320 54%, #123632 100%)",
+                "repeating-linear-gradient(90deg, rgba(99,230,216,0.04) 0 1px, transparent 1px 76px), repeating-linear-gradient(0deg, rgba(99,230,216,0.035) 0 1px, transparent 1px 76px), radial-gradient(70% 60% at 0% 100%, rgba(99,230,216,0.10), transparent 70%), linear-gradient(160deg, #061716 0%, #0A2320 54%, #123632 100%)",
             "--slide-fg": "#ECF7F5",
             "--slide-muted": "#9AB8B3",
             "--slide-accent": "#63E6D8",
@@ -288,7 +289,7 @@ const PRESENTATION_THEMES = {
         surfaceBorder: "rgba(245, 247, 255, 0.14)",
         cssVars: {
             "--slide-bg":
-                "linear-gradient(135deg, rgba(243,183,106,0.13) 0 18%, transparent 18% 100%), linear-gradient(28deg, transparent 0 66%, rgba(110,134,255,0.14) 66% 100%), linear-gradient(160deg, #101421 0%, #1A2034 48%, #262542 100%)",
+                "radial-gradient(60% 55% at 0% 0%, rgba(243,183,106,0.16), transparent 70%), radial-gradient(65% 60% at 100% 100%, rgba(110,134,255,0.18), transparent 70%), linear-gradient(160deg, #101421 0%, #1A2034 48%, #262542 100%)",
             "--slide-fg": "#F5F7FF",
             "--slide-muted": "#BDC4DE",
             "--slide-accent": "#F3B76A",
@@ -312,7 +313,7 @@ const PRESENTATION_THEMES = {
         surfaceBorder: "rgba(79, 125, 90, 0.16)",
         cssVars: {
             "--slide-bg":
-                "repeating-linear-gradient(0deg, rgba(79,125,90,0.032) 0 1px, transparent 1px 42px), linear-gradient(130deg, rgba(155,184,156,0.22) 0 24%, transparent 24% 100%), linear-gradient(180deg, #FCFCF4 0%, #EDF4E8 100%)",
+                "repeating-linear-gradient(0deg, rgba(79,125,90,0.03) 0 1px, transparent 1px 42px), radial-gradient(70% 60% at 0% 0%, rgba(155,184,156,0.28), transparent 70%), linear-gradient(180deg, #FCFCF4 0%, #EDF4E8 100%)",
             "--slide-fg": "#25342d",
             "--slide-muted": "#68786e",
             "--slide-accent": "#4f7d5a",
@@ -336,7 +337,7 @@ const PRESENTATION_THEMES = {
         surfaceBorder: "rgba(71, 124, 164, 0.14)",
         cssVars: {
             "--slide-bg":
-                "linear-gradient(145deg, rgba(184,217,232,0.24) 0 28%, transparent 28% 100%), linear-gradient(35deg, transparent 0 72%, rgba(192,131,147,0.16) 72% 100%), linear-gradient(180deg, #FFFFFF 0%, #EEF7F9 100%)",
+                "radial-gradient(65% 60% at 0% 0%, rgba(184,217,232,0.40), transparent 70%), radial-gradient(55% 50% at 100% 100%, rgba(192,131,147,0.16), transparent 70%), linear-gradient(180deg, #FFFFFF 0%, #EEF7F9 100%)",
             "--slide-fg": "#233047",
             "--slide-muted": "#6c7890",
             "--slide-accent": "#477ca4",
@@ -360,7 +361,7 @@ const PRESENTATION_THEMES = {
         surfaceBorder: "rgba(183, 110, 121, 0.16)",
         cssVars: {
             "--slide-bg":
-                "linear-gradient(120deg, rgba(183,110,121,0.12) 0 22%, transparent 22% 100%), linear-gradient(35deg, transparent 0 70%, rgba(170,134,80,0.14) 70% 100%), linear-gradient(180deg, #FFFDFC 0%, #F7E7E4 100%)",
+                "radial-gradient(65% 60% at 0% 0%, rgba(183,110,121,0.14), transparent 70%), radial-gradient(55% 50% at 100% 100%, rgba(170,134,80,0.14), transparent 70%), linear-gradient(180deg, #FFFDFC 0%, #F7E7E4 100%)",
             "--slide-fg": "#3a2b32",
             "--slide-muted": "#7f6b72",
             "--slide-accent": "#b76e79",
@@ -384,7 +385,7 @@ const PRESENTATION_THEMES = {
         surfaceBorder: "rgba(213, 157, 32, 0.18)",
         cssVars: {
             "--slide-bg":
-                "linear-gradient(135deg, rgba(246,213,111,0.28) 0 24%, transparent 24% 100%), repeating-linear-gradient(90deg, rgba(213,157,32,0.035) 0 1px, transparent 1px 58px), linear-gradient(180deg, #FFFCF0 0%, #F5EBC5 100%)",
+                "radial-gradient(70% 60% at 0% 0%, rgba(246,213,111,0.36), transparent 70%), repeating-linear-gradient(90deg, rgba(213,157,32,0.03) 0 1px, transparent 1px 58px), linear-gradient(180deg, #FFFCF0 0%, #F5EBC5 100%)",
             "--slide-fg": "#332b15",
             "--slide-muted": "#756c4c",
             "--slide-accent": "#d59d20",
@@ -408,7 +409,7 @@ const PRESENTATION_THEMES = {
         surfaceBorder: "rgba(22, 139, 139, 0.15)",
         cssVars: {
             "--slide-bg":
-                "linear-gradient(140deg, rgba(121,200,197,0.24) 0 25%, transparent 25% 100%), repeating-linear-gradient(0deg, rgba(22,139,139,0.035) 0 1px, transparent 1px 46px), linear-gradient(180deg, #F7FCFC 0%, #E4F4F3 100%)",
+                "radial-gradient(70% 60% at 0% 0%, rgba(121,200,197,0.30), transparent 70%), repeating-linear-gradient(0deg, rgba(22,139,139,0.03) 0 1px, transparent 1px 46px), linear-gradient(180deg, #F7FCFC 0%, #E4F4F3 100%)",
             "--slide-fg": "#17323a",
             "--slide-muted": "#5f7880",
             "--slide-accent": "#168b8b",
@@ -432,7 +433,7 @@ const PRESENTATION_THEMES = {
         surfaceBorder: "rgba(125, 107, 179, 0.15)",
         cssVars: {
             "--slide-bg":
-                "linear-gradient(145deg, rgba(201,190,232,0.26) 0 26%, transparent 26% 100%), linear-gradient(35deg, transparent 0 72%, rgba(207,138,114,0.16) 72% 100%), linear-gradient(180deg, #FCFBFF 0%, #EFEAF8 100%)",
+                "radial-gradient(65% 60% at 0% 0%, rgba(201,190,232,0.38), transparent 70%), radial-gradient(55% 50% at 100% 100%, rgba(207,138,114,0.14), transparent 70%), linear-gradient(180deg, #FCFBFF 0%, #EFEAF8 100%)",
             "--slide-fg": "#302c45",
             "--slide-muted": "#756f8d",
             "--slide-accent": "#7d6bb3",
@@ -456,7 +457,7 @@ const PRESENTATION_THEMES = {
         surfaceBorder: "rgba(154, 230, 180, 0.16)",
         cssVars: {
             "--slide-bg":
-                "linear-gradient(135deg, rgba(154,230,180,0.12) 0 24%, transparent 24% 100%), repeating-linear-gradient(90deg, rgba(239,247,237,0.030) 0 1px, transparent 1px 62px), linear-gradient(155deg, #07130E 0%, #10231A 52%, #183826 100%)",
+                "radial-gradient(70% 60% at 0% 0%, rgba(154,230,180,0.12), transparent 70%), repeating-linear-gradient(90deg, rgba(239,247,237,0.025) 0 1px, transparent 1px 62px), linear-gradient(155deg, #07130E 0%, #10231A 52%, #183826 100%)",
             "--slide-fg": "#eff7ed",
             "--slide-muted": "#b7c9b7",
             "--slide-accent": "#9ae6b4",
@@ -480,7 +481,7 @@ const PRESENTATION_THEMES = {
         surfaceBorder: "rgba(239, 71, 111, 0.18)",
         cssVars: {
             "--slide-bg":
-                "repeating-linear-gradient(-8deg, rgba(239,71,111,0.08) 0 2px, transparent 2px 28px), linear-gradient(135deg, rgba(255,207,90,0.34) 0 28%, transparent 28% 100%), linear-gradient(180deg, #FFF9EA 0%, #FFE7DF 100%)",
+                "repeating-linear-gradient(-8deg, rgba(239,71,111,0.05) 0 2px, transparent 2px 28px), linear-gradient(135deg, rgba(255,207,90,0.34) 0 28%, transparent 28% 100%), linear-gradient(180deg, #FFF9EA 0%, #FFE7DF 100%)",
             "--slide-fg": "#28212a",
             "--slide-muted": "#745f76",
             "--slide-accent": "#ef476f",
@@ -1121,12 +1122,10 @@ function _retintElementForTheme(el, previousTheme, nextTheme) {
     if (!el || !el.styles) return;
     if (el.themeManaged === false) return;
 
-    // A preset slide's background shape is the theme's slide background: an edited preset slide (no longer
-    // rebuilt from its preset) kept the old theme's dark gradient under the new theme's text.
-    if (el.presetBackground && typeof _modernPalette === "function") {
-        const palette = _modernPalette(nextTheme);
-        el.styles.backgroundColor = palette.canvas;
-        el.styles.background = palette.canvasBackground;
+    // A preset slide's backdrop stays transparent, so the slide shows the new theme's background.
+    if (el.presetBackground) {
+        el.styles.backgroundColor = "transparent";
+        delete el.styles.background;
         return;
     }
 

@@ -109,6 +109,15 @@ function _readableTextAccent(hex, isLight) {
     return isLight ? "#111827" : "#FFFFFF";
 }
 
+// `share` of the way from colour `from` to colour `to` (both #rrggbb); `from` unchanged if either is not hex.
+function _mixHex(from, to, share) {
+    const a = _presetHexToRgb(from);
+    const b = _presetHexToRgb(to);
+    if (!a || !b) return from;
+    const channel = key => Math.round(a[key] + (b[key] - a[key]) * share).toString(16).padStart(2, "0");
+    return `#${channel("r")}${channel("g")}${channel("b")}`.toUpperCase();
+}
+
 function _alpha(hex, opacity) {
     const rgb = _presetHexToRgb(hex);
     if (!rgb) return hex;

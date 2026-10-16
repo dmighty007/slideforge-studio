@@ -11,10 +11,12 @@ function _modernPalette(theme) {
     const line = sb || (isLight ? "rgba(15,23,42,0.12)" : "rgba(255,255,255,0.14)");
     const washOpacity = isLight ? 0.12 : 0.18;
     const washOpacityStrong = isLight ? 0.18 : 0.24;
-    const fallbackAccents = isLight
-        ? ["#2563EB", "#0F766E", "#B45309", "#7C3AED", "#BE185D", "#0369A1"]
-        : ["#7DD3FC", "#5EEAD4", "#FBBF24", "#C4B5FD", "#FDA4AF", "#93C5FD"];
-    const accents = [a, a2, ...fallbackAccents].filter(Boolean);
+    // More accents come from the theme's two, not a fixed rainbow (a six-card grid had blue, orange and purple
+    // stripes in every theme): their blend, and deeper (light slides) or lighter (dark slides) tones of each.
+    const toward = isLight ? "#000000" : "#FFFFFF";
+    const between = _mixHex(a, a2, 0.5);
+    const accents = [a, a2, between, _mixHex(a, toward, 0.3), _mixHex(a2, toward, 0.3), _mixHex(between, toward, 0.3), _mixHex(a, toward, 0.5)]
+        .filter(Boolean);
     return {
         a,
         a2,
@@ -50,10 +52,11 @@ function _mBox(x, y, w, h, fill, border, radius = "18px", extra = {}, zIndex) {
     return box;
 }
 
-function _presetBackgroundBox(fill, background) {
+// A full-slide backdrop that keeps clicks off the slide behind a preset. It is transparent: the slide itself shows
+// the theme's background (a flat fill here hid it, and PowerPoint export skips the box). The arguments are unused.
+function _presetBackgroundBox(_fill, _background) {
     return {
-        ..._mBox(0, 0, 1024, 768, fill, undefined, "0px", {
-            background,
+        ..._mBox(0, 0, 1024, 768, "transparent", undefined, "0px", {
             pointerEvents: "none",
         }, 0),
         presetBackground: true,

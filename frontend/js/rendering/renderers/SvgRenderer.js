@@ -58,6 +58,60 @@ function parseLinearGradient(layer) {
     return stops.length ? { angle, repeating: !!match[1], stops } : null;
 }
 
+// One radial-gradient(...) layer, as the themes write their soft glows: "[circle|ellipse] [W% H%] [at X% Y%]",
+// then stops as in a linear gradient. Sizes default to the farthest corner, the centre to the middle.
+function parseRadialGradient(layer) {
+    const match = String(layer).match(/^radial-gradient\((.*)\)$/is);
+    if (!match) return null;
+    const args = splitTopLevel(match[1]);
+    const shape = String(args[0] || "").trim().toLowerCase()
+        .match(/^(circle|ellipse)?\s*(?:([\d.]+)%\s+([\d.]+)%)?\s*(?:at\s+(-?[\d.]+)%\s+(-?[\d.]+)%)?$/);
+    const geometry = shape && shape[0] ? { circle: shape[1] === "circle", w: shape[2], h: shape[3], x: shape[4], y: shape[5] } : null;
+    if (geometry) args.shift();
+    const stops = [];
+    args.forEach(arg => {
+        const tokens = splitTopLevel(arg, " ").filter(Boolean);
+        const color = tokens.shift();
+        const positions = tokens.map(t => (t.endsWith("%") ? { frac: parseFloat(t) / 100 } : /^-?[\d.]+(px)?$/.test(t) ? { px: parseFloat(t) } : null));
+        if (!positions.length) stops.push({ color, pos: null });
+        positions.forEach(pos => stops.push({ color, pos }));
+    });
+    return stops.length ? { ...(geometry || {}), stops } : null;
+}
+
+// SVG stop colours: a "transparent" stop takes its neighbour's colour at zero opacity. CSS fades to transparent
+// with premultiplied alpha; SVG fades the colour itself, so transparent black left a dark halo round each glow.
+function svgStopColors(stops) {
+    const colors = stops.map(stop => svgColor(stop.color));
+    return colors.map((entry, i) => {
+        if (entry.opacity > 0 || !/^transparent$/i.test(String(stops[i].color || "").trim())) return entry;
+        const near = [...colors.slice(i + 1), ...colors.slice(0, i).reverse()].find(other => other.opacity > 0);
+        return near ? { color: near.color, opacity: 0 } : entry;
+    });
+}
+
+// A radial layer as an SVG radialGradient: the ellipse is a circle of radius rx stretched to ry.
+function radialGradientDef(gradient, page, id) {
+    const cx = gradient.x !== undefined ? (parseFloat(gradient.x) / 100) * page.width : page.width / 2;
+    const cy = gradient.y !== undefined ? (parseFloat(gradient.y) / 100) * page.height : page.height / 2;
+    const farX = Math.max(cx, page.width - cx);
+    const farY = Math.max(cy, page.height - cy);
+    let rx = gradient.w !== undefined ? (parseFloat(gradient.w) / 100) * page.width : farX * Math.SQRT2;
+    let ry = gradient.h !== undefined ? (parseFloat(gradient.h) / 100) * page.height : farY * Math.SQRT2;
+    if (gradient.circle && gradient.w === undefined) rx = ry = Math.hypot(farX, farY);
+    rx = Math.max(0.5, rx);
+    ry = Math.max(0.5, ry);
+    const resolved = resolveStops(gradient.stops, rx, false);
+    const colors = svgStopColors(resolved);
+    const stops = resolved.map((stop, i) => {
+        const { color, opacity } = colors[i];
+        const offset = Math.max(0, Math.min(1, stop.at / rx));
+        return `<stop offset="${offset.toFixed(5)}" stop-color="${escapeAttr(color)}" stop-opacity="${opacity}"/>`;
+    }).join("");
+    const stretch = `translate(${cx.toFixed(2)} ${cy.toFixed(2)}) scale(1 ${(ry / rx).toFixed(5)}) translate(${(-cx).toFixed(2)} ${(-cy).toFixed(2)})`;
+    return `<radialGradient id="${escapeAttr(id)}" gradientUnits="userSpaceOnUse" cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="${rx.toFixed(2)}" gradientTransform="${stretch}">${stops}</radialGradient>`;
+}
+
 // Stop positions in px along a gradient line of the given length, with missing ones filled in as CSS does
 // (first 0, last the end, the rest spread evenly, never going backwards).
 function resolveStops(stops, length, repeating) {
@@ -83,8 +137,17 @@ function renderCssBackground(css, page, idPrefix) {
     const defs = [];
     const rects = [];
     layers.forEach((layer, index) => {
+        const radial = parseRadialGradient(layer);
+        if (radial) {
+            const id = `${idPrefix}-bg-${index}`;
+            defs.push(radialGradientDef(radial, page, id));
+            rects.push(`<rect x="0" y="0" width="${page.width}" height="${page.height}" fill="url(#${escapeAttr(id)})"/>`);
+            return;
+        }
         const gradient = parseLinearGradient(layer);
         if (!gradient) {
+            // Another kind of layer (conic, an image) cannot be drawn here: leave it out rather than paint it black.
+            if (/\(/.test(layer) && !/^rgba?\(/i.test(layer.trim())) return;
             const { color, opacity } = svgColor(layer);
             rects.push(`<rect x="0" y="0" width="${page.width}" height="${page.height}" fill="${escapeAttr(color)}" fill-opacity="${opacity}"/>`);
             return;
@@ -101,8 +164,9 @@ function renderCssBackground(css, page, idPrefix) {
         const span = gradient.repeating ? Math.max(0.5, stops[stops.length - 1].at - start) : length;
         const origin = gradient.repeating ? start : 0;
         const id = `${idPrefix}-bg-${index}`;
-        const stopMarkup = stops.map(stop => {
-            const { color, opacity } = svgColor(stop.color);
+        const colors = svgStopColors(stops);
+        const stopMarkup = stops.map((stop, i) => {
+            const { color, opacity } = colors[i];
             const offset = Math.max(0, Math.min(1, (stop.at - origin) / span));
             return `<stop offset="${offset.toFixed(5)}" stop-color="${escapeAttr(color)}" stop-opacity="${opacity}"/>`;
         }).join("");

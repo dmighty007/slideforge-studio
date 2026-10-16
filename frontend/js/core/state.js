@@ -1570,6 +1570,12 @@ function normalizeStateIds() {
                     ) {
                         delete normalizedStyles.textAlign;
                     }
+                    // A preset's full-slide backdrop only blocks clicks: the slide shows the theme's background. Its
+                    // old flat fill (#F8FAFC or #0B1020 for every theme) hid that background in the editor and viewer.
+                    if (safeEl.presetBackground === true) {
+                        normalizedStyles.backgroundColor = "transparent";
+                        delete normalizedStyles.background;
+                    }
                     return normalizedStyles;
                 })(),
             };
