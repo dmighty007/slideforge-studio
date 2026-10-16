@@ -374,9 +374,23 @@ function setupControls(element) {
     }
     if (fontField) fontField.value = !element && themeFont ? themeFont : style.fontFamily;
     if (fontSizeField) fontSizeField.value = style.fontSize;
-    if (fillField) fillField.value = style.primaryColor;
-    if (textField) textField.value = style.primaryTextColor;
-    if (lineField) lineField.value = style.lineColor;
+    // A new diagram on a light theme takes the theme's colours: lines in its accent, boxes in a pale tint of it, text
+    // in its text colour (every diagram was indigo on every theme).
+    const theme = typeof getPresentationTheme === "function" ? getPresentationTheme() : null;
+    const hex = value => (/^#[0-9a-f]{6}$/i.test(String(value || "")) ? String(value).toLowerCase() : null);
+    const accent = hex(theme?.accentStrong);
+    const ink = hex(theme?.defaultTextColor);
+    const lightTheme = ink && [1, 3, 5].reduce((sum, i) => sum + parseInt(ink.slice(i, i + 2), 16), 0) / 3 < 128;
+    const themed = !element && accent && lightTheme
+        ? {
+              line: accent,
+              fill: `#${[1, 3, 5].map(i => Math.round(255 + (parseInt(accent.slice(i, i + 2), 16) - 255) * 0.12).toString(16).padStart(2, "0")).join("")}`,
+              text: ink,
+          }
+        : null;
+    if (fillField) fillField.value = themed?.fill || style.primaryColor;
+    if (textField) textField.value = themed?.text || style.primaryTextColor;
+    if (lineField) lineField.value = themed?.line || style.lineColor;
     if (handDrawnField) handDrawnField.checked = Boolean(style.handDrawn);
     if (renderModeField) renderModeField.value = style.renderMode || (style.handDrawn ? "sketch" : "real");
     if (handDrawnField) {

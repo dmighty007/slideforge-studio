@@ -137,6 +137,14 @@ function initKeyboard() {
             return;
         }
 
+        // Escape in a field of the Properties panel leaves the field (the value stays as typed); the next Escape
+        // deselects. It did nothing, and the panel kept showing the field's object and its table cell.
+        if (rawKey === "Escape" && target?.tagName === "INPUT" && target.closest?.("#properties-panel")) {
+            e.preventDefault();
+            target.blur();
+            return;
+        }
+
         // Let focused form fields keep native text undo/redo.
         if (isEditingField) {
             return;

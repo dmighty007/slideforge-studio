@@ -940,7 +940,21 @@ async function updatePluginElementData(id, updates) {
     const plugin = getSlidePlugin(el?.pluginId);
     if (!el || !plugin) return;
     const previous = normalizePluginData(plugin, el.pluginData);
-    const next = normalizePluginData(plugin, { ...(el.pluginData || {}), ...updates });
+    let next = normalizePluginData(plugin, { ...(el.pluginData || {}), ...updates });
+    // New table data (typed, pasted or loaded from a CSV): the plugin may take labels from its header row, so a loaded
+    // "Dose (mg)" does not stay under the example's "Dose (µM)" (study 2026-10-16b).
+    if (typeof plugin.onTableData === "function") {
+        plugin.fields
+            .filter(field => field.type === "table" && field.key in updates && updates[field.key] !== previous[field.key])
+            .forEach(field => {
+                try {
+                    const extra = plugin.onTableData(field.key, parsePluginTable(next[field.key]), next, previous);
+                    if (extra && typeof extra === "object") next = normalizePluginData(plugin, { ...next, ...extra });
+                } catch (error) {
+                    console.warn(`${plugin.name}: labels not taken from the table:`, error);
+                }
+            });
+    }
     saveStateToUndo();
     el.pluginData = next;
     _sfPluginErrors.delete(id);

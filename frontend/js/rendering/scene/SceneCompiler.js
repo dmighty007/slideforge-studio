@@ -105,17 +105,43 @@ function applyTextTransform(textDocument, transform) {
     return walk(textDocument);
 }
 
+// Auto-fit text at the size the editor fitted it to (the title shrunk to fit its box): exported at its set size it ran
+// onto a second line. Sizes inside the text scale with it.
+function fittedTextScale(element = {}) {
+    if (element.textFitMode !== "autofit" || typeof document === "undefined") return 1;
+    const node = [...document.querySelectorAll(`[id="${element.id}"]`)].find(n => !n.closest("#slide-previews"));
+    const shown = parseFloat(node?.querySelector(".text-element-content")?.style.fontSize);
+    const set = parseFloat(element.styles?.fontSize);
+    return Number.isFinite(shown) && Number.isFinite(set) && set > 0 && shown < set ? shown / set : 1;
+}
+
+function scaleFontSizes(value, scale) {
+    if (scale === 1 || !value || typeof value !== "object") return value;
+    if (Array.isArray(value)) return value.map(item => scaleFontSizes(item, scale));
+    const copy = {};
+    Object.entries(value).forEach(([key, item]) => {
+        copy[key] =
+            key === "fontSize" && /^[\d.]+px$/.test(String(item))
+                ? `${Math.round(parseFloat(item) * scale * 10) / 10}px`
+                : scaleFontSizes(item, scale);
+    });
+    return copy;
+}
+
 function compileText(element = {}) {
     const textDocument =
         element.textDocument ||
         (typeof window !== "undefined" && window.SlideForgeText?.textDocumentFromLegacyContent
             ? window.SlideForgeText.textDocumentFromLegacyContent(element.content || "", { bulletStyle: element.bulletStyle || "default" })
             : null);
+    const scale = fittedTextScale(element);
+    const base = baseNode(element);
+    if (scale !== 1) base.style = scaleFontSizes(base.style, scale);
     return {
-        ...baseNode(element),
+        ...base,
         type: "text",
         content: element.content || "",
-        textDocument: applyTextTransform(clone(textDocument), element.styles?.textTransform),
+        textDocument: scaleFontSizes(applyTextTransform(clone(textDocument), element.styles?.textTransform), scale),
         bulletStyle: element.bulletStyle || "default",
         textFitMode: element.textFitMode || "fixed",
         exportPolicy: "vector",
@@ -242,9 +268,18 @@ export function compileElementToSceneNode(element = {}) {
 }
 
 export function compileSlideToSceneSlide(slide = {}, index = 0, context = {}) {
-    const nodes = (slide.elements || [])
+    // The master's decorations (the theme's top band, footer rule, page-number pill…) are drawn with the slide, not
+    // stored in it: the SVG export left them out. They go under the slide's own objects.
+    const masters =
+        typeof window !== "undefined" && typeof window.buildMasterSlideElements === "function"
+            ? window.buildMasterSlideElements(slide, index, typeof window.getPresentationTheme === "function" ? window.getPresentationTheme() : null) || []
+            : [];
+    const masterNodes = masters
+        .filter(element => element && !element.hidden)
+        .map(element => ({ ...compileElementToSceneNode(element), zIndex: -1000 + (Number(element.styles?.zIndex) || 0) }));
+    const nodes = [...masterNodes, ...(slide.elements || [])
         .filter(element => element && !element.hidden && element.type !== "whiteboard")
-        .map(compileElementToSceneNode)
+        .map(compileElementToSceneNode)]
         .sort((a, b) => a.zIndex - b.zIndex);
     const annotationLayer = compileAnnotationLayer(slide);
     if (annotationLayer) nodes.push(annotationLayer);

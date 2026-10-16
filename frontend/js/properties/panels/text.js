@@ -39,6 +39,20 @@ function buildTextPanel(panel, data) {
         `<input type="number" id="prop-text-autofit-min" class="prop-input-sm" min="6" max="72" step="1" value="${Math.max(6, Number(data.minAutoFitFontSize) || 8)}">`,
       ),
     );
+    // How far the text was shrunk to fit, so a title at 24 pt is noticed (1 px = 0.75 pt at the slide's size), with a
+    // way to keep the set size by letting the box grow instead (study 2026-10-16b).
+    const node = [...document.querySelectorAll(`[id="${data.id}"]`)].find((n) => !n.closest("#slide-previews"));
+    const shown = parseFloat(node?.querySelector(".text-element-content")?.style.fontSize);
+    const set = parseFloat(data.styles?.fontSize);
+    if (Number.isFinite(shown) && Number.isFinite(set) && shown < set - 0.5) {
+      const points = Math.round(shown * 0.75);
+      const small = points < 28;
+      const note = document.createElement("div");
+      note.id = "prop-text-autofit-note";
+      note.className = `prop-field-hint text-autofit-note${small ? " is-small" : ""}`;
+      note.innerHTML = `Shrunk to ${points} pt to fit (set: ${Math.round(set * 0.75)} pt)${small ? ", small for a slide title" : ""}. <button type="button" id="prop-text-autofit-grow" class="font-semibold text-primary">Keep ${Math.round(set * 0.75)} pt, grow the box</button>`;
+      layoutGrp.appendChild(note);
+    }
   }
   panel.appendChild(layoutGrp);
 
@@ -462,6 +476,14 @@ function buildTextPanel(panel, data) {
       }
       buildPropertiesPanel();
       refreshPreviews?.();
+    };
+  }
+
+  const autoFitGrow = document.getElementById("prop-text-autofit-grow");
+  if (autoFitGrow && textFitMode) {
+    autoFitGrow.onclick = () => {
+      textFitMode.value = "autoHeight";
+      textFitMode.dispatchEvent(new Event("change"));
     };
   }
 

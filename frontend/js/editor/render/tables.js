@@ -67,6 +67,23 @@ function _pasteTableBlock(elData, startRow, startCol, text) {
 // The table's box holds all of its rows: text that wraps in a narrow column grows the box instead of disappearing
 // behind a scrollbar (which also showed on the slide, when presenting and in exports). A box grown this way
 // shrinks back when the text no longer needs the room; a height set by hand is never reduced.
+// A table grown to hold its rows that now runs past the footer (four pasted rows took a table near the bottom off
+// the slide) moves up to stay on the slide. Not while a cell is being typed in (the slide would be redrawn under the
+// caret): on the commit that ends it.
+function _keepGrownTableOnSlide(container, stored) {
+  if (!stored.tableHeightGrown || container.querySelector(".table-element-cell.is-editing")) return;
+  const page = typeof getPresentationPageSetupConfig === "function" ? getPresentationPageSetupConfig() : null;
+  const footerTop = typeof _currentSlideFooterTop === "function" ? _currentSlideFooterTop() : null;
+  const floor = footerTop !== null ? footerTop - 8 : (Number(page?.height) || 768) - 40;
+  const top = parseFloat(stored.y) || 0;
+  const height = parseFloat(stored.height) || 0;
+  if (top + height <= floor) return;
+  const next = Math.max(24, Math.round(floor - height));
+  if (next === top) return;
+  stored.y = next;
+  requestAnimationFrame(() => window.renderSlidesFromState?.());
+}
+
 function _fitTableBoxToContent(container, elData, table) {
   const host = container.closest(".canvas-element");
   if (!host || host.closest("#slide-previews")) return;
@@ -86,8 +103,10 @@ function _fitTableBoxToContent(container, elData, table) {
     const done = height <= original;
     Object.assign(stored, { height: `${height}px`, tableHeightGrown: !done, tableHeightBeforeGrowth: done ? undefined : original });
   } else {
+    _keepGrownTableOnSlide(container, stored);
     return;
   }
+  _keepGrownTableOnSlide(container, stored);
   if (elData !== stored) Object.assign(elData, { height: stored.height, tableHeightGrown: stored.tableHeightGrown, tableHeightBeforeGrowth: stored.tableHeightBeforeGrowth });
   if (state.selectedIds?.includes(elData.id) && typeof updateGroupBound === "function") updateGroupBound();
   if (typeof syncPanelGeometryFields === "function") syncPanelGeometryFields();

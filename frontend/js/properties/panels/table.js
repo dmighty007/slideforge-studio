@@ -59,7 +59,17 @@ function buildTablePanel(panel, data) {
                 <div class="rounded-lg border border-slate-200 bg-white p-3 space-y-3">
                     <div class="flex items-center justify-between">
                         <span class="text-xs text-slate-600 uppercase font-semibold">Text Style</span>
-                        <span class="text-[10px] text-slate-400">${tableSelection ? "Applies to selection" : "Applies to table default"}</span>
+                        ${
+                          tableSelection
+                            ? `<span class="table-text-scope is-part">Only ${
+                                tableSelection.type === "cell"
+                                  ? `cell R${selectedRow + 1} C${selectedCol + 1}`
+                                  : tableSelection.type === "row"
+                                    ? `row ${selectedRow + 1}`
+                                    : `column ${selectedCol + 1}`
+                              } · <button type="button" id="prop-table-text-whole" class="font-semibold text-primary">Whole table</button></span>`
+                            : `<span class="table-text-scope">Whole table</span>`
+                        }
                     </div>
                     <div class="grid grid-cols-2 gap-3">
                         <label class="flex flex-col gap-1">
@@ -242,6 +252,16 @@ function bindTablePanel(data) {
     colWidthInput.addEventListener("blur", commit);
   }
 
+  // The text settings apply to the selected cell, row or column when there is one; a selection left from an earlier
+  // click made Size change one cell while the rest of the table stayed as it was (study 2026-10-16b).
+  document
+    .getElementById("prop-table-text-whole")
+    ?.addEventListener("click", () => {
+      mutateSelectedTableData((tableData) => {
+        tableData.selection = null;
+      });
+      clearTablePartSelections();
+    });
   document
     .getElementById("prop-table-clear-selection")
     ?.addEventListener("click", () => {

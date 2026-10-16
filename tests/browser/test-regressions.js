@@ -6597,6 +6597,135 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("study 2026-10-16b: a table's text settings say which cell they change and can go back to the whole table; Escape leaves a panel field", async () => {
+        const { page } = await openEditor(context);
+        await page.evaluate(() => { setPropertiesPanelVisible(true, { persist: false }); addSlide(); addElement("table"); });
+        const id = await page.evaluate(() => state.slides[currentSlideIndex].elements.find(e => e.type === "table").id);
+        const point = await page.evaluate(id => { const n = [...document.querySelectorAll(`[id="${id}"]`)].find(x => !x.closest("#slide-previews")); const r = n.querySelectorAll("tr")[1].querySelectorAll("td")[1].getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }, id);
+        await page.mouse.click(point[0], point[1]);
+        await page.waitForTimeout(300);
+        await page.evaluate(() => document.querySelector('.properties-tab[data-properties-tab="content"]')?.click());
+        await page.waitForFunction(() => typeof document.getElementById("prop-table-col-width")?.onchange !== "undefined");
+        await page.locator("#prop-table-col-width").fill("200");
+        await page.locator("#prop-table-col-width").press("Enter");
+        await page.locator("#prop-table-col-width").press("Escape");
+        const left = await page.evaluate(() => document.activeElement?.id || "");
+        assert(left !== "prop-table-col-width", "Escape did not leave the panel field");
+        await page.evaluate(() => document.querySelector('.properties-tab[data-properties-tab="style"]')?.click());
+        await page.waitForTimeout(300);
+        const scope = await page.evaluate(() => document.querySelector(".table-text-scope")?.textContent || "");
+        assert(/Only cell R2 C2/.test(scope) && /Whole table/.test(scope), `scope shown: ${scope}`);
+        await page.click("#prop-table-text-whole");
+        await page.waitForTimeout(300);
+        const after = await page.evaluate(id => ({ selection: state.slides[currentSlideIndex].elements.find(e => e.id === id).tableData.selection, scope: document.querySelector(".table-text-scope")?.textContent || "" }), id);
+        assert(after.selection === null && /^Whole table$/.test(after.scope.trim()), `after Whole table: ${JSON.stringify(after)}`);
+        await page.close();
+    });
+
+    await test("study 2026-10-16b: a title shrunk below 28 pt says so and can keep its size by growing the box", async () => {
+        const { page } = await openEditor(context);
+        await page.evaluate(() => setPropertiesPanelVisible(true, { persist: false }));
+        const ids = await newContentSlide(page);
+        await page.evaluate(id => {
+            const title = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            title.content = "Caffeine induces CYP1A2 and XDH and suppresses ADORA2A expression in human liver tissue";
+            delete title.textDocument;
+            renderSlidesFromState();
+            selectElement(id, "replace");
+        }, ids.title);
+        await page.waitForTimeout(500);
+        await page.evaluate(() => { buildPropertiesPanel(); document.querySelector('.properties-tab[data-properties-tab="content"]')?.click(); });
+        await page.waitForTimeout(200);
+        const note = await page.evaluate(() => document.getElementById("prop-text-autofit-note")?.textContent || "");
+        assert(/Shrunk to \d+ pt to fit \(set: 30 pt\), small for a slide title/.test(note), `note: ${note}`);
+        await page.click("#prop-text-autofit-grow");
+        await page.waitForTimeout(400);
+        const el = await page.evaluate(id => { const e = state.slides[currentSlideIndex].elements.find(x => x.id === id); const n = document.getElementById(id).querySelector(".text-element-content"); return { mode: e.textFitMode, shown: parseFloat(getComputedStyle(n).fontSize) }; }, ids.title);
+        assert(el.mode === "autoHeight" && el.shown === 40, `after growing the box: ${JSON.stringify(el)}`);
+        await page.close();
+    });
+
+    await test("study 2026-10-16b: loaded data names the axes of a curve fit and a survival curve while the labels are still the example's", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const fit = await pageAwait(page, () => insertPluginElement("curve-fit", null, { ask: false }));
+        await pageAwait(page, id => SlideForgePlugins.update(id, { data: "Dose (mg),Clearance (L/h)\n10,1.2\n30,2.9\n100,6.1\n300,8.8\n1000,9.6" }), fit);
+        const labels = await page.evaluate(id => { const d = state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginData; return [d.xLabel, d.yLabel]; }, fit);
+        assert(labels[0] === "Dose (mg)" && labels[1] === "Clearance (L/h)", `curve fit labels: ${JSON.stringify(labels)}`);
+        // A label the user typed stays.
+        await pageAwait(page, id => SlideForgePlugins.update(id, { xLabel: "Oral dose (mg)" }), fit);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { data: "Dose (g),Clearance (L/h)\n0.01,1.2\n0.03,2.9\n0.1,6.1\n0.3,8.8\n1,9.6" }), fit);
+        const kept = await page.evaluate(id => state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginData.xLabel, fit);
+        assert(kept === "Oral dose (mg)", `typed label replaced: ${kept}`);
+        const km = await pageAwait(page, () => insertPluginElement("kaplan-meier", null, { ask: false }));
+        await pageAwait(page, id => SlideForgePlugins.update(id, { data: "Time (months),Event,Group\n6,1,A\n9,1,A\n12,0,A\n10,0,B\n18,1,B\n26,0,B" }), km);
+        const kmLabel = await page.evaluate(id => state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginData.xLabel, km);
+        assert(kmLabel === "Time (months)", `survival x label: ${kmLabel}`);
+        await page.close();
+    });
+
+    await test("study 2026-10-16b: flowcharts in the theme's colours, their panel shows the theme font, Web ZIP tables have no scrollbar", async () => {
+        const { page } = await openEditor(context);
+        await page.evaluate(() => { setPropertiesPanelVisible(true, { persist: false }); changePresentationTheme("editorial"); addSlide(); openMermaidDialog(); });
+        await page.waitForTimeout(1000);
+        await page.locator("#mermaid-apply-btn").click();
+        await page.waitForTimeout(1000);
+        const out = await page.evaluate(() => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.type === "mermaid");
+            return { line: el.style.lineColor, accent: getPresentationTheme().accentStrong.toLowerCase(), panelFont: document.getElementById("prop-mermaid-font")?.selectedOptions[0]?.textContent || "" };
+        });
+        assert(out.line === out.accent, `flowchart line colour: ${JSON.stringify(out)}`);
+        assert(/^Theme font/.test(out.panelFont), `panel font: ${JSON.stringify(out)}`);
+        const css = await page.evaluate(async () => {
+            const zip = await JSZip.loadAsync(await buildViewerBundle({ includeVendor: false }));
+            const files = Object.keys(zip.files);
+            const texts = await Promise.all(files.filter(name => /\.(html|css)$/.test(name)).map(name => zip.file(name).async("string")));
+            return texts.join("\n").match(/\.table-element-scroll \{[^}]*\}/g) || [];
+        });
+        // No rule lets the table scroll (a few pixels of difference drew a scrollbar in the viewer).
+        assert(css.some(rule => /overflow: hidden/.test(rule)) && !css.some(rule => /overflow(-y)?: (auto|scroll)/.test(rule)), `viewer table CSS: ${JSON.stringify(css)}`);
+        await page.close();
+    });
+
+    await test("study 2026-10-16b: a pasted table stays on the slide, and the SVG has the theme's top band and the fitted title", async () => {
+        const { page } = await openEditor(context);
+        await newContentSlide(page);
+        const id = await page.evaluate(() => {
+            addElement("table");
+            const el = state.slides[currentSlideIndex].elements.find(e => e.type === "table");
+            el.y = 417;
+            renderSlidesFromState();
+            return el.id;
+        });
+        const first = await page.evaluate(id => { const r = document.querySelector(`.slides [id="${id}"] .table-element-cell`).getBoundingClientRect(); return [r.x + 15, r.y + 15]; }, id);
+        await page.mouse.dblclick(first[0], first[1]);
+        await page.evaluate(() => {
+            const data = new DataTransfer();
+            data.setData("text/plain", "Study\tYear\tN\tHR\nA\t2015\t120\t0.82\nB\t2018\t340\t0.67\nC\t2020\t510\t0.91\nThis study\t2026\t220\t0.74\nPooled\t\t1190\t0.79\n");
+            document.activeElement.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+        });
+        await page.waitForTimeout(800);
+        const box = await page.evaluate(id => { const el = state.slides[currentSlideIndex].elements.find(e => e.id === id); return { bottom: el.y + parseFloat(el.height), footer: _currentSlideFooterTop() }; }, id);
+        assert(box.bottom <= box.footer, `the table runs past the footer: ${JSON.stringify(box)}`);
+        const svg = await page.evaluate(() => {
+            const title = state.slides[currentSlideIndex].elements.find(e => e.placeholder === "Click to add title");
+            title.content = "Drug B raises clearance in every cohort we followed for over two years, at all three doses";
+            delete title.textDocument;
+            renderSlidesFromState();
+            return new Promise(resolve => setTimeout(() => {
+                const node = document.getElementById(title.id).querySelector(".text-element-content");
+                const out = window.exportCurrentSlideSceneSVG({ filename: "t.svg" })?.svg || "";
+                const doc = new DOMParser().parseFromString(out, "image/svg+xml");
+                const sizes = [...doc.querySelectorAll(`[data-node-id="${title.id}"] tspan`)].map(t => parseFloat(t.getAttribute("font-size")));
+                const band = [...doc.querySelectorAll("rect")].some(r => Number(r.getAttribute("y")) === 0 && Number(r.getAttribute("height")) <= 10 && Number(r.getAttribute("width")) > 1000);
+                resolve({ shown: parseFloat(node.style.fontSize), svg: Math.max(...sizes), band });
+            }, 500));
+        });
+        assert(svg.band, "the SVG has no top band");
+        assert(Math.abs(svg.svg - svg.shown) <= 0.5, `title in the SVG at ${svg.svg}px, on the slide at ${svg.shown}px`);
+        await page.close();
+    });
+
     if (!FRONTEND_ONLY) {
         // ─── Plugin manager (js/ui/plugin-manager.js, studio/plugins.py) ───────────────────────────────────────
         // Plugin switches are kept by the server: each test puts them back as it found them.
@@ -6609,36 +6738,40 @@ async function test(name, fn) {
         await test("study 2026-10-16: titles on slides not shown keep their size, after reopening too", async () => {
             const first = await openEditor(context);
             const titles = ["High intake tends to delay liver events, in line with earlier cohorts", "Caffeine induces CYP1A2 and XDH in liver", "Conclusions", "Backup"];
-            await first.page.evaluate(titles => {
-                titles.forEach(text => {
+            // The slides this test adds, by id (addSlide puts a slide after the current one, not at the end of the deck).
+            const added = await first.page.evaluate(titles => {
+                const ids = titles.map(text => {
                     addSlide();
                     const title = state.slides[currentSlideIndex].elements.find(e => e.placeholder === "Click to add title");
                     title.content = text;
                     delete title.textDocument;
+                    return state.slides[currentSlideIndex].id;
                 });
                 renderSlidesFromState();
-                switchSlide(1);
+                switchSlide(0);
                 schedulePresentationAutosave?.(0);
+                return ids;
             }, titles);
             await first.page.waitForTimeout(1200);
             // Shown size of each added slide's title: on its own slide once shown, and while another slide is shown.
             const sizes = page =>
-                page.evaluate(async count => {
+                page.evaluate(async added => {
                     const out = [];
-                    const from = state.slides.length - count;
+                    const indexes = added.map(id => state.slides.findIndex(slide => slide.id === id));
                     const shownSize = index => {
                         const el = state.slides[index].elements.find(e => e.placeholder === "Click to add title");
                         const node = [...document.querySelectorAll(`[id="${el.id}"]`)].find(n => !n.closest("#slide-previews"));
-                        return { stored: parseFloat(el.styles.fontSize), shown: parseFloat(node.querySelector(".text-element-content").style.fontSize) || parseFloat(getComputedStyle(node.querySelector(".text-element-content")).fontSize) };
+                        const host = node.querySelector(".text-element-content");
+                    return { stored: parseFloat(el.styles.fontSize), shown: parseFloat(host.style.fontSize) || parseFloat(getComputedStyle(host).fontSize), text: host.textContent.slice(0, 30), box: host.clientHeight, pending: node.dataset.fitPending || "", mode: el.textFitMode };
                     };
-                    const hidden = shownSize(state.slides.length - 1);
-                    for (let i = from; i < state.slides.length; i++) {
-                        switchSlide(i);
+                    const hidden = shownSize(indexes[indexes.length - 1]);
+                    for (const index of indexes) {
+                        switchSlide(index);
                         await new Promise(resolve => setTimeout(resolve, 500));
-                        out.push(shownSize(i));
+                        out.push(shownSize(index));
                     }
                     return { hidden, onScreen: out };
-                }, titles.length);
+                }, added);
             const before = await sizes(first.page);
             await first.page.evaluate(() => saveCurrentProject());
             await first.page.waitForTimeout(800);

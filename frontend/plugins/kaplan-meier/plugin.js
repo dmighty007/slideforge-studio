@@ -215,6 +215,17 @@
             };
         },
 
+        // The x label from a new table's time column header ("Time (months)"), while it is still the example's
+        // "Time (weeks)" or the last table's header: month data kept the label in weeks.
+        onTableData(key, rows, data, previous) {
+            if (key !== "data" || !rows.length) return null;
+            const head = String(rows[0][0] || "").trim();
+            if (!head || Number.isFinite(Number(head))) return null;
+            const oldHead = String((typeof parsePluginTable === "function" ? parsePluginTable(previous.data)[0]?.[0] : "") || "").trim();
+            const automatic = !data.xLabel || data.xLabel === "Time (weeks)" || data.xLabel === oldHead;
+            return automatic && data.xLabel !== head ? { xLabel: head } : null;
+        },
+
         render(data, context) {
             const subjects = readSubjects(context.parseTable(data.data));
             const names = [...new Set(subjects.map(s => s.group))].slice(0, 8);

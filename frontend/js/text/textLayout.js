@@ -3,8 +3,10 @@ function toPxNumber(value) {
     return Number.isFinite(num) ? num : 0;
 }
 
+// The element's own setting comes first: the node's data-text-fit-mode is from its last drawing, and right after a
+// change from "Auto fit" it still said autofit, so the text was fitted once more at the shrunk size.
 function isTextAutoHeightEnabled(data, dom) {
-    if (data?.textFitMode === "autofit" || dom?.dataset?.textFitMode === "autofit") return false;
+    if (data?.textFitMode === "autofit" || (!data?.textFitMode && dom?.dataset?.textFitMode === "autofit")) return false;
     if (data && typeof data.autoHeight === "boolean") return data.autoHeight;
     if (dom?.dataset?.autoHeight) return dom.dataset.autoHeight !== "false";
     return true;
@@ -12,7 +14,7 @@ function isTextAutoHeightEnabled(data, dom) {
 
 function getTextFitMode(data, dom) {
     if (data?.textFitMode === "autofit") return "autofit";
-    if (dom?.dataset?.textFitMode === "autofit") return "autofit";
+    if (!data?.textFitMode && dom?.dataset?.textFitMode === "autofit") return "autofit";
     if (data?.autoHeight === true || dom?.dataset?.autoHeight === "true") return "autoHeight";
     if (data?.textFitMode === "fixed") return "fixed";
     return isTextAutoHeightEnabled(data, dom) ? "autoHeight" : "fixed";

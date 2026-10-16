@@ -281,7 +281,7 @@
 
     SlideForgePlugins.register({
         id: "curve-fit",
-        version: "1",
+        version: "2",
         name: "Curve Fit",
         description: "Points with a fitted curve: dose-response (EC50), line, Michaelis–Menten or decay, with 95% intervals",
         icon: "fa-solid fa-chart-line",
@@ -297,7 +297,7 @@
             showParams: true,
             xLabel: "Dose (µM)",
             yLabel: "Response (%)",
-            pointSize: 6,
+            pointSize: 8,
             lineWidth: 2.5,
             fontSize: 16,
         },
@@ -356,10 +356,26 @@
                 showParams: data.showParams !== false,
                 xLabel: String(data.xLabel ?? "").slice(0, 80),
                 yLabel: String(data.yLabel ?? "").slice(0, 80),
-                pointSize: number(data.pointSize, 6, 2, 16),
+                pointSize: number(data.pointSize, 8, 2, 16),
                 lineWidth: number(data.lineWidth, 2.5, 0.5, 8),
                 fontSize: number(data.fontSize, 16, 8, 32),
             };
+        },
+
+        // Axis labels from a new table's header row, while they are still the example's (or the last header's):
+        // "Dose (mg),Clearance" names the axes "Dose (mg)" and, for one series, "Clearance".
+        onTableData(key, rows, data, previous) {
+            if (key !== "data" || !rows.length) return null;
+            const header = rows[0];
+            if (numberOrNull(header[0]) !== null && header.slice(1).every(cell => numberOrNull(cell) !== null)) return null;
+            const oldHeader = (typeof parsePluginTable === "function" ? parsePluginTable(previous.data)[0] : null) || [];
+            const defaults = { xLabel: "Dose (µM)", yLabel: "Response (%)" };
+            const automatic = (value, field, oldValue) => !value || value === defaults[field] || value === oldValue;
+            const updates = {};
+            if (header[0] && automatic(data.xLabel, "xLabel", oldHeader[0])) updates.xLabel = header[0];
+            const series = header.slice(1).filter(Boolean);
+            if (series.length === 1 && automatic(data.yLabel, "yLabel", oldHeader.length === 2 ? oldHeader[1] : null)) updates.yLabel = series[0];
+            return updates;
         },
 
         // The fitted values with their 95% intervals, to read and quote.

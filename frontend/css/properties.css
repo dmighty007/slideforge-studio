@@ -2013,3 +2013,20 @@
     text-overflow: ellipsis;
 }
 
+
+/* Which part of a table the text settings change: a cell, row or column stands out (Size changed one cell unnoticed). */
+.table-text-scope {
+    font-size: 11px;
+    color: #64748b;
+}
+.table-text-scope.is-part {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #fef3c7;
+    color: #92400e;
+    font-weight: 600;
+}
+
+.text-autofit-note.is-small {
+    color: #92400e;
+}

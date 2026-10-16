@@ -1,5 +1,16 @@
 // Properties panel section for Mermaid diagram elements.
 
+// The font list with the theme's body font first ("Theme font (DM Sans)"), and the diagram's own font when it is in
+// neither: a diagram drawn in the theme font showed "Inter", the list's first entry (study 2026-10-16b).
+function _mermaidPanelFontOptions(current, fonts) {
+  const themeFont = String((typeof getPresentationTheme === "function" && getPresentationTheme()?.bodyFont) || "").replace(/"/g, "'");
+  const name = (font) => String(font).split(",")[0].replace(/['"]/g, "").trim();
+  const list = [...fonts];
+  if (themeFont) list.unshift([themeFont, `Theme font (${name(themeFont)})`]);
+  if (current && !list.some(([value]) => value === current)) list.push([current, name(current)]);
+  return list;
+}
+
 function buildMermaidPanel(panel, data) {
   const mermaidGrp = createGroup("Mermaid Diagram");
   const mermaidStyle = {
@@ -24,7 +35,7 @@ function buildMermaidPanel(panel, data) {
                 <div class="flex flex-col gap-1.5 mb-2">
                     <label class="text-xs font-medium text-gray-400">Font</label>
                     <select id="prop-mermaid-font" class="w-full">
-                        ${[
+                        ${_mermaidPanelFontOptions(mermaidStyle.fontFamily, [
                           ["Inter, Arial, sans-serif", "Inter"],
                           ["Arial, sans-serif", "Arial"],
                           ["Georgia, serif", "Georgia"],
@@ -35,7 +46,7 @@ function buildMermaidPanel(panel, data) {
                             "XKCD",
                           ],
                           ["Courier New, monospace", "Mono"],
-                        ]
+                        ])
                           .map(
                             ([value, label]) =>
                               `<option value="${value}" ${mermaidStyle.fontFamily === value ? "selected" : ""}>${label}</option>`,

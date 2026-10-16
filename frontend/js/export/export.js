@@ -1946,7 +1946,8 @@ body {
 }
 
 .table-element-scroll {
-    overflow: auto;
+    /* As in the editor: the box holds all its rows, and a few pixels of difference drew a scrollbar on the slide. */
+    overflow: hidden;
 }
 
 .table-element-grid {
