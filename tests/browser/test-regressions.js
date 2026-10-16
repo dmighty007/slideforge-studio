@@ -5395,6 +5395,61 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("overnight: two saves at once both land, and an unchanged deck counts as saved", async () => {
+        const { page } = await openFreshEditor(context);
+        const r = await pageAwait(page, async () => {
+            await autosavePresentationNow();
+            // The same deck twice in a row: identical snapshots (text documents kept their ids).
+            const stable = getPersistableFingerprint() === getPersistableFingerprint();
+            const savedAfterOpen = _persistedStateIsCurrent();
+            // Looked up for each edit: a save normalises the state, which replaces the element objects.
+            const title = () => state.slides[0].elements.find(e => e.placeholder === "Click to add title");
+            delete title().textDocument;
+            title().content = "first edit";
+            const first = autosavePresentationNow();
+            await new Promise(resolve => setTimeout(resolve, 5));
+            delete title().textDocument;
+            title().content = "second edit";
+            const second = autosavePresentationNow();
+            const results = await Promise.allSettled([first, second]);
+            const server = await _presentationRequest(`/api/presentations/${currentPresentationId}/`, { method: "GET" });
+            return {
+                stable,
+                savedAfterOpen,
+                results: results.map(x => x.status),
+                server: String(server.state.slides[0].elements.find(e => e.placeholder === "Click to add title").content),
+                current: _persistedStateIsCurrent(),
+                hint: document.querySelector("#project-save-hint")?.textContent || "",
+            };
+        });
+        assert(r.stable && r.savedAfterOpen, `snapshots of an unchanged deck differ: ${JSON.stringify(r)}`);
+        assert(r.results.every(x => x === "fulfilled") && r.server.includes("second edit"), `overlapping saves: ${JSON.stringify(r)}`);
+        assert(r.current && !/conflict/i.test(r.hint), `after both saves: ${JSON.stringify(r)}`);
+        await page.close();
+    });
+
+    await test("overnight: an equation inserted before KaTeX's fonts load is measured again and fits its box", async () => {
+        const { page } = await openFreshEditor(context);
+        const r = await pageAwait(page, async () => {
+            addSlide();
+            // As if the fonts had not arrived: the first measurement uses the fallback width.
+            const realLayout = equationLayout;
+            equationLayout = (html, size) => ({ ...realLayout(html, size), width: `${Math.round(parseFloat(realLayout(html, size).width) * 0.8)}px` });
+            addEquationElement("\\nabla \\times \\left( \\frac{1}{\\varepsilon(\\mathbf r)} \\nabla \\times \\mathbf H(\\mathbf r) \\right) = \\left(\\frac{\\omega}{c}\\right)^2 \\mathbf H(\\mathbf r)");
+            const id = state.selectedIds[0];
+            const narrow = parseFloat(state.slides[currentSlideIndex].elements.find(e => e.id === id).width);
+            equationLayout = realLayout;
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            const node = [...document.querySelectorAll(`[id="${id}"]`)].find(n => !n.closest("#slide-previews"));
+            const box = node.getBoundingClientRect();
+            const k = node.querySelector(".katex").getBoundingClientRect();
+            return { narrow, width: parseFloat(el.width), inside: k.left >= box.left - 1 && k.right <= box.right + 1 };
+        });
+        assert(r.width > r.narrow && r.inside, `equation still cut off: ${JSON.stringify(r)}`);
+        await page.close();
+    });
+
     await test("Field study: typing survives closing before autosave without pagehide", async () => {
         const { page } = await openFreshEditor(context);
         await page.evaluate(async () => { await autosavePresentationNow(); });

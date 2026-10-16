@@ -1452,8 +1452,15 @@ function normalizeStateIds() {
                           minAutoFitFontSize: Number.isFinite(Number(safeEl.minAutoFitFontSize))
                               ? Math.max(6, Math.min(72, Number(safeEl.minAutoFitFontSize)))
                               : undefined,
+                          // Kept when it was built from this same content, as ensureElementTextDocument does: rebuilt
+                          // on every call it got new random block and run ids, so two snapshots of an unchanged deck
+                          // never matched (every autosave sent the deck again, "Unsaved changes" stayed after a save,
+                          // and a save that landed after the page closed could not be recognised).
+                          _textDocumentSourceContent: _textSourceKey(safeEl.content),
                           textDocument:
-                              typeof createTextDocumentFromLegacyContent === "function"
+                              safeEl.textDocument && safeEl._textDocumentSourceContent === _textSourceKey(safeEl.content)
+                                  ? safeEl.textDocument
+                                  : typeof createTextDocumentFromLegacyContent === "function"
                                   ? createTextDocumentFromLegacyContent(
                                         safeEl.content !== undefined && safeEl.content !== null
                                             ? safeEl.content
@@ -1763,6 +1770,11 @@ function syncElementSurface(element, slide) {
         : element.type === "molecule" ? (moleculeFogColor(slide) || theme.surfaceColor || "#ffffff")
         : theme.surfaceColor || "#ffffff";
     element.styles = { ...element.styles, backgroundColor };
+}
+
+// The text a text box's document was built from, compared as ensureElementTextDocument compares it.
+function _textSourceKey(content) {
+    return typeof content === "object" && content !== null ? JSON.stringify(content) : String(content || "");
 }
 
 function getPersistableState() {
@@ -2158,7 +2170,17 @@ async function initPresentationPersistence(force = false) {
     }
 }
 
-async function autosavePresentationNow() {
+// One save at a time. A second PATCH sent while one was in flight carried the same autosave version, so the server
+// refused it (409): the newer edits stayed unsaved and the user was told to reload, which would have lost them.
+// Each call now waits for the one before; it then saves only what is still unsaved.
+let _autosaveChain = Promise.resolve();
+function autosavePresentationNow() {
+    const run = _autosaveChain.catch(() => {}).then(() => _autosavePresentationOnce());
+    _autosaveChain = run;
+    return run;
+}
+
+async function _autosavePresentationOnce() {
     if (
         !_presentationPersistenceEnabled ||
         !_presentationPersistenceReady ||

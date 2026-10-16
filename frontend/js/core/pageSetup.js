@@ -407,6 +407,10 @@ function changePresentationPageSetup(nextId) {
     }
 
     if (typeof saveStateToUndo === "function") saveStateToUndo();
+    // Normalised first, so each object's remembered layout (sizeMemo) is taken from the same form of it every time.
+    // Normalising fills in defaults (a border radius, the auto-height flag); when that happened between two size
+    // changes, untouched objects looked moved and were not put back.
+    if (typeof normalizeStateIds === "function") normalizeStateIds();
     const nextConfig = PRESENTATION_PAGE_SETUPS[normalized];
     state.pageSetup = normalized;
     state.slides = (state.slides || []).map(slide => {

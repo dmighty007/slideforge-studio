@@ -678,6 +678,35 @@ function equationLayout(content, fontSize = 24) {
         height: `${Math.ceil(naturalHeight * ratio)}px`, fontSize: `${fontSize * ratio}px` };
 }
 
+// KaTeX's fonts load the first time an equation is drawn. Measured before that (in fallback fonts) an equation came
+// out about a fifth narrower than it is, and its box cut it off on both sides. They are fetched at start-up, and an
+// equation inserted or edited before they arrive is measured again once they have.
+const KATEX_FONT_FAMILIES = ["KaTeX_Main", "KaTeX_Math", "KaTeX_Size1", "KaTeX_Size2", "KaTeX_Size3", "KaTeX_Size4", "KaTeX_AMS"];
+function loadKatexFonts() {
+    if (!document.fonts?.load) return Promise.resolve();
+    return Promise.all(KATEX_FONT_FAMILIES.flatMap(family => ["16px", "bold 16px", "italic 16px"].map(face => document.fonts.load(`${face} ${family}`).catch(() => null))));
+}
+loadKatexFonts();
+
+// Re-measures equation `id` with KaTeX's fonts loaded, at the size that was asked for, and widens (or narrows) its box
+// to fit, kept on the slide. Outside undo: it completes the insert or edit that was just made.
+async function refitEquationWhenFontsLoad(id, requestedFontSize = 24) {
+    await loadKatexFonts();
+    const slide = state.slides.find(s => s.elements?.some(el => el.id === id));
+    const el = slide?.elements.find(item => item.id === id);
+    if (!el || el.type !== "equation") return;
+    const layout = equationLayout(el.content, requestedFontSize);
+    if (Math.abs(parseFloat(layout.width) - parseFloat(el.width)) < 2 && layout.fontSize === el.styles?.fontSize) return;
+    const page = getPresentationPageSetupConfig();
+    const width = parseFloat(layout.width);
+    el.width = layout.width;
+    el.height = layout.height;
+    el.styles = { ...el.styles, fontSize: layout.fontSize };
+    el.x = Math.round(Math.max(64, Math.min(parseFloat(el.x) || 0, page.width - 64 - width)));
+    renderSlidesFromState();
+    schedulePresentationAutosave?.();
+}
+
 function addEquationElement(latexSrc) {
     const activeIndex = typeof currentSlideIndex !== "undefined" ? currentSlideIndex : 0;
     saveStateToUndo();
@@ -713,6 +742,7 @@ function addEquationElement(latexSrc) {
     }));
     renderSlidesFromState();
     selectElement(id);
+    refitEquationWhenFontsLoad(id, 24);
 }
 
 function switchSidebarTab(tabName) {
