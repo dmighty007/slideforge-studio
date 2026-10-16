@@ -57,7 +57,7 @@ class PluginManagerTests(TestCase):
         self.assertIn("SMILES", smiles["name"])
         built_in = {p["id"]: p for p in data["plugins"] if p["source"] == "bundled"}
         expected = json.loads((settings.FRONTEND_DIR / "plugins" / "plugins.json").read_text())["plugins"]
-        self.assertEqual(len(expected), 25)
+        self.assertEqual(len(expected), 26)
         for plugin_id in expected:
             self.assertTrue(built_in[plugin_id]["enabled"], plugin_id)
             self.assertTrue(built_in[plugin_id].get("description"), plugin_id)

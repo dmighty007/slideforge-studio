@@ -91,6 +91,8 @@ function _fitTableBoxToContent(container, elData, table) {
   if (elData !== stored) Object.assign(elData, { height: stored.height, tableHeightGrown: stored.tableHeightGrown, tableHeightBeforeGrowth: stored.tableHeightBeforeGrowth });
   if (state.selectedIds?.includes(elData.id) && typeof updateGroupBound === "function") updateGroupBound();
   if (typeof syncPanelGeometryFields === "function") syncPanelGeometryFields();
+  // The slide thumbnail was drawn with the old height and cut the last rows off (study 2026-10-16, F7).
+  if (typeof window.refreshPreviews === "function") window.refreshPreviews();
 }
 
 function _renderTableDom(container, elData, { interactive = true } = {}) {

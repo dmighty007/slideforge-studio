@@ -1,0 +1,8 @@
+{
+    "id": "curve-fit",
+    "name": "Curve Fit",
+    "version": "1.0.0",
+    "description": "Points with a least-squares fit: dose-response (EC50, Hill slope), straight line, Michaelis–Menten or one-phase decay, with 95% confidence intervals.",
+    "icon": "fa-solid fa-chart-line",
+    "author": "SlideForge"
+}

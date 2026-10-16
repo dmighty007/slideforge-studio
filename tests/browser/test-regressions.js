@@ -6548,6 +6548,55 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("study 2026-10-16: a slide thumbnail shows every row of a table that grew to hold them", async () => {
+        const { page } = await openEditor(context);
+        const id = await page.evaluate(() => {
+            addSlide();
+            addElement("table");
+            const el = state.slides[currentSlideIndex].elements.find(e => e.type === "table");
+            const data = normalizeTableData(el.tableData);
+            data.cells[2][0].text = "A long line of text that wraps over several lines in this narrow column of the table";
+            updateElementState(el.id, { tableData: data });
+            renderSlidesFromState();
+            return el.id;
+        });
+        await page.waitForTimeout(1200);
+        const sizes = await page.evaluate(id => {
+            const stored = parseFloat(state.slides[currentSlideIndex].elements.find(e => e.id === id).height);
+            // Thumbnail copies carry no id: the table of this slide's card.
+            const card = document.querySelectorAll("#slide-previews .slide-preview-card")[currentSlideIndex];
+            const thumb = card?.querySelector('.canvas-element[data-type="table"]');
+            return { stored, thumb: parseFloat(thumb?.style.height) };
+        }, id);
+        assert(Math.abs(sizes.stored - sizes.thumb) <= 1, `thumbnail table height: ${JSON.stringify(sizes)}`);
+        await page.close();
+    });
+
+    await test("study 2026-10-16: the curve-fit plugin fits a dose-response curve as SciPy does and draws it on a log axis", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("curve-fit", null, { ask: false }));
+        const out = await pluginSvgQuery(page, id, `
+            return {
+                curves: svg.querySelectorAll("path.fit-curve").length,
+                points: svg.querySelectorAll("circle").length,
+                legend: [...svg.querySelectorAll("text.fit-legend")].map(t => t.textContent),
+                ticks: [...svg.querySelectorAll("text")].map(t => t.textContent).filter(t => ["0.01", "0.1", "1", "10"].includes(t)),
+            };`);
+        // SciPy 1.18 curve_fit on the example's Drug A: log EC50 −0.149273 (EC50 0.709), Hill 1.06022.
+        assert(out.curves === 2 && out.points === 16, `drawing: ${JSON.stringify(out)}`);
+        assert(/^Drug A: EC50 0\.709 \(/.test(out.legend[0]) && /Hill 1\.06/.test(out.legend[0]), `fitted values: ${JSON.stringify(out.legend)}`);
+        assert(out.ticks.length === 4, `log axis ticks: ${JSON.stringify(out.ticks)}`);
+        // A straight line on its own data; a dose of 0 cannot go on the log axis of a dose-response fit.
+        await pageAwait(page, id => SlideForgePlugins.update(id, { model: "linear", data: "x,y\n0,1.1\n1,3.4\n2,5.6\n3,8.2\n4,10.1" }), id);
+        const status = await page.evaluate(id => getSlidePlugin("curve-fit").status(state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginData), id);
+        assert(/^y: slope 2\.28 /.test(status), `linear fit: ${status}`);
+        await pageAwait(page, id => SlideForgePlugins.update(id, { model: "dose-response" }), id);
+        const error = await page.evaluate(id => getPluginElementError(id), id);
+        assert(/doses above 0/.test(error), `dose of 0: ${error}`);
+        await page.close();
+    });
+
     if (!FRONTEND_ONLY) {
         // ─── Plugin manager (js/ui/plugin-manager.js, studio/plugins.py) ───────────────────────────────────────
         // Plugin switches are kept by the server: each test puts them back as it found them.
