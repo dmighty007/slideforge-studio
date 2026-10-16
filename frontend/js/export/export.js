@@ -2234,6 +2234,8 @@ ${typeof _serializeMoleculePayload === "function" ? _serializeMoleculePayload.to
 ${typeof _moleculeSrcdocScript === "function" ? _moleculeSrcdocScript.toString() : ""}
 ${typeof buildMoleculeEmbedSrcdoc === "function" ? buildMoleculeEmbedSrcdoc.toString() : ""}
 ${typeof applyMoleculeEmbedSandbox === "function" ? applyMoleculeEmbedSandbox.toString() : ""}
+${typeof syncMoleculeRenderScales === "function" ? syncMoleculeRenderScales.toString() : ""}
+${typeof watchMoleculeRenderScales === "function" ? watchMoleculeRenderScales.toString() : ""}
 ${typeof attachMoleculeDataBridge === "function" ? attachMoleculeDataBridge.toString() : ""}
 
 function normalizeImageCropTransform(crop) {

@@ -1690,6 +1690,54 @@ async function test(name, fn) {
         return { id, viewer };
     };
 
+    await test("molecules draw sharp in a scaled slide and are fitted to their drawn atoms, not far waters", async () => {
+        const { page } = await openFreshEditor(context);
+        const fs = require("fs");
+        const os = require("os");
+        const path = require("path");
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sf-mol-sharp-"));
+        const { pdb } = writeTestProtein(dir);
+        // Crystal waters far from the chains: they used to set the zoom, leaving the protein small in its box.
+        const waters = [[60, 0, 0], [-60, 0, 0], [0, 60, 0], [0, -60, 0]].map(([x, y, z], i) =>
+            `HETATM${String(900 + i).padStart(5)}  O   HOH W${String(i + 1).padStart(4)}    ${[x, y, z].map(v => v.toFixed(3).padStart(8)).join("")}  1.00 20.00           O`);
+        const withWaters = path.join(dir, "with-waters.pdb");
+        fs.writeFileSync(withWaters, fs.readFileSync(pdb, "utf8").replace("END\n", waters.join("\n") + "\nEND\n"));
+        // How much of the picture the molecule covers: the bounding box of pixels unlike the corner (background).
+        const cover = frame => frame.evaluate(async () => {
+            await new Promise(resolve => setTimeout(resolve, 300));
+            const canvas = document.querySelector("canvas");
+            const copy = document.createElement("canvas");
+            copy.width = canvas.width;
+            copy.height = canvas.height;
+            const g = copy.getContext("2d");
+            g.drawImage(canvas, 0, 0);
+            const { data } = g.getImageData(0, 0, copy.width, copy.height);
+            const bg = [0, 1, 2, 3].map(k => data[k]);
+            let minX = Infinity, maxX = -Infinity;
+            for (let y = 0; y < copy.height; y += 2) for (let x = 0; x < copy.width; x += 2) {
+                const i = (y * copy.width + x) * 4;
+                if (bg.some((v, k) => Math.abs(data[i + k] - v) > 24)) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); }
+            }
+            return { canvasWidth: canvas.width, cover: (maxX - minX) / copy.width };
+        });
+        const plain = await insertMoleculeFile(page, pdb);
+        const plainCover = (await cover(await plain.viewer())).cover;
+        const wet = await insertMoleculeFile(page, withWaters);
+        const wetCover = (await cover(await wet.viewer())).cover;
+        assert(Math.abs(wetCover - plainCover) < 0.03, `waters change the fit: ${wetCover.toFixed(2)} of the box with them, ${plainCover.toFixed(2)} without`);
+
+        await page.evaluate(() => togglePlayMode());
+        await page.waitForTimeout(1500);
+        const handle = await page.locator(`[id="${wet.id}"] iframe`).last().elementHandle();
+        const box = await handle.boundingBox();
+        const presented = await cover(await handle.contentFrame());
+        await page.evaluate(() => { if (document.body.classList.contains("play-mode-active")) togglePlayMode(); });
+        const screenPixels = box.width * (await page.evaluate(() => devicePixelRatio));
+        // The frame's border and padding take a few pixels of the box.
+        assert(presented.canvasWidth >= screenPixels * 0.92, `canvas ${presented.canvasWidth}px for ${Math.round(screenPixels)} screen pixels: stretched and blurred`);
+        await page.close();
+    });
+
     await test("molecule settings: transparent means no box at all, a layer restyles its atoms (no thick tube), depth cue and reset view work, nothing reloads", async () => {
         const { page, errors } = await openEditor(context);
         const fs = require("fs");

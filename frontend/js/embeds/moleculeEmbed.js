@@ -162,6 +162,24 @@ let spinRequested = Boolean(payload.autoRotate);
 let resumeTrajectoryOnActive = false;
 let viewStateBroadcastTimer = null;
 
+// This frame sits in a slide that is scaled to the window (editor zoom, presenting) with a CSS transform, which the
+// frame cannot see: NGL sized its canvas for the frame's own CSS pixels and the picture was stretched and blurred.
+// The page reports the scale (pptmaker:molecule:render-scale); NGL reads devicePixelRatio for both drawing and
+// picking, so answering with the screen's pixels per CSS pixel keeps the two in step.
+let renderScale = 1;
+// Chromium keeps it on the window itself, other browsers on Window.prototype.
+const nativePixelRatio = (Object.getOwnPropertyDescriptor(window, "devicePixelRatio") ||
+  Object.getOwnPropertyDescriptor(Window.prototype, "devicePixelRatio"))?.get;
+function effectivePixelRatio() {
+  const native = Number(nativePixelRatio?.call(window)) || 1;
+  // At most about 8 megapixels, so a large viewer on a 4K screen still turns smoothly.
+  const area = Math.max(1, window.innerWidth * window.innerHeight);
+  return Math.max(1, Math.min(native * renderScale, 4, Math.sqrt(8000000 / area)));
+}
+try {
+  Object.defineProperty(window, "devicePixelRatio", { configurable: true, get: effectivePixelRatio });
+} catch (_err) { /* left at the screen's ratio */ }
+
 // The status line is shown while loading and when loading fails (it used to be hidden always, so a file the
 // viewer could not read left an empty black box), and hidden once the molecule is drawn.
 function setStatus(text, mode) {
@@ -412,9 +430,21 @@ function resizeViewer() {
 }
 // The first view: fitted to the molecule, then the saved turn and zoom on top.
 let fittedWhileCollapsed = false;
+// Fit to what is drawn. NGL fits every atom, so the crystal waters and ions of a PDB entry (not drawn) set the
+// zoom, and a protein came out a third of its box: small, and drawn with few pixels.
+function fitStructure(duration = 0) {
+  const shown = "not (water or ion)";
+  try {
+    if (component.structure.getView(new NGL.Selection(shown)).atomCount > 0) {
+      component.autoView(shown, duration);
+      return;
+    }
+  } catch (_err) { /* fit everything */ }
+  component.autoView(duration);
+}
 function fitInitialView() {
   if (!component) return;
-  component.autoView(0);
+  fitStructure(0);
   initialOrientation = stage.viewerControls?.getOrientation?.()?.clone?.() || null;
   if (applyViewState(payload.viewState)) {
     setTimeout(() => applyViewState(payload.viewState), 80);
@@ -510,7 +540,7 @@ function colorParams(color, customHex) {
   return { colorScheme: "element" };
 }
 function representationParams(kind, color, customHex, selection, layerOptions = {}) {
-  const params = { sele: selection || "all", quality: "medium", ...colorParams(color, customHex) };
+  const params = { sele: selection || "all", quality: meshQuality(kind), ...colorParams(color, customHex) };
   const radius = Number.isFinite(Number(layerOptions.radius)) ? Number(layerOptions.radius) : null;
   const opacity = Number.isFinite(Number(layerOptions.opacity)) ? Number(layerOptions.opacity) : null;
   if (kind === "surface") {
@@ -527,9 +557,16 @@ function representationParams(kind, color, customHex, selection, layerOptions = 
     params.radiusScale = 0.7 * (radius == null ? 1 : Math.max(0.1, Math.min(3, radius)));
     params.aspectRatio = 5;
   }
-  // Large structures: a lighter mesh, or the first drawing takes seconds and turning the molecule stutters.
-  if (structureAtomCount() > 30000) params.quality = "low";
   return params;
+}
+// How fine the drawn mesh is. "medium" left visible facets on cartoons and spheres of ordinary proteins; large
+// structures still get a lighter mesh, or the first drawing takes seconds and turning the molecule stutters.
+// Surfaces are built on this thread, so they step down sooner.
+function meshQuality(kind = "") {
+  const atoms = structureAtomCount();
+  const limit = kind === "surface" ? 5000 : 15000;
+  if (atoms <= limit) return "high";
+  return atoms <= limit * 2 ? "medium" : "low";
 }
 function structureAtomCount() {
   return Number(component?.structure?.atomCount || 0);
@@ -574,10 +611,10 @@ function representationPlan() {
   plan.push([representationKind(kind), representationParams(kind, color, null, base)]);
   if (kind === "cartoon") {
     // Ligands and cofactors bound to the chain would otherwise be invisible.
-    plan.push(["licorice", { sele: excluding("ligand", hidden), colorScheme: "element", radius: 0.2, quality: "medium" }]);
+    plan.push(["licorice", { sele: excluding("ligand", hidden), colorScheme: "element", radius: 0.2, quality: meshQuality() }]);
   }
   if (kind === "line" || kind === "stick") {
-    plan.push(["spacefill", { sele: excluding("water", hidden), color: "#38bdf8", opacity: 0.72, radiusScale: 0.18, quality: "medium" }]);
+    plan.push(["spacefill", { sele: excluding("water", hidden), color: "#38bdf8", opacity: 0.72, radiusScale: 0.18, quality: meshQuality() }]);
   }
   shown.forEach((layer, index) => {
     const later = shown.slice(index + 1).filter(other => other.kind === layer.kind).map(other => other.sele);
@@ -627,7 +664,7 @@ async function applyRepresentations() {
 function resetView(duration = 400) {
   if (!component) return;
   if (initialOrientation && stage.animationControls?.orient) stage.animationControls.orient(initialOrientation, duration);
-  else component.autoView(duration);
+  else fitStructure(duration);
   requestRender();
   window.setTimeout(scheduleViewStateBroadcast, duration + 30);
 }
@@ -717,7 +754,7 @@ async function load() {
   try {
     stage = new window.NGL.Stage(root, {
       backgroundColor: fogColor(),
-      quality: "medium",
+      quality: "high",
       sampleLevel: 0,
       impostor: true,
       cameraType: payload.projection === "orthographic" ? "orthographic" : "perspective",
@@ -865,6 +902,18 @@ window.addEventListener("message", event => {
 });
 window.addEventListener("message", event => {
   const message = event.data || {};
+  if (message.type !== "pptmaker:molecule:render-scale") return;
+  const next = Math.max(0.25, Math.min(8, Number(message.scale) || 1));
+  if (Math.abs(next - renderScale) < 0.01) return;
+  renderScale = next;
+  // The stage made later reads the ratio itself.
+  if (stage) {
+    stage.handleResize();
+    requestRender();
+  }
+});
+window.addEventListener("message", event => {
+  const message = event.data || {};
   if (!message || message.type !== "pptmaker:molecule:lifecycle") return;
   setLifecycleActive(message.active);
 });
@@ -921,7 +970,7 @@ window.addEventListener("message", async event => {
       if (resized) {
         stage.viewer.setSize(wantWidth, wantHeight);
         if (fittedWhileCollapsed) {
-          component.autoView(0);
+          fitStructure(0);
           applyViewState(payload.viewState);
         }
       }
@@ -1065,6 +1114,38 @@ function applyMoleculeEmbedSandbox(iframe) {
     // A frame whose colour scheme differs from its page's gets an opaque backdrop: in dark mode a "transparent"
     // molecule sat in a white box. The frame's document says "normal" too.
     iframe.style.colorScheme = "normal";
+    iframe.dataset.sfMolecule = "1";
+    // A new document in the frame has not been told its scale yet.
+    iframe.addEventListener("load", () => {
+        delete iframe.dataset.sfRenderScale;
+        syncMoleculeRenderScales();
+    });
+    watchMoleculeRenderScales();
+}
+
+// Tells each molecule viewer how many screen pixels one of its own CSS pixels covers, so it draws sharp in a slide
+// scaled to the window instead of stretching its picture (see effectivePixelRatio in the viewer).
+function syncMoleculeRenderScales() {
+    document.querySelectorAll("iframe[data-sf-molecule]").forEach(iframe => {
+        if (!iframe.offsetWidth) return;
+        const scale = Math.round((iframe.getBoundingClientRect().width / iframe.offsetWidth) * 100) / 100;
+        if (!Number.isFinite(scale) || scale <= 0 || iframe.dataset.sfRenderScale === String(scale)) return;
+        iframe.dataset.sfRenderScale = String(scale);
+        iframe.contentWindow?.postMessage({ type: "pptmaker:molecule:render-scale", scale }, "*");
+    });
+}
+
+// Slides are rescaled by window resizes, editor zoom, presenting and slide transitions, with no one event for all.
+// A light check twice a second (a few rectangles, nothing while the page is hidden) catches every one of them.
+function watchMoleculeRenderScales() {
+    if (window.__sfMoleculeRenderScaleWatch) return;
+    window.__sfMoleculeRenderScaleWatch = true;
+    const sync = () => {
+        if (document.visibilityState !== "hidden") syncMoleculeRenderScales();
+    };
+    window.addEventListener("resize", sync);
+    document.addEventListener("fullscreenchange", sync);
+    setInterval(sync, 500);
 }
 
 // The colour of the slide behind a molecule, for a transparent viewer's depth cue to fade into: the slide's own
