@@ -2160,7 +2160,8 @@ async function test(name, fn) {
             await aiCleanUpSlide();
             return { before, after: footer(), count: slide.elements.filter(e => e.footerRole).length };
         });
-        assert(result.count >= 3, `expected a footer on the new slide, found ${result.count} parts`);
+        // Blank's footer is just the slide number; decorated themes add a rule and a number badge.
+        assert(result.count >= 1, `expected a footer on the new slide, found ${result.count} parts`);
         assert(result.before === result.after, `footer moved: ${result.before} -> ${result.after}`);
         await page.close();
     });
@@ -3752,7 +3753,8 @@ async function test(name, fn) {
             document.removeEventListener("mousedown", spy);
             return { defaultPrevented, menu: document.querySelectorAll(".sf-select-menu__option").length };
         });
-        assert(prevented.defaultPrevented === true && prevented.menu === 17, `opening the theme dropdown: ${JSON.stringify(prevented)}`);
+        const themeCount = await page.evaluate(() => Object.keys(PRESENTATION_THEMES).length);
+        assert(prevented.defaultPrevented === true && prevented.menu === themeCount, `opening the theme dropdown: ${JSON.stringify(prevented)}`);
         await page.locator(".sf-select-menu__option", { hasText: "Horizon" }).click();
         await page.waitForTimeout(300);
         const picked = await page.evaluate(() => ({ theme: state.presentationTheme, focus: document.activeElement?.id, open: !!document.querySelector(".sf-select-menu") }));
@@ -5355,6 +5357,8 @@ async function test(name, fn) {
     await test("QA 2026-10-15: a pasted copy of an object at the bottom of a slide goes up, not onto the footer", async () => {
         const { page } = await openFreshEditor(context);
         const result = await page.evaluate(() => {
+            // A content slide: it has a footer (on Blank the title slide has none, so nothing limits a paste there).
+            addSlide();
             const footerTop = _currentSlideFooterTop();
             addElement("shape");
             const shape = state.slides[currentSlideIndex].elements.at(-1);
@@ -5636,6 +5640,8 @@ async function test(name, fn) {
         await page.evaluate(id => { selectElement(id); setPropertiesPanelVisible(true); buildPropertiesPanel(); }, id);
         const shown = await page.evaluate(() => ({ notice: !document.getElementById("prop-plugin-notice").hidden, error: !document.getElementById("prop-plugin-error").hidden, retry: !!document.getElementById("prop-plugin-refresh") }));
         assert(shown.notice && !shown.error && shown.retry, `lookup failure shown: ${JSON.stringify(shown)}`);
+        // On a content slide, which has a footer to stay above.
+        await page.evaluate(() => addSlide());
         const plot = await pageAwait(page, () => insertPluginElement("box-plot", null, { ask: false }));
         await page.evaluate(id => { selectElement(id); buildPropertiesPanel(); }, plot);
         await page.click("#prop-plugin-fit");
