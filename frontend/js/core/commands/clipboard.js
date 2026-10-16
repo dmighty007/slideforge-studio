@@ -165,14 +165,37 @@ function _leastOverlapPosition(width, height, bounds, boxes, floor = bounds.slid
     const cy = Math.max(m, Math.min(Math.round((bounds.slideH - height) / 2), floor - height));
     const right = bounds.slideW - width - m;
     const bottom = Math.max(m, floor - height);
-    const candidates = [[cx, cy], [right, cy], [m, cy], [cx, bottom], [right, bottom], [right, m], [m, bottom], [m, m]];
+    // The content area under the title (wide boxes near the top): centred there first, then just under the title.
+    // Centred on the whole slide, objects on a titled slide sat low, near the footer.
+    const titleBottom = Math.max(
+        0,
+        ...boxes.filter(b => b.y < bounds.slideH * 0.25 && b.w > bounds.slideW * 0.4).map(b => b.y + b.h),
+    );
+    const contentTop = Math.max(m, Math.round(titleBottom + 16));
+    const contentMiddle = Math.max(contentTop, Math.min(Math.round(contentTop + (floor - contentTop - height) / 2), floor - height));
+    const candidates = [
+        [cx, contentMiddle],
+        [cx, contentTop],
+        [right, contentTop],
+        [m, contentTop],
+        [cx, cy],
+        [right, cy],
+        [m, cy],
+        [cx, bottom],
+        [right, bottom],
+        [right, m],
+        [m, bottom],
+        [m, m],
+    ];
     const overlap = ([x, y]) =>
         boxes.reduce((sum, b) => {
             const w = Math.min(x + width, b.x + b.w) - Math.max(x, b.x);
             const h = Math.min(y + height, b.y + b.h) - Math.max(y, b.y);
             return sum + (w > 0 && h > 0 ? w * h : 0);
         }, 0);
-    const best = candidates.reduce((a, b) => (overlap(b) < overlap(a) ? b : a));
+    // A spot that would run into the footer is used only if no other spot keeps clear of it.
+    const clear = candidates.filter(([, y]) => y + height <= floor + 0.5);
+    const best = (clear.length ? clear : candidates).reduce((a, b) => (overlap(b) < overlap(a) ? b : a));
     return { x: best[0], y: best[1], overlap: overlap(best) };
 }
 

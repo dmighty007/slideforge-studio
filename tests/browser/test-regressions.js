@@ -6726,6 +6726,47 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("study 2026-10-16b: objects come in under the title, not low by the footer; bullet build has its own card", async () => {
+        const { page } = await openEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const ids = await newContentSlide(page);
+        await page.evaluate(ids => {
+            const slide = state.slides[currentSlideIndex];
+            slide.elements.find(e => e.id === ids.title).content = "CYP1A2 makes paraxanthine";
+            slide.elements = slide.elements.filter(e => e.id !== ids.body);
+            renderSlidesFromState();
+        }, ids);
+        const rx = await pageAwait(page, () => insertPluginElement("smiles", { smiles: "CN1C=NC2=C1C(=O)N(C(=O)N2C)C>>CN1C=NC2=C1C(=O)N(C)C(=O)N2" }, { ask: false }));
+        const qr = await pageAwait(page, () => insertPluginElement("qr-code", { text: "https://doi.org/10.1/x" }, { ask: false }));
+        const boxes = await page.evaluate(([rx, qr, title]) => {
+            const slide = state.slides[currentSlideIndex];
+            const pick = id => { const e = slide.elements.find(x => x.id === id); return { x: e.x, y: e.y, w: parseFloat(e.width), h: parseFloat(e.height) }; };
+            const t = slide.elements.find(e => e.id === title);
+            return { rx: pick(rx), qr: pick(qr), titleBottom: t.y + parseFloat(t.height), footer: _currentSlideFooterTop() };
+        }, [rx, qr, ids.title]);
+        const middle = (boxes.titleBottom + boxes.footer) / 2;
+        assert(Math.abs(boxes.rx.y + boxes.rx.h / 2 - middle) <= 30, `the reaction is not centred under the title: ${JSON.stringify(boxes)}`);
+        const overlap = !(boxes.qr.x >= boxes.rx.x + boxes.rx.w || boxes.rx.x >= boxes.qr.x + boxes.qr.w || boxes.qr.y >= boxes.rx.y + boxes.rx.h || boxes.rx.y >= boxes.qr.y + boxes.qr.h);
+        assert(!overlap && boxes.qr.y < middle, `the second object is low or on the first: ${JSON.stringify(boxes)}`);
+        // Bullet build: its own card, not under the object's animation switch.
+        const cards = await page.evaluate(() => {
+            addElement("text");
+            const el = state.slides[currentSlideIndex].elements.at(-1);
+            el.content = "<ul><li>One</li><li>Two</li></ul>";
+            delete el.textDocument;
+            renderSlidesFromState();
+            selectElement(el.id, "replace");
+            setPropertiesPanelVisible(true, { persist: false });
+            _propertiesPanelActiveTab = "motion";
+            buildPropertiesPanel();
+            const box = document.getElementById("prop-reveal-bullets");
+            const switchCard = document.getElementById("prop-anim-enabled")?.closest(".sf-anim-panel");
+            return { box: !!box, own: !!box && !switchCard?.contains(box), title: box?.closest(".sf-anim-panel")?.querySelector(".sf-anim-panel-title")?.textContent };
+        });
+        assert(cards.box && cards.own && cards.title === "Bullet build", `bullet build card: ${JSON.stringify(cards)}`);
+        await page.close();
+    });
+
     if (!FRONTEND_ONLY) {
         // ─── Plugin manager (js/ui/plugin-manager.js, studio/plugins.py) ───────────────────────────────────────
         // Plugin switches are kept by the server: each test puts them back as it found them.

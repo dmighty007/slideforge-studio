@@ -90,7 +90,7 @@
         description: "A publication-quality structure from SMILES, with substructure highlights, R/S labels and properties",
         icon: "fa-solid fa-atom",
         insert: { category: "Chemistry", label: "Structure (RDKit, with properties)", keywords: "rdkit smiles smarts structure molecule highlight stereo cip logp tpsa properties lipinski chemistry" },
-        defaultSize: { width: 320, height: 240 },
+        defaultSize: { width: 420, height: 320 },
         defaultData: {
             smiles: "CC(C)C[C@H](C)C(=O)O",
             // No highlight unless asked for: a default pattern highlighted groups nobody had chosen.

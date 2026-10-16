@@ -428,7 +428,11 @@ function _bulletRevealSection(data) {
     const node = [...document.querySelectorAll(`[id="${data.id}"]`)].find((n) => !n.closest("#slide-previews"));
     const isList = Array.isArray(data.content) || !!node?.querySelector(".ppt-bullet-row");
     if (!isList) return "";
-    return `
+    // A card of its own: inside the Animations card it looked governed by that card's switch, which stays off for a box
+  // whose bullets are revealed one by one (study 2026-10-16b).
+  return `
+  <div class="sf-anim-panel sf-anim-bullets-panel">
+  <div class="sf-anim-panel-header"><span class="sf-anim-panel-title">Bullet build</span></div>
   <div class="sf-anim-section sf-anim-bullets">
     <label class="sf-anim-bullets-row">
       <input type="checkbox" id="prop-reveal-bullets" ${data.revealBullets ? "checked" : ""}>
@@ -437,6 +441,7 @@ function _bulletRevealSection(data) {
         <small>While presenting, each click shows the next bullet with its sub-points.</small>
       </span>
     </label>
+  </div>
   </div>`;
 }
 
@@ -512,7 +517,7 @@ function buildAnimationInspectorPanel(data) {
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
     </span>
     <span class="sf-anim-panel-title">Animations</span>
-    <label class="sf-anim-toggle-wrap" title="Enable animation">
+    <label class="sf-anim-toggle-wrap" title="Animate this object (entrance, emphasis, exit)">
       <input type="checkbox" id="prop-anim-enabled" class="sf-anim-toggle-input" ${isEnabled ? "checked" : ""}>
       <span class="sf-anim-toggle-track"><span class="sf-anim-toggle-thumb"></span></span>
     </label>
@@ -532,8 +537,8 @@ function buildAnimationInspectorPanel(data) {
     </div>
 
   </div>
-  ${_bulletRevealSection(data)}
 </div>
+${_bulletRevealSection(data)}
 
 <style>
 .sf-anim-panel {
