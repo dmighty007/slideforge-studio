@@ -1749,6 +1749,8 @@ function getPersistableState() {
         pageSetup: getPresentationPageSetupId(state),
         masterSlides: JSON.parse(JSON.stringify(state.masterSlides || normalizeMasterSlidesState())),
         slides: JSON.parse(JSON.stringify(state.slides || [])),
+        // "Use this background on all slides" was chosen: new slides get the shared background.
+        ...(state.backgroundOnAllSlides ? { backgroundOnAllSlides: true } : {}),
         selectedIds: [],
         clipboard: null,
     };

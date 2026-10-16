@@ -2009,6 +2009,37 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("Slide background: one button puts this slide's background on every slide, new ones included, in one undo step", async () => {
+        const { page, errors } = await openFreshEditor(context);
+        await page.evaluate(() => { addSlide(); addSlide(); setCurrentSlideIndex(0); renderSlidesFromState(); });
+        await page.waitForTimeout(300);
+        await page.mouse.click(5, 500);
+        await showPanelTab(page, "Style");
+        assert(await page.locator("#prop-slide-bg-all").isDisabled(), "the button works without a background to copy");
+        await page.locator("#prop-slide-bg-three").click();
+        await page.waitForTimeout(300);
+        await page.locator("#prop-slide-bg-three-style").selectOption("globe");
+        await page.waitForTimeout(300);
+        await page.locator("#prop-slide-bg-all").click();
+        await page.waitForTimeout(500);
+        const shared = await page.evaluate(() => ({
+            backgrounds: state.slides.map(slide => JSON.stringify(slide.background)),
+            drawn: [...document.querySelectorAll(".slides .slide-background-three")].filter(n => !n.closest("#slide-previews")).length,
+            thumbnails: document.querySelectorAll("#slide-previews .slide-background-three").length,
+        }));
+        assert(new Set(shared.backgrounds).size === 1 && /"style":"globe"/.test(shared.backgrounds[0]), `backgrounds: ${shared.backgrounds}`);
+        assert(shared.drawn === 3 && shared.thumbnails === 3, `drawn on ${shared.drawn} slides, ${shared.thumbnails} thumbnails`);
+        await page.evaluate(() => addSlide());
+        await page.waitForTimeout(300);
+        assert(await page.evaluate(() => state.slides[currentSlideIndex].background?.style === "globe"), "a new slide did not get the shared background");
+        await page.evaluate(() => { undo(); undo(); });
+        await page.waitForTimeout(400);
+        const undone = await page.evaluate(() => state.slides.map(slide => slide.background?.type || null));
+        assert(JSON.stringify(undone) === JSON.stringify(["three", null, null]), `one undo did not restore the other slides: ${undone}`);
+        assert(!errors.length, errors.join("; "));
+        await page.close();
+    });
+
     await test("PDF tools: Highlight and Note work as soon as they are chosen, without reloading the document", async () => {
         const { page } = await openEditor(context);
         const id = await page.evaluate(() => {

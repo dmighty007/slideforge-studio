@@ -806,6 +806,7 @@ window.app.commands = {
     exportPresentationJson,
     importPresentationJson,
     setCurrentSlideBackgroundThree,
+    applyCurrentSlideBackgroundToAllSlides,
 };
 window.closeShapePicker = closeShapePicker;
 window.insertShapeFromPicker = insertShapeFromPicker;

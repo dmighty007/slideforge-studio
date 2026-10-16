@@ -98,6 +98,7 @@ const COMMANDS = [
     { id: "add-pdf", title: "Add PDF", icon: "fa-file-pdf", keywords: "document paper", action: () => document.getElementById("pdf-file-upload")?.click() },
     { id: "add-connector", title: "Add Line Connector", icon: "fa-slash", keywords: "arrow line link", action: () => addConnector("line") },
     { id: "manage-plugins", title: "Manage Plugins", icon: "fa-puzzle-piece", keywords: "plugin extension add-on install smiles", action: () => openPluginManager() },
+    { id: "background-all-slides", title: "Use This Slide's Background on All Slides", icon: "fa-clone", keywords: "background 3d picture video every slide copy reuse", action: () => applyCurrentSlideBackgroundToAllSlides() },
     { id: "toggle-properties", title: "Show / Hide Properties", icon: "fa-sliders", keywords: "panel inspector", action: () => togglePropertiesPanel?.() },
     // The theme and slide size were only in Properties with nothing selected, and "theme" found nothing here.
     ...Object.entries(typeof PRESENTATION_THEMES !== "undefined" ? PRESENTATION_THEMES : {}).map(([themeId, theme]) => ({

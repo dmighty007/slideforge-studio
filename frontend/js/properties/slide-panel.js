@@ -318,6 +318,7 @@ function _buildSlideWorkspacePanel(panel) {
                 <button id="prop-slide-bg-upload" class="py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-semibold">Upload</button>
                 <button id="prop-slide-bg-clear" class="py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-semibold">Clear</button>
             </div>
+            <button id="prop-slide-bg-all" class="w-full py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed" type="button" ${background ? "" : "disabled"} title="${background ? "Give every slide this background" : "Set a background on this slide first"}"><i class="fa-solid fa-clone mr-1"></i>Use this background on all slides</button>
             <div class="text-xs text-slate-600">Supports PNG, GIF, MP4/WebM, and 3D motion backgrounds in the theme colours (PowerPoint gets a still frame).</div>
         </div>
     `;
@@ -547,6 +548,12 @@ function _buildSlideWorkspacePanel(panel) {
     if (bgClearBtn) {
       bgClearBtn.onclick = () => {
         clearCurrentSlideBackground?.();
+      };
+    }
+    const bgAllBtn = document.getElementById("prop-slide-bg-all");
+    if (bgAllBtn) {
+      bgAllBtn.onclick = () => {
+        applyCurrentSlideBackgroundToAllSlides?.();
       };
     }
     bgAdjustmentInputs.forEach(([inputId, labelId, key, normalize, format]) => {

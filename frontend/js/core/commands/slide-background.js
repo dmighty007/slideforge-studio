@@ -133,3 +133,24 @@ function clearCurrentSlideBackground() {
     saveStateToUndo();
     setCurrentSlideBackground(null);
 }
+
+// Gives every slide the current slide's background (picture, video or 3D, with its adjustments), as one undo step.
+// A 3D background keeps its seed, so each slide shows the same arrangement.
+function applyCurrentSlideBackgroundToAllSlides() {
+    const activeIndex = ensureActiveSlideSync();
+    const background = normalizeSlideBackground(state.slides?.[activeIndex]?.background);
+    if (!background) return 0;
+    const others = state.slides.filter((slide, index) => index !== activeIndex);
+    saveStateToUndo();
+    // Slides added later get it as well (commands/slides.js _sharedDeckBackground), even in a one-slide deck.
+    state.backgroundOnAllSlides = true;
+    others.forEach(slide => {
+        slide.background = JSON.parse(JSON.stringify(background));
+    });
+    renderSlidesFromState?.();
+    renderSlidePreviews?.();
+    buildPropertiesPanel?.();
+    schedulePresentationAutosave?.(150);
+    setProjectSaveHint?.(`Background on all slides${others.length ? ` (${state.slides.length})` : ", new ones included"}`, "success");
+    return others.length;
+}

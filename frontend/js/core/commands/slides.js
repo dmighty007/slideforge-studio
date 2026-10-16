@@ -62,6 +62,14 @@ function _titleAndContentPlaceholders(referenceSlide = null) {
     ];
 }
 
+function _sharedDeckBackground() {
+    const slides = state.slides || [];
+    // One slide is "all slides" only once the user asked for it (state.backgroundOnAllSlides).
+    if (!slides[0]?.background || (slides.length < 2 && !state.backgroundOnAllSlides)) return null;
+    const key = JSON.stringify(slides[0].background);
+    return slides.every(slide => JSON.stringify(slide.background || null) === key) ? JSON.parse(key) : null;
+}
+
 function addSlide(targetIndex = null) {
     const activeIndex = _normalizeSlideIndex(targetIndex) ?? ensureActiveSlideSync();
     saveStateToUndo();
@@ -77,6 +85,8 @@ function addSlide(targetIndex = null) {
         // In an imported deck, the deck's background (a colour, gradient or picture from its master) too: a new slide
         // came in on SlideForge's default theme between the imported ones.
         ...(reference?.masterId === "none" && reference.background ? { background: JSON.parse(JSON.stringify(reference.background)) } : {}),
+        // A background every slide shares (as "Use this background on all slides" leaves it) goes on new slides too.
+        ...(!(reference?.masterId === "none") && _sharedDeckBackground() ? { background: _sharedDeckBackground() } : {}),
         elements: [
             ...(reference?.masterId === "none" ? (reference.elements || []).filter((el) => el?.importedBackground).map((el) => ({ ...JSON.parse(JSON.stringify(el)), id: generateId("el") })) : []),
             ..._titleAndContentPlaceholders(reference),
