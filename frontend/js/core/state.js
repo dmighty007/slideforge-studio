@@ -471,6 +471,12 @@ function normalizeTableData(tableData) {
         fontWeight: typeof tableData.fontWeight === "string" ? tableData.fontWeight : "400",
         fontStyle: typeof tableData.fontStyle === "string" ? tableData.fontStyle : "normal",
         textAlign: typeof tableData.textAlign === "string" ? tableData.textAlign : "left",
+        // The smallest text "Fit to content area" may use (table settings), and the sizes it had before a fit
+        // tightened it (a split goes back to them).
+        ...(Number(tableData.fitMinFontSize) >= 8 ? { fitMinFontSize: Math.min(40, Number(tableData.fitMinFontSize)) } : {}),
+        ...(tableData.fitOriginal && typeof tableData.fitOriginal === "object" && Array.isArray(tableData.fitOriginal.rowHeights)
+            ? { fitOriginal: { fontSize: String(tableData.fitOriginal.fontSize || "16px"), rowHeights: tableData.fitOriginal.rowHeights.map(h => Number(h) || 44), cellPadding: Number(tableData.fitOriginal.cellPadding) || 10 } }
+            : {}),
         cells,
     };
 }

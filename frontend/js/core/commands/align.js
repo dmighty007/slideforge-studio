@@ -217,54 +217,8 @@ function _drawnTableRowHeights(id, tableData) {
 
 const _sumHeights = heights => heights.reduce((sum, value) => sum + value, 0);
 
-// A table across the content area, below the title and above the footer, as tall as its rows. Rows taller than the
-// area are tightened (down to 26 px, words down to 12 px); a table still too tall stays under the title and says it
-// can be split across slides. It used to be scaled like a picture (its rows stretched), and a tall one was moved up
-// over the title with its last rows off the slide.
-async function _fitTableToContentArea(el, area) {
-    const available = parseFloat(area.height);
-    let data = normalizeTableData(el.tableData);
-    updateElementState(el.id, {
-        x: area.x, y: area.y, width: area.width,
-        height: `${Math.round(_sumHeights(data.rowHeights))}px`,
-        tableHeightGrown: false, tableHeightBeforeGrowth: undefined,
-    });
-    renderSlidesFromState();
-    await _nextFrames();
-    let needed = _sumHeights(_drawnTableRowHeights(el.id, data));
-    if (needed > available + 2) {
-        const rowHeight = Math.max(26, Math.floor(available / data.rows));
-        const fontSize = Math.max(12, Math.min(parseFloat(data.fontSize) || 16, Math.floor(rowHeight / 1.9)));
-        data = {
-            ...data,
-            rowHeights: data.rowHeights.map(() => rowHeight),
-            fontSize: `${fontSize}px`,
-            cellPadding: Math.min(data.cellPadding, Math.max(3, Math.floor((rowHeight - fontSize * 1.3) / 2))),
-        };
-        updateElementState(el.id, { tableData: data, height: `${rowHeight * data.rows}px` });
-        renderSlidesFromState();
-        await _nextFrames();
-        needed = _sumHeights(_drawnTableRowHeights(el.id, data));
-    }
-    if (needed > available + 2 && typeof showNotification === "function") {
-        showNotification("This table has more rows than fit on one slide. “Split table across slides” (in the table's settings, or Ctrl+K) continues it on new slides with its header row.", "info");
-    }
-    buildPropertiesPanel?.();
-    schedulePresentationAutosave?.(150);
-}
-
-// Splits table `id` of the current slide into slides that each hold what fits below the title: copies of the slide
-// follow it, each with the header row again and "(continued)" after its title.
-function splitTableAcrossSlides(id = state.selectedIds[0]) {
-    const index = currentSlideIndex;
-    const slide = state.slides[index];
-    const el = slide?.elements.find(item => item.id === id && item.type === "table");
-    if (!el || typeof _pluginContentArea !== "function") return 0;
-    const area = _pluginContentArea(slide, new Set([el.id]));
-    if (!area) return 0;
-    const available = parseFloat(area.height);
-    const data = normalizeTableData(el.tableData);
-    const drawn = _drawnTableRowHeights(el.id, data);
+// Rows of a table (drawn heights) in parts that each fit `available` px with the header row repeated.
+function _tableSplitChunks(data, drawn, available) {
     const headerRows = data.headerRow && data.rows > 1 ? [0] : [];
     const headerHeight = _sumHeights(headerRows.map(r => drawn[r]));
     const chunks = [];
@@ -280,11 +234,102 @@ function splitTableAcrossSlides(id = state.selectedIds[0]) {
         used += drawn[row];
     }
     if (chunk.length) chunks.push(chunk);
+    return { headerRows, chunks };
+}
+
+// The text size, row heights and padding a table had before fitting tightened it (kept on the table so a split can
+// go back to them).
+const _tableTextSettings = data => ({ fontSize: data.fontSize, rowHeights: [...data.rowHeights], cellPadding: data.cellPadding });
+
+// A table across the content area, below the title and above the footer, as tall as its rows. Rows taller than the
+// area are tightened (down to 26 px, words down to the table's smallest fitting size, 12 px unless set in its
+// settings). Whenever the words got smaller, or the table is still too tall, the notice offers to split it across
+// slides instead, saying into how many and with how many rows each, at its own text size: shrinking to 13 px was
+// the only outcome offered before, and the split was hidden in the settings. It used to be scaled like a picture
+// (its rows stretched), and a tall one was moved up over the title with its last rows off the slide.
+async function _fitTableToContentArea(el, area) {
+    const available = parseFloat(area.height);
+    let data = normalizeTableData(el.tableData);
+    updateElementState(el.id, {
+        x: area.x, y: area.y, width: area.width,
+        height: `${Math.round(_sumHeights(data.rowHeights))}px`,
+        tableHeightGrown: false, tableHeightBeforeGrowth: undefined,
+    });
+    renderSlidesFromState();
+    await _nextFrames();
+    const fullSize = _drawnTableRowHeights(el.id, data);
+    let needed = _sumHeights(fullSize);
+    let shrunk = false;
+    if (needed > available + 2) {
+        const original = data.fitOriginal || _tableTextSettings(data);
+        const smallest = Math.max(8, Number(data.fitMinFontSize) || 12);
+        const rowHeight = Math.max(26, Math.floor(available / data.rows));
+        const fontSize = Math.max(smallest, Math.min(parseFloat(data.fontSize) || 16, Math.floor(rowHeight / 1.9)));
+        shrunk = fontSize < (parseFloat(original.fontSize) || 16);
+        data = {
+            ...data,
+            rowHeights: data.rowHeights.map(() => rowHeight),
+            fontSize: `${fontSize}px`,
+            cellPadding: Math.min(data.cellPadding, Math.max(3, Math.floor((rowHeight - fontSize * 1.3) / 2))),
+            fitOriginal: original,
+        };
+        updateElementState(el.id, { tableData: data, height: `${rowHeight * data.rows}px` });
+        renderSlidesFromState();
+        await _nextFrames();
+        needed = _sumHeights(_drawnTableRowHeights(el.id, data));
+    }
+    const tooTall = needed > available + 2;
+    if ((tooTall || shrunk) && typeof showNotification === "function") {
+        // At the table's own size (as measured before tightening): the parts a split would make.
+        const { chunks } = _tableSplitChunks(data, fullSize, available);
+        const counts = chunks.map(part => part.length).join(" + ");
+        const lead = tooTall ? "This table has more rows than fit on one slide." : `To fit, its text went down to ${data.fontSize}.`;
+        if (chunks.length > 1) {
+            showNotification(`${lead} Split it into ${chunks.length} slides (${counts} rows, header repeated) at its own text size?`, "info", {
+                action: { label: `Split into ${chunks.length} slides`, run: () => splitTableAcrossSlides(el.id) },
+            });
+        } else if (tooTall) {
+            showNotification(`${lead} “Split table across slides” (in the table's settings, or Ctrl+K) continues it on new slides with its header row.`, "info");
+        }
+    }
+    buildPropertiesPanel?.();
+    schedulePresentationAutosave?.(150);
+}
+
+// Splits table `id` of the current slide into slides that each hold what fits below the title: copies of the slide
+// follow it, each with the header row again and "(continued)" after its title. A table fitting had shrunk goes back
+// to its own text size first, so each part is readable.
+async function splitTableAcrossSlides(id = state.selectedIds[0]) {
+    const index = currentSlideIndex;
+    const slide = state.slides[index];
+    const el = slide?.elements.find(item => item.id === id && item.type === "table");
+    if (!el || typeof _pluginContentArea !== "function") return 0;
+    const area = _pluginContentArea(slide, new Set([el.id]));
+    if (!area) return 0;
+    const available = parseFloat(area.height);
+    let data = normalizeTableData(el.tableData);
+    const before = JSON.parse(JSON.stringify(el));
+    if (data.fitOriginal) {
+        const { fitOriginal, ...rest } = data;
+        data = { ...rest, ...fitOriginal, rowHeights: fitOriginal.rowHeights.length === data.rows ? fitOriginal.rowHeights : data.rowHeights };
+        el.tableData = data;
+        el.height = `${Math.round(_sumHeights(data.rowHeights))}px`;
+        renderSlidesFromState();
+        await _nextFrames();
+    }
+    const drawn = _drawnTableRowHeights(el.id, data);
+    const { headerRows, chunks } = _tableSplitChunks(data, drawn, available);
     if (chunks.length < 2) {
+        Object.assign(el, before); // the fitted size, if it was fitted
+        renderSlidesFromState();
         if (typeof showNotification === "function") showNotification("The table already fits on its slide.", "info");
         return 0;
     }
+    // One undo step back to the table as it was before the split (its fitted size included).
+    const live = el.tableData;
+    Object.assign(el, before);
     saveStateToUndo();
+    el.tableData = live;
     const rowsOf = part => [...headerRows, ...part];
     const tableFor = part => ({ ...data, rows: rowsOf(part).length, cells: rowsOf(part).map(r => data.cells[r]), rowHeights: rowsOf(part).map(r => data.rowHeights[r]), selection: null });
     const heightFor = part => `${Math.round(_sumHeights(rowsOf(part).map(r => drawn[r])))}px`;
@@ -314,6 +359,6 @@ function splitTableAcrossSlides(id = state.selectedIds[0]) {
     renderSlidesFromState();
     buildPropertiesPanel?.();
     schedulePresentationAutosave?.(150);
-    if (typeof showNotification === "function") showNotification(`The table now continues over ${chunks.length} slides, each with its header row.`, "success");
+    if (typeof showNotification === "function") showNotification(`The table now continues over ${chunks.length} slides (${chunks.map(part => part.length).join(" + ")} rows), each with its header row.`, "success");
     return chunks.length;
 }

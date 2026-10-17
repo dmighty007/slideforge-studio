@@ -79,6 +79,19 @@ function openSlidePreviewMenu(index, x, y) {
     { label: "Duplicate", icon: "fa-clone", run: () => duplicateCurrentSlide(index) },
     { label: "Move up", icon: "fa-arrow-up", disabled: index === 0, run: () => move(index - 1) },
     { label: "Move down", icon: "fa-arrow-down", disabled: index >= count - 1, run: () => move(index + 2) },
+    // To a numbered place in one step: moving a slide ten places took ten "Move up"s or a long drag down the rail.
+    {
+      label: "Move to slide…",
+      icon: "fa-arrow-right-arrow-left",
+      disabled: count <= 1,
+      run: async () => {
+        const answer = await sfPrompt({ title: "Move slide", label: `New position (1–${count})`, value: String(index + 1), okLabel: "Move" });
+        const place = Math.round(Number(answer));
+        if (!answer || !Number.isFinite(place)) return;
+        const target = Math.max(1, Math.min(count, place)) - 1;
+        if (target !== index) move(target > index ? target + 1 : target);
+      },
+    },
     { label: "Delete", icon: "fa-trash-can", danger: true, disabled: count <= 1, run: () => deleteCurrentSlide(index) },
   ];
   const menu = document.createElement("div");

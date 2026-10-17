@@ -216,6 +216,22 @@ function _collectReusableSlideNodes(container, { mode }) {
   };
 }
 
+// A slide is a fixed page: the browser scrolls its clipped section to show a caret or a focused cell below the
+// slide's edge (the last cell of a long pasted table), which shifted the whole slide up, title out of view, and it
+// stayed so. Any scroll of a slide is put back.
+document.addEventListener(
+  "scroll",
+  (event) => {
+    const slide = event.target;
+    if (!(slide instanceof Element) || !slide.matches(".slides section.presentation-slide")) return;
+    if (slide.scrollTop || slide.scrollLeft) {
+      slide.scrollTop = 0;
+      slide.scrollLeft = 0;
+    }
+  },
+  true,
+);
+
 function renderSlidesFromState(options = {}) {
   const preserveState = Boolean(options.preserveState);
   const container = document.getElementById("slides-container");

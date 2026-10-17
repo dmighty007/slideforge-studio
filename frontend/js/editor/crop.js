@@ -287,11 +287,15 @@ class SimpleCrop {
         this.isDraggingBox = false;
     }
 
+    // preventDefault too: started from the panel's Crop Image button, which keeps the focus, Enter applied the crop
+    // and then pressed the button, which started cropping again (Enter seemed to do nothing).
     handleKeyDown(e) {
         if (e.key === "Enter") {
+            e.preventDefault();
             e.stopPropagation();
             this.confirm();
         } else if (e.key === "Escape") {
+            e.preventDefault();
             e.stopPropagation();
             this.cancel();
         }

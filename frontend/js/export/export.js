@@ -769,12 +769,47 @@ function _pdfSafeText(text) {
     .replace(/[^\x20-\x7e\xa0-\xff]/g, "");
 }
 
-function addInvisibleTextLayer(pdf, lines) {
+// The text layer in a Unicode font (DejaVu Sans, bundled, fetched at the first PDF export): with the PDF's built-in
+// fonts only Latin-1 could be written, so em dashes, Greek letters (β), Zn²⁺ and h⁻¹ were dropped and a search for a
+// title as shown found nothing. Without the font (offline file missing), the Latin-1 text as before.
+let _pdfTextFontData = null;
+async function usePdfTextFont(pdf) {
+  if (_pdfTextFontData === null) {
+    try {
+      const response = await fetch("vendor/fonts/dejavu/DejaVuSans.ttf");
+      if (!response.ok) throw new Error(`font: ${response.status}`);
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      let binary = "";
+      for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      _pdfTextFontData = btoa(binary);
+    } catch (error) {
+      console.warn("PDF text layer stays Latin-1:", error);
+      _pdfTextFontData = "";
+    }
+  }
+  if (!_pdfTextFontData) return false;
+  try {
+    pdf.addFileToVFS("DejaVuSans.ttf", _pdfTextFontData);
+    pdf.addFont("DejaVuSans.ttf", "DejaVuSans", "normal");
+    pdf.setFont("DejaVuSans", "normal");
+    return true;
+  } catch (error) {
+    console.warn("PDF text layer stays Latin-1:", error);
+    return false;
+  }
+}
+
+function addInvisibleTextLayer(pdf, lines, { unicode = false } = {}) {
   lines.forEach(line => {
-    const text = _pdfSafeText(line.text).trim();
+    const text = (unicode ? String(line.text).replace(/[\u0000-\u001f\u007f]/g, " ") : _pdfSafeText(line.text)).trim();
     if (!text) return;
     const height = Math.max(1, line.bottom - line.top);
     pdf.setFontSize(height * 0.75);
+    // As wide as the words on the slide: in a wider font the invisible line ran past the page edge, where text
+    // extraction cuts it off ("k = 0.5 h⁻¹," was lost at the end of a title).
+    const room = Number(line.right) - Number(line.x);
+    const drawn = pdf.getTextWidth?.(text) || 0;
+    if (room > 0 && drawn > room) pdf.setFontSize(height * 0.75 * (room / drawn));
     try {
       pdf.text(text, line.x, line.bottom - height * 0.22, { renderingMode: "invisible" });
     } catch (_error) {}
@@ -784,6 +819,7 @@ function addInvisibleTextLayer(pdf, lines) {
 async function exportPDF() {
   const page = getExportPageSetup();
   const pdf = createExportPdf(page);
+  const unicodeText = await usePdfTextFont(pdf);
   const originalIndex = currentSlideIndex;
 
   try {
@@ -827,7 +863,7 @@ async function exportPDF() {
       const imgData = canvas.toDataURL("image/jpeg", 0.95);
       if (i > 0) pdf.addPage([page.width, page.height], page.orientation);
       pdf.addImage(imgData, "JPEG", 0, 0, page.width, page.height);
-      addInvisibleTextLayer(pdf, textRuns);
+      addInvisibleTextLayer(pdf, textRuns, { unicode: unicodeText });
       setProjectSaveHint?.(
         `Generated slide ${i + 1}/${state.slides.length}`,
         "success",

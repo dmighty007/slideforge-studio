@@ -3325,7 +3325,7 @@ async function test(name, fn) {
         await page.locator("#slide-previews > *").nth(0).click({ button: "right" });
         await page.locator("#slide-preview-menu").waitFor({ state: "visible", timeout: 3000 });
         const labels = await page.locator("#slide-preview-menu button").allInnerTexts();
-        assert(JSON.stringify(labels.map(l => l.trim())) === JSON.stringify(["New slide after", "Duplicate", "Move up", "Move down", "Delete"]), `menu: ${JSON.stringify(labels)}`);
+        assert(JSON.stringify(labels.map(l => l.trim())) === JSON.stringify(["New slide after", "Duplicate", "Move up", "Move down", "Move to slide…", "Delete"]), `menu: ${JSON.stringify(labels)}`);
         await page.locator("#slide-preview-menu button", { hasText: "Move down" }).click();
         const after = await page.evaluate(() => state.slides.map(s => s.id));
         assert(after[0] === before[1] && after[1] === before[0] && !(await page.locator("#slide-preview-menu").count()), `after Move down: ${JSON.stringify({ before, after })}`);
@@ -5120,13 +5120,13 @@ async function test(name, fn) {
             `const rects = [...svg.querySelectorAll("rect")];
              const text = name => [...svg.querySelectorAll("text")].find(t => t.textContent === name);
              const ruler = name => Number(text(name).getAttribute("x"));
-             const sites = ["S100", "T105", "Y110"].map(name => ({ y: Number(text(name).getAttribute("y")) }));
+             const sites = ["S100", "T105", "Y110"].map(name => ({ y: Number(text(name).getAttribute("y")), x: Number(text(name).getAttribute("x")), w: text(name).textContent.length * Number(text(name).getAttribute("font-size")) * 0.5 }));
              return {
                  rects: rects.map(r => ({ x: Number(r.getAttribute("x")), w: Number(r.getAttribute("width")), y: Number(r.getAttribute("y")), h: Number(r.getAttribute("height")), rx: Number(r.getAttribute("rx")) })),
                  one: ruler("1"), thousand: ruler("1000"),
                  inside: Number(text("Kinase domain").getAttribute("y")),
                  outside: Number(text("A very long domain name").getAttribute("y")),
-                 sites: sites.map(s => s.y),
+                 sites,
                  dots: svg.querySelectorAll("circle").length,
              };`,
         );
@@ -5135,7 +5135,9 @@ async function test(name, fn) {
         assert(Math.abs(kinase.x - (drawn.one + 200 * perResidue)) < 1 && Math.abs(kinase.w - 399 * perResidue) < 1, "the kinase domain is not drawn to scale");
         assert(drawn.rects[1].rx >= drawn.rects[1].w / 2 - 0.1, "the oval domain is not an oval");
         assert(drawn.outside > kinase.y + kinase.h && drawn.inside < kinase.y + kinase.h, "a long name that does not fit was not put below its domain");
-        assert(drawn.dots === 3 && new Set(drawn.sites.map(y => y.toFixed(1))).size === 3, `close sites share a label row: ${drawn.sites}`);
+        // Close sites: labels spread apart on one row (stacked rows put sticks through the labels below).
+        const apart = drawn.sites.slice(1).every((site, i) => site.x - site.w / 2 >= drawn.sites[i].x + drawn.sites[i].w / 2);
+        assert(drawn.dots === 3 && apart, `close sites' labels overlap: ${JSON.stringify(drawn.sites)}`);
         await pageAwait(page, id => SlideForgePlugins.update(id, { domains: "X,10,2000" }), id);
         await page.waitForFunction(id => /Domains, row 1: positions must be from 1 to 1000/.test(getPluginElementError(id)), id);
         await page.close();
@@ -5584,7 +5586,7 @@ async function test(name, fn) {
             const slide = state.slides[currentSlideIndex];
             const el = slide.elements.find(e => e.id === id);
             const area = _pluginContentArea(slide, new Set([id]));
-            return { y: el.y, areaY: area.y, rows: el.tableData.rows, note: [...document.querySelectorAll(".notification")].some(n => /Split table across slides/.test(n.textContent)) };
+            return { y: el.y, areaY: area.y, rows: el.tableData.rows, note: [...document.querySelectorAll(".notification")].some(n => /Split table across slides|Split it into \d+ slides/.test(n.textContent)) };
         }, id);
         // It used to move up over the title with its last rows off the slide.
         assert(fitted.y >= fitted.areaY && fitted.rows === 25 && fitted.note, `fitted: ${JSON.stringify(fitted)}`);
@@ -5905,6 +5907,112 @@ async function test(name, fn) {
         await page.keyboard.press("Control+a");
         await page.keyboard.type("Name,Start,End\nblaOXA-48,100,900");
         assert((await tag()) === "none", "the Example data tag stayed over the user's own data");
+        await page.close();
+    });
+
+    await test("deck 3: Enter applies a crop started from the panel button; a slide never stays scrolled; a slide moves to a numbered place", async () => {
+        const { page } = await openFreshEditor(context);
+        const id = await page.evaluate(() => {
+            addSlide();
+            const canvas = document.createElement("canvas");
+            canvas.width = 200; canvas.height = 120;
+            canvas.getContext("2d").fillRect(0, 0, 200, 120);
+            const el = { id: generateId("el"), type: "image", content: canvas.toDataURL(), x: 300, y: 200, width: "400px", height: "240px", styles: { zIndex: getNextZIndex() } };
+            state.slides[currentSlideIndex].elements.push(el);
+            renderSlidesFromState();
+            selectElement(el.id, "replace");
+            setPropertiesPanelVisible(true);
+            _propertiesPanelActiveTab = "content";
+            buildPropertiesPanel();
+            return el.id;
+        });
+        await page.locator("#properties-content button:has-text('Crop Image')").click();
+        await page.waitForTimeout(300);
+        await page.keyboard.press("Enter");
+        await page.waitForTimeout(300);
+        // Enter used to press the focused Crop Image button again, so cropping never ended.
+        assert(!(await page.evaluate(() => !!window._activeCropSession)), "still cropping after Enter");
+        const scrolled = await pageAwait(page, async () => {
+            const slide = document.querySelector(".slides section.presentation-slide.present");
+            slide.scrollTop = 600;
+            await new Promise(r => setTimeout(r, 50));
+            return slide.scrollTop;
+        });
+        assert(scrolled === 0, `the slide stayed scrolled by ${scrolled}px`);
+        const moved = await pageAwait(page, async () => {
+            addSlide();
+            addSlide();
+            const ids = state.slides.map(s => s.id);
+            const last = ids.length - 1;
+            openSlidePreviewMenu(last, 300, 300);
+            [...document.querySelectorAll("#slide-preview-menu button")].find(b => /Move to slide/.test(b.textContent)).click();
+            await new Promise(r => setTimeout(r, 100));
+            const input = document.querySelector(".sf-prompt__field");
+            input.value = "1";
+            input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+            await new Promise(r => setTimeout(r, 200));
+            return { first: state.slides[0].id === ids[last], count: state.slides.length === ids.length };
+        });
+        assert(moved.first && moved.count, `Move to slide: ${JSON.stringify(moved)}`);
+        await page.close();
+    });
+
+    await test("retest 2026-10-17: fitting a long table offers the split in its notice, and the split goes back to the table's own text size", async () => {
+        const { page } = await openFreshEditor(context);
+        const id = await page.evaluate(() => {
+            addSlide();
+            const cells = [["Catalyst", "Yield (%)"]];
+            for (let i = 1; i <= 18; i++) cells.push([`Cat-${i}`, String(50 + i)]);
+            addElement("table");
+            const el = state.slides[currentSlideIndex].elements.find(e => e.type === "table");
+            el.tableData = normalizeTableData({ ...el.tableData, rows: cells.length, cols: 2, cells: cells.map(row => row.map(text => ({ text }))), rowHeights: cells.map(() => 44), fontSize: "16px" });
+            el.height = `${44 * cells.length}px`;
+            renderSlidesFromState();
+            return el.id;
+        });
+        await page.waitForTimeout(300);
+        await page.evaluate(id => { selectElement(id, "replace"); fitSelectionToContentArea(); }, id);
+        await page.waitForTimeout(1200);
+        const notice = await page.evaluate(() => {
+            const note = [...document.querySelectorAll(".notification")].find(n => n.querySelector(".notification-action"));
+            return note ? { text: note.textContent, button: note.querySelector(".notification-action").textContent } : null;
+        });
+        assert(notice && /Split it into 2 slides \(\d+ \+ \d+ rows, header repeated\)/.test(notice.text) && notice.button === "Split into 2 slides", `notice: ${JSON.stringify(notice)}`);
+        await page.locator(".notification .notification-action").first().click();
+        await page.waitForTimeout(1200);
+        const parts = await page.evaluate(() => state.slides.map(s => s.elements.find(e => e.type === "table")).filter(Boolean).map(t => ({ font: t.tableData.fontSize, rows: t.tableData.rows, header: t.tableData.cells[0][0].text })));
+        assert(parts.length === 2 && parts.every(p => p.font === "16px" && p.header === "Catalyst"), `split parts: ${JSON.stringify(parts)}`);
+        // The smallest size fitting may use is the table's own setting.
+        const smallest = await pageAwait(page, async id => {
+            const slide = state.slides[currentSlideIndex];
+            const el = slide.elements.find(e => e.type === "table");
+            el.tableData = normalizeTableData({ ...el.tableData, fitMinFontSize: 15, fitOriginal: undefined });
+            const cells = el.tableData.cells.concat(Array.from({ length: 12 }, (_, i) => [{ text: `Extra-${i}` }, { text: "1" }]));
+            el.tableData = normalizeTableData({ ...el.tableData, rows: cells.length, cells, rowHeights: cells.map(() => 44) });
+            renderSlidesFromState();
+            selectElement(el.id, "replace");
+            await fitSelectionToContentArea();
+            await new Promise(r => setTimeout(r, 800));
+            return slide.elements.find(e => e.type === "table").tableData.fontSize;
+        }, id);
+        assert(parseFloat(smallest) >= 15, `fitted below the table's smallest size: ${smallest}`);
+        await page.close();
+    });
+
+    await test("retest 2026-10-17: the PDF's text layer keeps em dashes, Greek letters and superscripts, as wide as the slide's words", async () => {
+        const { page } = await openFreshEditor(context);
+        const out = await pageAwait(page, async () => {
+            const pdf = createExportPdf(getExportPageSetup());
+            const unicode = await usePdfTextFont(pdf);
+            const line = { text: "Appendix G — NDM-1 binds Zn²⁺; k = 0.5 h⁻¹, β-lactam", x: 40, right: 500, top: 40, bottom: 80 };
+            addInvisibleTextLayer(pdf, [line], { unicode });
+            const width = pdf.getTextWidth(line.text);
+            const raw = pdf.output();
+            return { unicode, font: /DejaVuSans/.test(raw), width };
+        });
+        // (Before, only Latin-1 could be written: the em dash, β, ²⁺ and ⁻¹ were dropped.)
+        assert(out.unicode && out.font, `Unicode font in the PDF: ${JSON.stringify(out)}`);
+        assert(out.width <= 460 + 1, `text layer wider than its words: ${JSON.stringify(out)}`);
         await page.close();
     });
 
@@ -6824,18 +6932,23 @@ async function test(name, fn) {
             renderSlidesFromState();
             await new Promise(resolve => setTimeout(resolve, 300));
             let output = "";
+            const written = [];
             const realCreate = createExportPdf;
             createExportPdf = page => {
                 const pdf = realCreate(page);
                 pdf.save = () => { output = pdf.output(); };
+                // The text layer is in an embedded Unicode font, written as glyph codes: what was written is read here.
+                const realText = pdf.text.bind(pdf);
+                pdf.text = (text, ...rest) => { written.push({ text: String(text), mode: rest[2]?.renderingMode }); return realText(text, ...rest); };
                 return pdf;
             };
             try { await exportPDF(); } finally { createExportPdf = realCreate; }
-            return output;
+            return { output, written };
         });
-        assert(out.includes("Searchable protein folding title"), "the slide's text is not in the PDF");
-        assert(/3 Tr/.test(out), "the PDF's text is not drawn invisibly over the picture");
-        assert(out.includes("SMITH lab".toUpperCase()) && !out.includes("Smith lab"), "the PDF's text is not in the case the slide shows");
+        const texts = out.written.map(w => w.text);
+        assert(texts.some(t => t.includes("Searchable protein folding title")), "the slide's text is not in the PDF");
+        assert(out.written.every(w => w.mode === "invisible") && /3 Tr/.test(out.output), "the PDF's text is not drawn invisibly over the picture");
+        assert(texts.some(t => t.includes("SMITH LAB")) && !texts.some(t => t.includes("Smith lab")), "the PDF's text is not in the case the slide shows");
         await page.close();
     });
 

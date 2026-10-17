@@ -1318,10 +1318,31 @@ function editAnimation(elementId, timelineIdx, animIdx) {
     console.log('[Animation] editAnimation called:', elementId, timelineIdx, animIdx);
 }
 
-function showNotification(message, type = "info") {
+// action: { label, run } adds a button (the notice then stays up longer, until it is used or closed).
+function showNotification(message, type = "info", { action = null } = {}) {
     const notification = document.createElement("div");
     notification.className = `notification notification-${type}`;
     notification.textContent = message;
+    if (action?.label && typeof action.run === "function") {
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;gap:8px;justify-content:flex-end;margin-top:8px;";
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "notification-action";
+        button.textContent = action.label;
+        button.style.cssText = "background:#ffffff;color:#1e3a8a;border:0;border-radius:5px;padding:5px 10px;font-weight:700;cursor:pointer;";
+        button.onclick = () => {
+            notification.remove();
+            action.run();
+        };
+        const close = document.createElement("button");
+        close.type = "button";
+        close.textContent = "Not now";
+        close.style.cssText = "background:transparent;color:#ffffff;border:1px solid rgba(255,255,255,0.6);border-radius:5px;padding:5px 10px;cursor:pointer;";
+        close.onclick = () => notification.remove();
+        row.append(close, button);
+        notification.appendChild(row);
+    }
     notification.style.cssText = `
     position: fixed;
     bottom: 20px;
@@ -1341,7 +1362,7 @@ function showNotification(message, type = "info") {
     // Errors stay up longer: they usually say what to do next.
     setTimeout(() => {
         notification.remove();
-    }, type === "error" ? 7000 : 3000);
+    }, action ? 20000 : type === "error" ? 7000 : 3000);
 }
 
 // Helper function - get element data by ID

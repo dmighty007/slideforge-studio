@@ -48,7 +48,8 @@
 
     SlideForgePlugins.register({
         id: "domain-architecture",
-        version: "1",
+        // 2: site labels spread on one row with bent sticks instead of stacked rows.
+        version: "2",
         name: "Domain Architecture",
         description: "A protein's domains, sites and length as a diagram",
         icon: "fa-solid fa-bars-progress",
@@ -148,19 +149,43 @@
                 }
             });
 
-            // Sites: a stick up from the protein, a dot, and the label; a label that would touch one already placed
-            // goes up a row (up to three rows).
-            const rowEnds = [-Infinity, -Infinity, -Infinity];
-            sites.forEach(site => {
-                const sx = x(site.position);
-                const labelWidth = context.measureText(site.label, { size: size * 0.85, family: FONT });
-                const free = rowEnds.findIndex(end => sx - labelWidth / 2 >= end + size * 0.3);
-                const level = free >= 0 ? free : rowEnds.indexOf(Math.min(...rowEnds));
-                rowEnds[level] = sx + labelWidth / 2;
-                const tip = midY - domainHeight / 2 - size * (0.9 + level * 1.15);
-                parts.push(`<line x1="${fmt(sx)}" x2="${fmt(sx)}" y1="${fmt(midY - domainHeight / 2)}" y2="${fmt(tip)}" stroke="${ink}" stroke-width="1.2"/>`);
-                parts.push(`<circle cx="${fmt(sx)}" cy="${fmt(tip)}" r="${fmt(size * 0.28)}" fill="${ink}"/>`);
-                if (site.label) parts.push(`<text x="${fmt(sx)}" y="${fmt(tip - size * 0.5)}" font-size="${fmt(size * 0.85)}" text-anchor="middle" fill="${ink}">${context.escapeXml(site.label)}</text>`);
+            // Sites: a stick up from the protein, a dot, and the label. Labels that would touch are spread sideways on
+            // one row and their sticks bend to them: stacked in rows over residues close together (H120, H122, D124),
+            // each stick ran through the labels below it.
+            const siteSize = size * 0.85;
+            const gap = size * 0.5;
+            const placed = sites.map(site => ({ site, want: x(site.position), w: Math.max(size * 0.6, context.measureText(site.label, { size: siteSize, family: FONT })) }));
+            let clusters = placed.map(item => ({ items: [item] }));
+            const layoutCluster = cluster => {
+                const span = cluster.items.reduce((sum, item) => sum + item.w, 0) + gap * (cluster.items.length - 1);
+                const centre = cluster.items.reduce((sum, item) => sum + item.want, 0) / cluster.items.length;
+                let at = Math.min(Math.max(centre - span / 2, 0), width - span);
+                cluster.items.forEach(item => { item.x = at + item.w / 2; at += item.w + gap; });
+                cluster.left = cluster.items[0].x - cluster.items[0].w / 2;
+                cluster.right = cluster.items.at(-1).x + cluster.items.at(-1).w / 2;
+            };
+            clusters.forEach(layoutCluster);
+            for (let merged = true; merged; ) {
+                merged = false;
+                for (let k = 1; k < clusters.length; k++) {
+                    if (clusters[k].left < clusters[k - 1].right + gap) {
+                        clusters[k - 1].items.push(...clusters[k].items);
+                        clusters.splice(k, 1);
+                        layoutCluster(clusters[k - 1]);
+                        merged = true;
+                        break;
+                    }
+                }
+            }
+            const base = midY - domainHeight / 2;
+            placed.forEach(({ site, want, x: lx }) => {
+                const tip = base - size * 1.7;
+                const knee = base - size * 0.7;
+                const bent = Math.abs(lx - want) > 0.5;
+                const path = bent ? `M${fmt(want)} ${fmt(base)}L${fmt(want)} ${fmt(knee)}L${fmt(lx)} ${fmt(tip)}` : `M${fmt(want)} ${fmt(base)}L${fmt(want)} ${fmt(tip)}`;
+                parts.push(`<path d="${path}" fill="none" stroke="${ink}" stroke-width="1.2"/>`);
+                parts.push(`<circle cx="${fmt(lx)}" cy="${fmt(tip)}" r="${fmt(size * 0.28)}" fill="${ink}"/>`);
+                if (site.label) parts.push(`<text x="${fmt(lx)}" y="${fmt(tip - size * 0.5)}" font-size="${fmt(siteSize)}" text-anchor="middle" fill="${ink}">${context.escapeXml(site.label)}</text>`);
             });
 
             if (data.ruler) {
