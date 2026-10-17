@@ -153,6 +153,25 @@ function _chartErrorBarsPlugin(ink) {
     };
 }
 
+// A category label as lines of at most `maxChars` characters, broken between words (a word longer than a line stays
+// whole); a label that fits stays a plain string.
+function _wrapChartLabel(label, maxChars) {
+    const text = String(label ?? "");
+    if (text.length <= maxChars) return label;
+    const lines = [];
+    let line = "";
+    text.split(/\s+/).filter(Boolean).forEach(word => {
+        if (line && (line + " " + word).length > maxChars) {
+            lines.push(line);
+            line = word;
+        } else {
+            line = line ? `${line} ${word}` : word;
+        }
+    });
+    if (line) lines.push(line);
+    return lines.length > 1 ? lines : label;
+}
+
 // The Chart.js settings for an element: its stored options, then the user's chart style, then colours that read on
 // its background.
 function buildChartJsConfig(elData, { forExport = false, theme = getPresentationTheme() } = {}) {
@@ -215,6 +234,15 @@ function buildChartJsConfig(elData, { forExport = false, theme = getPresentation
     // A series without colours (an imported or older deck, data set by hand) takes the theme palette rather than
     // Chart.js's grey-blue default, so it looks as it will after any edit or theme change.
     const data = JSON.parse(JSON.stringify(elData?.chartData || { labels: [], datasets: [] }));
+    // Long category names wrap onto lines that fit their share of the axis (Chart.js takes a label as a list of
+    // lines). Left on one line, they were slanted or squeezed and took the plot's room. Only the drawing: the data
+    // keeps its labels.
+    if (!round && Array.isArray(data.labels) && data.labels.length) {
+        const width = parseFloat(elData?.width) || 600;
+        const perLabel = (width - 80) / data.labels.length;
+        const maxChars = Math.max(6, Math.floor(perLabel / (fontSize * 0.58)));
+        data.labels = data.labels.map(label => _wrapChartLabel(label, maxChars));
+    }
     (data.datasets || []).forEach((dataset, index) => {
         if (dataset.backgroundColor || dataset.borderColor) return;
         Object.assign(dataset, chartSeriesColors(elData.chartType || "bar", data.labels?.length || 0, getPresentationTheme(), index, elData?.chartStyle?.seriesColors?.[index] || null));

@@ -96,6 +96,7 @@ function buildTablePanel(panel, data) {
                         <button id="prop-table-italic" class="prop-icon-btn italic ${effectiveTableFontStyle === "italic" ? "active" : ""}" title="Italic">I</button>
                     </div>
                 </div>
+                <button id="prop-table-split" class="w-full py-2 mb-3 rounded-lg bg-white border border-slate-300 text-slate-600 text-xs font-semibold hover:bg-slate-50" title="Continue the rows that do not fit on new slides, each with the header row">Split table across slides</button>
                 <div class="grid grid-cols-2 gap-3">
                     <div class="flex flex-col gap-1">
                         <label class="text-xs text-slate-600 uppercase font-semibold">Rows</label>
@@ -363,6 +364,8 @@ function bindTablePanel(data) {
       );
     });
 
+  const split = document.getElementById("prop-table-split");
+  if (split) split.onclick = () => splitTableAcrossSlides(data.id);
   document
     .getElementById("prop-table-add-row")
     ?.addEventListener("click", () => {

@@ -78,7 +78,11 @@ function _keepGrownTableOnSlide(container, stored) {
   const top = parseFloat(stored.y) || 0;
   const height = parseFloat(stored.height) || 0;
   if (top + height <= floor) return;
-  const next = Math.max(24, Math.round(floor - height));
+  // Never above the content area: a table taller than the room went up to y = 24, over the title. It stays under the
+  // title and runs off the bottom instead (Fit to content area tightens it, Split table across slides continues it).
+  const slide = (state.slides || []).find((item) => item.elements?.some((el) => el.id === stored.id));
+  const contentTop = (slide && typeof _pluginContentArea === "function" && _pluginContentArea(slide, stored.id)?.y) || 24;
+  const next = Math.max(Math.min(top, contentTop), Math.round(floor - height));
   if (next === top) return;
   stored.y = next;
   requestAnimationFrame(() => window.renderSlidesFromState?.());

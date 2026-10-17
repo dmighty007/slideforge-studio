@@ -235,8 +235,8 @@ function addChart(chartType = "bar") {
                 legend: { display: true, position: "top" },
             },
         },
-        // 16px: 12px labels were too small to read once the slide was projected.
-        chartStyle: { legend: "top", title: "", xTitle: "", yTitle: "", grid: true, fontSize: 16, seriesColors: [] },
+        // 18px, as plots: 12px labels were too small to read once the slide was projected.
+        chartStyle: { legend: "top", title: "", xTitle: "", yTitle: "", grid: true, fontSize: 18, seriesColors: [] },
         x: 100,
         y: 100,
         width: "500px",

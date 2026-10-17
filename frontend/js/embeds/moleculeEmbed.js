@@ -458,13 +458,44 @@ let fittedWhileCollapsed = false;
 // zoom, and a protein came out a third of its box: small, and drawn with few pixels.
 function fitStructure(duration = 0) {
   const shown = "not (water or ion)";
+  let sele = "";
   try {
-    if (component.structure.getView(new NGL.Selection(shown)).atomCount > 0) {
-      component.autoView(shown, duration);
-      return;
-    }
+    if (component.structure.getView(new NGL.Selection(shown)).atomCount > 0) sele = shown;
   } catch (_err) { /* fit everything */ }
-  component.autoView(duration);
+  const box = scaleClipToStructure(sele);
+  if (sele) component.autoView(sele, duration);
+  else component.autoView(duration);
+  if (box && !duration) fitBoxWithAtoms(box);
+}
+// A small molecule (under 8 Å): NGL's fit, made for proteins, either left it a speck (with its 10 Å margin) or cut
+// off the balls round its outermost atoms (it fits atom centres). Its bounding sphere, with an atom's drawn radius
+// added, fills about 90 % of the view instead, and stays inside it however the molecule is turned. Larger structures
+// keep NGL's fit.
+function fitBoxWithAtoms(box) {
+  const extent = ["x", "y", "z"].map(axis => box.max[axis] - box.min[axis]);
+  if (Math.max(...extent) >= 8) return;
+  const radius = 0.5 * Math.hypot(...extent) + 0.6;
+  const viewer = stage.viewer;
+  const halfFov = ((viewer.perspectiveCamera?.fov || 40) * Math.PI) / 360;
+  // NGL's fov is vertical; a box narrower than it is tall fits the width.
+  const aspect = Math.min(1, viewer.width / Math.max(1, viewer.height));
+  const distance = radius / 0.9 / aspect / Math.tan(halfFov);
+  if (Number.isFinite(distance) && distance > 0) stage.viewerControls.distance(distance);
+}
+// NGL keeps the camera's near plane a fixed 10 Å (clipDist) in front of it and adds those 10 Å to the distance it
+// fits at: nothing for a protein, but most of the distance for a small molecule, which then filled a fifth of its box
+// (moved closer, it was cut off by that plane). For a small molecule (under 8 Å) the margin is a quarter of its size
+// (at least 0.5 Å); larger structures keep 10 Å. Returns the structure's box (null if it could not be measured).
+function scaleClipToStructure(sele) {
+  try {
+    const box = sele ? component.structure.getBoundingBox(new NGL.Selection(sele)) : component.structure.getBoundingBox();
+    const size = Math.max(box.max.x - box.min.x, box.max.y - box.min.y, box.max.z - box.min.z);
+    const clipDist = size < 8 ? Math.max(0.5, size / 4) : 10;
+    if (Number.isFinite(clipDist) && stage.parameters?.clipDist !== clipDist) stage.setParameters({ clipDist });
+    return Number.isFinite(size) ? box : null;
+  } catch (_err) {
+    return null;
+  }
 }
 function fitInitialView() {
   if (!component) return;

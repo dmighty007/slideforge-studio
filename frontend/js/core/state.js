@@ -103,8 +103,14 @@ function claimContentPlaceholder(slide, element) {
         const tableWidth = Math.round(Math.min(maxW, Math.max(width, cols * 190)));
         element.width = `${tableWidth}px`;
         element.x = Math.round(x + (maxW - tableWidth) / 2);
+    } else if (element.type === "chart") {
+        // A native chart is a plot, not a picture: it takes the placeholder's area (its labels lay themselves out).
+        // Scaled by its aspect ratio it stayed about half the slide wide.
+        element.width = `${Math.round(maxW)}px`;
+        element.height = `${Math.round(maxH)}px`;
+        element.x = Math.round(x);
     } else if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
-        const grow =["chart", "molecule", "image", "video", "pdf", "plugin", "mermaid", "drawing"].includes(element.type);
+        const grow = ["chart", "molecule", "image", "video", "pdf", "plugin", "mermaid", "drawing"].includes(element.type);
         const scale = Math.min(grow ? 2 : 1, maxW / width, maxH / height);
         element.width = `${Math.round(width * scale)}px`;
         element.height = `${Math.round(height * scale)}px`;

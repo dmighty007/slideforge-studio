@@ -235,22 +235,32 @@
         return String(Number(value.toPrecision(3)));
     };
 
-    // The unit in an axis label's brackets: "Time (h)" → "h".
-    const unitOf = label => (String(label || "").match(/\(([^()]+)\)\s*$/) || [])[1]?.trim() || "";
+    // The unit in an axis label's round or square brackets: "Time (h)" or "Time [h]" → "h"; none → "".
+    const unitOf = label => {
+        const match = String(label || "").match(/(?:\(([^()]+)\)|\[([^[\]]+)\])\s*$/);
+        return (match?.[1] || match?.[2] || "").trim();
+    };
+    // A compound unit ("mg L", "µM/s") goes in brackets before a power or a division.
+    const unitAtom = unit => (/^[\p{L}µ°%]+$/u.test(unit) ? unit : `(${unit})`);
+    const perUnit = unit => (unit ? `${unitAtom(unit)}⁻¹` : "");
 
-    // The numbers a researcher quotes for each model. Those measured along x (a half-life, Km, EC50) carry the x axis
-    // unit: "t½ 1130" said nothing of hours.
-    function describe(modelId, result, xUnit = "") {
+    // The numbers a researcher quotes for each model, with the units the axes give them: along x a half-life, Km and
+    // EC50 (in x), a rate k (per x), a slope (y per x), an intercept and Vmax (in y). "t½ 1130" said nothing of hours,
+    // and "k 0.198" nothing of "per hour".
+    function describe(modelId, result, xUnit = "", yUnit = "") {
         const [a, b, c, d] = result.params;
-        const inX = text => (xUnit ? `${text} ${xUnit}` : text);
+        const withUnit = (text, unit) => (unit ? `${text} ${unit}` : text);
+        const inX = text => withUnit(text, xUnit);
+        const inY = text => withUnit(text, yUnit);
+        const slopeUnit = yUnit && xUnit ? `${unitAtom(yUnit)}/${unitAtom(xUnit)}` : yUnit || perUnit(xUnit);
         const ci = i => `${formatNumber(result.ci[i][0])}–${formatNumber(result.ci[i][1])}`;
         const r2 = `R² ${Number.isFinite(result.r2) ? result.r2.toFixed(3) : "–"}`;
         if (modelId === "dose-response") {
             return `EC50 ${inX(formatNumber(10 ** c))} (${formatNumber(10 ** result.ci[2][0])}–${formatNumber(10 ** result.ci[2][1])}), Hill ${formatNumber(d)}, ${r2}`;
         }
-        if (modelId === "linear") return `slope ${formatNumber(a)} (${ci(0)}), intercept ${formatNumber(b)}, ${r2}`;
-        if (modelId === "michaelis-menten") return `Vmax ${formatNumber(a)} (${ci(0)}), Km ${inX(formatNumber(b))} (${ci(1)}), ${r2}`;
-        return `k ${formatNumber(c)} (${ci(2)}), t½ ${inX(formatNumber(Math.LN2 / c))}, ${r2}`;
+        if (modelId === "linear") return `slope ${withUnit(formatNumber(a), slopeUnit)} (${ci(0)}), intercept ${inY(formatNumber(b))}, ${r2}`;
+        if (modelId === "michaelis-menten") return `Vmax ${inY(formatNumber(a))} (${ci(0)}), Km ${inX(formatNumber(b))} (${ci(1)}), ${r2}`;
+        return `k ${withUnit(formatNumber(c), perUnit(xUnit))} (${ci(2)}), t½ ${inX(formatNumber(Math.LN2 / c))}, ${r2}`;
     }
 
     function fitAll(data, rows) {
@@ -286,8 +296,8 @@
 
     SlideForgePlugins.register({
         id: "curve-fit",
-        // 3: fitted values measured along x carry its unit.
-        version: "3",
+        // 4: fitted values carry the axes' units (x, per x, y, y per x).
+        version: "4",
         name: "Curve Fit",
         description: "Points with a fitted curve: dose-response (EC50), line, Michaelis–Menten or decay, with 95% intervals",
         icon: "fa-solid fa-chart-line",
@@ -389,7 +399,7 @@
             if (typeof parsePluginTable !== "function") return "";
             try {
                 const { series } = fitAll(data, parsePluginTable(data.data));
-                return series.map(item => `${item.name}: ${describe(data.model, item.fit, unitOf(data.xLabel))}`).join("; ");
+                return series.map(item => `${item.name}: ${describe(data.model, item.fit, unitOf(data.xLabel), unitOf(data.yLabel))}`).join("; ");
             } catch (_error) {
                 return "";
             }
@@ -430,7 +440,7 @@
             const yHigh = yTicks.max;
             const xTickValues = logX ? logTicks(xLow, xHigh) : context.niceTicks(xLow, xHigh, Math.max(3, Math.round(width / 90))).ticks.filter(t => t >= xLow && t <= xHigh);
             const format = value => String(Number(value.toPrecision(4)));
-            const legendLines = series.map(item => (data.showParams ? `${item.name}: ${describe(data.model, item.fit, unitOf(data.xLabel))}` : item.name));
+            const legendLines = series.map(item => (data.showParams ? `${item.name}: ${describe(data.model, item.fit, unitOf(data.xLabel), unitOf(data.yLabel))}` : item.name));
             const legendHeight = series.length > 1 || data.showParams ? legendLines.length * size * 1.35 + size * 0.4 : 0;
             const tickWidth = Math.max(...yTicks.ticks.map(t => context.measureText(format(t), { size, family: FONT })));
             const left = (data.yLabel ? size * 1.6 : 0) + tickWidth + size * 0.8;

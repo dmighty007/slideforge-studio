@@ -2984,6 +2984,9 @@ async function test(name, fn) {
         const r = await pageAwait(page, async () => {
             addSlide();
             addChart("bar");
+            // A new chart fills the content area; narrowed as it used to be, it leaves room beside it.
+            state.slides[currentSlideIndex].elements.find(e => e.type === "chart").width = "736px";
+            renderSlidesFromState();
             const overlap = (a, b) => {
                 const box = e => ({ x: Number(e.x), y: Number(e.y), w: parseFloat(e.width) || 0, h: parseFloat(e.height) || 60 });
                 const p = box(a), q = box(b);
@@ -3434,7 +3437,8 @@ async function test(name, fn) {
 
     await test("qa: slide size 16:9 -> 4:3 -> 16:9 gives the same layout; an object moved in between keeps its move", async () => {
         const { page } = await openFreshEditor(context);
-        await page.evaluate(() => { addSlide(); addChart("bar"); addElement("table"); state.selectedIds = []; renderSlidesFromState(); });
+        // The chart narrowed as it used to be: a new one fills the content area and leaves the table no room.
+        await page.evaluate(() => { addSlide(); addChart("bar"); state.slides[currentSlideIndex].elements.find(e => e.type === "chart").width = "736px"; addElement("table"); state.selectedIds = []; renderSlidesFromState(); });
         await page.waitForTimeout(500);
         const geo = () => page.evaluate(() => state.slides.flatMap((s, i) => s.elements.map(e => `s${i + 1} ${e.type}${e.footerRole ? ":" + e.footerRole : ""} ${[Math.round(e.x), Math.round(e.y), Math.round(parseFloat(e.width)), Math.round(parseFloat(e.height)) || 0].join(",")}`)));
         const before = await geo();
@@ -5550,6 +5554,124 @@ async function test(name, fn) {
         await page.waitForTimeout(500);
         const reprs = await frame.evaluate(() => sfMoleculeViewer.component().reprList.map(r => r.repr.type));
         assert(reprs.includes("ball+stick"), `representations: ${reprs}`);
+        await page.close();
+    });
+
+    await test("audit 2026-10-17: fitting a long table keeps it under the title and says to split it; the split repeats the header", async () => {
+        const { page } = await openFreshEditor(context);
+        const id = await page.evaluate(() => {
+            addSlide();
+            const title = state.slides[currentSlideIndex].elements.find(e => e.placeholder === "Click to add title");
+            delete title.textDocument;
+            title.content = "Catalyst screening";
+            const cells = [["Catalyst", "Yield (%)"]];
+            for (let i = 1; i <= 24; i++) cells.push([`Cat-${i}`, String(50 + i)]);
+            addElement("table");
+            const el = state.slides[currentSlideIndex].elements.find(e => e.type === "table");
+            el.tableData = normalizeTableData({ ...el.tableData, rows: cells.length, cols: 2, cells: cells.map(row => row.map(text => ({ text }))), rowHeights: cells.map(() => 44) });
+            el.height = `${44 * cells.length}px`;
+            renderSlidesFromState();
+            return el.id;
+        });
+        await page.waitForTimeout(400);
+        await page.evaluate(id => { selectElement(id, "replace"); fitSelectionToContentArea(); }, id);
+        await page.waitForTimeout(1000);
+        const fitted = await page.evaluate(id => {
+            const slide = state.slides[currentSlideIndex];
+            const el = slide.elements.find(e => e.id === id);
+            const area = _pluginContentArea(slide, new Set([id]));
+            return { y: el.y, areaY: area.y, rows: el.tableData.rows, note: [...document.querySelectorAll(".notification")].some(n => /Split table across slides/.test(n.textContent)) };
+        }, id);
+        // It used to move up over the title with its last rows off the slide.
+        assert(fitted.y >= fitted.areaY && fitted.rows === 25 && fitted.note, `fitted: ${JSON.stringify(fitted)}`);
+        const parts = await page.evaluate(id => splitTableAcrossSlides(id), id);
+        await page.waitForTimeout(500);
+        const slides = await page.evaluate(() => state.slides.map(s => {
+            const t = s.elements.find(e => e.type === "table");
+            if (!t) return null;
+            const area = _pluginContentArea(s, new Set([t.id]));
+            return { title: String(s.elements.find(e => e.placeholder === "Click to add title")?.content || ""), header: t.tableData.cells[0][0].text, dataRows: t.tableData.rows - 1, fits: t.y + parseFloat(t.height) <= area.y + parseFloat(area.height) + 2 };
+        }).filter(Boolean));
+        assert(parts >= 2 && slides.length === parts, `parts: ${parts}, ${JSON.stringify(slides)}`);
+        assert(slides.every(s => s.header === "Catalyst" && s.fits), `split slides: ${JSON.stringify(slides)}`);
+        assert(slides.reduce((n, s) => n + s.dataRows, 0) === 24 && /\(continued\)$/.test(slides[1].title) && !/continued/.test(slides[0].title), `split rows and titles: ${JSON.stringify(slides)}`);
+        await page.evaluate(() => undo());
+        await page.waitForTimeout(300);
+        const undone = await page.evaluate(() => state.slides.filter(s => s.elements.some(e => e.type === "table")).length);
+        assert(undone === 1, `undo the split: ${undone} table slides`);
+        await page.close();
+    });
+
+    await test("audit 2026-10-17: a new chart fills the content area at 18 px and long category names wrap", async () => {
+        const { page } = await openFreshEditor(context);
+        const out = await page.evaluate(() => {
+            addSlide();
+            addChart("bar");
+            const slide = state.slides[currentSlideIndex];
+            const el = slide.elements.find(e => e.type === "chart");
+            const area = _pluginContentArea(slide, new Set([el.id]));
+            el.chartData.labels = ["Planar n-i-p with spiro-OMeTAD", "Inverted p-i-n with PTAA", "Mesoporous TiO2 scaffold", "Carbon"];
+            const config = buildChartJsConfig(el, parseFloat(el.width), parseFloat(el.height));
+            return { width: parseFloat(el.width), areaWidth: parseFloat(area.width), font: el.chartStyle.fontSize, labels: config.data.labels, stored: el.chartData.labels[0] };
+        });
+        assert(out.font === 18 && out.width >= out.areaWidth * 0.9, `chart size: ${JSON.stringify(out)}`);
+        // Wrapped for drawing only: the data keeps the name in one piece.
+        assert(Array.isArray(out.labels[0]) && out.labels[0].join(" ") === out.stored && out.labels[3] === "Carbon", `labels: ${JSON.stringify(out.labels)}`);
+        await page.close();
+    });
+
+    await test("audit 2026-10-17: a small molecule fills its view when loaded and after Reset view", async () => {
+        const { page } = await openFreshEditor(context);
+        const xyz = "3\nwater\nO 0.000 0.000 0.117\nH 0.000 0.757 -0.467\nH 0.000 -0.757 -0.467";
+        const id = await page.evaluate(data => { addSlide(); _upsertMoleculeElement(createMoleculeElementData({ data, name: "water", format: "xyz" })); renderSlidesFromState(); return state.slides[currentSlideIndex].elements.find(e => e.type === "molecule").id; }, xyz);
+        const frame = await (await page.locator(`.slides [id="${id}"] iframe`).elementHandle()).contentFrame();
+        await frame.waitForFunction(() => window.sfMoleculeViewer?.component() && window.sfMoleculeViewer.initialOrientation(), null, { timeout: 20000 });
+        await page.waitForTimeout(800);
+        const cover = await frame.evaluate(async () => {
+            // The share of the canvas the drawn atoms span (water used to be a speck in the middle).
+            const measure = () => {
+                const c = document.querySelector("canvas");
+                const k = document.createElement("canvas");
+                k.width = c.width; k.height = c.height;
+                const g = k.getContext("2d");
+                g.drawImage(c, 0, 0);
+                const d = g.getImageData(0, 0, k.width, k.height).data;
+                let y0 = 1e9, y1 = -1, x0 = 1e9, x1 = -1;
+                for (let y = 0; y < k.height; y += 2) for (let x = 0; x < k.width; x += 2) {
+                    const i = (y * k.width + x) * 4;
+                    if ([0, 1, 2].some(j => Math.abs(d[i + j] - d[j]) > 24)) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+                }
+                return Math.max((x1 - x0) / k.width, (y1 - y0) / k.height);
+            };
+            const first = measure();
+            sfMoleculeViewer.stage().viewerControls.zoom(-0.8);
+            sfMoleculeViewer.stage().viewer.requestRender();
+            await new Promise(r => setTimeout(r, 300));
+            window.postMessage({ type: "pptmaker:molecule:reset-view" }, "*");
+            await new Promise(r => setTimeout(r, 900));
+            return { first, reset: measure() };
+        });
+        assert(cover.first > 0.5 && cover.first < 0.98 && cover.reset > 0.5 && cover.reset < 0.98, `coverage: ${JSON.stringify(cover)}`);
+        await page.close();
+    });
+
+    await test("audit 2026-10-17: fitted values carry units from the axis labels: per hour for a rate, y/x for a slope", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("curve-fit", null, { ask: false }));
+        const status = async updates => {
+            await pageAwait(page, ({ id, updates }) => SlideForgePlugins.update(id, updates), { id, updates });
+            return page.evaluate(id => getSlidePlugin("curve-fit").status(state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginData), id);
+        };
+        const decay = "t,signal\n0,100\n1,61\n2,37\n3,22\n4,13.5\n5,8.2";
+        const hours = await status({ model: "exp-decay", data: decay, xLabel: "Time (h)", yLabel: "Signal (a.u.)" });
+        assert(/k [\d.]+ h⁻¹/.test(hours), `rate per hour: ${hours}`);
+        const square = await status({ xLabel: "Time [min]" });
+        assert(/k [\d.]+ min⁻¹/.test(square), `square brackets: ${square}`);
+        const bare = await status({ xLabel: "Time" });
+        assert(/k [\d.]+(;|,| \(|$)/.test(bare) && !/⁻¹/.test(bare), `no unit: ${bare}`);
+        const line = await status({ model: "linear", data: "x,y\n0,1.1\n1,3.4\n2,5.6\n3,8.2\n4,10.1", xLabel: "Time (s)", yLabel: "Distance (m)" });
+        assert(/slope 2\.28 m\/s/.test(line) && /intercept [-\d.]+ m\b/.test(line), `linear units: ${line}`);
         await page.close();
     });
 

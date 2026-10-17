@@ -89,6 +89,9 @@ const COMMANDS = [
         icon: "fa-arrows-left-right", needs: 3, keywords: "space equal gaps arrange",
         action: () => distributeSelection(axis),
     })),
+    { id: "split-table", title: "Split Table Across Slides", icon: "fa-table", needs: 1,
+      keywords: "table long rows continue next slide pages",
+      action: () => splitTableAcrossSlides() },
     { id: "fit-content", title: "Fit Selection to Content Area", icon: "fa-expand", needs: 1,
       keywords: "resize figure plot fill", action: () => fitSelectionToContentArea() },
 

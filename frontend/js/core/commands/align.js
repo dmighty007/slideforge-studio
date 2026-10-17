@@ -185,12 +185,11 @@ function fitSelectionToContentArea() {
     selected.forEach(el => {
         const box = _getElementBox(el);
         const plugin = el.type === "plugin" && getSlidePlugin(el.pluginId);
-        const fill = selected.length === 1 && plugin?.sizeAware;
-        // A table takes the area's width; its height is its rows (a box stretched taller stretched every row). Scaled
-        // like a picture, its rows were stretched to twice their height and its words looked tiny.
+        // Size-aware plots and native charts lay themselves out, so they take the whole area.
+        const fill = selected.length === 1 && (plugin?.sizeAware || el.type === "chart");
+        // A table is fitted by its rows (see _fitTableToContentArea): scaled like a picture, its rows were stretched.
         if (selected.length === 1 && el.type === "table") {
-            const rows = normalizeTableData(el.tableData).rowHeights.reduce((sum, value) => sum + (Number(value) || 44), 0);
-            updateElementState(el.id, { x: area.x, y: area.y, width: area.width, height: `${Math.round(rows)}px` });
+            _fitTableToContentArea(el, area);
             return;
         }
         updateElementState(el.id, fill ? area : {
@@ -201,4 +200,120 @@ function fitSelectionToContentArea() {
     renderSlidesFromState();
     buildPropertiesPanel?.();
     schedulePresentationAutosave?.(150);
+}
+
+
+const _nextFrames = (count = 2) => new Promise(resolve => {
+    const step = left => (left ? requestAnimationFrame(() => step(left - 1)) : resolve());
+    step(count);
+});
+
+// The rows of table `id` as drawn, in slide pixels: wrapped text makes a row taller than its stored height.
+function _drawnTableRowHeights(id, tableData) {
+    const node = [...document.querySelectorAll(`[id="${id}"]`)].find(n => !n.closest("#slide-previews"));
+    const rows = node ? [...node.querySelectorAll("tbody tr")] : [];
+    return tableData.rowHeights.map((height, i) => Math.max(Number(height) || 44, rows[i]?.offsetHeight || 0));
+}
+
+const _sumHeights = heights => heights.reduce((sum, value) => sum + value, 0);
+
+// A table across the content area, below the title and above the footer, as tall as its rows. Rows taller than the
+// area are tightened (down to 26 px, words down to 12 px); a table still too tall stays under the title and says it
+// can be split across slides. It used to be scaled like a picture (its rows stretched), and a tall one was moved up
+// over the title with its last rows off the slide.
+async function _fitTableToContentArea(el, area) {
+    const available = parseFloat(area.height);
+    let data = normalizeTableData(el.tableData);
+    updateElementState(el.id, {
+        x: area.x, y: area.y, width: area.width,
+        height: `${Math.round(_sumHeights(data.rowHeights))}px`,
+        tableHeightGrown: false, tableHeightBeforeGrowth: undefined,
+    });
+    renderSlidesFromState();
+    await _nextFrames();
+    let needed = _sumHeights(_drawnTableRowHeights(el.id, data));
+    if (needed > available + 2) {
+        const rowHeight = Math.max(26, Math.floor(available / data.rows));
+        const fontSize = Math.max(12, Math.min(parseFloat(data.fontSize) || 16, Math.floor(rowHeight / 1.9)));
+        data = {
+            ...data,
+            rowHeights: data.rowHeights.map(() => rowHeight),
+            fontSize: `${fontSize}px`,
+            cellPadding: Math.min(data.cellPadding, Math.max(3, Math.floor((rowHeight - fontSize * 1.3) / 2))),
+        };
+        updateElementState(el.id, { tableData: data, height: `${rowHeight * data.rows}px` });
+        renderSlidesFromState();
+        await _nextFrames();
+        needed = _sumHeights(_drawnTableRowHeights(el.id, data));
+    }
+    if (needed > available + 2 && typeof showNotification === "function") {
+        showNotification("This table has more rows than fit on one slide. “Split table across slides” (in the table's settings, or Ctrl+K) continues it on new slides with its header row.", "info");
+    }
+    buildPropertiesPanel?.();
+    schedulePresentationAutosave?.(150);
+}
+
+// Splits table `id` of the current slide into slides that each hold what fits below the title: copies of the slide
+// follow it, each with the header row again and "(continued)" after its title.
+function splitTableAcrossSlides(id = state.selectedIds[0]) {
+    const index = currentSlideIndex;
+    const slide = state.slides[index];
+    const el = slide?.elements.find(item => item.id === id && item.type === "table");
+    if (!el || typeof _pluginContentArea !== "function") return 0;
+    const area = _pluginContentArea(slide, new Set([el.id]));
+    if (!area) return 0;
+    const available = parseFloat(area.height);
+    const data = normalizeTableData(el.tableData);
+    const drawn = _drawnTableRowHeights(el.id, data);
+    const headerRows = data.headerRow && data.rows > 1 ? [0] : [];
+    const headerHeight = _sumHeights(headerRows.map(r => drawn[r]));
+    const chunks = [];
+    let chunk = [];
+    let used = headerHeight;
+    for (let row = headerRows.length; row < data.rows; row++) {
+        if (chunk.length && used + drawn[row] > available) {
+            chunks.push(chunk);
+            chunk = [];
+            used = headerHeight;
+        }
+        chunk.push(row);
+        used += drawn[row];
+    }
+    if (chunk.length) chunks.push(chunk);
+    if (chunks.length < 2) {
+        if (typeof showNotification === "function") showNotification("The table already fits on its slide.", "info");
+        return 0;
+    }
+    saveStateToUndo();
+    const rowsOf = part => [...headerRows, ...part];
+    const tableFor = part => ({ ...data, rows: rowsOf(part).length, cells: rowsOf(part).map(r => data.cells[r]), rowHeights: rowsOf(part).map(r => data.rowHeights[r]), selection: null });
+    const heightFor = part => `${Math.round(_sumHeights(rowsOf(part).map(r => drawn[r])))}px`;
+    const fitted = { tableHeightGrown: false, tableHeightBeforeGrowth: undefined, y: area.y };
+    Object.assign(el, { tableData: tableFor(chunks[0]), height: heightFor(chunks[0]), ...fitted });
+    chunks.slice(1).forEach((part, k) => {
+        const copy = JSON.parse(JSON.stringify(slide));
+        copy.id = generateId("slide");
+        const idMap = {};
+        const groupMap = {};
+        copy.elements = copy.elements.map(item => {
+            const next = { ...item, id: generateId("el") };
+            idMap[item.id] = next.id;
+            if (next.groupId) next.groupId = groupMap[next.groupId] || (groupMap[next.groupId] = generateId("grp"));
+            return next;
+        });
+        if (typeof remapConnectorBindings === "function") remapConnectorBindings(copy.elements, idMap);
+        Object.assign(copy.elements.find(item => item.id === idMap[el.id]), { tableData: tableFor(part), height: heightFor(part), ...fitted });
+        const title = copy.elements.find(item => item.placeholder === "Click to add title" || item.placeholderRole === "title");
+        if (title && typeof title.content === "string" && title.content.trim()) {
+            title.content = `${title.content} (continued)`;
+            delete title.textDocument;
+            delete title._textDocumentSourceContent;
+        }
+        state.slides.splice(index + 1 + k, 0, copy);
+    });
+    renderSlidesFromState();
+    buildPropertiesPanel?.();
+    schedulePresentationAutosave?.(150);
+    if (typeof showNotification === "function") showNotification(`The table now continues over ${chunks.length} slides, each with its header row.`, "success");
+    return chunks.length;
 }
