@@ -105,7 +105,7 @@ These features use programs that pip cannot install. When a program is missing, 
 
 ## Licenses
 
-SlideForge Studio is released under the MIT license.
+SlideForge Studio is free software under the GNU Affero General Public License v3.0 or later (it builds on PyMuPDF, which is offered under the same licence). Bundled libraries and fonts are listed in THIRD_PARTY_NOTICES.md.
 
 It depends on PyMuPDF for reading PDFs, which is licensed under the GNU AGPL v3 (or a commercial license from Artifex). Installing SlideForge with pip downloads PyMuPDF separately under its own license. If you redistribute SlideForge bundled with PyMuPDF, for example in an installer, the AGPL's terms apply to that bundle.
 

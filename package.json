@@ -1,7 +1,7 @@
 {
   "name": "slideforge",
   "private": true,
-  "license": "MIT",
+  "license": "AGPL-3.0-or-later",
   "scripts": {
     "check:backend": "python3 backend/manage.py check",
     "check:frontend": "find frontend/js -name '*.js' -print0 | xargs -0 -n1 node --check",

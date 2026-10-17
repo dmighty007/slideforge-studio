@@ -10,7 +10,7 @@ dynamic = ["version"]
 description = "A local presentation editor: slides with equations, diagrams, molecules, charts and animations, PowerPoint and PDF export."
 readme = "docs/DESKTOP.md"
 keywords = ["presentation", "slides", "powerpoint", "pptx", "slideshow", "mermaid", "latex", "molecules", "editor"]
-license = "MIT"
+license = "AGPL-3.0-or-later"
 license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 requires-python = ">=3.10"
 authors = [{ name = "dmighty007" }]
