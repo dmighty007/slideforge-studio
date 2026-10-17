@@ -1046,6 +1046,44 @@ async function replaceMermaidWithPictures(exportState) {
   }
 }
 
+// Font Awesome icons are text boxes holding an <i> tag: PowerPoint got an empty box (the tag is not text, and the
+// icon font is not installed there). Each goes in as a picture of its glyph instead, drawn from the icon's path in
+// the bundled Font Awesome, in its colour and size, centred in its box as on the slide.
+function replaceIconsWithPictures(exportState) {
+  const styles = window.___FONT_AWESOME___?.styles || {};
+  (exportState?.slides || []).forEach((slide) => {
+    (slide.elements || []).forEach((el, index) => {
+      if (el?.type !== "text" || !el.iconMode) return;
+      const classes = String(el.iconClass || "").split(/\s+/);
+      const pack = classes.includes("fa-brands") ? "fab" : classes.includes("fa-regular") ? "far" : "fas";
+      const name = classes.map((c) => c.replace(/^fa-/, "")).find((c) => c && !["solid", "regular", "brands"].includes(c) && styles[pack]?.[c]);
+      const icon = name && styles[pack][name];
+      if (!icon) return;
+      const [glyphWidth, glyphHeight, , , path] = icon;
+      const paths = (Array.isArray(path) ? path : [path]).filter(Boolean);
+      const boxWidth = parseFloat(el.width) || 100;
+      const boxHeight = parseFloat(el.height) || 100;
+      const size = Math.min(parseFloat(el.styles?.fontSize) || 64, boxHeight);
+      const width = (size * glyphWidth) / glyphHeight;
+      const colour = String(el.styles?.color || "#000000").replace(/"/g, "");
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${glyphWidth} ${glyphHeight}" width="${width}" height="${size}">${paths.map((d) => `<path fill="${colour}" d="${d}"/>`).join("")}</svg>`;
+      slide.elements[index] = {
+        id: el.id,
+        type: "image",
+        content: `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`,
+        x: (Number(el.x) || 0) + (boxWidth - width) / 2,
+        y: (Number(el.y) || 0) + (boxHeight - size) / 2,
+        width: `${width}px`,
+        height: `${size}px`,
+        rotation: el.rotation,
+        styles: { ...(el.styles || {}), backgroundColor: "transparent" },
+        animation: el.animation || null,
+        exportedFrom: "icon",
+      };
+    });
+  });
+}
+
 async function exportPPTX() {
   try {
     setProjectSaveHint?.("Generating PowerPoint...", "success");
@@ -1088,6 +1126,7 @@ async function exportPPTX() {
     if (typeof replaceMoleculesWithPictures === "function") await replaceMoleculesWithPictures(exportState);
     if (typeof replacePdfsWithPictures === "function") await replacePdfsWithPictures(exportState);
     await replaceMermaidWithPictures(exportState);
+    replaceIconsWithPictures(exportState);
     // PowerPoint cannot animate the 3D backgrounds: each one goes in as a still picture of its first frame.
     replaceMotionBackgroundsWithPictures(exportState);
     // Plugin objects are drawn as SVG; they become PNG pictures with the other SVGs just below (text-only ones,

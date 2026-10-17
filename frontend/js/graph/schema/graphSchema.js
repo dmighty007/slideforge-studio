@@ -132,6 +132,9 @@ function normalizeNode(node = {}, index = 0) {
         animation: node.animation || {},
         ai: node.ai || { tags: [], confidence: null },
         locked: Boolean(node.locked),
+        // Where the layout last put it: a node still there is laid out again. Dropped here, a box placed while its
+        // links were half typed counted as placed by hand and stayed in the wrong column.
+        ...(node.autoPlacedAt ? { autoPlacedAt: { x: Number(node.autoPlacedAt.x), y: Number(node.autoPlacedAt.y) } } : {}),
     };
 }
 

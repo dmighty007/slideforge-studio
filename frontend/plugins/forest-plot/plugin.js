@@ -41,7 +41,8 @@
 
     SlideForgePlugins.register({
         id: "forest-plot",
-        version: "3",
+        // 4: a log axis keeps its 1-2-5 ticks when finer ones are added.
+        version: "4",
         name: "Forest Plot",
         description: "Estimates with confidence intervals per study or subgroup, with a pooled diamond",
         icon: "fa-solid fa-bars-staggered",
@@ -148,8 +149,10 @@
             if (log) {
                 ticks = logTicks(low, high, 6);
                 if (ticks.length < 4) {
-                    // A narrow range (0.36–1.15) gets only 0.5 and 1 from 1-2-5 steps: finer round values inside it.
-                    ticks = context.niceTicks(low, high, 5).ticks.filter(t => t >= low && t <= high);
+                    // A narrow range (0.36–1.15) gets only 0.5 and 1 from 1-2-5 steps: finer round values inside it,
+                    // with the 1-2-5 ones kept (0.37–4.75 lost its 0.5 and had nothing left of 1).
+                    const merged = [...new Set([...ticks, ...context.niceTicks(low, high, 5).ticks])].filter(t => t > 0 && t >= low && t <= high).sort((a, b) => a - b);
+                    ticks = merged.filter((t, i) => i === 0 || t / merged[i - 1] >= 1.18 || t === 1);
                 } else {
                     low = Math.min(low, ticks[0]);
                     high = Math.max(high, ticks.at(-1));

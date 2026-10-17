@@ -113,7 +113,8 @@
 
     SlideForgePlugins.register({
         id: "venn",
-        version: "2",
+        // 3: the names above the circles are moved apart when they would overlap.
+        version: "3",
         name: "Venn Diagram",
         description: "A Venn or Euler diagram of two or three sets, from counts or lists of items",
         icon: "fa-solid fa-circle-half-stroke",
@@ -203,12 +204,26 @@
             }
 
             // Set names: above the circles (the third set below its circle).
+            const keep = (x, textWidth) => Math.min(Math.max(x, textWidth / 2 + size + 2), width - textWidth / 2 - 2);
+            const widths = labels.map(label => context.measureText(label, { size, weight: 600, family: FONT }));
+            const centres = circles.map((c, i) => keep(sx(c.x), widths[i]));
+            // The two names above are moved apart when they would run into each other: long names over circles
+            // that overlap ("Carbapenemase (135)" and "ESBL (CTX-M) (122)") were printed on top of each other.
+            const left = circles[0].x <= circles[1].x ? 0 : 1;
+            const right = 1 - left;
+            // The right name's swatch starts size * 0.9 before its text; keep size * 0.8 clear of the left name's end.
+            const gap = size * 1.7;
+            const overlap = centres[left] + widths[left] / 2 + gap - (centres[right] - widths[right] / 2);
+            if (overlap > 0) {
+                centres[left] = keep(centres[left] - overlap / 2, widths[left]);
+                centres[right] = keep(centres[left] + widths[left] / 2 + gap + widths[right] / 2, widths[right]);
+            }
             circles.forEach((c, i) => {
                 const below = count === 3 && i === 2;
                 const y = below ? sy(c.y + c.r) + size * 1.3 : sy(c.y - c.r) - size * 0.55;
                 // Kept inside the box: a name wider than the room left of its centre starts at the edge instead.
-                const textWidth = context.measureText(labels[i], { size, weight: 600, family: FONT });
-                const x = Math.min(Math.max(sx(c.x), textWidth / 2 + size + 2), width - textWidth / 2 - 2);
+                const textWidth = widths[i];
+                const x = centres[i];
                 parts.push(`<rect x="${fmt(x - textWidth / 2 - size * 0.9)}" y="${fmt(y - size * 0.72)}" width="${fmt(size * 0.6)}" height="${fmt(size * 0.6)}" rx="2" fill="${COLORS[i]}"/>`);
                 parts.push(`<text x="${fmt(x)}" y="${fmt(y)}" font-size="${size}" font-weight="600" text-anchor="middle" fill="${ink}">${context.escapeXml(labels[i])}</text>`);
             });

@@ -5013,7 +5013,11 @@ async function test(name, fn) {
         assert(gel.bands.length === 14, `${gel.bands.length} bands (10 ladder + 4 sample)`);
         assert(["Ladder", "Uncut", "EcoRI", "PCR", "No template"].every(name => name in gel.labels), "lane names missing");
         const ladderX = Math.min(...gel.bands.map(b => b.x));
-        const ladderY = size => gel.labels[String(size)] - 13 * 0.28; // a size's label sits 0.28 em below its band
+        // The ladder's own bands, top to bottom (sizes whose labels would overlap are not labelled).
+        const ladderBands = gel.bands.filter(b => b.x <= ladderX + 1).sort((a, b) => a.y - b.y);
+        const ladderSizes = [10000, 8000, 6000, 5000, 4000, 3000, 2000, 1500, 1000, 500];
+        const ladderY = size => ladderBands[ladderSizes.indexOf(size)].y;
+        assert(["10000", "500"].every(size => size in gel.labels), "the ladder's end sizes are not labelled");
         const samples = gel.bands.filter(b => b.x > ladderX + 1).sort((a, b) => a.y - b.y);
         // 5200 bp runs between the 6000 and 5000 bands, 750 bp between 1000 and 500.
         assert(samples[0].y > ladderY(6000) && samples[0].y < ladderY(5000), "5200 bp band misplaced");
@@ -5672,6 +5676,235 @@ async function test(name, fn) {
         assert(/k [\d.]+(;|,| \(|$)/.test(bare) && !/⁻¹/.test(bare), `no unit: ${bare}`);
         const line = await status({ model: "linear", data: "x,y\n0,1.1\n1,3.4\n2,5.6\n3,8.2\n4,10.1", xLabel: "Time (s)", yLabel: "Distance (m)" });
         assert(/slope 2\.28 m\/s/.test(line) && /intercept [-\d.]+ m\b/.test(line), `linear units: ${line}`);
+        await page.close();
+    });
+
+    await test("deck 3: the icon search covers all of Font Awesome and says when nothing matches; PowerPoint gets the icon as a picture", async () => {
+        const { page } = await openFreshEditor(context);
+        const found = await page.evaluate(() => {
+            openIconPicker();
+            filterIconPicker("bacteria");
+            const bacteria = [...document.querySelectorAll("#icon-grid button")].map(b => b.title);
+            filterIconPicker("zzqqxx");
+            const empty = document.querySelector("#icon-grid .icon-grid-empty")?.textContent || "";
+            closeIconPicker();
+            return { bacteria, empty };
+        });
+        assert(found.bacteria.includes("bacteria") && /No icon matches/.test(found.empty), `icon search: ${JSON.stringify(found)}`);
+        const exported = await page.evaluate(() => {
+            addSlide();
+            _insertIcon({ name: "virus", class: "fa-solid fa-virus" });
+            const copy = JSON.parse(JSON.stringify({ slides: [state.slides[currentSlideIndex]] }));
+            replaceIconsWithPictures(copy);
+            const icon = copy.slides[0].elements.find(e => e.exportedFrom === "icon");
+            return icon && { type: icon.type, svg: icon.content.startsWith("data:image/svg+xml"), width: parseFloat(icon.width) };
+        });
+        // It was an empty text box in PowerPoint (the <i> tag is not text, and the icon font is not there).
+        assert(exported?.type === "image" && exported.svg && exported.width > 20, `icon export: ${JSON.stringify(exported)}`);
+        await page.close();
+    });
+
+    await test("deck 3: a flowchart box placed while its links were half typed moves to its column; a slide whose object was deleted gives the next one the area under the title", async () => {
+        const { page } = await openFreshEditor(context);
+        const columns = await pageAwait(page, async () => {
+            const { createGraphDocument, documentToGraphModel } = await import("/js/mermaid/mermaid-document.js");
+            const { ensureSemanticGraphDocument } = await import("/js/graph/schema/migrations.js");
+            // As the editor rebuilds the graph from the code at each keystroke: G first linked only from D.
+            const step = (source, model) => documentToGraphModel(ensureSemanticGraphDocument(createGraphDocument({ mermaidSource: source, graphModel: model }), { mermaidSource: source }));
+            const half = step("flowchart LR\n  A --> B\n  B --> C\n  B --> D\n  C --> E\n  C --> F\n  D --> G", null);
+            const full = step("flowchart LR\n  A --> B\n  B --> C\n  B --> D\n  C --> E\n  C --> F\n  D --> G\n  E --> G\n  F --> G", half);
+            const x = id => full.nodes.find(n => n.id === id).x;
+            return { E: x("E"), F: x("F"), G: x("G") };
+        });
+        assert(columns.G > columns.E && columns.G > columns.F, `G stayed in the column of E and F: ${JSON.stringify(columns)}`);
+        const sizes = await page.evaluate(() => {
+            addSlide();
+            const slide = state.slides[currentSlideIndex];
+            addChart("bar");
+            const first = slide.elements.find(e => e.type === "chart");
+            const firstBox = [first.x, first.y, parseFloat(first.width)];
+            deleteSelectedElements();
+            addChart("line");
+            const second = slide.elements.find(e => e.type === "chart");
+            return { firstBox, secondBox: [second.x, second.y, parseFloat(second.width)] };
+        });
+        assert(Math.abs(sizes.secondBox[1] - sizes.firstBox[1]) <= 8 && sizes.secondBox[2] >= sizes.firstBox[2] * 0.9, `after a delete: ${JSON.stringify(sizes)}`);
+        await page.close();
+    });
+
+    await test("deck 3: a pasted header names the chart's x axis; a pie shows its shares; an equation does not land on the title", async () => {
+        const { page } = await openFreshEditor(context);
+        const id = await page.evaluate(() => { addSlide(); addChart("bar"); return state.selectedIds[0]; });
+        await page.waitForTimeout(300);
+        await page.evaluate(id => { selectElement(id, "replace"); _propertiesPanelActiveTab = "content"; buildPropertiesPanel(); }, id);
+        await page.waitForTimeout(300);
+        const style = await page.evaluate(id => {
+            const box = document.querySelector("#properties-content .chart-row-label");
+            const data = new DataTransfer();
+            data.setData("text/plain", "MIC (mg/L)\tProducers\tControls\n≤0.125\t0\t104\n0.25\t1\t11\n0.5\t3\t4");
+            box.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+            return state.slides[currentSlideIndex].elements.find(e => e.id === id).chartStyle;
+        }, id);
+        assert(style.xTitle === "MIC (mg/L)", `x axis title: ${JSON.stringify(style)}`);
+        const labels = await page.evaluate(() => {
+            const pie = { chartType: "pie", chartStyle: {}, chartData: { labels: ["A", "B"], datasets: [{ data: [3, 1] }] } };
+            const bar = { ...pie, chartType: "bar" };
+            const names = el => (buildChartJsConfig(el).plugins || []).map(p => p.id);
+            return { pie: chartShowsValueLabels(pie), bar: chartShowsValueLabels(bar), piePlugins: names(pie), barOn: names({ ...bar, chartStyle: { valueLabels: true } }) };
+        });
+        assert(labels.pie && !labels.bar && labels.piePlugins.includes("sfValueLabels") && labels.barOn.includes("sfValueLabels"), `value labels: ${JSON.stringify(labels)}`);
+        // A plot filling the area under the title: the equation goes over the plot, not the title.
+        const equation = await pageAwait(page, async () => {
+            addSlide();
+            const slide = state.slides[currentSlideIndex];
+            const title = slide.elements.find(e => e.placeholder === "Click to add title");
+            delete title.textDocument;
+            title.content = "Kinetics";
+            renderSlidesFromState();
+            await insertPluginElement("curve-fit", null, { ask: false });
+            await new Promise(r => setTimeout(r, 300));
+            addEquationElement("E = mc^2");
+            await new Promise(r => setTimeout(r, 300));
+            const eq = slide.elements.find(e => e.type === "equation");
+            return { y: eq.y, titleBottom: title.y + parseFloat(title.height) };
+        });
+        assert(equation.y >= equation.titleBottom - 4, `equation over the title: ${JSON.stringify(equation)}`);
+        await page.close();
+    });
+
+    await test("deck 3: plugin drawings: plasmid rings, gel labels, heatmap names, whole-day ticks, log ticks, Venn names, a shared y unit", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const add = async (pluginId, data) => {
+            const id = await pageAwait(page, pluginId => insertPluginElement(pluginId, null, { ask: false }), pluginId);
+            await pageAwait(page, ({ id, data }) => SlideForgePlugins.update(id, data), { id, data });
+            return id;
+        };
+        // Plasmid: a transposon over the gene it carries goes on its own ring.
+        const plasmid = await add("plasmid-map", { length: 10000, features: "Name,Start,End,Strand\nTn,1000,5000,+\nbla,2000,3000,+", sites: "" });
+        const radii = await pluginSvgQuery(page, plasmid, `
+            const c = svg.querySelector("circle");
+            const [cx, cy] = [Number(c.getAttribute("cx")), Number(c.getAttribute("cy"))];
+            return [...svg.querySelectorAll("path")].filter(p => p.getAttribute("fill") && p.getAttribute("fill") !== "none").map(p => {
+                const [x, y] = p.getAttribute("d").slice(1).split(/[ A-Z]/).map(Number);
+                return Math.round(Math.hypot(x - cx, y - cy));
+            });`);
+        assert(radii.length === 2 && Math.abs(radii[0] - radii[1]) > 5, `plasmid rings: ${JSON.stringify(radii)}`);
+        // Gel: 1000, 900 and 800 bp are not all printed on top of each other; a turned last lane name stays in the box.
+        const gel = await add("gel", { ladder: "100bp", samples: "Lane,Size\nEC-014 isolate,438\nEC-007 isolate,621\nNo template,", fontSize: 18 });
+        const gelOut = await pluginSvgQuery(page, gel, `
+            const width = Number(svg.getAttribute("viewBox").split(" ")[2]);
+            const ys = [...svg.querySelectorAll("text")].filter(t => ["1000", "900", "800"].includes(t.textContent)).map(t => Number(t.getAttribute("y")));
+            const last = [...svg.querySelectorAll("text")].find(t => t.textContent === "No template");
+            const turned = last?.getAttribute("transform")?.match(/translate\\(([\\d.]+)/);
+            return { ys, width, lastX: turned ? Number(turned[1]) : null };`);
+        const gaps = gelOut.ys.sort((a, b) => a - b).slice(1).map((y, i) => y - gelOut.ys[i]);
+        assert(gaps.every(g => g >= 18 * 0.85 - 0.5), `ladder labels overlap: ${JSON.stringify(gelOut)}`);
+        assert(gelOut.lastX === null || gelOut.lastX + 11 * 18 * 0.5 * Math.SQRT1_2 <= gelOut.width + 1, `last lane name cut off: ${JSON.stringify(gelOut)}`);
+        // Heatmap: one long column name goes on two lines instead of standing all the names upright.
+        const heat = await add("heatmap", { data: "Isolate,Meropenem,Ceftazidime-avibactam,Colistin\nA,3,-1,1\nB,6,6,-1", zscore: "none", clusterRows: false });
+        const heatOut = await pluginSvgQuery(page, heat, `return { upright: svg.innerHTML.includes("rotate(-90)") && [...svg.querySelectorAll("text[transform]")].some(t => /rotate\\(-90\\)/.test(t.getAttribute("transform")) && t.textContent === "Colistin"), lines: [...svg.querySelectorAll("tspan")].map(t => t.textContent) };`);
+        assert(!heatOut.upright && heatOut.lines.includes("avibactam"), `heatmap names: ${JSON.stringify(heatOut)}`);
+        // Survival: whole days tick in whole steps.
+        const km = await add("kaplan-meier", { data: "Time,Event,Group\n2,1,A\n5,1,A\n9,0,A\n17,1,A\n30,0,A\n4,1,B\n25,1,B\n30,0,B\n30,0,B" });
+        const kmTicks = await pluginSvgQuery(page, km, `return [...svg.querySelectorAll("text")].map(t => t.textContent).filter(t => /^\\d+(\\.\\d+)?$/.test(t) && Number(t) > 1 && Number(t) <= 30);`);
+        // (Probabilities 0.25… are on the other axis.)
+        assert(!kmTicks.some(t => t.includes(".")), `survival ticks: ${JSON.stringify(kmTicks)}`);
+        // Forest plot: estimates from 0.37 to 4.75 keep the 0.5 tick.
+        const forest = await add("forest-plot", { data: "Factor,Estimate,Lower,Upper\nA,2.31,1.42,3.76\nB,2.85,1.71,4.75\nC,0.61,0.37,1.01", pooledLast: false });
+        const forestTicks = await pluginSvgQuery(page, forest, `return [...svg.querySelectorAll("text")].map(t => t.textContent);`);
+        assert(forestTicks.includes("0.5") && forestTicks.includes("1"), `forest ticks: ${JSON.stringify(forestTicks.filter(t => /^[\\d.]+$/.test(t)))}`);
+        // Venn: long names over overlapping circles are moved apart.
+        const venn = await add("venn", { data: "Region,Count\nCarbapenemase,66\nESBL (CTX-M),58\nAminoglycoside,21\nCarbapenemase&ESBL (CTX-M),41\nCarbapenemase&Aminoglycoside,17\nESBL (CTX-M)&Aminoglycoside,12\nCarbapenemase&ESBL (CTX-M)&Aminoglycoside,11", proportional: false });
+        const names = await pluginSvgQuery(page, venn, `return [...svg.querySelectorAll("text")].filter(t => /\\(\\d+\\)$/.test(t.textContent)).map(t => ({ x: Number(t.getAttribute("x")), y: Number(t.getAttribute("y")), text: t.textContent, size: Number(t.getAttribute("font-size")) }));`);
+        const top = names.filter(n => n.y === Math.min(...names.map(m => m.y))).sort((a, b) => a.x - b.x);
+        const roughWidth = n => n.text.length * n.size * 0.58;
+        assert(top.length === 2 && top[0].x + roughWidth(top[0]) / 2 <= top[1].x - roughWidth(top[1]) / 2, `Venn names overlap: ${JSON.stringify(top)}`);
+        // Curve fit: two rates in µM/s name the y axis "Rate (µM/s)", so Vmax is in µM/s (it was given in %).
+        const fit = await add("curve-fit", { model: "michaelis-menten", data: "Meropenem (µM),OXA-48 rate (µM/s),NDM-1 rate (µM/s)\n2,0.009,0.21\n5,0.019,0.47\n10,0.03,0.8\n20,0.042,1.21\n50,0.055,1.83\n100,0.061,2.21\n200,0.066,2.45\n400,0.068,2.58" });
+        const fitOut = await page.evaluate(id => { const d = state.slides[currentSlideIndex].elements.find(e => e.id === id).pluginData; return { y: d.yLabel, status: getSlidePlugin("curve-fit").status(d) }; }, fit);
+        assert(fitOut.y === "Rate (µM/s)" && /Vmax [\d.]+ µM\/s/.test(fitOut.status), `curve fit y unit: ${JSON.stringify(fitOut)}`);
+        await page.close();
+    });
+
+    await test("deck 3: typing on a selected shape writes in it; two selected objects are joined by a connector; a selection gets one animation each in the order picked", async () => {
+        const { page } = await openFreshEditor(context);
+        const ids = await page.evaluate(() => {
+            addSlide();
+            const slide = state.slides[currentSlideIndex];
+            slide.elements = slide.elements.filter(e => e.placeholder !== "Click to add text");
+            const make = (x, y) => { insertShapeFromPicker("rectangle"); const el = slide.elements.find(e => e.id === state.selectedIds[0]); Object.assign(el, { x, y, width: "200px", height: "100px" }); return el.id; };
+            const ids = [make(100, 300), make(600, 300)];
+            renderSlidesFromState();
+            selectElement(ids[0], "replace");
+            return ids;
+        });
+        await page.waitForTimeout(200);
+        await page.keyboard.type("Meropenem");
+        await page.keyboard.press("Escape");
+        await page.waitForTimeout(300);
+        const text = await page.evaluate(id => state.slides[currentSlideIndex].elements.find(e => e.id === id).shapeText, ids[0]);
+        assert(text === "Meropenem", `typed into the shape: ${JSON.stringify(text)}`);
+        const connector = await page.evaluate(ids => {
+            setSelectedIds([ids[0], ids[1]]);
+            addConnector("line");
+            const c = state.slides[currentSlideIndex].elements.find(e => e.type === "connector");
+            const points = getConnectorPoints(c).map(p => ({ x: c.x + p.x, y: c.y + p.y }));
+            return { bindings: c.connectorBindings, start: points[0], end: points.at(-1) };
+        }, ids);
+        assert(connector.bindings?.start?.id === ids[0] && connector.bindings?.end?.id === ids[1], `connector bindings: ${JSON.stringify(connector)}`);
+        // From the first box's right side to the second's left side.
+        assert(Math.abs(connector.start.x - 300) < 3 && Math.abs(connector.end.x - 600) < 3, `connector ends: ${JSON.stringify(connector)}`);
+        const order = await page.evaluate(ids => {
+            const slide = state.slides[currentSlideIndex];
+            const arrow = slide.elements.find(e => e.type === "connector").id;
+            setSelectedIds([ids[1], arrow, ids[0]]);
+            buildPropertiesPanel();
+            const button = !!document.getElementById("prop-selection-add-animation");
+            applyAnimationPreset("__selection__", "fadeIn");
+            const names = { [ids[0]]: "first box", [ids[1]]: "second box", [arrow]: "arrow" };
+            return { button, order: slide.elements.filter(e => e.animation?.timelines?.length).map(e => names[e.id]) };
+        }, ids);
+        assert(order.button && JSON.stringify(order.order) === JSON.stringify(["second box", "arrow", "first box"]), `selection animation: ${JSON.stringify(order)}`);
+        await page.close();
+    });
+
+    await test("deck 3: a structure's bound drug and metal ions are drawn (balls and sticks, spheres)", async () => {
+        const { page } = await openFreshEditor(context);
+        // Eight residues (a protein, not a small molecule) with a bound ligand and a zinc ion.
+        const atomLine = (n, name, res, seq, x, y, z, element, het = false) => `${(het ? "HETATM" : "ATOM").padEnd(6)}${String(n).padStart(5)} ${name.padEnd(4)} ${res} A${String(seq).padStart(4)}    ${x.toFixed(3).padStart(8)}${y.toFixed(3).padStart(8)}${z.toFixed(3).padStart(8)}  1.00  0.00          ${element.padStart(2)}`;
+        const lines = [];
+        for (let r = 0; r < 8; r++) {
+            ["N", "CA", "C", "O"].forEach((name, k) => lines.push(atomLine(lines.length + 1, name, "ALA", r + 1, r * 3.8 + k * 0.9, k % 2 ? 1.2 : 0, 0, name[0])));
+        }
+        const pdb = [
+            ...lines,
+            atomLine(40, "C1", "LIG", 101, 4, 0, 3, "C", true),
+            atomLine(41, "O1", "LIG", 101, 5.2, 0, 3, "O", true),
+            atomLine(42, "ZN", " ZN", 201, 6, 2, 2, "ZN", true),
+            "END",
+        ].join("\n");
+        const id = await page.evaluate(data => { addSlide(); _upsertMoleculeElement(createMoleculeElementData({ data, name: "site.pdb", format: "pdb" })); renderSlidesFromState(); return state.slides[currentSlideIndex].elements.find(e => e.type === "molecule").id; }, pdb);
+        const frame = await (await page.locator(`.slides [id="${id}"] iframe`).elementHandle()).contentFrame();
+        await frame.waitForFunction(() => window.sfMoleculeViewer?.component()?.reprList?.length, null, { timeout: 20000 });
+        await page.waitForTimeout(500);
+        const reprs = await frame.evaluate(() => sfMoleculeViewer.component().reprList.map(r => `${r.repr.type}:${r.repr.selection?.string}`));
+        assert(reprs.some(r => /^ball\+stick:.*ligand/.test(r)) && reprs.some(r => /^spacefill:.*ion/.test(r)), `representations: ${JSON.stringify(reprs)}`);
+        await page.close();
+    });
+
+    await test("deck 3: a plugin's \"Example data\" tag goes once its data is replaced", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, () => insertPluginElement("plasmid-map", null, { ask: false }));
+        await page.evaluate(id => { selectElement(id, "replace"); setPropertiesPanelVisible(true); buildPropertiesPanel(); }, id);
+        await page.locator("#prop-plugin-features").waitFor();
+        const tag = () => page.evaluate(() => { const t = document.getElementById("prop-plugin-features")?.parentElement?.querySelector(".plugin-table-example"); return t ? getComputedStyle(t).display : "missing"; });
+        assert((await tag()) !== "none", "no Example data tag on the example");
+        await page.locator("#prop-plugin-features").click();
+        await page.keyboard.press("Control+a");
+        await page.keyboard.type("Name,Start,End\nblaOXA-48,100,900");
+        assert((await tag()) === "none", "the Example data tag stayed over the user's own data");
         await page.close();
     });
 

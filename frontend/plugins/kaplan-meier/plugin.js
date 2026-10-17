@@ -153,7 +153,8 @@
 
     SlideForgePlugins.register({
         id: "kaplan-meier",
-        version: "5",
+        // 6: whole time points tick in whole steps.
+        version: "6",
         name: "Kaplan–Meier Curve",
         description: "Survival curves per group with censoring marks, confidence bands, numbers at risk and the log-rank test",
         icon: "fa-solid fa-chart-line",
@@ -238,7 +239,12 @@
             const ink = context.textColor || "#111827";
             const size = data.fontSize;
             const maxTime = Math.max(...subjects.map(s => s.time)) || 1;
-            const xTicks = context.niceTicks(0, maxTime, Math.max(3, Math.round(width / 90)));
+            // Whole days, weeks or months tick in whole steps (5, 10…): 2.5-day ticks cut the at-risk table into
+            // columns that a 30-day study does not need.
+            let xTicks = context.niceTicks(0, maxTime, Math.max(3, Math.round(width / 90)));
+            if (subjects.every(s => Number.isInteger(s.time))) {
+                for (let count = Math.max(3, Math.round(width / 90)) - 1; xTicks.step % 1 && count >= 2; count--) xTicks = context.niceTicks(0, maxTime, count);
+            }
             const xMax = xTicks.max;
             const yTickValues = [0, 0.25, 0.5, 0.75, 1];
             const yText = v => (data.percent ? `${Math.round(v * 100)}` : String(v));

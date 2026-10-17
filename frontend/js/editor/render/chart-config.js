@@ -153,6 +153,78 @@ function _chartErrorBarsPlugin(ink) {
     };
 }
 
+// Values on the chart (chartStyle.valueLabels): a pie or doughnut shows each slice's share, as a talk needs (on by
+// default there: a pie without numbers could not be read from the back of the room); bars and points show their value.
+function chartShowsValueLabels(elData) {
+    const setting = elData?.chartStyle?.valueLabels;
+    if (setting === true || setting === false) return setting;
+    return _chartIsRound(elData?.chartType || "bar");
+}
+
+function _chartNumberText(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "";
+    const rounded = Math.abs(number) >= 100 ? Math.round(number) : Math.round(number * 10) / 10;
+    return String(rounded);
+}
+
+function _chartValueLabelsPlugin(ink, font) {
+    return {
+        id: "sfValueLabels",
+        afterDatasetsDraw(chart) {
+            const { ctx } = chart;
+            const round = _chartIsRound(chart.config.type);
+            const horizontal = chart.options.indexAxis === "y";
+            ctx.save();
+            ctx.font = `600 ${font.size}px ${font.family || "sans-serif"}`;
+            const drawn = [];
+            chart.data.datasets.forEach((dataset, datasetIndex) => {
+                const meta = chart.getDatasetMeta(datasetIndex);
+                if (meta.hidden) return;
+                const values = (dataset.data || []).map(Number);
+                const total = values.reduce((sum, value) => sum + (Number.isFinite(value) && value > 0 ? value : 0), 0);
+                meta.data.forEach((element, index) => {
+                    const value = values[index];
+                    if (!Number.isFinite(value) || chart.getDataVisibility?.(index) === false) return;
+                    if (round) {
+                        const share = total > 0 ? value / total : 0;
+                        if (share < 0.04) return; // too thin a slice to hold its number
+                        const angle = (element.startAngle + element.endAngle) / 2;
+                        const radius = ((element.innerRadius || 0) + element.outerRadius) / 2 + (element.innerRadius ? 0 : element.outerRadius * 0.12);
+                        const fill = Array.isArray(dataset.backgroundColor) ? dataset.backgroundColor[index % dataset.backgroundColor.length] : dataset.backgroundColor;
+                        const luminance = _chartColorLuminance(fill);
+                        ctx.fillStyle = luminance !== null && luminance > 0.45 ? "#0f172a" : "#ffffff";
+                        ctx.textAlign = "center";
+                        ctx.textBaseline = "middle";
+                        ctx.fillText(`${Math.round(share * 100)}%`, element.x + Math.cos(angle) * radius, element.y + Math.sin(angle) * radius);
+                        return;
+                    }
+                    const text = _chartNumberText(value);
+                    if (!text || (value === 0 && chart.config.type === "bar")) return;
+                    // Each number above its point (or below, or beside a horizontal bar), kept inside the plot and
+                    // off the numbers already drawn: lines close together put theirs on top of each other.
+                    const width = ctx.measureText(text).width;
+                    const height = font.size;
+                    const area = chart.chartArea;
+                    const spots = horizontal
+                        ? [[element.x + (value < 0 ? -6 - width : 6), element.y - height / 2]]
+                        : (value < 0 ? [1, -1] : [-1, 1]).map(side => [element.x - width / 2, side < 0 ? element.y - 6 - height : element.y + 6]);
+                    const spot = spots
+                        .map(([x, y]) => [Math.max(area.left + 2, Math.min(area.right - width - 2, x)), Math.max(area.top - height, Math.min(area.bottom - height, y))])
+                        .find(([x, y]) => !drawn.some(box => x < box.x + box.w && x + width > box.x && y < box.y + box.h && y + height > box.y));
+                    if (!spot) return;
+                    drawn.push({ x: spot[0], y: spot[1], w: width, h: height });
+                    ctx.fillStyle = ink;
+                    ctx.textAlign = "left";
+                    ctx.textBaseline = "top";
+                    ctx.fillText(text, spot[0], spot[1]);
+                });
+            });
+            ctx.restore();
+        },
+    };
+}
+
 // A category label as lines of at most `maxChars` characters, broken between words (a word longer than a line stays
 // whole); a label that fits stays a plain string.
 function _wrapChartLabel(label, maxChars) {
@@ -248,11 +320,17 @@ function buildChartJsConfig(elData, { forExport = false, theme = getPresentation
         Object.assign(dataset, chartSeriesColors(elData.chartType || "bar", data.labels?.length || 0, getPresentationTheme(), index, elData?.chartStyle?.seriesColors?.[index] || null));
         if (type === "line") dataset.pointBackgroundColor = dataset.borderColor;
     });
+    const valueLabels = chartShowsValueLabels(elData);
+    if (valueLabels && !round) {
+        // Room above the highest bar or point for its number.
+        options.layout = { ...(options.layout || {}), padding: { ...(options.layout?.padding || {}), top: Math.round(fontSize * 1.4) } };
+    }
+    const plugins = [...(errorBars ? [_chartErrorBarsPlugin(ink)] : []), ...(valueLabels ? [_chartValueLabelsPlugin(ink, font)] : [])];
     return {
         type,
         data,
         options,
-        ...(errorBars ? { plugins: [_chartErrorBarsPlugin(ink)] } : {}),
+        ...(plugins.length ? { plugins } : {}),
     };
 }
 
@@ -263,3 +341,4 @@ window.applyChartSeriesColors = applyChartSeriesColors;
 window.chartInkColor = chartInkColor;
 window.buildChartJsConfig = buildChartJsConfig;
 window.chartHasErrorBars = chartHasErrorBars;
+window.chartShowsValueLabels = chartShowsValueLabels;

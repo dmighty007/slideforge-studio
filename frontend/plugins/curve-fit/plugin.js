@@ -240,6 +240,24 @@
         const match = String(label || "").match(/(?:\(([^()]+)\)|\[([^[\]]+)\])\s*$/);
         return (match?.[1] || match?.[2] || "").trim();
     };
+    // The y axis named from the series headers: one series' own name; for several in one unit, the words they end
+    // with ("OXA-48 rate (µM/s)", "NDM-1 rate (µM/s)" give "Rate (µM/s)"), else the unit alone. Left as the example's
+    // "Response (%)", every Vmax was given in %.
+    const sharedYLabel = names => {
+        if (names.length === 1) return names[0];
+        const unit = unitOf(names[0]);
+        if (!unit || names.some(name => unitOf(name) !== unit)) return "";
+        const words = names.map(name => String(name).trim().split(/\s+/));
+        const shared = [];
+        for (let i = 1; i <= Math.min(...words.map(list => list.length)); i++) {
+            const word = words[0][words[0].length - i];
+            if (!words.every(list => list[list.length - i].toLowerCase() === word.toLowerCase())) break;
+            shared.unshift(word);
+        }
+        const text = shared.join(" ");
+        if (!text || text === `(${unit})` || text === `[${unit}]`) return `(${unit})`;
+        return text.charAt(0).toUpperCase() + text.slice(1);
+    };
     // A compound unit ("mg L", "µM/s") goes in brackets before a power or a division.
     const unitAtom = unit => (/^[\p{L}µ°%]+$/u.test(unit) ? unit : `(${unit})`);
     const perUnit = unit => (unit ? `${unitAtom(unit)}⁻¹` : "");
@@ -390,7 +408,9 @@
             const updates = {};
             if (header[0] && automatic(data.xLabel, "xLabel", oldHeader[0])) updates.xLabel = header[0];
             const series = header.slice(1).filter(Boolean);
-            if (series.length === 1 && automatic(data.yLabel, "yLabel", oldHeader.length === 2 ? oldHeader[1] : null)) updates.yLabel = series[0];
+            const oldLabel = sharedYLabel(oldHeader.slice(1).filter(Boolean));
+            const label = sharedYLabel(series);
+            if (label && automatic(data.yLabel, "yLabel", oldLabel)) updates.yLabel = label;
             return updates;
         },
 

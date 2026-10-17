@@ -173,6 +173,17 @@ function initKeyboard() {
                 }
                 return;
             }
+            // A selected shape: typing writes in it, as in PowerPoint (the letters typed after inserting a shape went
+            // nowhere; only a double-click let one type). Enter starts editing at the end of its text.
+            const shape = state.slides?.[currentSlideIndex]?.elements?.find(el => el.id === state.selectedIds[0] && el.type === "shape" && !el.locked);
+            const shapeNode = shape && [...document.querySelectorAll(`[id="${shape.id}"]`)].find(n => !n.closest("#slide-previews"));
+            // (Space is left to panning: Space and drag moves the canvas.)
+            if (shapeNode && rawKey !== " " && typeof beginShapeTextEdit === "function" && !document.body.classList.contains("play-mode-active")) {
+                e.preventDefault();
+                beginShapeTextEdit(shapeNode, shape);
+                if (rawKey !== "Enter" && document.activeElement?.isContentEditable) document.execCommand("insertText", false, rawKey);
+                return;
+            }
         }
 
         // Ctrl+A: Select all elements

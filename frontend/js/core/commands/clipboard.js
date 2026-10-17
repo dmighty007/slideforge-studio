@@ -167,7 +167,7 @@ function _currentSlideContentBoxes(excludeId = null) {
                 w = w || node?.offsetWidth || 0;
                 h = h || node?.offsetHeight || 0;
             }
-            return { x: parseFloat(el.x) || 0, y: parseFloat(el.y) || 0, w, h };
+            return { x: parseFloat(el.x) || 0, y: parseFloat(el.y) || 0, w, h, text: el.type === "text" && !el.iconMode };
         })
         .filter(box => box.w > 0 && box.h > 0);
 }
@@ -205,7 +205,9 @@ function _leastOverlapPosition(width, height, bounds, boxes, floor = bounds.slid
         boxes.reduce((sum, b) => {
             const w = Math.min(x + width, b.x + b.w) - Math.max(x, b.x);
             const h = Math.min(y + height, b.y + b.h) - Math.max(y, b.y);
-            return sum + (w > 0 && h > 0 ? w * h : 0);
+            // Words covered count three times: an equation put over the title (the only spot a full-width plot
+            // left) hid it, where a corner of the plot would mostly have covered empty plot.
+            return sum + (w > 0 && h > 0 ? w * h * (b.text ? 3 : 1) : 0);
         }, 0);
     // A spot that would run into the footer is used only if no other spot keeps clear of it.
     const clear = candidates.filter(([, y]) => y + height <= floor + 0.5);

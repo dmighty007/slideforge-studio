@@ -256,8 +256,30 @@ function addChart(chartType = "bar") {
     selectElement(id);
 }
 
+// Two objects selected: the connector joins them, from the first picked to the second, between the sides that
+// face each other, attached so it follows them. Inserted on its own, a connector came in at a fixed spot and
+// had to be dragged end by end onto each object.
+function _connectorBetweenSelected(slide) {
+    const picked = state.selectedIds.map(id => slide.elements.find(el => el.id === id));
+    if (picked.length !== 2 || picked.some(el => !el || el.type === "connector" || el.isMasterElement || el.editableMasterFooterElement)) return null;
+    const boxes = picked.map(el => ({ x: Number(el.x) || 0, y: Number(el.y) || 0, w: parseFloat(el.width) || 0, h: parseFloat(el.height) || 0 }));
+    if (boxes.some(box => box.w <= 0 || box.h <= 0)) return null;
+    const dx = boxes[1].x + boxes[1].w / 2 - (boxes[0].x + boxes[0].w / 2);
+    const dy = boxes[1].y + boxes[1].h / 2 - (boxes[0].y + boxes[0].h / 2);
+    const sideways = Math.abs(dx) >= Math.abs(dy);
+    const spot = (box, toward) => (sideways ? { fx: toward > 0 ? 1 : 0, fy: 0.5 } : { fx: 0.5, fy: toward > 0 ? 1 : 0 });
+    const ends = [spot(boxes[0], sideways ? dx : dy), spot(boxes[1], -(sideways ? dx : dy))];
+    const points = ends.map((end, i) => ({ x: boxes[i].x + end.fx * boxes[i].w, y: boxes[i].y + end.fy * boxes[i].h }));
+    return {
+        points,
+        sideways,
+        bindings: { start: { id: picked[0].id, ...ends[0] }, end: { id: picked[1].id, ...ends[1] } },
+    };
+}
+
 function addConnector(connectorType = "line") {
     const activeIndex = ensureActiveSlideSync();
+    const between = _connectorBetweenSelected(state.slides[activeIndex]);
     saveStateToUndo();
     const id = generateId("el");
     const theme = getPresentationTheme();
@@ -304,10 +326,34 @@ function addConnector(connectorType = "line") {
         },
         themeManaged: true,
     };
+    if (between) {
+        const [from, to] = between.points;
+        const middle = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+        const absolute =
+            safeType === "curve"
+                ? [from, between.sideways ? { x: middle.x, y: middle.y - Math.abs(to.x - from.x) * 0.2 } : { x: middle.x + Math.abs(to.y - from.y) * 0.2, y: middle.y }, to]
+                : safeType === "poly"
+                  ? between.sideways
+                      ? [from, { x: middle.x, y: from.y }, { x: middle.x, y: to.y }, to]
+                      : [from, { x: from.x, y: middle.y }, { x: to.x, y: middle.y }, to]
+                  : [from, to];
+        newConnector.connectorBindings = between.bindings;
+        normalizeConnectorGeometry(newConnector, absolute);
+        state.slides[activeIndex].elements.push(newConnector);
+        if (typeof resolveConnectorBindings === "function") resolveConnectorBindings(state.slides[activeIndex]);
+        renderSlidesFromState();
+        selectElement(id);
+        return;
+    }
     normalizeConnectorGeometry(newConnector);
+    // Where it covers the least, not over whatever sits at the fixed default spot.
+    if (typeof placeWhereFree === "function") placeWhereFree(state.slides[activeIndex], newConnector, { claim: false });
     state.slides[activeIndex].elements.push(newConnector);
     renderSlidesFromState();
     selectElement(id);
+    if (typeof showNotification === "function") {
+        showNotification("Drag the arrow's ends onto objects to attach them, or select two objects first (Shift+click) to join them.", "info");
+    }
 }
 
 function addComponent(templateId) {

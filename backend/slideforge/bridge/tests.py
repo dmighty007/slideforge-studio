@@ -451,6 +451,31 @@ class PPTXExportMediaTests(TestCase):
         chart = next(shape.chart for shape in plain.shapes if shape.has_chart)
         self.assertFalse(chart.plots[0].series[0]._element.findall("c:errBars", ns))
 
+    def test_chart_values_on_the_chart_export_as_data_labels(self):
+        from pptx.oxml.ns import qn
+
+        def chart_of(kind, style):
+            slide = self._export([{
+                "type": "chart", "chartType": kind, "x": 100, "y": 100, "width": "500px", "height": "300px",
+                "chartData": {"labels": ["OXA-48", "NDM-1"], "datasets": [{"label": "Isolates", "data": [31, 17]}]},
+                "chartStyle": style,
+            }])
+            return next(shape.chart for shape in slide.shapes if shape.has_chart)
+
+        # A pie shows its shares unless switched off; a doughnut gets no label position (PowerPoint refuses one).
+        pie = chart_of("pie", {})
+        self.assertTrue(pie.plots[0].has_data_labels)
+        self.assertTrue(pie.plots[0].data_labels.show_percentage)
+        self.assertEqual(pie.plots[0].data_labels.number_format, "0%")
+        doughnut = chart_of("doughnut", {})
+        self.assertIsNone(doughnut.plots[0].data_labels._element.find(qn("c:dLblPos")))
+        self.assertFalse(chart_of("pie", {"valueLabels": False}).plots[0].has_data_labels)
+        # Bars only when asked, with their values.
+        self.assertFalse(chart_of("bar", {}).plots[0].has_data_labels)
+        bars = chart_of("bar", {"valueLabels": True}).plots[0]
+        self.assertTrue(bars.has_data_labels)
+        self.assertTrue(bars.data_labels.show_value)
+
     def test_one_series_chart_has_no_automatic_title_beside_its_legend(self):
         slide = self._export([{
             "type": "chart", "chartType": "bar", "x": 100, "y": 100, "width": "500px", "height": "300px",

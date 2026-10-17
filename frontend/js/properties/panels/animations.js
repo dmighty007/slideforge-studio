@@ -1067,7 +1067,64 @@ function closeAnimationPresetSelector() {
     }
 }
 
+// The chooser opened for several selected objects at once (see buildSelectionAnimationGroup).
+const SELECTION_ANIMATION_TARGET = "__selection__";
+
+// Several objects selected: an "Animation" group whose button gives each the same effect, one click apiece, in the
+// order they were picked. A build (a diagram box by box) took four clicks per object: select it, Motion, Add
+// animation, choose; a multi-selection had no Motion tab at all.
+function buildSelectionAnimationGroup(panel) {
+    const slide = state.slides?.[currentSlideIndex];
+    const count = (state.selectedIds || []).filter(id => slide?.elements.some(el => el.id === id && !el.isMasterElement && !el.editableMasterFooterElement)).length;
+    if (count < 2 || typeof createGroup !== "function") return;
+    const group = createGroup("Animation");
+    const hint = document.createElement("p");
+    hint.className = "prop-field-hint";
+    hint.textContent = `The ${count} objects appear one click at a time, in the order you picked them (Shift+click).`;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.id = "prop-selection-add-animation";
+    button.className = "prop-action-btn w-full";
+    button.innerHTML = '<i class="fa-solid fa-plus"></i> Add an animation to each';
+    button.onclick = () => openAnimationPresetSelector(SELECTION_ANIMATION_TARGET);
+    group.appendChild(hint);
+    group.appendChild(button);
+    panel.appendChild(group);
+}
+
+function applyAnimationPresetToSelection(presetName) {
+    const preset = getPreset(presetName);
+    const slide = state.slides?.[currentSlideIndex];
+    const ids = (state.selectedIds || []).filter(id => slide?.elements.some(el => el.id === id && !el.isMasterElement && !el.editableMasterFooterElement));
+    if (!preset || !slide || !ids.length) return;
+    closeAnimationPresetSelector();
+    saveStateToUndo();
+    // Clicks follow the slide's list of objects: the picked ones take their own places in it, in the order picked
+    // (layering is by z-index, so the list order changes nothing else).
+    const picked = ids.map(id => slide.elements.find(el => el.id === id));
+    const slots = slide.elements.map((el, index) => (ids.includes(el.id) ? index : -1)).filter(index => index >= 0);
+    slots.forEach((slot, k) => {
+        slide.elements[slot] = picked[k];
+    });
+    picked.forEach(element => {
+        const animation = createPresetAnimation(presetName, { trigger: "on-click" });
+        if (!animation) return;
+        const config = ensureAdvancedAnimationConfig(element, element.id);
+        const timeline = createElementTimeline(element.id);
+        timeline.animations.push(animation);
+        timeline.totalDuration = Math.max(0, ...timeline.animations.map(anim => (Number(anim.startTime ?? anim.delay) || 0) + (Number(anim.duration) || 0)));
+        config.timelines.push(timeline);
+        element.fragmentAnimation = "none";
+        element.fragmentIndex = null;
+    });
+    renderSlidesFromState();
+    buildPropertiesPanel();
+    schedulePresentationAutosave?.(150);
+    showNotification?.(`Added ${preset.name} to ${picked.length} objects: one click each, in the order picked`, "success");
+}
+
 function applyAnimationPreset(elementId, presetName) {
+    if (elementId === SELECTION_ANIMATION_TARGET) return applyAnimationPresetToSelection(presetName);
     const preset = getPreset(presetName);
     if (!preset) return;
 
@@ -1334,3 +1391,6 @@ if (typeof module !== "undefined" && module.exports) {
         removeAnimation,
     };
 }
+
+window.buildSelectionAnimationGroup = buildSelectionAnimationGroup;
+window.applyAnimationPresetToSelection = applyAnimationPresetToSelection;

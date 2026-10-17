@@ -11,7 +11,7 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.chart.data import CategoryChartData
-from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION
+from pptx.enum.chart import XL_CHART_TYPE, XL_LABEL_POSITION, XL_LEGEND_POSITION
 from pptx.enum.shapes import MSO_CONNECTOR, MSO_SHAPE
 from pptx.enum.text import MSO_ANCHOR, MSO_AUTO_SIZE, PP_ALIGN
 from pptx.oxml.xmlchemy import OxmlElement
@@ -1307,6 +1307,34 @@ class PPTXExporter:
                         point = series.points[point_index]
                         point.format.fill.solid()
                         point.format.fill.fore_color.rgb = self._parse_color(fills[point_index % len(fills)], self.theme["accent"])
+
+        # Values on the chart (the editor's "Values on the chart"; a pie shows its shares unless switched off).
+        value_labels = style.get("valueLabels")
+        if value_labels is None:
+            value_labels = single_series
+        if value_labels:
+            plot = chart.plots[0]
+            plot.has_data_labels = True
+            data_labels = plot.data_labels
+            data_labels.font.size = Pt(round(font_px * 0.75, 1))
+            data_labels.font.bold = True
+            if single_series:
+                data_labels.show_percentage = True
+                data_labels.show_value = False
+                data_labels.show_category_name = False
+                data_labels.number_format = "0%"
+                data_labels.number_format_is_linked = False
+                # A doughnut takes no label position (PowerPoint repairs a file that gives one).
+                if chart_type == XL_CHART_TYPE.PIE:
+                    data_labels.position = XL_LABEL_POSITION.INSIDE_END
+                data_labels.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+            else:
+                data_labels.show_value = True
+                if chart_type == XL_CHART_TYPE.LINE_MARKERS:
+                    data_labels.position = XL_LABEL_POSITION.ABOVE
+                elif chart_type in {XL_CHART_TYPE.COLUMN_CLUSTERED, XL_CHART_TYPE.BAR_CLUSTERED}:
+                    data_labels.position = XL_LABEL_POSITION.OUTSIDE_END
+                data_labels.font.color.rgb = ink
 
         # Error bars (the editor's ± column): custom plus and minus values on each series, as PowerPoint writes them.
         if style.get("errorBars") and not single_series:

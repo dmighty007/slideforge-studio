@@ -673,8 +673,11 @@ function representationPlan() {
     plan.push([representationKind(kind), representationParams(kind, color, null, base)]);
   }
   if (kind === "cartoon") {
-    // Ligands and cofactors bound to the chain would otherwise be invisible.
-    plan.push(["licorice", { sele: excluding("ligand", hidden), colorScheme: "element", radius: 0.2, quality: meshQuality() }]);
+    // Ligands and cofactors bound to the chain would otherwise be invisible; metal ions too (the two zinc ions of a
+    // metallo-β-lactamase were not drawn, and its drug was a thin line under the cartoon). Balls and sticks, and ions
+    // as spheres, so the bound part of the picture can be seen from the back of the room.
+    plan.push(["ball+stick", { sele: excluding("ligand", hidden), colorScheme: "element", radius: 0.28, aspectRatio: 1.7, quality: meshQuality() }]);
+    plan.push(["spacefill", { sele: excluding("ion", hidden), colorScheme: "element", radiusScale: 0.55, quality: meshQuality() }]);
   }
   if ((kind === "line" || kind === "stick") && !smallMolecule) {
     plan.push(["spacefill", { sele: excluding("water", hidden), color: "#38bdf8", opacity: 0.72, radiusScale: 0.18, quality: meshQuality() }]);

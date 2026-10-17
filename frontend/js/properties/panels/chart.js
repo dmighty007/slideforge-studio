@@ -136,6 +136,10 @@ function _buildChartStyleGroup(data, round) {
         <input type="checkbox" id="prop-chart-error-bars" ${style.errorBars ? "checked" : ""}>
         <span>Error bars (a ± column per series)</span>
       </label>`}
+      <label class="chart-style-check">
+        <input type="checkbox" id="prop-chart-value-labels" ${chartShowsValueLabels(data) ? "checked" : ""}>
+        <span>${round ? "Shares on the slices (%)" : "Values on the chart"}</span>
+      </label>
     </div>`;
   group.dataset.themeSurface = theme.surfaceColor || "";
   return group;
@@ -163,6 +167,7 @@ function _bindChartStyleGroup(data) {
   on("prop-chart-x-title", "change", (e) => _commitChartStyle(data, { xTitle: e.target.value.trim() }));
   on("prop-chart-y-title", "change", (e) => _commitChartStyle(data, { yTitle: e.target.value.trim() }));
   on("prop-chart-grid", "change", (e) => _commitChartStyle(data, { grid: e.target.checked }));
+  on("prop-chart-value-labels", "change", (e) => _commitChartStyle(data, { valueLabels: e.target.checked }));
   on("prop-chart-error-bars", "change", (e) => {
     _commitChartStyle(data, { errorBars: e.target.checked });
     buildPropertiesPanel(); // shows or hides the ± columns
@@ -199,7 +204,7 @@ function _bindChartPanel(group, data) {
   // typing in a box never loses the caret.
   // Set while a box is left on purpose before the panel is rebuilt: leaving it must not commit its old table.
   let leaving = false;
-  const commit = (table = read(), { rebuild = false, seriesColors = null, errorBars = null } = {}) => {
+  const commit = (table = read(), { rebuild = false, seriesColors = null, errorBars = null, xTitle = null } = {}) => {
     const chartType = group.querySelector("#prop-chart-type").value;
     const previous = data.chartData?.datasets || [];
     const datasets = table.series.map((series, index) => ({
@@ -213,6 +218,7 @@ function _bindChartPanel(group, data) {
     saveStateToUndo();
     let chartStyle = seriesColors ? { ...(data.chartStyle || {}), seriesColors } : data.chartStyle;
     if (errorBars !== null) chartStyle = { ...(chartStyle || {}), errorBars };
+    if (xTitle !== null) chartStyle = { ...(chartStyle || {}), xTitle };
     updateElementState(data.id, { chartType, chartData, ...(chartStyle ? { chartStyle } : {}) });
     data.chartType = chartType;
     data.chartData = chartData;
@@ -322,7 +328,15 @@ function _bindChartPanel(group, data) {
         });
       }
       const withErrors = series.some((item) => item.errors.some((value) => value > 0));
-      commit({ labels: body.map((row) => row[0]), series }, { rebuild: true, ...(withErrors ? { errorBars: true } : {}) });
+      // The header above the labels ("MIC (mg/L)", "Year") names the x axis, unless the axis has a title already.
+      const labelHeader = hasHeader ? String(cells[0][0] || "").trim() : "";
+      const namesAxis = labelHeader && !/^(?:labels?|categor(?:y|ies)|names?|x|series)$/i.test(labelHeader) &&
+        !String(data.chartStyle?.xTitle || "").trim() && !["pie", "doughnut", "polarArea", "radar"].includes(group.querySelector("#prop-chart-type").value);
+      commit({ labels: body.map((row) => row[0]), series }, {
+        rebuild: true,
+        ...(withErrors ? { errorBars: true } : {}),
+        ...(namesAxis ? { xTitle: labelHeader } : {}),
+      });
     });
   });
   group.querySelectorAll(".chart-row-remove").forEach((button) => {

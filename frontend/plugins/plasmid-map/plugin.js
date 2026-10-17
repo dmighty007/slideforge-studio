@@ -77,7 +77,8 @@
 
     SlideForgePlugins.register({
         id: "plasmid-map",
-        version: "1",
+        // 2: overlapping features on their own rings.
+        version: "2",
         name: "Plasmid Map",
         description: "A circular plasmid map with features, strands and restriction sites",
         icon: "fa-solid fa-circle-notch",
@@ -141,13 +142,34 @@
             const parts = [];
             parts.push(`<circle cx="${fmt(cx)}" cy="${fmt(cy)}" r="${fmt(radius)}" fill="none" stroke="${ink}" stroke-opacity="0.55" stroke-width="2"/>`);
 
+            // Overlapping features on rings inside the backbone, the longest on it: a transposon drawn over the genes
+            // it carries hid them (Tn1999 and blaOXA-48 on pOXA-48).
+            const covers = feature => {
+                const span = ((feature.end - feature.start + length) % length) + 1;
+                return [feature.start, feature.start + span];
+            };
+            const overlaps = (p, q) => {
+                const [p0, p1] = covers(p);
+                const [q0, q1] = covers(q);
+                return [-length, 0, length].some(shift => p0 < q1 + shift && q0 + shift < p1);
+            };
+            const rings = [];
+            [...features].sort((p, q) => (covers(q)[1] - covers(q)[0]) - (covers(p)[1] - covers(p)[0])).forEach(feature => {
+                let ring = rings.findIndex(placed => placed.every(other => !overlaps(feature, other)));
+                if (ring < 0 || ring > 3) ring = Math.min(3, rings.length);
+                (rings[ring] = rings[ring] || []).push(feature);
+                feature.ring = ring;
+            });
+            const ringStep = band * 1.3;
+            const innerRings = Math.max(0, rings.length - 1) * ringStep;
+
             if (data.ticks) {
                 const step = context.niceTicks(0, length, 8).step;
                 for (let value = step; value < length; value += step) {
                     const a = angle(value + 1);
-                    const [x0, y0] = point(a, radius - band * 0.6);
-                    const [x1, y1] = point(a, radius - band * 0.6 - size * 0.45);
-                    const [tx, ty] = point(a, radius - band * 0.6 - size * 1.4);
+                    const [x0, y0] = point(a, radius - innerRings - band * 0.6);
+                    const [x1, y1] = point(a, radius - innerRings - band * 0.6 - size * 0.45);
+                    const [tx, ty] = point(a, radius - innerRings - band * 0.6 - size * 1.4);
                     parts.push(`<line x1="${fmt(x0)}" y1="${fmt(y0)}" x2="${fmt(x1)}" y2="${fmt(y1)}" stroke="${ink}" stroke-opacity="0.5"/>`);
                     parts.push(`<text x="${fmt(tx)}" y="${fmt(ty + size * 0.3)}" font-size="${fmt(size * 0.7)}" text-anchor="middle" fill="${ink}" opacity="0.6">${value}</text>`);
                 }
@@ -160,17 +182,18 @@
                 const a0 = angle(feature.start);
                 const sweep = (span / length) * 2 * Math.PI;
                 const a1 = a0 + sweep;
-                const inner = radius - band / 2;
-                const outer = radius + band / 2;
-                const head = feature.strand ? Math.min(sweep * 0.45, (band * 0.9) / radius) : 0;
+                const centre = radius - (feature.ring || 0) * ringStep;
+                const inner = centre - band / 2;
+                const outer = centre + band / 2;
+                const head = feature.strand ? Math.min(sweep * 0.45, (band * 0.9) / centre) : 0;
                 const large = sweep - head > Math.PI ? 1 : 0;
                 let d;
                 if (feature.strand === 1) {
                     const b = a1 - head;
-                    d = `M${point(a0, outer).map(fmt).join(" ")}A${fmt(outer)} ${fmt(outer)} 0 ${large} 1 ${point(b, outer).map(fmt).join(" ")}L${point(a1, radius).map(fmt).join(" ")}L${point(b, inner).map(fmt).join(" ")}A${fmt(inner)} ${fmt(inner)} 0 ${large} 0 ${point(a0, inner).map(fmt).join(" ")}Z`;
+                    d = `M${point(a0, outer).map(fmt).join(" ")}A${fmt(outer)} ${fmt(outer)} 0 ${large} 1 ${point(b, outer).map(fmt).join(" ")}L${point(a1, centre).map(fmt).join(" ")}L${point(b, inner).map(fmt).join(" ")}A${fmt(inner)} ${fmt(inner)} 0 ${large} 0 ${point(a0, inner).map(fmt).join(" ")}Z`;
                 } else if (feature.strand === -1) {
                     const b = a0 + head;
-                    d = `M${point(a0, radius).map(fmt).join(" ")}L${point(b, outer).map(fmt).join(" ")}A${fmt(outer)} ${fmt(outer)} 0 ${large} 1 ${point(a1, outer).map(fmt).join(" ")}L${point(a1, inner).map(fmt).join(" ")}A${fmt(inner)} ${fmt(inner)} 0 ${large} 0 ${point(b, inner).map(fmt).join(" ")}Z`;
+                    d = `M${point(a0, centre).map(fmt).join(" ")}L${point(b, outer).map(fmt).join(" ")}A${fmt(outer)} ${fmt(outer)} 0 ${large} 1 ${point(a1, outer).map(fmt).join(" ")}L${point(a1, inner).map(fmt).join(" ")}A${fmt(inner)} ${fmt(inner)} 0 ${large} 0 ${point(b, inner).map(fmt).join(" ")}Z`;
                 } else {
                     const big = sweep > Math.PI ? 1 : 0;
                     d = `M${point(a0, outer).map(fmt).join(" ")}A${fmt(outer)} ${fmt(outer)} 0 ${big} 1 ${point(a1, outer).map(fmt).join(" ")}L${point(a1, inner).map(fmt).join(" ")}A${fmt(inner)} ${fmt(inner)} 0 ${big} 0 ${point(a0, inner).map(fmt).join(" ")}Z`;

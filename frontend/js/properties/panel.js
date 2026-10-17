@@ -528,6 +528,7 @@ function _buildPropertiesPanelNow() {
 
   if (!data && state.selectedIds.length > 1) {
     buildMultiSelectionPanel(panel);
+    if (typeof buildSelectionAnimationGroup === "function") buildSelectionAnimationGroup(panel);
   }
 
   if (data) {

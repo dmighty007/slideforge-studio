@@ -37,7 +37,8 @@
 
     SlideForgePlugins.register({
         id: "gel",
-        version: "1",
+        // 2: ladder sizes that would overlap are left out; turned lane names stay inside the box.
+        version: "2",
         name: "Gel Electrophoresis",
         description: "A gel schematic: ladder and sample lanes with bands placed by size",
         icon: "fa-solid fa-grip-lines-vertical",
@@ -134,10 +135,18 @@
             const left = Math.max(labelWidth, unitWidth + size * 0.4);
             const longest = Math.max(context.measureText("M", { size, family: FONT }), ...lanes.map(lane => context.measureText(lane.name, { size, family: FONT })));
             const laneCount = lanes.length + 1;
-            const gelWidth = Math.max(40, width - left - size * 0.3);
-            const laneWidth = gelWidth / laneCount;
+            let gelWidth = Math.max(40, width - left - size * 0.3);
+            let laneWidth = gelWidth / laneCount;
             // Lane names above the gel; turned when they do not fit their lane.
             const turn = longest > laneWidth * 0.95;
+            if (turn) {
+                // A turned name reaches right of its lane: the gel leaves room for the last one ("No template" was
+                // cut off at the box's edge).
+                const last = lanes.length ? context.measureText(lanes.at(-1).name, { size, family: FONT }) : 0;
+                const reach = last * Math.SQRT1_2 + size * 0.5;
+                gelWidth = Math.max(40, (width - left - Math.max(size * 0.3, reach - (width - left) / laneCount / 2)));
+                laneWidth = gelWidth / laneCount;
+            }
             const header = turn ? Math.min(longest, height * 0.35) * 0.75 + size : size * 1.6;
             const top = header;
             const gelHeight = Math.max(40, height - top - size * 0.4);
@@ -170,8 +179,15 @@
                 else parts.push(`<text x="${cx.toFixed(1)}" y="${(top - size * 0.5).toFixed(1)}" font-size="${size}" text-anchor="middle" fill="${ink}">${name}</text>`);
             });
             if (data.ladderLabels) {
-                ladder.sizes.forEach(s => {
-                    parts.push(`<text x="${(left - size * 0.3).toFixed(1)}" y="${(yOf(s) + size * 0.28).toFixed(1)}" font-size="${(size * 0.8).toFixed(1)}" text-anchor="end" fill="${ink}">${s}</text>`);
+                // Sizes whose bands run close together (1000, 900, 800 on a 100 bp ladder) were printed over each
+                // other: the ends and round sizes are labelled first, the rest where there is room.
+                const rank = value => (value === ladder.sizes[0] || value === ladder.sizes.at(-1) ? 0 : value % 500 === 0 ? 1 : value % 100 === 0 ? 2 : 3);
+                const placed = [];
+                [...ladder.sizes].sort((p, q) => rank(p) - rank(q)).forEach(value => {
+                    const yy = yOf(value);
+                    if (placed.some(other => Math.abs(other - yy) < size * 0.85)) return;
+                    placed.push(yy);
+                    parts.push(`<text x="${(left - size * 0.3).toFixed(1)}" y="${(yy + size * 0.28).toFixed(1)}" font-size="${(size * 0.8).toFixed(1)}" text-anchor="end" fill="${ink}">${value}</text>`);
                 });
             }
             parts.push(`<text x="${(left - size * 0.3).toFixed(1)}" y="${(wellTop + wellHeight).toFixed(1)}" font-size="${(size * 0.8).toFixed(1)}" font-weight="700" text-anchor="end" fill="${ink}">${context.escapeXml(ladder.unit)}</text>`);

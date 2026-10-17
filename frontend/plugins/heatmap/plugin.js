@@ -143,7 +143,8 @@
 
     SlideForgePlugins.register({
         id: "heatmap",
-        version: "3",
+        // 4: a long column name goes on two lines before the names stand upright.
+        version: "4",
         name: "Heatmap",
         description: "A heatmap of a matrix, with z-scoring, clustering, dendrograms and a colour bar",
         icon: "fa-solid fa-table-cells",
@@ -290,9 +291,20 @@
             const gridLeft = rowDendro;
             const gridWidth = Math.max(20, width - rowDendro - rowLabelWidth - legendWidth - size);
             const cellWidth = gridWidth / matrix.columnNames.length;
-            // Column names stand upright when they do not fit across their cells.
-            const turned = columnLabelWidth > cellWidth * 0.95;
-            const columnLabelHeight = turned ? columnLabelWidth + size * 0.5 : size * 1.6;
+            // Column names across their cells, a long one on two lines (broken after a space or hyphen); upright only
+            // when that does not fit either. One long name ("Ceftazidime-avibactam") stood them all upright, which took
+            // a third of the box from the cells.
+            const fits = text => context.measureText(text, { size, family: FONT }) <= cellWidth * 0.95;
+            const twoLines = name => {
+                if (fits(name)) return [name];
+                const breaks = [...name.matchAll(/[\s-]/g)].map(match => match.index);
+                const options = breaks.map(at => [name.slice(0, at + (name[at] === "-" ? 1 : 0)).trim(), name.slice(at + 1).trim()]).filter(([a, b]) => a && b && fits(a) && fits(b));
+                return options.sort((p, q) => Math.abs(p[0].length - p[1].length) - Math.abs(q[0].length - q[1].length))[0] || null;
+            };
+            const columnLines = matrix.columnNames.map(twoLines);
+            const turned = columnLines.some(lines => !lines);
+            const lineCount = turned ? 1 : Math.max(...columnLines.map(lines => lines.length));
+            const columnLabelHeight = turned ? columnLabelWidth + size * 0.5 : size * (0.6 + lineCount * 1.15);
             const gridTop = columnDendro + 2;
             const gridHeight = Math.max(20, height - gridTop - columnLabelHeight);
             const cellHeight = gridHeight / values.length;
@@ -320,7 +332,7 @@
                 parts.push(
                     turned
                         ? `<text transform="translate(${(x + size * 0.33).toFixed(1)} ${y.toFixed(1)}) rotate(-90)" font-size="${size}" text-anchor="end" fill="${ink}">${context.escapeXml(matrix.columnNames[c])}</text>`
-                        : `<text x="${x.toFixed(1)}" y="${(y + size * 0.85).toFixed(1)}" font-size="${size}" text-anchor="middle" fill="${ink}">${context.escapeXml(matrix.columnNames[c])}</text>`,
+                        : `<text x="${x.toFixed(1)}" y="${(y + size * 0.85).toFixed(1)}" font-size="${size}" text-anchor="middle" fill="${ink}">${columnLines[c].map((line, k) => `<tspan x="${x.toFixed(1)}" dy="${k ? (size * 1.15).toFixed(1) : 0}">${context.escapeXml(line)}</tspan>`).join("")}</text>`,
                 );
             });
             if (rowDendro) {

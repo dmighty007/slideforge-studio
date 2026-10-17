@@ -240,10 +240,15 @@ function bindPluginPanel(data) {
         event.preventDefault();
         input.setRangeText("\t", input.selectionStart, input.selectionEnd, "end");
       };
+      const clear = document.getElementById(`${id}-clear`);
+      // The "Example data" tag goes once the box holds something else (the panel is not rebuilt while it has focus,
+      // so the tag stayed over the user's own data).
+      const exampleText = input.value;
       input.oninput = () => {
         if (summary) summary.textContent = `${_pluginTableSummary(input.value, field)} · not applied yet: leave the box or press Ctrl+Enter`;
+        const tag = clear?.closest(".plugin-table-example");
+        if (tag) tag.style.display = input.value === exampleText ? "" : "none";
       };
-      const clear = document.getElementById(`${id}-clear`);
       if (clear) clear.onclick = () => commit(field.key, "");
       input.onchange = () => commit(field.key, input.value.replace(/\s+$/, ""));
       const load = document.getElementById(`${id}-load`);

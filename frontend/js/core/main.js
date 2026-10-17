@@ -1036,15 +1036,47 @@ function closeIconPicker() {
     requestAnimationFrame(() => endFormattingInteraction?.());
 }
 
+// Every solid icon of the bundled Font Awesome, by its name and aliases ("bacteria", "virus", "syringe"): the
+// short list above had none of these, and a search for them showed an empty box.
+let _allSolidIcons = null;
+function _solidIconCatalog() {
+    if (_allSolidIcons) return _allSolidIcons;
+    const solid = window.___FONT_AWESOME___?.styles?.fas || {};
+    _allSolidIcons = Object.entries(solid).map(([name, def]) => ({
+        name: [name, ...(Array.isArray(def?.[2]) ? def[2].filter(alias => typeof alias === "string") : [])].join(" ").replace(/-/g, " "),
+        class: `fa-solid fa-${name}`,
+        label: name.replace(/-/g, " "),
+    }));
+    return _allSolidIcons;
+}
+
+const _ICON_SEARCH_LIMIT = 160;
+
 function filterIconPicker(query) {
     const grid = document.getElementById("icon-grid");
     if (!grid) return;
     grid.innerHTML = "";
-    const lowerQuery = query.toLowerCase();
-    _icons.forEach(iconObj => {
-        if (!iconObj.name.toLowerCase().includes(lowerQuery)) return;
+    const words = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    const matches = iconObj => words.every(word => iconObj.name.toLowerCase().includes(word));
+    // The short list first; a search goes on through the whole set.
+    const shown = new Set();
+    const icons = [];
+    [..._icons, ...(words.length ? _solidIconCatalog() : [])].forEach(iconObj => {
+        if (shown.has(iconObj.class) || !matches(iconObj) || icons.length >= _ICON_SEARCH_LIMIT) return;
+        shown.add(iconObj.class);
+        icons.push(iconObj);
+    });
+    if (!icons.length) {
+        const empty = document.createElement("p");
+        empty.className = "icon-grid-empty";
+        empty.style.cssText = "grid-column:1 / -1;font-size:13px;color:#64748B;padding:8px 2px;";
+        empty.textContent = `No icon matches “${query.trim()}”. Try a shorter or simpler word (virus, pills, flask).`;
+        grid.appendChild(empty);
+        return;
+    }
+    icons.forEach(iconObj => {
         const btn = document.createElement("button");
-        btn.title = iconObj.name;
+        btn.title = iconObj.label || iconObj.name;
         btn.style.cssText =
             "aspect-ratio:1;border:1px solid #E5E7EB;border-radius:6px;background:white;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;color:#0F172A;padding:4px;";
         const i = document.createElement("i");

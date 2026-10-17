@@ -86,8 +86,10 @@ function _isEmptyTextElement(el) {
 function claimContentPlaceholder(slide, element) {
     if (!slide || !element || element.type === "text") return false;
     const index = (slide.elements || []).findIndex(el => el?.placeholderRole === "content" && _isEmptyTextElement(el));
-    if (index < 0) return false;
-    const box = slide.elements[index];
+    // The placeholder is gone once an object took it; that object deleted, the slide holds just its title, and the
+    // next object takes the area under the title as the first did (it came in small, at a free spot).
+    const box = index >= 0 ? slide.elements[index] : _contentAreaUnderLoneTitle(slide, element);
+    if (!box) return false;
     const page = typeof getPresentationPageSetupConfig === "function" ? getPresentationPageSetupConfig() : {};
     const x = parseFloat(box.x) || 0;
     const y = parseFloat(box.y) || 0;
@@ -119,8 +121,20 @@ function claimContentPlaceholder(slide, element) {
         element.x = x;
     }
     element.y = y;
-    slide.elements.splice(index, 1);
+    if (index >= 0) slide.elements.splice(index, 1);
     return true;
+}
+
+// The box a content placeholder would have on a slide with nothing but a title at the top (and the footer): as wide
+// as the title, below it. Null on any other slide (a title slide, or one with content already).
+function _contentAreaUnderLoneTitle(slide, element) {
+    if (typeof _pluginSlideHasOnlyTitle !== "function" || typeof _pluginContentArea !== "function") return null;
+    if (!_pluginSlideHasOnlyTitle(slide)) return null;
+    const title = slide.elements.find(el => el?.type === "text" && !el.isMasterElement && !el.editableMasterFooterElement &&
+        (el.placeholderRole === "title" || el.placeholder === "Click to add title"));
+    const area = title && _pluginContentArea(slide, new Set([element.id]));
+    if (!area) return null;
+    return { x: parseFloat(title.x) || area.x, y: area.y, width: parseFloat(title.width) || parseFloat(area.width) };
 }
 
 // For insert commands: element placed into the slide's empty content placeholder if it has one. Otherwise an
