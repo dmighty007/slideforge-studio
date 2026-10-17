@@ -14,7 +14,8 @@
 
     SlideForgePlugins.register({
         id: "scale-bar",
-        version: "1",
+        // 2: the label clears the bar (descenders).
+        version: "2",
         name: "Scale Bar",
         description: "A scale bar with its length, for micrographs, maps and diagrams",
         icon: "fa-solid fa-ruler-horizontal",
@@ -94,8 +95,10 @@
             const label = data.labelPosition === "none" ? "" : data.label || `${formatNumber(data.length)} ${data.unit}`;
             const pad = backing ? Math.max(4, Math.round(data.fontSize * 0.4)) : 0;
             const tick = data.endTicks ? Math.max(data.thickness * 1.6, data.fontSize * 0.5) : 0;
-            const gap = Math.round(data.fontSize * 0.3);
-            const textHeight = label ? data.fontSize : 0;
+            const gap = Math.round(data.fontSize * 0.35);
+            // Room under the baseline for descenders: the tail of "µ" in "2 µm" reached down onto the bar.
+            const descent = label && data.labelPosition === "above" ? Math.round(data.fontSize * 0.22) : 0;
+            const textHeight = label ? data.fontSize + descent : 0;
             const contentHeight = Math.max(data.thickness, tick) + (label ? gap + textHeight : 0);
             // Centred vertically in the box.
             const top = Math.max(pad, (height - contentHeight) / 2);
@@ -110,7 +113,7 @@
                 [x0, x1 - w].forEach(x => parts.push(`<rect x="${x}" y="${barCenterY - tick / 2}" width="${w}" height="${tick}" fill="${ink}"/>`));
             }
             if (label) {
-                const y = data.labelPosition === "above" ? barCenterY - Math.max(data.thickness, tick) / 2 - gap : barCenterY + Math.max(data.thickness, tick) / 2 + gap + textHeight * 0.8;
+                const y = data.labelPosition === "above" ? barCenterY - Math.max(data.thickness, tick) / 2 - gap - descent : barCenterY + Math.max(data.thickness, tick) / 2 + gap + data.fontSize * 0.8;
                 parts.push(
                     `<text x="${width / 2}" y="${y}" font-family="Arial, Helvetica, sans-serif" font-size="${data.fontSize}" font-weight="700" fill="${ink}" text-anchor="middle">${escapeXml(label)}</text>`,
                 );

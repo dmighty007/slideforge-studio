@@ -186,6 +186,13 @@ function fitSelectionToContentArea() {
         const box = _getElementBox(el);
         const plugin = el.type === "plugin" && getSlidePlugin(el.pluginId);
         const fill = selected.length === 1 && plugin?.sizeAware;
+        // A table takes the area's width; its height is its rows (a box stretched taller stretched every row). Scaled
+        // like a picture, its rows were stretched to twice their height and its words looked tiny.
+        if (selected.length === 1 && el.type === "table") {
+            const rows = normalizeTableData(el.tableData).rowHeights.reduce((sum, value) => sum + (Number(value) || 44), 0);
+            updateElementState(el.id, { x: area.x, y: area.y, width: area.width, height: `${Math.round(rows)}px` });
+            return;
+        }
         updateElementState(el.id, fill ? area : {
             x: left + (box.x - x) * scale, y: top + (box.y - y) * scale,
             width: `${box.width * scale}px`, height: `${box.height * scale}px`,

@@ -256,7 +256,11 @@ function getShapeTextStyle(elData = {}) {
   const own = elData.shapeTextStyle || {};
   const theme = typeof getPresentationTheme === "function" ? getPresentationTheme() : {};
   const lum = _shapeFillLuminance(elData.styles?.backgroundColor);
-  const autoColor = lum === null ? theme.defaultTextColor || "#172033" : lum < 0.4 ? "#ffffff" : "#172033";
+  // Whichever of white and dark contrasts more with the fill (they are level near luminance 0.18). A fixed 0.4 cut put
+  // white on mid greens and blues: 2.6:1 on a theme's #5faf79 against 6:1 for dark words.
+  const darkLum = _shapeFillLuminance("#172033");
+  const contrast = (a, b) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  const autoColor = lum === null ? theme.defaultTextColor || "#172033" : contrast(lum, 1) >= contrast(lum, darkLum) ? "#ffffff" : "#172033";
   return {
     color: own.color || autoColor,
     fontSize: own.fontSize || "20px",

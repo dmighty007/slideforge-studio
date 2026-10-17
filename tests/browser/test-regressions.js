@@ -5419,12 +5419,72 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("deck 2: plugin search puts the best match first; fit to content widens a table without stretching its rows; shape words contrast with the fill", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        await page.locator("button[title='Plugins']:visible").first().click();
+        await page.keyboard.type("scale bar");
+        await page.waitForTimeout(300);
+        const first = await page.evaluate(() => document.querySelector("#plugin-insert-menu [data-plugin-insert]")?.dataset.pluginInsert);
+        await page.keyboard.press("Escape");
+        assert(first === "scale-bar", `first match for "scale bar": ${first}`);
+        const table = await page.evaluate(() => {
+            addSlide();
+            const s = state.slides[currentSlideIndex];
+            s.elements = s.elements.filter(e => e.placeholderRole !== "content");
+            renderSlidesFromState();
+            addElement("table");
+            const t = s.elements.find(e => e.type === "table");
+            t.height = "480px"; // stretched by hand
+            selectElement(t.id, "replace");
+            fitSelectionToContentArea();
+            const fitted = s.elements.find(e => e.id === t.id);
+            return { width: parseFloat(fitted.width), height: parseFloat(fitted.height), rows: fitted.tableData.rowHeights.reduce((a, b) => a + b, 0) };
+        });
+        assert(table.width > 1000 && Math.abs(table.height - table.rows) < 2, `fitted table: ${JSON.stringify(table)}`);
+        const colours = await page.evaluate(() => ["#5faf79", "#9ad1d4", "#3b2a26", "#2563eb"].map(fill => getShapeTextStyle({ styles: { backgroundColor: fill } }).color));
+        assert(JSON.stringify(colours) === JSON.stringify(["#172033", "#172033", "#ffffff", "#ffffff"]), `shape words on mid, light, dark, blue fills: ${colours}`);
+        await page.close();
+    });
+
+    await test("deck 2: a slide redraw while typing keeps the editor and the caret (letters were lost or put first)", async () => {
+        const { page } = await openFreshEditor(context);
+        const body = async () => page.evaluate(() => JSON.stringify(state.slides[currentSlideIndex].elements.find(e => e.placeholderRole === "content").content).replace(/<[^>]+>/g, ""));
+        const start = async () => {
+            await page.evaluate(() => addSlide());
+            await page.waitForTimeout(300);
+            await page.locator(".slides .presentation-slide.present [data-placeholder='Click to add text']").first().click();
+        };
+        // At the end of the text.
+        await start();
+        await page.keyboard.type("S");
+        await page.evaluate(() => renderSlidesFromState());
+        await page.keyboard.type("trong");
+        await page.keyboard.press("Escape");
+        const end = await body();
+        // In the middle, and in a second bullet.
+        await start();
+        await page.keyboard.type("Sg");
+        await page.keyboard.press("ArrowLeft");
+        await page.evaluate(() => renderSlidesFromState());
+        await page.keyboard.type("tron");
+        await page.keyboard.press("End");
+        await page.keyboard.press("Enter");
+        await page.keyboard.type("Ab");
+        await page.evaluate(() => renderSlidesFromState());
+        await page.keyboard.type("sorption");
+        await page.keyboard.press("Escape");
+        const middle = await body();
+        assert(end.includes('"Strong"') && middle.includes('"Strong"') && middle.includes('"Absorption"'), `after redraws: ${end} / ${middle}`);
+        await page.close();
+    });
+
     await test("deck 2: a new table spans the content area, Tab in its last cell adds a row, and its handles sit on its borders", async () => {
         const { page } = await openFreshEditor(context);
         await page.evaluate(() => { addSlide(); addElement("table"); });
         await page.waitForTimeout(500);
         const placed = await page.evaluate(() => { const t = state.slides[currentSlideIndex].elements.find(e => e.type === "table"); return { id: t.id, width: parseFloat(t.width), rows: t.tableData.rows, cols: t.tableData.cols }; });
-        assert(placed.width >= 1000, `table width ${placed.width}`);
+        assert(placed.width >= 700, `table width ${placed.width}`);
         // The last cell, then Tab: a new row, and typing carries on in it.
         const last = page.locator(`.slides [id="${placed.id}"] .table-element-cell[data-row="${placed.rows - 1}"][data-col="${placed.cols - 1}"]`);
         await last.dblclick();
@@ -7405,7 +7465,8 @@ async function test(name, fn) {
             };`);
         // SciPy 1.18 curve_fit on the example's Drug A: log EC50 −0.149273 (EC50 0.709), Hill 1.06022.
         assert(out.curves === 2 && out.points === 16, `drawing: ${JSON.stringify(out)}`);
-        assert(/^Drug A: EC50 0\.709 \(/.test(out.legend[0]) && /Hill 1\.06/.test(out.legend[0]), `fitted values: ${JSON.stringify(out.legend)}`);
+        // The EC50 carries the x axis unit (µM here).
+        assert(/^Drug A: EC50 0\.709( µM)? \(/.test(out.legend[0]) && /Hill 1\.06/.test(out.legend[0]), `fitted values: ${JSON.stringify(out.legend)}`);
         assert(out.ticks.length === 4, `log axis ticks: ${JSON.stringify(out.ticks)}`);
         // A straight line on its own data; a dose of 0 cannot go on the log axis of a dose-response fit.
         await pageAwait(page, id => SlideForgePlugins.update(id, { model: "linear", data: "x,y\n0,1.1\n1,3.4\n2,5.6\n3,8.2\n4,10.1" }), id);

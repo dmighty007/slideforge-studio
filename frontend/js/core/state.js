@@ -96,10 +96,13 @@ function claimContentPlaceholder(slide, element) {
     const width = parseFloat(element.width);
     const height = parseFloat(element.height);
     if (element.type === "table" && Number.isFinite(width) && width > 0) {
-        // A table spans the placeholder's width, as in PowerPoint (its columns are shares of the box); its height
-        // follows its rows. Kept at its 520 px default it sat small in the middle of an empty slide.
-        element.width = `${Math.round(Math.max(width, maxW))}px`;
-        element.x = Math.round(x);
+        // A table gets room for its columns (about 190 px each, up to the placeholder's width), centred; its height
+        // follows its rows. At its 520 px default it sat small in an empty slide; spanning the whole width left no
+        // room for anything inserted after it.
+        const cols = Number(element.tableData?.cols) || 4;
+        const tableWidth = Math.round(Math.min(maxW, Math.max(width, cols * 190)));
+        element.width = `${tableWidth}px`;
+        element.x = Math.round(x + (maxW - tableWidth) / 2);
     } else if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
         const grow =["chart", "molecule", "image", "video", "pdf", "plugin", "mermaid", "drawing"].includes(element.type);
         const scale = Math.min(grow ? 2 : 1, maxW / width, maxH / height);

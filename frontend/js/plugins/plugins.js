@@ -1225,14 +1225,29 @@ function togglePluginInsertMenu(anchor) {
     );
 
     // The list for a search: every word must appear in the label, description, keywords or category.
+    // While searching, the best matches first: every word in the name, then in the id or keywords, then anywhere.
+    // Listed in category order, "scale bar" put the heatmap (its colour scale bar) above the scale bar itself, and
+    // Enter inserted it.
+    const relevance = plugin => {
+        const words = String(search.value || "").toLocaleLowerCase().split(/\s+/).filter(Boolean);
+        if (!words.length) return 0;
+        const name = `${_pluginMenuLabel(plugin)} ${plugin.name || ""}`.toLocaleLowerCase();
+        const tagged = `${plugin.id} ${plugin.insert?.keywords || ""}`.toLocaleLowerCase();
+        if (words.every(word => name.includes(word))) return 3;
+        if (words.every(word => tagged.includes(word) || name.includes(word))) return 2;
+        return 1;
+    };
     const fill = () => {
         list.textContent = "";
         let lastCategory = null;
         let shown = 0;
-        plugins.forEach(plugin => {
+        const searching = Boolean(search.value.trim());
+        const ordered = searching ? [...plugins].sort((a, b) => relevance(b) - relevance(a)) : plugins;
+        ordered.forEach(plugin => {
             if (!pluginSearchMatches(pluginSearchText(plugin), search.value)) return;
             const category = _pluginMenuCategory(plugin);
-            if (category !== lastCategory) {
+            // A ranked search result is one list (its headings would repeat).
+            if (!searching && category !== lastCategory) {
                 const heading = document.createElement("div");
                 heading.className = "sf-select-menu__group";
                 heading.textContent = category;

@@ -47,12 +47,79 @@ function _reusableElementSignature(elData, mode) {
   return `${mode}|${JSON.stringify(rest, (_key, value) => (value === null ? undefined : value))}`;
 }
 
+// The caret of the text box kept through a redraw while it was being typed in (see _collectReusableSlideNodes), as
+// character offsets in the box: a live Range inside a moved node is reset to its parent by the move.
+let _caretToRestore = null;
+function _textOffsetIn(host, node, offset) {
+  if (node.nodeType !== Node.TEXT_NODE) {
+    // An element boundary: the text before its offset-th child.
+    const before = document.createRange();
+    before.setStart(host, 0);
+    before.setEnd(node, offset);
+    return before.toString().length;
+  }
+  const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+  let count = 0;
+  for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+    if (text === node) return count + offset;
+    count += text.textContent.length;
+  }
+  return count;
+}
+function _pointAtTextOffset(host, target) {
+  const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+  let count = 0;
+  let last = null;
+  for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+    if (count + text.textContent.length >= target) return [text, target - count];
+    count += text.textContent.length;
+    last = text;
+  }
+  return last ? [last, last.textContent.length] : [host, host.childNodes.length];
+}
+function _caretOf(editing) {
+  const host = editing.querySelector(".text-element-content");
+  const selection = window.getSelection?.();
+  if (!host || !selection?.rangeCount || !host.contains(selection.anchorNode)) return null;
+  const range = selection.getRangeAt(0);
+  return { start: _textOffsetIn(host, range.startContainer, range.startOffset), end: _textOffsetIn(host, range.endContainer, range.endOffset) };
+}
+function _restoreKeptCaret() {
+  const pending = _caretToRestore;
+  if (!pending) return;
+  const apply = () => {
+    const host = pending.node.querySelector(".text-element-content");
+    const selection = window.getSelection?.();
+    if (!host?.isContentEditable || !document.contains(host) || !selection) return;
+    if (selection.rangeCount && host.contains(selection.anchorNode)) return;
+    if (document.activeElement !== host) host.focus({ preventScroll: true });
+    const range = document.createRange();
+    range.setStart(..._pointAtTextOffset(host, pending.caret.start));
+    range.setEnd(..._pointAtTextOffset(host, pending.caret.end));
+    selection.removeAllRanges();
+    selection.addRange(range);
+  };
+  _caretToRestore = null;
+  apply();
+  requestAnimationFrame(apply);
+}
+
 function _collectReusableSlideNodes(container, { mode }) {
   const canMove = typeof Element.prototype.moveBefore === "function";
   const oldSections = Array.from(container.children);
   const elements = new Map();
   const backgrounds = new Map();
   if (canMove) {
+    // The text box being typed in is kept as it is, focus and caret included: rebuilt by a redraw that came while
+    // typing (a font finishing loading, a plot redrawn), it lost the editor, and the next letters were lost or went
+    // in front of the first one ("Strong" was saved as "trongS"). Its state already has what was typed.
+    const active = document.activeElement;
+    const editing = active?.isContentEditable ? active.closest?.(".canvas-element.editing-text") : null;
+    if (editing && container.contains(editing) && editing.parentElement?.parentElement === container) {
+      // The caret, taken now: hiding and clearing the old slides below moves the selection out of the box.
+      editing.__sfKeepWhileEditing = _caretOf(editing) || true;
+      elements.set(editing.id, editing);
+    }
     oldSections.forEach((section) => {
       section.querySelectorAll(":scope > .canvas-element").forEach((node) => {
         if (node.__sfReuseSignature) elements.set(node.id, node);
@@ -90,6 +157,19 @@ function _collectReusableSlideNodes(container, { mode }) {
       const node = elements.get(elData.id);
       if (!node) return null;
       elements.delete(elData.id);
+      if (node.__sfKeepWhileEditing) {
+        const caret = typeof node.__sfKeepWhileEditing === "object" ? node.__sfKeepWhileEditing : null;
+        node.__sfKeepWhileEditing = false;
+        if (!move(section, node)) {
+          node.remove();
+          return null;
+        }
+        // The move keeps the focus but not the caret (with none, keys typed next went nowhere): it is put back once
+        // the redraw is done (Reveal's sync and the thumbnails move the selection again). The text nodes are the same
+        // objects, so the offsets taken before still point at the right place.
+        if (caret) _caretToRestore = { node, caret };
+        return elData;
+      }
       if (node.__sfReuseSignature !== _reusableElementSignature(elData, mode) || !move(section, node)) {
         node.remove();
         return null;
@@ -243,6 +323,7 @@ function renderSlidesFromState(options = {}) {
   if (typeof renderLayersList === "function") {
     renderLayersList();
   }
+  _restoreKeptCaret();
   window.dispatchEvent(
     new CustomEvent("slideforge:render-complete", {
       detail: { currentSlideIndex },
