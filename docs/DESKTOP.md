@@ -16,6 +16,23 @@ It runs for a single local user, so there is no account and no sign-in. Your pre
 
 ## Install
 
+The easiest way, with a menu entry and a desktop icon, no administrator rights and no Python to set up first:
+
+```bash
+# Linux and macOS
+curl -fsSL https://raw.githubusercontent.com/dmighty007/slideforge-studio/main/install.sh | sh
+```
+
+```powershell
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/dmighty007/slideforge-studio/main/install.ps1 | iex
+```
+
+Run it again to update. To remove SlideForge: `curl -fsSL .../install.sh | sh -s -- --uninstall` (on Windows, set
+`$env:SLIDEFORGE_UNINSTALL = "1"` first). Your presentations are kept.
+
+Or with pip:
+
 ```bash
 pip install slideforge-studio
 ```
@@ -56,7 +73,7 @@ Other options: `--port N`, `--data-dir PATH`, `--version`. By default SlideForge
 Only one SlideForge runs per data directory. Starting it again opens the running instance in your browser instead.
 
 - **Windows:** `slideforge-gui` starts it without a console window and reports problems in a dialog.
-- **Linux:** `slideforge --install-shortcut` adds SlideForge to your application menu. To remove it, delete `~/.local/share/applications/slideforge.desktop`.
+- **Icons:** `slideforge --install-shortcut` adds SlideForge to your applications menu (Linux, macOS's ~/Applications, the Windows Start menu) and puts its icon on your desktop; add `--no-desktop-icon` for the menu only. `slideforge --remove-shortcut` takes them away again. The one-line installers do this for you.
 
 ## Your data
 

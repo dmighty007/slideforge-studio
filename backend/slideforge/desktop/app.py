@@ -9,6 +9,7 @@ import os
 import secrets
 import shutil
 import signal
+import subprocess
 import sys
 import threading
 import time
@@ -33,7 +34,9 @@ def _parse_args(argv):
     mode.add_argument("--no-open", action="store_true", help="only start the server and print its URL")
     parser.add_argument("--port", type=int, default=0, help="port to listen on (default: a free port)")
     parser.add_argument("--data-dir", help="where to keep the database, media and config (default: per-user data dir)")
-    parser.add_argument("--install-shortcut", action="store_true", help="add SlideForge to the Linux application menu")
+    parser.add_argument("--install-shortcut", action="store_true", help="add SlideForge to the application menu and put its icon on the desktop")
+    parser.add_argument("--no-desktop-icon", action="store_true", help="with --install-shortcut: the application menu only")
+    parser.add_argument("--remove-shortcut", action="store_true", help="remove the menu entry and desktop icon")
     parser.add_argument("--version", action="version", version=f"SlideForge {__version__}")
     return parser.parse_args(argv)
 
@@ -314,39 +317,34 @@ def _run(args, *, gui: bool) -> int:
         lock.release()
 
 
-def install_shortcut() -> Path:
-    """Write a freedesktop .desktop entry so SlideForge appears in the Linux application menu."""
-    if not sys.platform.startswith("linux"):
-        raise StartupError("--install-shortcut is only supported on Linux for now.")
-    launcher = shutil.which("slideforge-gui") or shutil.which("slideforge")
-    command = f'"{launcher}"' if launcher else f'"{sys.executable}" -m slideforge'
-    applications = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "applications"
-    applications.mkdir(parents=True, exist_ok=True)
-    entry = applications / "slideforge.desktop"
-    entry.write_text(
-        "[Desktop Entry]\n"
-        "Type=Application\n"
-        "Name=SlideForge\n"
-        "Comment=Presentation editor\n"
-        f"Exec={command}\n"
-        f"Icon={paths.ICON_PATH}\n"
-        "Terminal=false\n"
-        "Categories=Office;Presentation;\n"
-        "StartupWMClass=SlideForge\n",
-        encoding="utf-8",
-    )
-    return entry
+def install_shortcut(*, desktop: bool = False) -> Path:
+    """Add SlideForge to the application menu (and, with desktop=True, the desktop). Returns the menu entry."""
+    from slideforge.desktop import shortcuts
+
+    try:
+        return shortcuts.install(desktop=desktop)[0]
+    except (RuntimeError, OSError, subprocess.SubprocessError) as exc:
+        raise StartupError(f"Could not add the shortcut: {exc}") from exc
 
 
 def main(argv=None, *, gui: bool = False) -> int:
     args = _parse_args(sys.argv[1:] if argv is None else argv)
     if args.install_shortcut:
+        from slideforge.desktop import shortcuts
+
         try:
-            entry = install_shortcut()
-        except StartupError as exc:
-            _notify(str(exc), gui=gui)
+            written = shortcuts.install(desktop=not args.no_desktop_icon)
+        except (RuntimeError, OSError, subprocess.SubprocessError) as exc:
+            _notify(f"Could not add the shortcut: {exc}", gui=gui)
             return 1
-        print(f"Added SlideForge to the application menu ({entry}). Delete that file to remove it.")
+        print("Added SlideForge:\n" + "\n".join(f"  {path}" for path in written))
+        print("Remove with: slideforge --remove-shortcut")
+        return 0
+    if args.remove_shortcut:
+        from slideforge.desktop import shortcuts
+
+        removed = shortcuts.remove()
+        print("Removed:\n" + "\n".join(f"  {path}" for path in removed) if removed else "No SlideForge shortcuts found.")
         return 0
     if args.data_dir:
         os.environ["SLIDEFORGE_DATA_DIR"] = args.data_dir

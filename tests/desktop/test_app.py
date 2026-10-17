@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 import socket
 from unittest import mock
 
@@ -161,7 +162,31 @@ class DesktopPolishTests(SimpleTestCase):
         text = entry.read_text()
         self.assertIn("Name=SlideForge", text)
         self.assertIn("Exec=", text)
-        self.assertIn("favicon_icon.png", text)
+        icon = Path(xdg) / "icons" / "hicolor" / "256x256" / "apps" / "slideforge.png"
+        self.assertIn(f"Icon={icon}", text)
+        self.assertTrue(icon.is_file())
+
+    def test_shortcut_goes_on_the_desktop_and_can_be_removed(self):
+        import sys
+        import tempfile
+
+        from slideforge.desktop import shortcuts
+
+        if not sys.platform.startswith("linux"):
+            self.skipTest("Linux only")
+        xdg = Path(tempfile.mkdtemp())
+        desktop = Path(tempfile.mkdtemp())
+        with mock.patch.dict(os.environ, {"XDG_DATA_HOME": str(xdg)}), mock.patch.object(shortcuts, "_desktop_dir", return_value=desktop):
+            written = shortcuts.install(desktop=True)
+            on_desktop = desktop / "slideforge.desktop"
+            self.assertIn(on_desktop, written)
+            # Launchers on the desktop must be executable to start (GNOME, KDE).
+            self.assertTrue(os.access(on_desktop, os.X_OK))
+            self.assertTrue(Path(on_desktop.read_text().split('Exec="', 1)[1].split('"', 1)[0]).name.startswith("slideforge"))
+            removed = shortcuts.remove()
+        self.assertFalse(on_desktop.exists())
+        self.assertFalse((xdg / "applications" / "slideforge.desktop").exists())
+        self.assertEqual(len(removed), 3)
 
 
 class DatabaseBackupTests(SimpleTestCase):

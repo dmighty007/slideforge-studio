@@ -57,14 +57,24 @@ rotate during your talk. Change a number and the figure follows.
 
 ## Install
 
-SlideForge runs as a desktop app on Linux, macOS and Windows:
+**Linux and macOS:** paste this into a terminal.
 
 ```bash
-pip install slideforge-studio            # add [qt] on Linux: pip install "slideforge-studio[qt]"
-slideforge
+curl -fsSL https://raw.githubusercontent.com/dmighty007/slideforge-studio/main/install.sh | sh
 ```
 
-That opens SlideForge in its own window. More in [docs/DESKTOP.md](docs/DESKTOP.md).
+**Windows:** paste this into PowerShell.
+
+```powershell
+irm https://raw.githubusercontent.com/dmighty007/slideforge-studio/main/install.ps1 | iex
+```
+
+That's all: SlideForge appears in your applications menu and as an icon on your desktop. No administrator rights,
+no Python to set up first. Run the same line again to update; add `--uninstall` (`... | sh -s -- --uninstall`) to
+remove it. Your presentations stay on your computer either way.
+
+Prefer pip? `pip install "slideforge-studio[qt]"` (drop `[qt]` on macOS and Windows), then `slideforge`, and
+`slideforge --install-shortcut` for the icons. More in [docs/DESKTOP.md](docs/DESKTOP.md).
 
 To run it from this repository instead, or to help build it, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
