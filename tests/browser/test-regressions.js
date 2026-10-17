@@ -6016,6 +6016,40 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("desktop video: a deck's JSON carries its uploaded videos, and opening it uploads them again", async () => {
+        const { execFileSync } = require("child_process");
+        const os = require("os");
+        const pathModule = require("path");
+        let mp4;
+        try {
+            const out = pathModule.join(fs.mkdtempSync(pathModule.join(os.tmpdir(), "sf-video-")), "clip.mp4");
+            execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=size=160x90:rate=10", "-t", "1", "-pix_fmt", "yuv420p", "-c:v", "libx264", out]);
+            mp4 = fs.readFileSync(out).toString("base64");
+        } catch (_error) {
+            console.log("  (skipped: ffmpeg is not available)");
+            return;
+        }
+        const { page } = await openFreshEditor(context);
+        const out = await pageAwait(page, async data => {
+            const bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
+            const upload = await _uploadAssetFile(new File([bytes], "clip.mp4", { type: "video/mp4" }));
+            addSlide();
+            state.slides[currentSlideIndex].elements.push({ id: generateId("el"), type: "video", videoType: "local", content: upload.url, x: 100, y: 160, width: "480px", height: "270px", styles: { zIndex: 5 } });
+            const deck = JSON.parse(JSON.stringify(state));
+            await inlineUploadedVideosForExport(deck);
+            const exported = deck.slides[currentSlideIndex].elements.find(e => e.type === "video").content;
+            // As after opening that file: the inline video is uploaded into this install again.
+            state.slides[currentSlideIndex].elements.find(e => e.type === "video").content = exported;
+            window.__inlineVideoMigrationPromise = null;
+            await migrateInlineVideoAssets();
+            return { uploaded: upload.url, exported: exported.slice(0, 22), reuploaded: state.slides[currentSlideIndex].elements.find(e => e.type === "video").content };
+        }, mp4);
+        // It was kept as "/media/assets/…", a file only on the computer that made it.
+        assert(out.exported.startsWith("data:video/mp4"), `JSON export: ${JSON.stringify(out)}`);
+        assert(/^\/media\/assets\/[0-9a-f]{32}\.mp4$/.test(out.reuploaded) && out.reuploaded !== out.uploaded, `opened again: ${JSON.stringify(out)}`);
+        await page.close();
+    });
+
     await test("overnight: Ctrl+C on a shape and Ctrl+V on another slide pastes the shape, not a \"[shape]\" text box", async () => {
         const { page } = await openFreshEditor(context);
         const id = await page.evaluate(() => { addSlide(); addShape("rectangle"); return state.selectedIds[0]; });

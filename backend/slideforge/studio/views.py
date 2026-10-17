@@ -463,6 +463,52 @@ def _validate_trajectory_upload(uploaded_file, ext):
     return None
 
 
+def _webm_copy_path(video_path: Path) -> Path:
+    return video_path.with_suffix(".webm")
+
+
+def _make_webm_copy(video_path: Path) -> Optional[Path]:
+    """A VP9/Opus WebM beside an uploaded MP4, for the desktop app.
+
+    Uploads are stored as H.264 MP4 (web browsers and PowerPoint play it), but the desktop app's Qt WebEngine is built
+    without the patent-encumbered codecs and cannot decode H.264: every video showed "Unsupported Format". Returns the
+    copy's path, or None without ffmpeg or when it fails (the MP4 stays as it is).
+    """
+    target = _webm_copy_path(video_path)
+    if target.exists() and target.stat().st_size > 0:
+        return target
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg or not video_path.exists():
+        return None
+    out_fd, out_path = tempfile.mkstemp(suffix=".webm", dir=str(video_path.parent))
+    os.close(out_fd)
+    try:
+        cmd = [
+            ffmpeg, "-y", "-i", str(video_path),
+            "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "34", "-deadline", "realtime", "-cpu-used", "8", "-row-mt", "1",
+            "-c:a", "libopus", "-b:a", "96k",
+            out_path,
+        ]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=getattr(settings, "PPTMAKER_FFMPEG_TIMEOUT_SECONDS", 900),
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        if result.returncode != 0 or Path(out_path).stat().st_size == 0:
+            raise RuntimeError(result.stderr.strip()[-500:] or "ffmpeg failed")
+        os.replace(out_path, target)
+        return target
+    except (OSError, subprocess.SubprocessError, RuntimeError) as exc:
+        logger.warning("Could not make a WebM copy of %s: %s", video_path.name, exc)
+        try:
+            os.remove(out_path)
+        except OSError:
+            pass
+        return None
+
+
 def _classify_asset_upload(uploaded_file):
     content_type = uploaded_file.content_type or ""
     ext = (Path(uploaded_file.name or "").suffix or "").lower()
@@ -586,6 +632,12 @@ def asset_upload(request):
         owner=owner,
         presentation=presentation,
     )
+    playable = {}
+    # The desktop app cannot play the H.264 MP4: a WebM copy goes beside it (see _make_webm_copy).
+    if asset_type == "video" and getattr(settings, "SLIDEFORGE_VIDEO_WEBM_COPY", False) and asset.file.name.lower().endswith(".mp4"):
+        copy = _make_webm_copy(Path(asset.file.path))
+        if copy:
+            playable = {"webmUrl": asset.file.url.rsplit("/", 1)[0] + "/" + copy.name}
     return JsonResponse(
         {
             "id": str(asset.id),
@@ -593,9 +645,42 @@ def asset_upload(request):
             "url": asset.file.url,
             "contentType": normalized_content_type,
             "metadata": asset.metadata_json,
+            **playable,
         },
         status=201,
     )
+
+
+@require_http_methods(["POST"])
+def asset_video_webm(request):
+    """A WebM copy of one of the user's MP4 videos (JSON: {"url": "<the asset's URL>"}), made once and kept.
+
+    For the desktop app, which cannot decode H.264: a video uploaded before the copies were made, or in the web
+    app, is converted the first time it fails to play.
+    """
+    auth_error = _auth_required(request)
+    if auth_error:
+        return auth_error
+    try:
+        payload = _request_json(request)
+    except ValueError:
+        return _json_error("Invalid JSON")
+    name = os.path.basename(str(payload.get("url") or "").split("?")[0].split("#")[0])
+    if not name.lower().endswith((".mp4", ".m4v", ".mov")):
+        return _json_error("Not an MP4 video asset", status=400)
+    asset = Asset.objects.filter(owner=request.user, file=f"assets/{name}").first()
+    video_path = Path(asset.file.path) if asset else None
+    # The desktop app has one local user: a file in its media folder with no Asset row (a deck imported with its
+    # files copied in) is theirs too.
+    if video_path is None and not getattr(settings, "SLIDEFORGE_ACCOUNTS_ENABLED", True) and re.fullmatch(r"[0-9a-f]{32}\.\w{2,4}", name):
+        candidate = Path(settings.MEDIA_ROOT) / "assets" / name
+        video_path = candidate if candidate.is_file() else None
+    if video_path is None:
+        return _json_error("Video not found", status=404)
+    copy = _make_webm_copy(video_path)
+    if copy is None:
+        return _json_error("This video could not be converted (ffmpeg is needed)", status=422)
+    return JsonResponse({"webmUrl": f"{settings.MEDIA_URL.rstrip('/')}/assets/{copy.name}"})
 
 
 @require_GET

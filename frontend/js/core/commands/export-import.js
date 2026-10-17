@@ -2,7 +2,7 @@
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 
-function exportJSON() {
+async function exportJSON() {
     const filenameBase =
         (typeof currentPresentationTitle !== "undefined" && currentPresentationTitle
             ? currentPresentationTitle
@@ -13,12 +13,41 @@ function exportJSON() {
     const a = document.createElement("a");
     // The deck's name travels with it: an imported deck was named after its file ("deck").
     const title = typeof currentPresentationTitle !== "undefined" && currentPresentationTitle ? String(currentPresentationTitle) : "";
-    const payload = title ? { title, ...state } : state;
-    a.setAttribute("href", "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload, null, 2)));
+    const deck = JSON.parse(JSON.stringify(state));
+    await inlineUploadedVideosForExport(deck);
+    const payload = title ? { title, ...deck } : deck;
+    // A file, not a data: link: with videos inside, the text is too long for a link.
+    const blobUrl = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
+    a.setAttribute("href", blobUrl);
     a.setAttribute("download", `${filenameBase}.json`);
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+}
+
+// Uploaded videos go into the JSON file itself: the deck held only their address on this computer
+// (/media/assets/…), so on another install, or the desktop app importing a deck made elsewhere, they were missing
+// ("Unsupported Format"). Opening the file uploads them again (migrateInlineVideoAssets).
+async function inlineUploadedVideosForExport(deck) {
+    const elements = (deck.slides || []).flatMap(slide => slide.elements || []);
+    for (const el of elements) {
+        if (el?.type !== "video" || typeof el.content !== "string" || !/^\/media\/assets\//.test(el.content)) continue;
+        try {
+            const response = await fetch(el.content);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const blob = await response.blob();
+            el.content = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(reader.error);
+                reader.readAsDataURL(blob.type.startsWith("video/") ? blob : blob.slice(0, blob.size, el.localMimeType || "video/mp4"));
+            });
+            delete el.videoWebm; // a copy on this computer only; the importing app makes its own
+        } catch (error) {
+            console.warn("Video kept as a link in the JSON export:", el.content, error);
+        }
+    }
 }
 
 function exportPresentationJson() {
@@ -86,6 +115,11 @@ function importPresentationJson() {
                 if (typeof syncPresentationPageSetup === "function") syncPresentationPageSetup();
                 applyPresentationTheme(state.presentationTheme, { persist: false });
                 resetUndoHistory?.();
+                // Videos carried in the file are uploaded into this install (the last opened deck's run is done).
+                if (typeof migrateInlineVideoAssets === "function") {
+                    window.__inlineVideoMigrationPromise = null;
+                    await migrateInlineVideoAssets().catch(err => console.warn("Imported videos stay inline:", err));
+                }
                 renderSlidesFromState();
                 updateSlideCounter();
                 // Saved into the project just made for it. It used to be copied into a second new project, which

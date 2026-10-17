@@ -6,6 +6,7 @@ from .plugin_views import plugin_detail, plugin_install, plugin_list
 from .views import (
     asset_pdf_page,
     asset_upload,
+    asset_video_webm,
     export_pptx_view,
     presentation_create,
     presentation_detail,
@@ -18,6 +19,7 @@ urlpatterns = [
     path("auth/session/", auth_session, name="auth-session"),
     path("assets/upload/", asset_upload, name="asset-upload"),
     path("assets/pdf-page/", asset_pdf_page, name="asset-pdf-page"),
+    path("assets/video-webm/", asset_video_webm, name="asset-video-webm"),
     path("slides/cleanup/", slide_cleanup_view, name="slide-cleanup"),
     path("presentations/", presentation_create, name="presentation-create"),
     path("presentations/<uuid:presentation_id>/", presentation_detail, name="presentation-detail"),

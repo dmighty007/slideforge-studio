@@ -100,12 +100,68 @@ function _applyVideoTypeContent(el, elData, options) {
     videoNode.setAttribute("playsinline", "true");
     videoNode.setAttribute("preload", "metadata");
 
-    if (elData.content) {
-      videoNode.src = videoInfo.url || elData.content;
-    }
+    // A WebM copy first when there is one: the desktop app's engine cannot decode the H.264 MP4 every upload is
+    // stored as (web browsers take the WebM too). The MP4 stays the file PowerPoint gets.
+    const setVideoSource = webm => {
+      videoNode.removeAttribute("src");
+      videoNode.querySelectorAll("source").forEach(node => node.remove());
+      if (webm) {
+        const webmSource = document.createElement("source");
+        webmSource.src = webm;
+        webmSource.type = "video/webm";
+        videoNode.appendChild(webmSource);
+        const mp4Source = document.createElement("source");
+        mp4Source.src = videoInfo.url || elData.content;
+        videoNode.appendChild(mp4Source);
+        mp4Source.addEventListener("error", () => handleVideoError());
+      } else {
+        videoNode.src = videoInfo.url || elData.content;
+      }
+    };
+    if (elData.content) setVideoSource(elData.videoWebm || "");
     videoNode.style.objectFit = "cover";
 
+    // An uploaded MP4 this engine cannot decode (the desktop app, H.264): ask the server for a WebM copy once, then
+    // play that and keep it on the element.
+    let webmRequested = Boolean(elData.videoWebm);
+    const tryWebmCopy = () => {
+      const url = String(elData.content || "");
+      if (webmRequested || !/\/media\/assets\/[0-9a-f]{32}\.(mp4|m4v|mov)(\?|$)/i.test(url)) return false;
+      webmRequested = true;
+      el.querySelector(".video-error-overlay")?.remove();
+      const note = document.createElement("div");
+      note.className = "video-convert-overlay absolute inset-0 bg-slate-950/80 rounded-[inherit] flex items-center justify-center gap-2 z-20 text-xs font-semibold text-slate-100";
+      note.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-[#38bdf8]"></i><span>Converting this video so it can play here…</span>';
+      el.appendChild(note);
+      const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+      fetch("/api/assets/video-webm/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(csrf ? { "X-CSRFToken": csrf } : {}) },
+        body: JSON.stringify({ url }),
+      })
+        .then(response => (response.ok ? response.json() : response.json().then(json => Promise.reject(new Error(json.error || response.status)))))
+        .then(result => {
+          note.remove();
+          const live = state.slides?.flatMap(slide => slide.elements || []).find(item => item.id === elData.id);
+          if (live) live.videoWebm = result.webmUrl;
+          elData.videoWebm = result.webmUrl;
+          setVideoSource(result.webmUrl);
+          videoNode.load();
+          schedulePresentationAutosave?.(300);
+        })
+        .catch(error => {
+          note.remove();
+          console.warn("No playable copy of the video:", error);
+          showVideoError();
+        });
+      return true;
+    };
+
     const handleVideoError = () => {
+      if (tryWebmCopy()) return;
+      showVideoError();
+    };
+    const showVideoError = () => {
       console.error(
         "Video element error for ID:",
         elData.id,
@@ -130,8 +186,8 @@ function _applyVideoTypeContent(el, elData, options) {
     };
 
     videoNode.onerror = handleVideoError;
-    videoNode.innerHTML +=
-      "Your browser does not support the video tag or this format.";
+    // A text node: rewriting innerHTML would rebuild the <source> children and lose their error listener.
+    videoNode.appendChild(document.createTextNode("Your browser does not support the video tag or this format."));
   }
   videoNode.className =
     "w-full h-full rounded-[inherit] pointer-events-none play-mode-events-auto";

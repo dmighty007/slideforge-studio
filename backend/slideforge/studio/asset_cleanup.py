@@ -49,7 +49,10 @@ def collect_unused_assets(*, grace: timedelta = DEFAULT_GRACE, dry_run: bool = F
         stats["bytes"] += size
         if not dry_run:
             if asset.file:
+                copy = Path(asset.file.path).with_suffix(".webm") if Path(asset.file.name).suffix.lower() in {".mp4", ".m4v", ".mov"} else None
                 asset.file.delete(save=False)
+                if copy and copy.exists():
+                    copy.unlink(missing_ok=True)
             asset.delete()
 
     # Files whose Asset row is gone (e.g. its presentation was deleted) but that nothing references any more.
@@ -59,6 +62,9 @@ def collect_unused_assets(*, grace: timedelta = DEFAULT_GRACE, dry_run: bool = F
         oldest_allowed = time.time() - grace.total_seconds()
         for path in assets_dir.iterdir():
             if not path.is_file() or path.name in known or path.name in referenced:
+                continue
+            # A video's WebM copy for the desktop app (no Asset row of its own) stays while its MP4 does.
+            if path.suffix == ".webm" and any(path.with_suffix(ext).name in known | referenced for ext in (".mp4", ".m4v", ".mov")):
                 continue
             if path.stat().st_mtime > oldest_allowed:
                 continue

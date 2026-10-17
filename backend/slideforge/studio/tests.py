@@ -1,6 +1,10 @@
 import json
+import os
 import re
+import shutil
+import subprocess
 import tempfile
+import unittest
 from io import BytesIO
 from pathlib import Path
 from unittest import mock
@@ -1118,6 +1122,66 @@ class AssetUploadHardeningTests(TestCase):
         self.assertEqual(response.json(), {"error": "Presentation not found"})
         self.assertFalse(Asset.objects.exists())
 
+
+
+@unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg is needed to make and convert videos")
+class VideoWebmCopyTests(TestCase):
+    """The desktop app's Qt WebEngine has no H.264 decoder: uploads get a WebM copy, and older ones are converted."""
+
+    def setUp(self):
+        self.media = tempfile.TemporaryDirectory()
+        override = override_settings(MEDIA_ROOT=self.media.name)
+        override.enable()
+        self.addCleanup(override.disable)
+        self.addCleanup(self.media.cleanup)
+        self.client = Client()
+        self.user = get_user_model().objects.create_user(username="video-user", password="strong-password-123")
+        self.client.force_login(self.user)
+
+    def _mp4_upload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "clip.mp4")
+            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=size=160x90:rate=10", "-t", "1",
+                            "-pix_fmt", "yuv420p", "-c:v", "libx264", out], check=True)
+            with open(out, "rb") as fh:
+                return SimpleUploadedFile("clip.mp4", fh.read(), content_type="video/mp4")
+
+    def _codec(self, path):
+        probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name", "-of", "csv=p=0", path],
+                               capture_output=True, text=True)
+        return probe.stdout.strip()
+
+    @override_settings(SLIDEFORGE_VIDEO_WEBM_COPY=True)
+    def test_desktop_upload_gets_a_vp9_copy_beside_the_mp4(self):
+        response = self.client.post("/api/assets/upload/", {"file": self._mp4_upload()})
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertTrue(payload["url"].endswith(".mp4"))
+        self.assertEqual(payload["webmUrl"], payload["url"][:-4] + ".webm")
+        copy = os.path.join(self.media.name, "assets", os.path.basename(payload["webmUrl"]))
+        self.assertEqual(self._codec(copy), "vp9")
+
+    def test_web_upload_has_no_copy_and_an_mp4_is_converted_on_request(self):
+        payload = self.client.post("/api/assets/upload/", {"file": self._mp4_upload()}).json()
+        self.assertNotIn("webmUrl", payload)
+        response = self.client.post("/api/assets/video-webm/", data=json.dumps({"url": payload["url"]}), content_type="application/json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self._codec(os.path.join(self.media.name, "assets", os.path.basename(response.json()["webmUrl"]))), "vp9")
+        # Only the owner's videos.
+        other = Client()
+        other.force_login(get_user_model().objects.create_user(username="video-other", password="strong-password-123"))
+        refused = other.post("/api/assets/video-webm/", data=json.dumps({"url": payload["url"]}), content_type="application/json")
+        self.assertEqual(refused.status_code, 404)
+
+    def test_cleanup_keeps_a_copy_while_its_mp4_is_used(self):
+        from datetime import timedelta
+        from .asset_cleanup import collect_unused_assets
+
+        payload = self.client.post("/api/assets/upload/", {"file": self._mp4_upload()}).json()
+        webm = self.client.post("/api/assets/video-webm/", data=json.dumps({"url": payload["url"]}), content_type="application/json").json()["webmUrl"]
+        Presentation.objects.create(owner=self.user, title="Uses it", state_json={"slides": [{"elements": [{"type": "video", "content": payload["url"]}]}]})
+        collect_unused_assets(grace=timedelta(seconds=-60))
+        self.assertTrue(os.path.exists(os.path.join(self.media.name, "assets", os.path.basename(webm))))
 
 
 class DocumentProcessingRegressionTests(TestCase):

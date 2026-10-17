@@ -64,6 +64,8 @@ SLIDEFORGE_LAUNCH_TOKEN = os.getenv("SLIDEFORGE_LAUNCH_TOKEN", "")
 SLIDEFORGE_LOCAL_USERNAME = "local"
 # No sign-in: every request runs as the local user (see middleware.LocalUserMiddleware).
 SLIDEFORGE_ACCOUNTS_ENABLED = False
+# The desktop app's Qt WebEngine has no H.264 decoder: uploaded videos also get a WebM copy (studio.views).
+SLIDEFORGE_VIDEO_WEBM_COPY = True
 # Plugins the user adds (kept across upgrades) and which plugins are switched on (studio/plugins.py).
 SLIDEFORGE_USER_PLUGINS_DIR = DATA_DIR / "plugins"
 SLIDEFORGE_PLUGIN_STATE_FILE = DATA_DIR / "plugin-settings.json"

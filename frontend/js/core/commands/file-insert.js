@@ -311,6 +311,9 @@ async function _insertUploadedVideo(file, { targetId = "" } = {}) {
                 elData.content = upload.url;
                 elData.localMimeType = upload.contentType || elData.localMimeType;
                 elData.videoType = "local";
+                // The copy the desktop app can play (it has no H.264 decoder); absent in the web app.
+                if (upload.webmUrl) elData.videoWebm = upload.webmUrl;
+                else delete elData.videoWebm;
                 delete elData.uploading;
                 delete elData.uploadProgress;
                 renderSlidesFromState();
@@ -395,6 +398,8 @@ async function migrateInlineVideoAssets() {
             if (!target) continue;
             target.content = upload.url;
             target.videoType = "local";
+            if (upload.webmUrl) target.videoWebm = upload.webmUrl;
+            else delete target.videoWebm;
             changed = true;
         }
 

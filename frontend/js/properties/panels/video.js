@@ -215,6 +215,8 @@ function bindVideoPanel(data, onCommit) {
                 content: dataResponse.url,
                 videoType: "local",
                 localMimeType: dataResponse.contentType || "video/mp4",
+                // The copy the desktop app can play (no H.264 decoder there); none in the web app.
+                videoWebm: dataResponse.webmUrl || undefined,
               });
               if (window.renderSlidesFromState)
                 window.renderSlidesFromState();
