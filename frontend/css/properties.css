@@ -1816,6 +1816,22 @@
     overflow: auto;
     padding-bottom: 2px;
 }
+/* The panel's small inputs keep 24px on the right for a dropdown arrow; in the data grid that left a 40px "±" cell
+   (and a series name) almost no room for its text. Tight padding here, and no number spinners. Two ids: the panel's
+   input rule (an id and three :not() clauses) outweighed one. */
+#properties-panel #properties-content .chart-editor-grid .prop-input-sm {
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+}
+#properties-panel #properties-content .chart-editor-grid input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+#properties-panel .chart-editor-grid input[type="number"]::-webkit-inner-spin-button,
+#properties-panel .chart-editor-grid input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
 .chart-editor-corner {
     align-self: end;
     padding-bottom: 6px;

@@ -5419,6 +5419,80 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("deck 2: a new table spans the content area, Tab in its last cell adds a row, and its handles sit on its borders", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => { addSlide(); addElement("table"); });
+        await page.waitForTimeout(500);
+        const placed = await page.evaluate(() => { const t = state.slides[currentSlideIndex].elements.find(e => e.type === "table"); return { id: t.id, width: parseFloat(t.width), rows: t.tableData.rows, cols: t.tableData.cols }; });
+        assert(placed.width >= 1000, `table width ${placed.width}`);
+        // The last cell, then Tab: a new row, and typing carries on in it.
+        const last = page.locator(`.slides [id="${placed.id}"] .table-element-cell[data-row="${placed.rows - 1}"][data-col="${placed.cols - 1}"]`);
+        await last.dblclick();
+        await page.keyboard.type("end");
+        await page.keyboard.press("Tab");
+        await page.keyboard.type("next row");
+        await page.keyboard.press("Escape");
+        await page.waitForTimeout(300);
+        const after = await page.evaluate(id => { const t = state.slides[currentSlideIndex].elements.find(e => e.id === id).tableData; return { rows: t.rows, first: t.cells.at(-1)[0].text }; }, placed.id);
+        assert(after.rows === placed.rows + 1 && after.first === "next row", JSON.stringify(after));
+        // The column handles on the column borders at any zoom (they drifted off when the slide was scaled).
+        const off = await page.evaluate(id => {
+            const node = [...document.querySelectorAll(`[id="${id}"]`)].find(n => !n.closest("#slide-previews"));
+            const cells = [...node.querySelectorAll("tbody tr:first-child > *")];
+            const handles = [...node.querySelectorAll(".table-col-resizer")];
+            return handles.map((h, i) => Math.abs((h.getBoundingClientRect().left + h.getBoundingClientRect().width / 2) - cells[i].getBoundingClientRect().right));
+        }, placed.id);
+        assert(off.length && off.every(d => d < 4), `handles off their borders by ${off.map(d => d.toFixed(1))}`);
+        await page.close();
+    });
+
+    await test("deck 2: Tab through a plugin's settings keeps the focus after each change; a chart's toolbar does not cover the title", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(async () => { addSlide(); setPropertiesPanelVisible(true, { persist: false }); await SlideForgePlugins.ready; await insertPluginElement("function-plot", null, { ask: false }); });
+        await page.waitForTimeout(800);
+        await page.locator("#prop-plugin-xMin").click();
+        await page.keyboard.press("Control+a");
+        await page.keyboard.type("0");
+        await page.keyboard.press("Tab");
+        await page.waitForTimeout(400);
+        const focus = await page.evaluate(() => document.activeElement?.id);
+        assert(focus === "prop-plugin-xMax", `focus after Tab: ${focus}`);
+        await page.keyboard.press("Control+a");
+        await page.keyboard.type("3");
+        await page.keyboard.press("Tab");
+        await page.waitForTimeout(400);
+        const data = await page.evaluate(() => state.slides[currentSlideIndex].elements.find(e => e.type === "plugin").pluginData);
+        assert(String(data.xMin) === "0" && String(data.xMax) === "3", JSON.stringify(data));
+        // A chart under the title: its floating toolbar goes where it hides nothing (below the chart here).
+        const overlap = await page.evaluate(() => {
+            addSlide();
+            const title = state.slides[currentSlideIndex].elements.find(e => e.placeholder === "Click to add title");
+            delete title.textDocument;
+            title.content = "A long slide title above the chart";
+            renderSlidesFromState();
+            addChart("bar");
+            updateFloatingToolbars();
+            const bar = document.getElementById("floating-chart-toolbar").getBoundingClientRect();
+            const t = [...document.querySelectorAll(`[id="${title.id}"]`)].find(n => !n.closest("#slide-previews")).getBoundingClientRect();
+            return Math.max(0, Math.min(bar.right, t.right) - Math.max(bar.left, t.left)) * Math.max(0, Math.min(bar.bottom, t.bottom) - Math.max(bar.top, t.top));
+        });
+        assert(overlap === 0, `the chart toolbar covers ${Math.round(overlap)} px² of the title`);
+        await page.close();
+    });
+
+    await test("deck 2: a crystal or small molecule (no chain) is drawn as balls and sticks, its lone atoms visible", async () => {
+        const { page } = await openFreshEditor(context);
+        // Rock salt: no bonds are found between the ions; as sticks they were dots.
+        const xyz = ["8", "NaCl"].concat([[0, 0, 0, "Na"], [2.82, 0, 0, "Cl"], [0, 2.82, 0, "Cl"], [2.82, 2.82, 0, "Na"], [0, 0, 2.82, "Cl"], [2.82, 0, 2.82, "Na"], [0, 2.82, 2.82, "Na"], [2.82, 2.82, 2.82, "Cl"]].map(([x, y, z, e]) => `${e} ${x} ${y} ${z}`)).join("\n");
+        const id = await page.evaluate(data => { addSlide(); _upsertMoleculeElement(createMoleculeElementData({ data, name: "NaCl", format: "xyz" })); renderSlidesFromState(); return state.slides[currentSlideIndex].elements.find(e => e.type === "molecule").id; }, xyz);
+        const frame = await (await page.locator(`.slides [id="${id}"] iframe`).elementHandle()).contentFrame();
+        await frame.waitForFunction(() => window.sfMoleculeViewer?.component()?.reprList?.length, null, { timeout: 20000 });
+        await page.waitForTimeout(500);
+        const reprs = await frame.evaluate(() => sfMoleculeViewer.component().reprList.map(r => r.repr.type));
+        assert(reprs.includes("ball+stick"), `representations: ${reprs}`);
+        await page.close();
+    });
+
     await test("overnight: Ctrl+C on a shape and Ctrl+V on another slide pastes the shape, not a \"[shape]\" text box", async () => {
         const { page } = await openFreshEditor(context);
         const id = await page.evaluate(() => { addSlide(); addShape("rectangle"); return state.selectedIds[0]; });

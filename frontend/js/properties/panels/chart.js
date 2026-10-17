@@ -32,7 +32,8 @@ function buildChartPanel(panel, data) {
   const picks = data.chartStyle?.seriesColors || [];
   // With error bars, each series has a "±" column after its values (SD, SEM… as entered).
   const errorBars = !round && Boolean(data.chartStyle?.errorBars);
-  const columns = `minmax(64px, 1.2fr) repeat(${table.series.length}, minmax(52px, 1fr)${errorBars ? " minmax(40px, 0.7fr)" : ""}) 18px`;
+  // Labels get the larger share (category names are words, values a few digits).
+  const columns = `minmax(72px, 1.8fr) repeat(${table.series.length}, minmax(46px, 1fr)${errorBars ? " minmax(36px, 0.7fr)" : ""}) 18px`;
   group.innerHTML += `
     <div class="chart-editor" data-chart-id="${escapeHtml(data.id)}">
       <div class="chart-editor-row">
@@ -49,7 +50,7 @@ function buildChartPanel(panel, data) {
           .map(
             (series, index) => `
           <div class="chart-series-head" data-series="${index}">
-            <input type="text" class="prop-input-sm chart-series-name" value="${escapeHtml(series.name)}" aria-label="Series ${index + 1} name">
+            <input type="text" class="prop-input-sm chart-series-name" value="${escapeHtml(series.name)}" title="${escapeHtml(series.name)}" aria-label="Series ${index + 1} name">
             <div class="chart-series-tools">
               ${round ? "" : `<input type="color" class="chart-series-color" value="${_chartColorInput(picks[index] || palette[index % (palette.length || 1)] || "#4f7cff")}" title="Colour of this series" aria-label="Series ${index + 1} colour">`}
               ${table.series.length > 1 ? `<button type="button" class="chart-series-remove" title="Remove this series" aria-label="Remove series ${index + 1}"><i class="fa-solid fa-xmark"></i></button>` : ""}

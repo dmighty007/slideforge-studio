@@ -743,8 +743,15 @@ function _pluginInsertSize(plugin, drawing) {
 // The newest lookup per element: an older one that finishes later must not undo what a newer one found.
 const _sfPluginPrepareSeq = new Map();
 
-function _rebuildPluginPanel(id) {
+function _rebuildPluginPanel(id, { deferred = false } = {}) {
     if (!state.selectedIds?.includes(id) || typeof buildPropertiesPanel !== "function") return;
+    // A field committed by Tab fires its change while the focus is between fields (on the page itself): rebuilt then,
+    // the field Tab was going to was replaced and the focus was lost, so Tab could not walk through the settings.
+    // Wait for the focus to land; in a panel field it then keeps it (and the notice is updated below).
+    if (!deferred && document.activeElement === document.body) {
+        requestAnimationFrame(() => _rebuildPluginPanel(id, { deferred: true }));
+        return;
+    }
     // Rebuilding while the user types in the panel would throw away what they are typing: update the notice only.
     const focused = document.activeElement;
     if (focused?.closest?.("#properties-panel") && /^(INPUT|TEXTAREA|SELECT)$/.test(focused.tagName)) {

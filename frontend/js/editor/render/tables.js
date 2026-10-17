@@ -366,7 +366,10 @@ function _renderTableDom(container, elData, { interactive = true } = {}) {
             const cols = tableData.cells[0]?.length || 1;
             const next = rowIndex * cols + colIndex + (e.shiftKey ? -1 : 1);
             commitTableCellEdit(cell, rowIndex, colIndex);
-            if (next < 0 || next >= rows * cols) return;
+            if (next < 0) return;
+            // Tab in the last cell adds a row and carries on in it, as in PowerPoint and Word (it stopped there,
+            // and the next row's words were lost).
+            if (next >= rows * cols && !_appendTableRow(elData.id)) return;
             _editTableCellAt(elData.id, Math.floor(next / cols), next % cols);
           }
         });
@@ -389,6 +392,26 @@ function _renderTableDom(container, elData, { interactive = true } = {}) {
       _renderTableSelectionControls(shell, table, elData);
     });
   }
+}
+
+// Adds an empty row at the bottom of table `elementId` (as tall as the last one; the box grows by as much).
+function _appendTableRow(elementId) {
+  const slide = state.slides[currentSlideIndex];
+  const el = slide?.elements.find((item) => item.id === elementId && item.type === "table");
+  if (!el) return false;
+  saveStateToUndo();
+  const tableData = normalizeTableData(el.tableData);
+  const height = tableData.rowHeights[tableData.rowHeights.length - 1] || 44;
+  tableData.rows += 1;
+  tableData.rowHeights.push(height);
+  tableData.cells.push(Array.from({ length: tableData.cols }, () => ({ text: "", styles: {} })));
+  tableData.selection = null;
+  updateElementState(elementId, {
+    tableData,
+    ...(Number.isFinite(parseFloat(el.height)) ? { height: `${Math.round(parseFloat(el.height) + height)}px` } : {}),
+  });
+  renderSlidesFromState();
+  return true;
 }
 
 // Starts editing a cell of the table on the canvas with its text selected, so typing replaces it. Done at once, not
@@ -416,6 +439,10 @@ function _renderTableSelectionControls(shell, table, elData) {
   const layer = document.createElement("div");
   layer.className = "table-selection-layer";
   const shellRect = shell.getBoundingClientRect();
+  // The slide is scaled to the window (editor zoom), and rectangles are in screen pixels: converted to the shell's
+  // own pixels, or every handle but the first sat off its border (75 px apart on 98 px columns at 76 % zoom).
+  const scaleX = shell.offsetWidth ? shellRect.width / shell.offsetWidth : 1;
+  const scaleY = shell.offsetHeight ? shellRect.height / shell.offsetHeight : 1;
   const rows = Array.from(table.querySelectorAll("tbody tr"));
   const firstRowCells = Array.from(
     table.querySelectorAll(
@@ -425,8 +452,8 @@ function _renderTableSelectionControls(shell, table, elData) {
 
   firstRowCells.forEach((cell, colIndex) => {
     const rect = cell.getBoundingClientRect();
-    const left = rect.left - shellRect.left;
-    const width = rect.width;
+    const left = (rect.left - shellRect.left) / scaleX;
+    const width = rect.width / scaleX;
     const selector = document.createElement("button");
     selector.className = "table-col-selector";
     selector.style.left = `${left}px`;
@@ -451,8 +478,8 @@ function _renderTableSelectionControls(shell, table, elData) {
 
   rows.forEach((row, rowIndex) => {
     const rect = row.getBoundingClientRect();
-    const top = rect.top - shellRect.top;
-    const height = rect.height;
+    const top = (rect.top - shellRect.top) / scaleY;
+    const height = rect.height / scaleY;
     const selector = document.createElement("button");
     selector.className = "table-row-selector";
     selector.style.top = `${top}px`;
@@ -514,7 +541,8 @@ function _bindTableResizeHandle(handle, axis, index, table, elData) {
         table.querySelectorAll("col").forEach((col, i) => (col.style.width = `${_tableColumnPercents(columns)[i]}%`));
         if (host) host.style.width = `${columns.reduce((sum, width) => sum + width, 0)}px`;
       } else {
-        const next = Math.max(24, Math.round(initial + delta));
+        // In the box's pixels too: the pointer moves in screen pixels of a scaled slide.
+        const next = Math.max(24, Math.round(initial + delta / scale));
         table.querySelectorAll("tbody tr")[index].style.height = `${next}px`;
       }
     };
@@ -525,7 +553,7 @@ function _bindTableResizeHandle(handle, axis, index, table, elData) {
         (axis === "col" ? upEvent.clientX : upEvent.clientY) - start;
       const next = Math.max(
         axis === "col" ? 36 : 24,
-        Math.round(initial + delta),
+        Math.round(initial + delta / scale),
       );
       saveStateToUndo();
       const nextTableData = normalizeTableData(elData.tableData);

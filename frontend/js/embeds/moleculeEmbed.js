@@ -632,12 +632,20 @@ function representationPlan() {
   const shown = layers.filter(layer => layer.kind !== "hidden");
   const plan = [];
   const base = excluding("all", [...hidden, ...shown.filter(layer => layer.kind === kind).map(layer => layer.sele)]);
-  plan.push([representationKind(kind), representationParams(kind, color, null, base)]);
+  if (smallMolecule) {
+    // Balls and sticks, each atom as large as its element (a third of its van der Waals radius; bonds a tenth): as thin sticks an
+    // atom with no bond found (lead and iodide in a perovskite, an ion, a metal centre) was only a dot, and a crystal
+    // looked like scattered specks.
+    const { radius: _fixedStickRadius, ...stickParams } = representationParams("stick", color, null, base);
+    plan.push(["ball+stick", { ...stickParams, radiusType: "vdw", radiusScale: 0.1, aspectRatio: 3.2 }]);
+  } else {
+    plan.push([representationKind(kind), representationParams(kind, color, null, base)]);
+  }
   if (kind === "cartoon") {
     // Ligands and cofactors bound to the chain would otherwise be invisible.
     plan.push(["licorice", { sele: excluding("ligand", hidden), colorScheme: "element", radius: 0.2, quality: meshQuality() }]);
   }
-  if (kind === "line" || kind === "stick") {
+  if ((kind === "line" || kind === "stick") && !smallMolecule) {
     plan.push(["spacefill", { sele: excluding("water", hidden), color: "#38bdf8", opacity: 0.72, radiusScale: 0.18, quality: meshQuality() }]);
   }
   shown.forEach((layer, index) => {

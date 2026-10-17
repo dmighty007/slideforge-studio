@@ -152,10 +152,11 @@ function positionFloatingToolbar(toolbar, targetRect, options = {}) {
     if (covered(top) > 0 && hasRoomBelow && covered(topBelow) < covered(top)) {
       top = topBelow;
     }
-  } else if (hasRoomAbove) {
-    top = topAbove;
-  } else if (hasRoomBelow) {
-    top = topBelow;
+  } else if (hasRoomAbove || hasRoomBelow) {
+    // Above or below, whichever hides less of the slide's other objects (above when equal): a chart's toolbar sat
+    // over the slide title although the space under the chart was free.
+    const spots = [hasRoomAbove ? topAbove : null, hasRoomBelow ? topBelow : null].filter(value => value !== null);
+    top = spots.reduce((best, candidate) => (covered(candidate) < covered(best) ? candidate : best), spots[0]);
   } else {
     const spaceAbove = Math.max(0, targetRect.top - minTop);
     const spaceBelow = Math.max(0, maxTop - targetRect.bottom);
