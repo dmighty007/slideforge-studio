@@ -146,7 +146,7 @@ html[data-theme="dark"] #canvas-wrapper { background: #161b24 !important; }
 }
 #insert-toolbar-row .insert-toolbar[data-layout="grouped"] .insert-group-toggle {
     font-size: 12px;
-    padding-inline: 8px !important;
+    padding-inline: 7px !important; /* 8px left a 1024px screen 4px short of the labels */
 }
 #insert-toolbar-row .insert-group[data-caption="Basics"] .insert-tool-btn { padding-inline: 6px !important; }
 #insert-toolbar-row .insert-toolbar[data-layout="compact"] .insert-group[data-caption="Basics"] .insert-tool-btn { padding-inline: 4px !important; }
@@ -182,4 +182,61 @@ html[data-theme="dark"] #properties-panel .prop-group > div:first-child {
     #app-toolbar .toolbar-cluster-muted.toolbar-icon-cluster {
         display: flex;
     }
+}
+
+/* One look for the whole insert bar: Text, Table, Image and the group buttons ("Charts ▾") share a size and weight
+   (the group names were bold beside the plain names of the first three). Plugins stays an icon: its name cost the
+   room that keeps the labels on a 1024px screen. */
+#insert-toolbar-row .insert-toolbar[data-layout="grouped"] .insert-group-toggle,
+#insert-toolbar-row .insert-toolbar[data-layout="grouped"] .insert-group[data-caption="Basics"] .insert-tool-name {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-main, #0f172a);
+}
+html[data-theme="dark"] #insert-toolbar-row .insert-toolbar[data-layout="grouped"] .insert-group-toggle,
+html[data-theme="dark"] #insert-toolbar-row .insert-toolbar[data-layout="grouped"] .insert-tool-name {
+    color: var(--dk-text);
+}
+
+/* "More tools" looks like the insert bar's menus: the same corners, shadow, rows and type. */
+.editor-tools-menu__items {
+    width: auto;
+    min-width: 210px;
+    padding: 6px;
+    border-radius: 12px;
+    border-color: color-mix(in srgb, var(--border) 80%, transparent);
+    box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16);
+}
+#app-toolbar .editor-tools-menu__items .toolbar-btn {
+    height: 36px !important;
+    min-height: 36px;
+    padding: 0 10px !important;
+    gap: 11px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-main, #0f172a);
+}
+#app-toolbar .editor-tools-menu__items .toolbar-btn-label {
+    font-size: 13px;
+    font-weight: 500;
+}
+html[data-theme="dark"] .editor-tools-menu__items {
+    background: var(--dk-card);
+    border-color: var(--dk-border);
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
+}
+html[data-theme="dark"] #app-toolbar .editor-tools-menu__items .toolbar-btn {
+    color: var(--dk-text);
+}
+
+/* The project's name is as wide as a name needs, not the whole bar: it took a third of a wide screen and pushed
+   the actions to the edges. The actions sit on the right. */
+#app-toolbar .toolbar-project {
+    justify-self: start; /* the row is a grid whose middle column takes the spare room */
+    width: auto !important;
+}
+#app-toolbar .toolbar-title-wrap {
+    flex: 0 1 380px;
+    max-width: 380px;
 }

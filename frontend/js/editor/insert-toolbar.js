@@ -28,7 +28,7 @@ function closeInsertGroupMenus(except = null) {
         group.classList.remove("is-open");
         group.querySelector(".insert-group-toggle")?.setAttribute("aria-expanded", "false");
         const menu = group._insertMenu;
-        if (menu && menu.parentElement !== group) group.appendChild(menu); // back into the bar, for the full layout
+        if (menu && menu.parentElement !== group) group.appendChild(menu); // back into the bar
         menu?.classList.remove("is-floating");
     });
 }
@@ -149,6 +149,8 @@ function fitInsertToolbar() {
 window.addEventListener("resize", () => requestAnimationFrame(fitInsertToolbar));
 // Measured again once the web fonts are in (the group names grow a little) and whenever the bar's row changes size.
 document.fonts?.ready?.then(() => requestAnimationFrame(fitInsertToolbar));
+// A weight first used later (the bar's labels) loads after `ready`: measure again whenever fonts arrive.
+document.fonts?.addEventListener?.("loadingdone", () => requestAnimationFrame(fitInsertToolbar));
 if (typeof ResizeObserver === "function") {
     const watch = () => {
         const row = document.getElementById("insert-toolbar-row");
@@ -163,10 +165,10 @@ window.closeInsertGroupMenus = closeInsertGroupMenus;
 function setUpEditorToolsMenu() {
     const cluster = document.querySelector("#app-toolbar .toolbar-icon-cluster");
     if (!cluster || document.getElementById("editor-tools-menu")) return;
+    // Light / dark stays in the bar: it is a setting people look for at a glance, not an occasional tool.
     const tools = [
         ["[title='Copy Selected Element']", "Copy"],
         ["[title='Paste From Clipboard']", "Paste"],
-        ["#toggle-app-theme", "Light / dark appearance"],
         ["#toggle-transitions-modal", "Slide transitions"],
         ["#toggle-timeline-editor", "Animation timeline"],
         ["[aria-label='Tidy slide layout']", "Tidy slide layout"],
