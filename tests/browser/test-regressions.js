@@ -63,6 +63,23 @@ async function pageAwait(page, fn, arg) {
 const TEST_FILTERS = (process.env.SLIDEFORGE_TEST_FILTER || "").split("||").filter(Boolean);
 
 // The editor on a new, empty project: tests that add their own objects do not meet ones an earlier run saved.
+// A tool may sit in a group menu of the insert bar ("Charts ▾") or in the top bar's "More tools" menu: open that
+// menu first, as a user would, then click the tool.
+async function clickTool(page, selector) {
+    const where = await page.evaluate(sel => {
+        const node = [...document.querySelectorAll(sel)].find(n => !n.closest("#slide-previews")) || document.querySelector(sel);
+        // checkVisibility: a button inside a closed <details> still has an offsetParent.
+        if (!node || (node.checkVisibility ? node.checkVisibility() : node.offsetParent)) return "visible";
+        const group = node.closest(".insert-group");
+        if (group) return `group:${group.dataset.caption}`;
+        if (node.closest("#editor-tools-menu")) return "more";
+        return "hidden";
+    }, selector);
+    if (where.startsWith("group:")) await page.locator(`.insert-group-toggle[title='${where.slice(6)}']`).click();
+    if (where === "more") await page.evaluate(() => { document.getElementById("editor-tools-menu").open = true; });
+    await page.locator(selector).first().click();
+}
+
 async function openFreshEditor(context) {
     const opened = await openEditor(context);
     // After the deck the page opened with has finished loading: a new project made while it was still loading
@@ -383,11 +400,11 @@ async function test(name, fn) {
     await test("a new text box is empty, ready for typing, and clear of other content", async () => {
         const { page } = await openEditor(context);
         await newContentSlide(page);
-        await page.locator("button[title='Text Block']:visible").first().click();
+        await clickTool(page, "button[title='Text Block']");
         await page.waitForTimeout(300);
         await page.keyboard.type("Typed at once");
         await page.keyboard.press("Escape");
-        await page.locator("button[title='Text Block']:visible").first().click();
+        await clickTool(page, "button[title='Text Block']");
         await page.waitForTimeout(300);
         const outcome = await page.evaluate(() => {
             const els = state.slides[currentSlideIndex].elements;
@@ -755,7 +772,7 @@ async function test(name, fn) {
     await test("a drawing made in Excalidraw lands on the slide as a movable picture and reopens with its scene", async () => {
         const { page, errors } = await openEditor(context);
         await newContentSlide(page);
-        await page.locator("#btn-add-drawing").click();
+        await clickTool(page, "#btn-add-drawing");
         await page.waitForSelector(".drawing-editor .excalidraw", { timeout: 20000 });
         await page.waitForTimeout(500);
         const canvas = await page.locator(".drawing-editor__canvas").boundingBox();
@@ -1100,7 +1117,7 @@ async function test(name, fn) {
             return [...document.querySelectorAll(".properties-tab")].filter(t => t.getBoundingClientRect().right > bar.right + 1).map(t => t.innerText.trim());
         });
         assert(!clipped.length, `tabs cut off: ${clipped}`);
-        await page.locator("#toggle-transitions-modal").click();
+        await clickTool(page, "#toggle-transitions-modal");
         await page.waitForTimeout(300);
         assert(await page.locator("#prop-slide-transition").isVisible(), "the transition control is not shown");
         await page.close();
@@ -1600,7 +1617,7 @@ async function test(name, fn) {
         const insert = async file => {
             await page.evaluate(() => addSlide());
             const chooser = page.waitForEvent("filechooser");
-            await page.locator("button[title='PDB or Trajectory']:visible").first().click();
+            await clickTool(page, "button[title='PDB or Trajectory']");
             await (await chooser).setFiles(file);
             await page.waitForFunction(() => state.slides[currentSlideIndex].elements.some(e => e.type === "molecule"));
             return page.evaluate(() => state.slides[currentSlideIndex].elements.find(e => e.type === "molecule").id);
@@ -1678,7 +1695,7 @@ async function test(name, fn) {
     const insertMoleculeFile = async (page, file) => {
         await page.evaluate(() => addSlide());
         const chooser = page.waitForEvent("filechooser");
-        await page.locator("button[title='PDB or Trajectory']:visible").first().click();
+        await clickTool(page, "button[title='PDB or Trajectory']");
         await (await chooser).setFiles(file);
         await page.waitForFunction(() => state.slides[currentSlideIndex].elements.some(e => e.type === "molecule"));
         const id = await page.evaluate(() => state.slides[currentSlideIndex].elements.find(e => e.type === "molecule").id);
@@ -1884,7 +1901,7 @@ async function test(name, fn) {
         fs.writeFileSync(file, "3\nwater\nO 0.000 0.000 0.117\nH 0.000 0.757 -0.469\nH 0.000 -0.757 -0.469\n");
         await page.evaluate(() => addSlide());
         const chooser = page.waitForEvent("filechooser");
-        await page.locator("button[title='PDB or Trajectory']:visible").first().click();
+        await clickTool(page, "button[title='PDB or Trajectory']");
         await (await chooser).setFiles(file);
         await page.waitForFunction(() => state.slides[currentSlideIndex].elements.some(e => e.type === "molecule"));
         const outcome = await page.evaluate(async () => {
@@ -2500,7 +2517,7 @@ async function test(name, fn) {
         fs.writeFileSync(water, "3\nwater\nO 0.000 0.000 0.117\nH 0.000 0.757 -0.469\nH 0.000 -0.757 -0.469\n");
         await page.evaluate(() => addSlide());
         const chooser = page.waitForEvent("filechooser");
-        await page.locator("button[title='PDB or Trajectory']:visible").first().click();
+        await clickTool(page, "button[title='PDB or Trajectory']");
         await (await chooser).setFiles(water);
         await page.waitForFunction(() => state.slides[currentSlideIndex].elements.some(e => e.type === "molecule"));
         const result = await page.evaluate(async () => {
@@ -2699,7 +2716,7 @@ async function test(name, fn) {
 
     await test("missing: the shape picker offers the full shape set, each drawn with its outline in the editor and SVG", async () => {
         const { page } = await openFreshEditor(context);
-        await page.locator('button[title="Shapes and Arrows"]').click();
+        await clickTool(page, 'button[title="Shapes and Arrows"]');
         const offered = await page.evaluate(() => [...document.querySelectorAll("#shape-picker-basic .shape-picker-item span, #shape-picker-arrows .shape-picker-item span")].map(n => n.textContent));
         for (const name of ["Rounded", "Star", "Callout", "Pentagon", "Octagon", "Chevron", "Plus", "Trapezoid", "Right triangle"]) {
             assert(offered.includes(name), `picker lacks ${name}: ${offered.join(", ")}`);
@@ -2889,7 +2906,7 @@ async function test(name, fn) {
 
     await test("style: opening the timeline editor refits the slide above it", async () => {
         const { page } = await openFreshEditor(context);
-        await page.locator('button[title="Animation Timeline Editor"]').click();
+        await clickTool(page, 'button[title="Animation Timeline Editor"]');
         await page.waitForTimeout(900);
         const r = await page.evaluate(() => {
             const rect = sel => document.querySelector(sel).getBoundingClientRect();
@@ -2907,7 +2924,7 @@ async function test(name, fn) {
             const groups = [...bar.querySelectorAll(".insert-group")].map(g => ({ caption: getComputedStyle(g, "::before").content.replace(/"/g, ""), buttons: g.querySelectorAll(".insert-tool-btn").length }));
             const loose = [...bar.querySelectorAll(".insert-tool-btn")].filter(b => !b.closest(".insert-group")).length;
             const symbols = bar.querySelector('button[title="Symbols"]');
-            return { groups, loose, barBottom: bar.getBoundingClientRect().bottom, slideTop: document.querySelector(".reveal").getBoundingClientRect().top, overflow: bar.scrollWidth > bar.clientWidth + 1, omega: symbols.textContent.trim() };
+            return { groups, loose, barBottom: bar.getBoundingClientRect().bottom, slideTop: document.querySelector(".reveal").getBoundingClientRect().top, overflow: bar.scrollWidth > bar.clientWidth + 1, omega: symbols.querySelector(".insert-tool-glyph")?.textContent.trim() };
         });
         assert(r.loose === 0, `${r.loose} insert buttons outside a captioned group`);
         assert(r.groups.length >= 5 && r.groups.every(g => g.caption && g.caption !== "none" && g.buttons > 0), `groups: ${JSON.stringify(r.groups)}`);
@@ -3017,14 +3034,14 @@ async function test(name, fn) {
         let nativeDialogs = 0;
         page.on("dialog", () => nativeDialogs++);
         await page.evaluate(() => addSlide());
-        await page.locator('button[title="Video URL"]').click();
+        await clickTool(page, 'button[title="Video URL"]');
         await page.waitForSelector(".sf-prompt", { timeout: 3000 });
         const focused = await page.evaluate(() => document.activeElement?.classList.contains("sf-prompt__field"));
         await page.keyboard.type("https://example.com/clip.mp4");
         await page.keyboard.press("Enter");
         await page.waitForTimeout(400);
         const videos = await page.evaluate(() => state.slides[currentSlideIndex].elements.filter(e => e.type === "video").map(e => e.content));
-        await page.locator('button[title="Video URL"]').click();
+        await clickTool(page, 'button[title="Video URL"]');
         await page.waitForSelector(".sf-prompt");
         await page.keyboard.press("Escape");
         await page.waitForTimeout(200);
@@ -3483,7 +3500,7 @@ async function test(name, fn) {
             renderSlidesFromState();
             return { a, c };
         });
-        await page.locator("#toggle-timeline-editor").click();
+        await clickTool(page, "#toggle-timeline-editor");
         await page.waitForTimeout(500);
         // A plain click: the inspector opens and no undo step is taken.
         const depth = await page.evaluate(() => undoStack.length);
@@ -3898,7 +3915,7 @@ async function test(name, fn) {
             listed: [...document.querySelectorAll("#properties-content optgroup option")].length,
         }));
         assert(layout.options === 3 && layout.listed === layout.total && layout.groups.includes("Talks") && layout.groups.includes("Narrative"), `layout dropdown: ${JSON.stringify(layout)}`);
-        await page.evaluate(() => { document.querySelector("#properties-content details")?.setAttribute("open", ""); });
+        await page.evaluate(() => { document.querySelector("#properties-content details.sf-preset-browser-shell")?.setAttribute("open", ""); });
         await page.selectOption("#preset-category-filter", "all");
         await page.waitForTimeout(300);
         const cards = await page.evaluate(() => {
@@ -3913,6 +3930,8 @@ async function test(name, fn) {
         const swatches = await page.locator(".sf-theme-swatch").count();
         const themeCount = await page.evaluate(() => Object.keys(PRESENTATION_THEMES).length);
         assert(swatches === themeCount, `theme gallery swatches: ${swatches} of ${themeCount}`);
+        // The previews are folded away under "Browse theme previews".
+        await page.locator(".sf-theme-picker > summary").click();
         await page.locator('.sf-theme-swatch[data-theme-id="tidepool"]').click();
         await page.waitForTimeout(300);
         assert(await page.evaluate(() => state.presentationTheme) === "tidepool", "clicking a theme swatch did not apply it");
@@ -5432,7 +5451,7 @@ async function test(name, fn) {
     await test("deck 2: plugin search puts the best match first; fit to content widens a table without stretching its rows; shape words contrast with the fill", async () => {
         const { page } = await openFreshEditor(context);
         await page.evaluate(() => SlideForgePlugins.ready);
-        await page.locator("button[title='Plugins']:visible").first().click();
+        await clickTool(page, "button[title='Plugins']");
         await page.keyboard.type("scale bar");
         await page.waitForTimeout(300);
         const first = await page.evaluate(() => document.querySelector("#plugin-insert-menu [data-plugin-insert]")?.dataset.pluginInsert);
@@ -6048,6 +6067,65 @@ async function test(name, fn) {
         assert(out.exported.startsWith("data:video/mp4"), `JSON export: ${JSON.stringify(out)}`);
         assert(/^\/media\/assets\/[0-9a-f]{32}\.mp4$/.test(out.reuploaded) && out.reuploaded !== out.uploaded, `opened again: ${JSON.stringify(out)}`);
         await page.close();
+    });
+
+    await test("editor chrome: themes are collapsed, More keeps specialist tools accessible, and Focus restores the workspace", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => { setPropertiesPanelVisible(true); clearSelection(); buildPropertiesPanel(); });
+        await page.waitForTimeout(300);
+        assert(!(await page.locator(".sf-theme-gallery").isVisible()), "theme gallery starts expanded");
+        await page.locator(".sf-theme-picker summary").click();
+        assert(await page.locator(".sf-theme-gallery").isVisible(), "theme previews did not open");
+        await page.locator("#editor-tools-menu summary").click();
+        assert(await page.locator("#toggle-timeline-editor").isVisible(), "timeline is not available under More");
+        await page.keyboard.press("Escape");
+        assert(!(await page.locator("#toggle-timeline-editor").isVisible()), "Escape did not close More");
+        const before = await page.evaluate(() => JSON.stringify(getPersistableState()));
+        await page.locator("#toggle-editor-focus").click();
+        await page.waitForTimeout(350);
+        assert(!(await page.locator("#properties-panel").isVisible()) && !(await page.locator("#insert-toolbar-row").isVisible()), "Focus did not hide the chrome");
+        await page.locator("#toggle-editor-focus").click();
+        await page.waitForTimeout(350);
+        assert(await page.locator("#properties-panel").isVisible() && await page.locator("#insert-toolbar-row").isVisible(), "Focus did not restore the workspace");
+        assert(await page.evaluate(() => JSON.stringify(getPersistableState())) === before, "Focus changed the slide document");
+        await page.close();
+    });
+
+    await test("ribbon: the insert bar folds into group menus when the canvas is narrow, and small screens keep the top bar clear", async () => {
+        const layouts = {};
+        for (const [width, height] of [[1600, 900], [1000, 800], [700, 800]]) {
+            const page = await context.newPage();
+            await page.setViewportSize({ width, height });
+            await page.goto(TEST_URL, { waitUntil: "networkidle" });
+            await page.waitForFunction(() => typeof isPresentationHydrating !== "function" || !isPresentationHydrating());
+            await page.evaluate(() => closeStartScreen?.({ force: true }));
+            await page.waitForTimeout(900);
+            const info = await page.evaluate(() => {
+                const bar = document.querySelector("#insert-toolbar-row .insert-toolbar");
+                const row = document.getElementById("insert-toolbar-row").getBoundingClientRect();
+                const header = document.getElementById("app-toolbar").getBoundingClientRect();
+                const rail = document.getElementById("slide-rail").getBoundingClientRect();
+                return { layout: bar.dataset.layout, fits: bar.scrollWidth <= Math.ceil(row.width) + 1, belowHeader: row.top >= header.bottom - 1, railWidth: rail.width };
+            });
+            layouts[width] = info;
+            assert(info.fits && info.belowHeader, `${width}px: ${JSON.stringify(info)}`);
+            if (info.layout !== "full") {
+                // A group's button opens its tools by name; choosing one inserts it and closes the menu.
+                await page.locator(".insert-group-toggle[title='Charts']").click();
+                const item = page.locator(".insert-group-tools.is-floating .insert-tool-btn[title='Bar Chart']");
+                assert((await item.isVisible()) && (await item.innerText()).includes("Bar Chart"), `${width}px: the Charts menu`);
+                const before = await page.evaluate(() => state.slides[currentSlideIndex].elements.length);
+                await item.click();
+                await page.waitForTimeout(300);
+                const after = await page.evaluate(() => ({ count: state.slides[currentSlideIndex].elements.length, open: !!document.querySelector(".insert-group.is-open") }));
+                assert(after.count === before + 1 && !after.open, `${width}px: inserting from the menu: ${JSON.stringify(after)}`);
+                await page.evaluate(() => undo());
+            }
+            await page.close();
+        }
+        assert(layouts[1600].layout === "grouped" && layouts[1000].layout !== "full", `layouts: ${JSON.stringify(layouts)}`);
+        // Below 920px the closed slide rail takes no room (its strip covered the logo), and can be opened again.
+        assert(layouts[700].railWidth === 0, `rail at 700px: ${JSON.stringify(layouts[700])}`);
     });
 
     await test("overnight: Ctrl+C on a shape and Ctrl+V on another slide pastes the shape, not a \"[shape]\" text box", async () => {

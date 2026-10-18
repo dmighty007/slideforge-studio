@@ -1086,3 +1086,21 @@ html[data-theme="dark"] .table-text-scope.is-part {
 html[data-theme="dark"] .text-autofit-note.is-small {
     color: #fcd34d;
 }
+
+/* The insert bar's group buttons and menus (layout.css, js/editor/insert-toolbar.js). */
+html[data-theme="dark"] #insert-toolbar-row .insert-group-toggle,
+html[data-theme="dark"] .insert-group-tools.is-floating .insert-tool-btn {
+    color: var(--dk-text);
+}
+html[data-theme="dark"] #insert-toolbar-row .insert-group-toggle > i:first-child,
+html[data-theme="dark"] .insert-group-tools.is-floating .insert-tool-btn > :first-child {
+    color: var(--dk-sub);
+}
+html[data-theme="dark"] .insert-group-tools.is-floating {
+    background: var(--dk-card);
+    border-color: var(--dk-border);
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
+}
+html[data-theme="dark"] .insert-group-tools.is-floating .insert-tool-btn:hover {
+    background: var(--dk-raised);
+}

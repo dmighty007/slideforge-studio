@@ -193,7 +193,9 @@ function executeSlashCommand(index = slashSelectedIndex) {
 }
 
 function initWorkspaceShell() {
-    const compactRailQuery = window.matchMedia?.("(max-width: 720px)");
+    // Below 920px the rail lies over the editor (layout.css), so it starts closed there: open, it covered the left of
+    // the toolbar and the insert bar.
+    const compactRailQuery = window.matchMedia?.("(max-width: 920px)");
     document.body.classList.toggle("slide-rail-collapsed", Boolean(compactRailQuery?.matches));
     compactRailQuery?.addEventListener?.("change", event => {
         document.body.classList.toggle("slide-rail-collapsed", event.matches);
@@ -262,6 +264,7 @@ function initWorkspaceShell() {
 function registerWorkspaceCommands() {
     if (typeof COMMANDS === "undefined" || !Array.isArray(COMMANDS)) return;
     const additions = [
+        { id: "toggle-editor-focus", title: "Focus on Slide: Toggle Panels and Insert Bar", icon: "fa-expand", action: () => toggleEditorFocusMode() },
         { id: "workspace-slides", title: "Workspace: Slides Mode", icon: "fa-window-maximize", action: () => setWorkspaceMode("slides") },
         { id: "workspace-whiteboard", title: "Workspace: Whiteboard Mode", icon: "fa-chalkboard", action: () => setWorkspaceMode("whiteboard") },
         { id: "workspace-timeline", title: "Workspace: Timeline / Animation Mode", icon: "fa-film", action: () => setWorkspaceMode("timeline") },
@@ -285,4 +288,21 @@ if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initWorkspaceShell, { once: true });
 } else {
     initWorkspaceShell();
+}
+
+// Hide chrome without changing panel visibility, selection or the slide document.
+function toggleEditorFocusMode() {
+    const focused = document.body.classList.toggle("editor-focus-mode");
+    window.closeInsertGroupMenus?.();
+    const button = document.getElementById("toggle-editor-focus");
+    if (button) {
+        button.setAttribute("aria-pressed", String(focused));
+        button.title = focused ? "Exit focus" : "Focus on slide";
+        button.setAttribute("aria-label", button.title);
+        button.querySelector("i")?.classList.toggle("fa-compress", focused);
+        button.querySelector("i")?.classList.toggle("fa-expand", !focused);
+    }
+    const fit = () => { window.resetZoom?.(); window.updateFloatingToolbars?.(); };
+    requestAnimationFrame(fit);
+    window.setTimeout(fit, 240);
 }

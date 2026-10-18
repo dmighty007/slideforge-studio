@@ -4621,3 +4621,187 @@ button:focus:not(:focus-visible) {
     font-size: 12px;
     font-weight: 600;
 }
+
+/* Insert bar layouts (js/editor/insert-toolbar.js picks one by the room it has).
+   full: every tool, larger and spaced out under its group's caption. grouped / compact: one button per group that
+   opens a menu of its tools with their names (compact drops the group's name). */
+#insert-toolbar-row .insert-toolbar[data-layout="full"] .insert-group-toggle,
+#insert-toolbar-row .insert-toolbar:not([data-layout]) .insert-group-toggle {
+    display: none;
+}
+#insert-toolbar-row .insert-toolbar[data-layout="full"] .insert-group-tools,
+#insert-toolbar-row .insert-toolbar:not([data-layout]) .insert-group-tools {
+    display: contents;
+}
+#insert-toolbar-row .insert-toolbar[data-layout="full"] .insert-tool-name,
+#insert-toolbar-row .insert-toolbar:not([data-layout]) .insert-tool-name {
+    display: none;
+}
+#insert-toolbar-row .insert-toolbar[data-layout="full"] {
+    gap: 0;
+    padding: 4px 6px;
+}
+#insert-toolbar-row .insert-toolbar[data-layout="full"] .toolbar-cluster.insert-group {
+    gap: 2px;
+    padding-inline: 7px;
+}
+#insert-toolbar-row .insert-toolbar[data-layout="full"] .insert-tool-btn {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    min-height: 30px;
+}
+#insert-toolbar-row .insert-toolbar[data-layout="full"] .insert-tool-btn i,
+#insert-toolbar-row .insert-toolbar[data-layout="full"] .insert-tool-btn svg {
+    width: 15px !important;
+    height: 15px !important;
+    font-size: 15px !important;
+}
+
+#insert-toolbar-row .insert-toolbar[data-layout="grouped"],
+#insert-toolbar-row .insert-toolbar[data-layout="compact"] {
+    min-height: 42px;
+    max-height: 42px;
+    gap: 2px;
+    /* The group menus are placed on the page (fixed) by insert-toolbar.js, so the bar can still scroll sideways
+       when even its group buttons do not fit. */
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+#insert-toolbar-row .insert-toolbar[data-layout="grouped"] .toolbar-cluster.insert-group,
+#insert-toolbar-row .insert-toolbar[data-layout="compact"] .toolbar-cluster.insert-group {
+    height: 34px;
+    padding: 0 2px;
+    align-items: center;
+    border-left: 0;
+}
+#insert-toolbar-row .insert-toolbar[data-layout="grouped"] .toolbar-cluster.insert-group::before,
+#insert-toolbar-row .insert-toolbar[data-layout="compact"] .toolbar-cluster.insert-group::before {
+    display: none;
+}
+#insert-toolbar-row .insert-toolbar[data-layout="grouped"] .insert-group--plugins,
+#insert-toolbar-row .insert-toolbar[data-layout="compact"] .insert-group--plugins {
+    min-width: 0;
+}
+
+#insert-toolbar-row .insert-group-toggle {
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 8px !important;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-main, #0f172a);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+}
+#insert-toolbar-row .insert-group-toggle:hover,
+#insert-toolbar-row .insert-group.is-open .insert-group-toggle {
+    color: var(--primary-hover);
+    border-color: color-mix(in srgb, var(--primary) 22%, transparent);
+    background: color-mix(in srgb, var(--primary) 9%, var(--panel-card));
+}
+#insert-toolbar-row .insert-group-toggle > i:first-child {
+    font-size: 14px;
+    color: var(--text-sub);
+}
+#insert-toolbar-row .insert-group-toggle .insert-group-chevron {
+    font-size: 9px;
+    opacity: 0.6;
+    transition: transform 140ms ease;
+}
+#insert-toolbar-row .insert-group.is-open .insert-group-chevron {
+    transform: rotate(180deg);
+}
+#insert-toolbar-row .insert-toolbar[data-layout="compact"] .insert-group-toggle {
+    gap: 3px;
+    padding: 0 6px !important;
+}
+#insert-toolbar-row .insert-toolbar[data-layout="compact"] .insert-group-toggle-label {
+    display: none;
+}
+
+/* In the grouped layouts a group's tools are hidden in the bar, and shown as a menu moved onto the page when opened
+   (js/editor/insert-toolbar.js). */
+#insert-toolbar-row .insert-toolbar:is([data-layout="grouped"], [data-layout="compact"]) .insert-group-tools {
+    display: none;
+}
+.insert-group-tools.is-floating {
+    position: fixed;
+    z-index: 600;
+    min-width: 210px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+    background: var(--panel-card, #ffffff);
+    box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16);
+}
+.insert-group-tools.is-floating .insert-tool-btn {
+    width: 100%;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 11px;
+    padding: 0 10px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    text-align: left;
+    color: var(--text-main, #0f172a);
+    cursor: pointer;
+}
+.insert-group-tools.is-floating .insert-tool-btn:hover,
+.insert-group-tools.is-floating .insert-tool-btn:focus-visible {
+    color: var(--primary-hover);
+    background: color-mix(in srgb, var(--primary) 9%, var(--panel-card));
+    outline: none;
+}
+.insert-group-tools.is-floating .insert-tool-btn > :first-child {
+    width: 18px;
+    font-size: 14px;
+    text-align: center;
+    color: var(--text-sub);
+}
+.insert-group-tools.is-floating .insert-tool-glyph {
+    font-size: 15px;
+    font-weight: 700;
+    font-family: "Inter", system-ui, sans-serif;
+}
+.insert-group-tools.is-floating .insert-tool-warm > :first-child {
+    color: #b45309;
+}
+.insert-tool-name {
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+/* Below 920px the slide rail lies over the editor (see above), and starts closed. Closed, it takes no room at all:
+   its 54px strip ran the full height of the window, over the logo and the first toolbar buttons. The round button
+   in the corner opens it again (below 720px there was no way back to the slides). */
+@media (max-width: 920px) {
+    body.slide-rail-collapsed #slide-rail {
+        width: 0 !important;
+        min-width: 0 !important;
+        border-right: 0 !important;
+        box-shadow: none !important;
+        overflow: hidden;
+        transform: translateX(-100%) !important;
+    }
+
+    body.slide-rail-collapsed .slide-rail-edge-toggle {
+        display: flex;
+        position: fixed;
+        left: 12px;
+        top: auto;
+        bottom: 24px;
+    }
+}

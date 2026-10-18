@@ -140,6 +140,12 @@ function positionInsertToolbar(wrapper) {
     if (!rect.width) return;
     row.style.left = `${Math.round(rect.left + rect.width / 2)}px`;
     row.style.width = `${Math.round(Math.max(200, Math.min(980, rect.width - 24)))}px`;
+    // Just below the top bar, however tall it is: on a narrow window it wraps onto a second row (the project name),
+    // which the bar at its fixed 58px covered.
+    const header = document.getElementById("app-toolbar");
+    const headerBottom = header?.getBoundingClientRect().bottom;
+    if (headerBottom > 0) row.style.top = `${Math.round(headerBottom + 2)}px`;
+    window.fitInsertToolbar?.();
 }
 
 function getCanvasTopInset(wrapper) {

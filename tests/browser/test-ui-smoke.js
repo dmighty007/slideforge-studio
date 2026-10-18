@@ -73,6 +73,23 @@ function isAllowedRequestUrl(requestUrl) {
     return false;
 }
 
+// A tool may sit in a group menu of the insert bar ("Charts ▾") or in the top bar's "More tools" menu: open that
+// menu first, as a user would, then click the tool.
+async function clickTool(page, selector) {
+    const where = await page.evaluate(sel => {
+        const node = document.querySelector(sel);
+        // checkVisibility: a button inside a closed <details> still has an offsetParent.
+        if (!node || (node.checkVisibility ? node.checkVisibility() : node.offsetParent)) return "visible";
+        const group = node.closest(".insert-group");
+        if (group) return `group:${group.dataset.caption}`;
+        if (node.closest("#editor-tools-menu")) return "more";
+        return "hidden";
+    }, selector);
+    if (where.startsWith("group:")) await page.locator(`.insert-group-toggle[title='${where.slice(6)}']`).click();
+    if (where === "more") await page.evaluate(() => { document.getElementById("editor-tools-menu").open = true; });
+    await page.locator(selector).click();
+}
+
 async function boot(page) {
     await page.addInitScript(() => {
         sessionStorage.setItem("pptmaker_entry_gate_dismissed", "true");
@@ -283,14 +300,14 @@ async function ensureEditor(page) {
         });
 
         const before = (await appState(page)).elements.length;
-        await page.locator("button[title='Text Block']").click();
-        await page.locator("button[title='Table']").click();
-        await page.locator("button[title='Bar Chart']").click();
-        await page.locator("button[title='Line Chart']").click();
-        await page.locator("button[title='Pie Chart']").click();
-        await page.locator("button[title='Line Connector']").click();
-        await page.locator("button[title='Curve Connector']").click();
-        await page.locator("button[title='Polyline Connector']").click();
+        await clickTool(page, "button[title='Text Block']");
+        await clickTool(page, "button[title='Table']");
+        await clickTool(page, "button[title='Bar Chart']");
+        await clickTool(page, "button[title='Line Chart']");
+        await clickTool(page, "button[title='Pie Chart']");
+        await clickTool(page, "button[title='Line Connector']");
+        await clickTool(page, "button[title='Curve Connector']");
+        await clickTool(page, "button[title='Polyline Connector']");
         await page.evaluate(() => addElement("video", { content: "https://example.com/video.mp4" }));
         await page.waitForTimeout(250);
 
@@ -1138,29 +1155,29 @@ async function ensureEditor(page) {
     });
 
     await step("Picker and modal entry points open and close", async () => {
-        await page.locator("button[title='LaTeX Equation']").click();
+        await clickTool(page, "button[title='LaTeX Equation']");
         assert(await page.locator("#equation-modal").isVisible(), "Equation modal should open");
         await page.locator("#equation-input").fill("\\\\frac{a}{b}");
         await page.waitForTimeout(100);
         await page.evaluate(() => closeEquationModal());
 
-        await page.locator("button[title='Symbols']").click();
+        await clickTool(page, "button[title='Symbols']");
         assert(await page.locator("#symbol-picker-modal").isVisible(), "Symbol picker should open");
         await page.evaluate(() => closeSymbolPicker());
 
-        await page.locator("button[title='Icons']").click();
+        await clickTool(page, "button[title='Icons']");
         assert(await page.locator("#icon-picker-modal").isVisible(), "Icon picker should open");
         await page.locator("#icon-search-input").fill("star");
         await page.evaluate(() => closeIconPicker());
 
-        await page.locator("button[title='Shapes and Arrows']").click();
+        await clickTool(page, "button[title='Shapes and Arrows']");
         assert(await page.locator("#shape-picker-modal").isVisible(), "Shape picker should open");
         await page.locator(".shape-picker-item").first().click();
         await page.waitForTimeout(100);
         const hasShape = (await appState(page)).elements.some(el => el.type === "shape");
         assert(hasShape, "Shape picker should insert a shape");
 
-        await page.locator("button[title='Flowchart / Mermaid Diagram']").click();
+        await clickTool(page, "button[title='Flowchart / Mermaid Diagram']");
         await page.waitForTimeout(300);
         assert(await page.locator("#mermaid-dialog").isVisible(), "Mermaid dialog should open");
         await page.keyboard.press("Escape");
@@ -1280,11 +1297,11 @@ async function ensureEditor(page) {
         assert(!(await page.locator("#layers-popover").evaluate(el => el.classList.contains("hidden"))), "Layers popover should open");
         await page.locator("#toggle-layers-popover").click();
 
-        await page.locator("#toggle-timeline-editor").click();
+        await clickTool(page, "#toggle-timeline-editor");
         await page.waitForTimeout(100);
         const timelineDisplay = await page.locator("#timeline-editor-panel").evaluate(el => getComputedStyle(el).display);
         assert(timelineDisplay !== "none", "Timeline panel should open");
-        await page.locator("#toggle-timeline-editor").click();
+        await clickTool(page, "#toggle-timeline-editor");
 
         await page.locator("#export-menu-container > button").click();
         assert(await page.locator("#export-menu-dropdown").evaluate(el => el.classList.contains("show")), "Export menu should open");
@@ -1305,8 +1322,8 @@ async function ensureEditor(page) {
             }
         });
         const beforeCopy = (await appState(page)).elements.length;
-        await page.locator("button[title='Copy Selected Element']").click();
-        await page.locator("button[title='Paste From Clipboard']").click();
+        await clickTool(page, "button[title='Copy Selected Element']");
+        await clickTool(page, "button[title='Paste From Clipboard']");
         await page.waitForTimeout(150);
         assert((await appState(page)).elements.length === beforeCopy + 1, "Paste should duplicate selected element");
 
@@ -1320,7 +1337,7 @@ async function ensureEditor(page) {
     });
 
     await step("Drawing editor and slide rail controls toggle cleanly", async () => {
-        await page.locator("#btn-add-drawing").click();
+        await clickTool(page, "#btn-add-drawing");
         await page.waitForSelector(".drawing-editor .excalidraw", { timeout: 20000 });
         assert(await page.evaluate(() => isDrawingEditorOpen()), "The drawing editor should open");
         await page.locator('[data-drawing-action="cancel"]').click();

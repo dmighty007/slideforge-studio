@@ -108,6 +108,7 @@
     <link rel="stylesheet" href="css/properties.css?v=20260614-properties-panel-stable" />
     <link rel="stylesheet" href="css/start-screen.css?v=20260929" />
     <link rel="stylesheet" href="css/dark-mode.css?v=20261001-dark" />
+    <link rel="stylesheet" href="css/editor-chrome.css?v=20261018" />
 </head>
 <body class="entry-gate-pending font-sans bg-surface text-text-main flex flex-col h-screen overflow-hidden select-none">
     <section id="entry-hero" class="entry-hero" aria-label="SlideForge sign in">
@@ -242,6 +243,9 @@
                     <button id="toggle-properties-panel" onclick="togglePropertiesPanel()" title="Show Properties" class="toolbar-btn" aria-pressed="false">
                         <i class="fa-solid fa-sliders text-sm"></i>
                         <span class="toolbar-btn-label">Properties</span>
+                    </button>
+                    <button id="toggle-editor-focus" onclick="toggleEditorFocusMode()" title="Focus on slide" aria-label="Focus on slide" class="toolbar-btn" aria-pressed="false">
+                        <i class="fa-solid fa-expand" aria-hidden="true"></i>
                     </button>
                     <button id="toggle-layers-popover" onclick="toggleLayersPopover()" title="Layers" class="toolbar-btn" aria-pressed="false">
                         <i class="fa-solid fa-layer-group text-sm"></i>
@@ -1295,6 +1299,7 @@
     <script src="js/core/workspace.js?v=20260524-ai-native-layout"></script>
     <script src="js/core/keyboard.js?v=20260531-selection-paint"></script>
     <script src="js/editor/zoom.js?v=20260519-no-slide-bump"></script>
+    <script src="js/editor/insert-toolbar.js?v=20261018"></script>
     <script src="js/editor/contextMenu.js"></script>
     <script src="js/ui/start-screen.js?v=20260929"></script>
     <script src="js/ui/share.js?v=20261001"></script>

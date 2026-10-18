@@ -1,0 +1,185 @@
+/* Quiet editor chrome: the slide is the primary surface. */
+#app-toolbar {
+    background: var(--panel-card, #fff);
+    box-shadow: none;
+    border-bottom: 1px solid var(--border);
+}
+#app-toolbar .toolbar-cluster {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+}
+#app-toolbar .toolbar-btn:not(.toolbar-btn-primary):not(.toolbar-btn-success):not(:hover):not([aria-pressed="true"]) {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    color: var(--text-sub);
+}
+#insert-toolbar-row .insert-toolbar {
+    box-shadow: 0 2px 8px rgb(15 23 42 / 5%);
+    border-color: var(--border);
+    background: var(--panel-card, #fff);
+    border-radius: 10px;
+    backdrop-filter: none;
+}
+/* Everyday tools stay one click away; specialist tools have labelled menus. */
+#insert-toolbar-row .insert-toolbar:is([data-layout="grouped"], [data-layout="compact"]) .insert-group[data-caption="Basics"] .insert-group-tools {
+    display: contents;
+}
+#insert-toolbar-row .insert-group[data-caption="Basics"] .insert-group-toggle { display: none; }
+#insert-toolbar-row .insert-group[data-caption="Basics"] .insert-tool-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    width: auto;
+    padding: 0 9px;
+}
+#insert-toolbar-row .insert-toolbar[data-layout="compact"] .insert-group[data-caption="Basics"] .insert-tool-name { display: none; }
+#insert-toolbar-row .insert-group[data-caption="Basics"] .insert-tool-name { font-size: 12px; }
+#properties-panel {
+    background: var(--panel-card, #fff) !important;
+    box-shadow: none !important;
+    border-left: 1px solid var(--border) !important;
+}
+#properties-panel > .h-11, #properties-content {
+    background: var(--panel-card, #fff) !important;
+}
+#properties-panel > .h-11 h2::before { display: none; }
+#properties-panel .prop-group, #properties-panel .prop-group:hover {
+    background: transparent !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--border) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 10px 4px 16px !important;
+    margin-bottom: 6px !important;
+}
+#properties-panel .prop-group-title, #properties-panel .prop-group h3 {
+    border-bottom: 0;
+    text-transform: none;
+    letter-spacing: 0 !important;
+    font-size: 12px !important;
+}
+#properties-panel .sf-theme-picker {
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    background: transparent;
+}
+.sf-theme-picker > summary {
+    padding: 9px 0;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-sub);
+}
+.sf-theme-picker .sf-theme-gallery { margin-top: 8px; }
+body.editor-focus-mode #slide-rail,
+body.editor-focus-mode #properties-panel,
+body.editor-focus-mode #insert-toolbar-row,
+body.editor-focus-mode .slide-rail-edge-toggle { display: none !important; }
+.editor-tools-menu { position: relative; }
+.editor-tools-menu > summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.editor-tools-menu > summary::-webkit-details-marker { display: none; }
+.editor-tools-menu__items {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 245px;
+    padding: 6px;
+    background: var(--panel-card, #fff);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgb(15 23 42 / 12%);
+    z-index: 650;
+}
+/* !important: buttons moved in keep their own fixed icon widths (Tidy layout's 38px emphasis hid its name). */
+#app-toolbar .editor-tools-menu__items .toolbar-btn {
+    width: 100% !important;
+    min-width: 0 !important;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 8px 10px;
+    height: auto;
+    min-height: 36px;
+}
+.editor-tools-menu__items .toolbar-btn-label { display: inline !important; }
+/* The overflow menu needs to escape the toolbar's horizontally scrolling clusters. */
+#app-toolbar .toolbar-icon-cluster { overflow: visible; }
+#canvas-wrapper {
+    background: #f1f3f6 !important;
+    box-shadow: none;
+}
+html[data-theme="dark"] #canvas-wrapper { background: #161b24 !important; }
+#properties-content .properties-tabpane > .prop-group,
+#properties-content .properties-tabpane > .prop-group:hover {
+    background: transparent !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--border) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 10px 4px 16px !important;
+}
+#properties-panel .prop-group > div:first-child .prop-group-title {
+    text-transform: none;
+    letter-spacing: 0 !important;
+    font-weight: 600 !important;
+}
+#insert-toolbar-row .insert-toolbar[data-layout="compact"] .insert-group-toggle {
+    width: 30px;
+    min-width: 30px;
+    padding: 0 !important;
+    gap: 0;
+    justify-content: center;
+}
+#insert-toolbar-row .insert-toolbar[data-layout="compact"] .insert-group-chevron { display: none; }
+#insert-toolbar-row .insert-toolbar[data-layout="compact"] .toolbar-cluster.insert-group { padding-inline: 0; }
+#insert-toolbar-row .insert-toolbar[data-layout="compact"] .insert-group[data-caption="Basics"] .insert-tool-btn {
+    min-width: 28px;
+    width: 28px;
+    padding-inline: 4px;
+}
+#insert-toolbar-row .insert-toolbar[data-layout="grouped"] .insert-group-toggle {
+    font-size: 12px;
+    padding-inline: 8px !important;
+}
+#insert-toolbar-row .insert-group[data-caption="Basics"] .insert-tool-btn { padding-inline: 6px !important; }
+#insert-toolbar-row .insert-toolbar[data-layout="compact"] .insert-group[data-caption="Basics"] .insert-tool-btn { padding-inline: 4px !important; }
+#canvas-wrapper.editor-mode .reveal .slides section,
+#canvas-wrapper.editor-mode .reveal .slides section.present {
+    border-color: var(--border);
+    box-shadow: 0 3px 16px rgb(15 23 42 / 9%);
+}
+#slide-rail .slide-preview-card { box-shadow: none; }
+#properties-panel .prop-group > div:first-child { background: transparent !important; }
+html[data-theme="dark"] #app-toolbar .toolbar-cluster {
+    background: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+}
+html[data-theme="dark"] #insert-toolbar-row .insert-toolbar { background: var(--dk-card) !important; }
+html[data-theme="dark"] #insert-toolbar-row .toolbar-cluster,
+html[data-theme="dark"] #insert-toolbar-row .insert-tool-btn:not(:hover),
+html[data-theme="dark"] #insert-toolbar-row .insert-group-toggle:not(:hover),
+html[data-theme="dark"] #properties-panel .sf-theme-picker,
+html[data-theme="dark"] #properties-panel .sf-theme-picker > summary {
+    background: transparent !important;
+}
+html[data-theme="dark"] #properties-content .properties-tabpane > .prop-group,
+html[data-theme="dark"] #properties-content .properties-tabpane > .prop-group:hover,
+html[data-theme="dark"] #properties-panel .prop-group > div:first-child {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+/* On a phone the top bar keeps undo, redo and "More tools" (which holds copy, paste, appearance and the timeline):
+   this group of buttons was hidden below 680px, leaving no way to undo or reach those tools. */
+@media (max-width: 680px) {
+    #app-toolbar .toolbar-cluster-muted.toolbar-icon-cluster {
+        display: flex;
+    }
+}

@@ -86,6 +86,7 @@ function _buildSlideWorkspacePanel(panel) {
                       )
                       .join("")}
                 </select>
+                <details class="sf-theme-picker"><summary>Browse theme previews</summary>
                 <div class="sf-theme-gallery" role="list" aria-label="Themes">
                     ${Object.entries(typeof PRESENTATION_THEMES !== "undefined" ? PRESENTATION_THEMES : {})
                       .map(([themeId, theme]) => {
@@ -118,6 +119,7 @@ function _buildSlideWorkspacePanel(panel) {
                         <div class="sf-theme-guidance">${escapeHtml(activeThemeSystem.aiGuidance?.densityAdvice || "")}</div>`
                     : ""
                 }
+                </details>
             </div>
             <div class="flex flex-col gap-1">
                 <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Slide Size</label>

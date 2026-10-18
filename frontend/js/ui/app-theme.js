@@ -21,8 +21,11 @@ function setAppTheme(theme, { remember = true } = {}) {
         button.setAttribute("aria-pressed", dark ? "true" : "false");
         button.title = dark ? "Switch to light mode" : "Switch to dark mode";
         button.setAttribute("aria-label", button.title);
-        // Rebuilt rather than re-classed: Font Awesome swaps the <i> for an <svg> once it has drawn it.
+        // The icon is rebuilt rather than re-classed (Font Awesome swaps the <i> for an <svg> once it has drawn it); a
+        // label the button has (in the "More tools" menu) is kept: rebuilding all of it left a bare icon there.
+        const label = button.querySelector(".toolbar-btn-label");
         button.innerHTML = `<i class="fa-solid ${dark ? "fa-sun" : "fa-moon"} text-sm"></i>`;
+        if (label) button.appendChild(label);
     }
 }
 
