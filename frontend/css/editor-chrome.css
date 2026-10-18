@@ -351,3 +351,21 @@ html[data-theme="dark"] #properties-panel .prop-more {
 html[data-theme="dark"] #properties-panel .prop-more > summary {
     color: var(--dk-sub);
 }
+
+/* Chart style: labels sit at the start of their fields like everywhere else in the panel (they were centred above
+   them), and the checkboxes read as sentences, not wrapped capitals. */
+#properties-panel .chart-editor-field > span {
+    text-align: left !important;
+    align-self: stretch;
+}
+#properties-panel .chart-style-check,
+#properties-panel .chart-style-check span {
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    line-height: 1.3;
+}
+#properties-panel .chart-style-grid .chart-style-check {
+    grid-column: span 2;
+}

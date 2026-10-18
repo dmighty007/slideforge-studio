@@ -154,35 +154,54 @@ function buildTablePanel(panel, data) {
                     <div class="w-4 h-4 rounded border border-gray-600 flex items-center justify-center group-hover/chk:border-accent transition-colors">
                         <div class="w-2.5 h-2.5 rounded-sm bg-accent transition-opacity ${tableData.headerRow ? "opacity-100" : "opacity-0"}"></div>
                     </div>
-                    <span class="text-xs text-gray-400">Header Row</span>
+                    <span class="text-xs text-slate-700 font-medium">Header row</span>
                 </label>
                 <label class="flex items-center gap-2 cursor-pointer group/chk mt-2">
                     <input type="checkbox" id="prop-table-zebra" ${tableData.zebra ? "checked" : ""} class="hidden">
                     <div class="w-4 h-4 rounded border border-gray-600 flex items-center justify-center group-hover/chk:border-accent transition-colors">
                         <div class="w-2.5 h-2.5 rounded-sm bg-accent transition-opacity ${tableData.zebra ? "opacity-100" : "opacity-0"}"></div>
                     </div>
-                    <span class="text-xs text-gray-400">Zebra Rows</span>
+                    <span class="text-xs text-slate-700 font-medium">Zebra rows</span>
                 </label>
                 <p class="text-xs text-slate-600 leading-snug mt-2">Double click a cell on the slide to edit it.</p>
             `;
   panel.appendChild(tableGrp);
+  // The settings are written in one block and then sorted into the tabs by what they are for, each found by its id.
+  // They were sorted by position (the third and fourth children), and the split and smallest-text settings added
+  // later shifted every one: rows and columns landed under Style, and the colours after them.
   const tableContent = tableGrp.children[1];
-  const tableRows = tableContent ? Array.from(tableContent.children) : [];
-  if (tableRows.length >= 4) {
-    const tableTextGrp = createGroup("Table Text");
-    const tableStyleGrp = createGroup("Table Style");
-    tableTextGrp.appendChild(tableRows[2]);
-    // Adding and removing rows and columns is about the table's content, so it stays on the Content tab with the
-    // sizes; the colours and borders beside it go to Style.
-    const styleGrid = tableRows[3];
-    const structure = document.createElement("div");
-    structure.className = "grid grid-cols-2 gap-3";
-    Array.from(styleGrid?.children || []).slice(0, 2).forEach((node) => structure.appendChild(node));
-    tableContent.insertBefore(structure, tableRows[1]);
-    tableRows.slice(3).forEach((node) => tableStyleGrp.appendChild(node));
-    panel.appendChild(tableTextGrp);
-    panel.appendChild(tableStyleGrp);
-  }
+  if (!tableContent) return;
+  const byId = (id) => tableContent.querySelector(`#${id}`);
+  const fieldOf = (id) => byId(id)?.closest(".flex.flex-col.gap-1");
+  const textStyle = byId("prop-table-font")?.closest(".rounded-lg");
+  const colourGrid = byId("prop-table-border-color")?.closest(".grid");
+  const headerRow = byId("prop-table-header-row")?.closest("label");
+  const zebra = byId("prop-table-zebra")?.closest("label");
+  // Content: size, structure (rows, columns, splitting) and how to edit cells.
+  const structure = document.createElement("div");
+  structure.className = "grid grid-cols-2 gap-3";
+  [fieldOf("prop-table-add-row"), fieldOf("prop-table-add-col")].forEach((node) => node && structure.appendChild(node));
+  const split = byId("prop-table-split");
+  const fitMin = byId("prop-table-fit-min")?.closest("label");
+  const hint = [...tableContent.children].find((node) => node.tagName === "P" && /Double click a cell/.test(node.textContent));
+  const selectionHint = byId("prop-table-clear-selection")?.closest("div");
+  if (selectionHint) selectionHint.after(structure);
+  else tableContent.appendChild(structure);
+  if (split) structure.after(split);
+  if (fitMin && split) split.after(fitMin);
+  if (hint) tableContent.appendChild(hint);
+  // Style: the text settings; then the two switches people use, and the colours and borders folded under one line.
+  const tableTextGrp = createGroup("Table Text");
+  const tableStyleGrp = createGroup("Table Style");
+  if (textStyle) tableTextGrp.appendChild(textStyle);
+  [headerRow, zebra].forEach((node) => {
+    if (!node) return;
+    node.classList.remove("mt-3", "mt-2");
+    tableStyleGrp.appendChild(node);
+  });
+  if (colourGrid) tableStyleGrp.appendChild(createMoreSection("Colours and borders", [colourGrid]));
+  panel.appendChild(tableTextGrp);
+  panel.appendChild(tableStyleGrp);
 }
 
 function bindTablePanel(data) {

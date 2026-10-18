@@ -6165,6 +6165,23 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("properties: a table's rows, columns and split are on Content; Style shows the header and zebra switches with colours folded", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => { addSlide(); addElement("table"); setPropertiesPanelVisible(true); buildPropertiesPanel(); });
+        await page.waitForTimeout(500);
+        const tabOf = id => page.evaluate(id => document.getElementById(id)?.closest(".properties-tabpane")?.dataset.propertiesPane || document.getElementById(id)?.closest("[data-properties-pane]")?.dataset.propertiesPane || null, id);
+        const where = {};
+        for (const id of ["prop-table-add-row", "prop-table-add-col", "prop-table-split", "prop-table-fit-min", "prop-table-header-row", "prop-table-border-color", "prop-table-font"]) where[id] = await tabOf(id);
+        // Sorted by position before: the split and smallest-text settings shifted rows and columns under Style.
+        assert(where["prop-table-add-row"] === "content" && where["prop-table-add-col"] === "content" && where["prop-table-split"] === "content", `structure: ${JSON.stringify(where)}`);
+        assert(where["prop-table-header-row"] === "style" && where["prop-table-border-color"] === "style" && where["prop-table-font"] === "style", `style: ${JSON.stringify(where)}`);
+        await page.locator('.properties-tab[data-properties-tab="style"]').click();
+        await page.waitForTimeout(200);
+        const shown = await page.evaluate(() => ({ header: document.getElementById("prop-table-header-row")?.closest("label")?.checkVisibility(), border: document.getElementById("prop-table-border-color")?.checkVisibility() }));
+        assert(shown.header && !shown.border, `Style tab at first: ${JSON.stringify(shown)}`);
+        await page.close();
+    });
+
     await test("overnight: Ctrl+C on a shape and Ctrl+V on another slide pastes the shape, not a \"[shape]\" text box", async () => {
         const { page } = await openFreshEditor(context);
         const id = await page.evaluate(() => { addSlide(); addShape("rectangle"); return state.selectedIds[0]; });

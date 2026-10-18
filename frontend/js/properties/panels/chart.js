@@ -80,7 +80,10 @@ function buildChartPanel(panel, data) {
         <button type="button" id="prop-chart-add-row" class="chart-editor-add"><i class="fa-solid fa-plus"></i> Row</button>
         ${round ? "" : `<button type="button" id="prop-chart-add-series" class="chart-editor-add"><i class="fa-solid fa-plus"></i> Series</button>`}
       </div>
-      <p class="chart-editor-hint">Tip: paste a block copied from a spreadsheet into a label box: the first column becomes the labels, the others the series (a header row names them; a column headed SD, SEM or ± after a series gives its error bars).</p>
+      <details class="prop-more chart-paste-help" data-section="chart-paste-help" ${typeof _openPropertySections !== "undefined" && _openPropertySections.has("chart-paste-help") ? "open" : ""} ontoggle="_openPropertySections?.[this.open ? 'add' : 'delete']('chart-paste-help')">
+        <summary>Paste from a spreadsheet</summary>
+        <p class="chart-editor-hint prop-more-body">Paste a block copied from a spreadsheet into a label box: the first column becomes the labels, the others the series (a header row names them; a column headed SD, SEM or ± after a series gives its error bars).</p>
+      </details>
     </div>`;
   panel.appendChild(group);
   panel.appendChild(_buildChartStyleGroup(data, round));
