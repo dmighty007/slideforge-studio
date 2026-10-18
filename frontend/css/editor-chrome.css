@@ -240,3 +240,114 @@ html[data-theme="dark"] #app-toolbar .editor-tools-menu__items .toolbar-btn {
     flex: 0 1 380px;
     max-width: 380px;
 }
+
+/* Laptop widths: a slimmer slide rail and properties panel, so the slide keeps more of the window (at 1366px with
+   the panel open it was 738px wide; 1024px left it 396px). Below 1180px the rail also starts closed, to its strip. */
+@media (max-width: 1600px) {
+    #slide-rail {
+        width: 184px !important;
+    }
+    #properties-panel {
+        width: 320px !important;
+        flex: 0 0 320px !important;
+        flex-basis: 320px !important;
+    }
+    /* In the slimmer panel: tab names whole ("Arrange" was cut to "Arran…"), and a narrower label column, so a
+       dropdown shows its choice ("Auto fit text to box" ended "…to b"). */
+    #properties-content .properties-tabbar {
+        padding-inline: 8px;
+        gap: 2px;
+    }
+    #properties-content .properties-tab {
+        padding: 0 3px !important;
+    }
+    #properties-content .properties-tabpane .prop-group > div:nth-child(2) > .flex.flex-col.gap-1 {
+        grid-template-columns: minmax(78px, 0.36fr) minmax(0, 1fr) !important;
+        column-gap: 10px !important;
+    }
+}
+
+/* Number fields in the panel without the browser's spinner arrows: in the small four-across fields (X, Y, W, H,
+   shadow offsets) they took the room of the digits, which showed as "115" for 1152. Arrow keys still step them. */
+#properties-panel input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+#properties-panel input[type="number"]::-webkit-inner-spin-button,
+#properties-panel input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+/* Text and number fields keep 24px on the right only where a dropdown has its arrow: in the four-across fields that
+   room hid the last digit (W showed 115 for 1152). */
+#properties-panel input:is([type="number"], [type="text"]):not([type="range"]):not([type="checkbox"]):not([type="color"]) {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    min-width: 0;
+}
+
+/* Folded settings in the properties panel ("Effects and spacing", "Outline and layer order"), js/properties/panel.js. */
+#properties-panel .prop-more {
+    border-top: 1px dashed color-mix(in srgb, var(--border) 85%, transparent);
+    padding-top: 4px;
+}
+#properties-panel .prop-more > summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 0;
+    list-style: none;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-sub, #64748b);
+    user-select: none;
+}
+#properties-panel .prop-more > summary::-webkit-details-marker {
+    display: none;
+}
+#properties-panel .prop-more > summary::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform 140ms ease;
+}
+#properties-panel .prop-more[open] > summary::before {
+    transform: rotate(45deg);
+}
+#properties-panel .prop-more > summary:hover {
+    color: var(--primary-hover);
+}
+#properties-panel .prop-more-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 4px 0 6px;
+}
+/* "Align to: the slide" sits quietly above the alignment buttons. */
+#properties-panel .prop-more.prop-more-inline {
+    border-top: 0;
+    padding-top: 0;
+    margin-bottom: 6px;
+}
+#properties-panel .prop-more.prop-more-inline > summary {
+    font-weight: 500;
+}
+/* Bold, italic, underline, strikethrough, sub- and superscript and clear on one full-width row of equal buttons. */
+#properties-panel .prop-format-row {
+    margin-top: 8px;
+}
+#properties-panel .prop-format-row .prop-icon-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 0;
+}
+html[data-theme="dark"] #properties-panel .prop-more {
+    border-top-color: var(--dk-border);
+}
+html[data-theme="dark"] #properties-panel .prop-more > summary {
+    color: var(--dk-sub);
+}

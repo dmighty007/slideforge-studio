@@ -70,13 +70,13 @@ function buildTextPanel(panel, data) {
     ),
   );
 
-  // Compact Row: Size | Color | B I U S Clear
+  // Size and colour on one row; the formatting buttons on their own (seven buttons in half a row were squeezed).
   const textToolsRow = document.createElement("div");
-  textToolsRow.className = "grid grid-cols-6 gap-1.5 items-end mt-2";
+  textToolsRow.className = "grid grid-cols-2 gap-2 items-end mt-2";
 
   // Size
   const sizeCol = document.createElement("div");
-  sizeCol.className = "col-span-2";
+  sizeCol.className = "col-span-1";
   sizeCol.innerHTML = `<label class="text-xs font-bold text-slate-600 uppercase tracking-wide mb-1 block">Size</label>
         <input type="text" id="prop-fs" class="prop-input-sm" value="${escapeHtml(data.styles.fontSize || "32px")}">`;
 
@@ -90,7 +90,7 @@ function buildTextPanel(panel, data) {
   const isUnderline = (data.styles.textDecoration || "").includes("underline");
   const isStrike = (data.styles.textDecoration || "").includes("line-through");
   const formatCol = document.createElement("div");
-  formatCol.className = "col-span-3 flex gap-1 flex-wrap";
+  formatCol.className = "prop-format-row flex gap-1";
   formatCol.innerHTML = `
         <button id="prop-bold" class="prop-icon-btn ${data.styles.fontWeight === "bold" ? "active" : ""}" title="Bold">B</button>
         <button id="prop-italic" class="prop-icon-btn italic ${data.styles.fontStyle === "italic" ? "active" : ""}" title="Italic">I</button>
@@ -103,8 +103,8 @@ function buildTextPanel(panel, data) {
 
   textToolsRow.appendChild(sizeCol);
   textToolsRow.appendChild(colorCol);
-  textToolsRow.appendChild(formatCol);
   grp.appendChild(textToolsRow);
+  grp.appendChild(formatCol);
 
   const shadowState = _parseTextShadowValue(data.styles?.textShadow);
   const strokeWidth =
@@ -116,7 +116,7 @@ function buildTextPanel(panel, data) {
     "#000000",
   );
 
-  grp.appendChild(
+  const shadowField = (
     createField(
       "Text Shadow",
       `
@@ -139,10 +139,10 @@ function buildTextPanel(panel, data) {
             </div>
         </div>
     `,
-    ),
+    )
   );
 
-  grp.appendChild(
+  const strokeField = (
     createField(
       "Text Stroke",
       `
@@ -157,10 +157,10 @@ function buildTextPanel(panel, data) {
             </div>
         </div>
     `,
-    ),
+    )
   );
 
-  grp.appendChild(
+  const effectsField = (
     createField(
       "Effects",
       `
@@ -173,7 +173,7 @@ function buildTextPanel(panel, data) {
             ${_renderTextEffectPresetButton(data, "none", "Clear")}
         </div>
     `,
-    ),
+    )
   );
 
   // Alignment
@@ -203,15 +203,22 @@ function buildTextPanel(panel, data) {
   const letterSpacingRaw = parseFloat(data.styles.letterSpacing) || 0;
   spacingRow.innerHTML = `
         <div>
-            <label class="text-xs font-bold text-slate-600 uppercase tracking-wide mb-1 block">Line Height</label>
+            <label class="text-xs font-bold text-slate-600 uppercase tracking-wide mb-1 block">Line spacing</label>
             <input type="number" id="prop-line-height" class="prop-input-sm" value="${lineHeightRaw}" min="0.8" max="4" step="0.05">
-        </div>
-        <div>
-            <label class="text-xs font-bold text-slate-600 uppercase tracking-wide mb-1 block">Letter Spacing</label>
-            <input type="number" id="prop-letter-spacing" class="prop-input-sm" value="${letterSpacingRaw}" min="-5" max="20" step="0.5">
         </div>
     `;
   grp.appendChild(spacingRow);
+
+  // Set now and then, not on most edits: folded under one line (the open/closed state survives the panel's rebuilds).
+  const letterRow = document.createElement("div");
+  letterRow.className = "grid grid-cols-2 gap-2 items-end";
+  letterRow.innerHTML = `
+        <div>
+            <label class="text-xs font-bold text-slate-600 uppercase tracking-wide mb-1 block">Letter spacing</label>
+            <input type="number" id="prop-letter-spacing" class="prop-input-sm" value="${letterSpacingRaw}" min="-5" max="20" step="0.5">
+        </div>
+    `;
+  grp.appendChild(createMoreSection("Effects and spacing", [letterRow, shadowField, strokeField, effectsField]));
 
   // Lists get their own group on the Content tab (next to the text), not buried in Typography.
   const listGrp = createGroup("Lists");

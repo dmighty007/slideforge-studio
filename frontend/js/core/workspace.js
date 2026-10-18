@@ -193,9 +193,9 @@ function executeSlashCommand(index = slashSelectedIndex) {
 }
 
 function initWorkspaceShell() {
-    // Below 920px the rail lies over the editor (layout.css), so it starts closed there: open, it covered the left of
-    // the toolbar and the insert bar.
-    const compactRailQuery = window.matchMedia?.("(max-width: 920px)");
+    // Below 1180px the rail starts closed (to its strip; below 920px it lies over the editor, and closed takes no room):
+    // open, it left the slide a third of a 1024px window, and below 920px it covered the toolbar.
+    const compactRailQuery = window.matchMedia?.("(max-width: 1180px)");
     document.body.classList.toggle("slide-rail-collapsed", Boolean(compactRailQuery?.matches));
     compactRailQuery?.addEventListener?.("change", event => {
         document.body.classList.toggle("slide-rail-collapsed", event.matches);

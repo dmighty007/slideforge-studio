@@ -2793,7 +2793,8 @@ async function test(name, fn) {
         await page.waitForTimeout(400);
         await page.locator('.properties-tab[data-properties-tab="overview"]').click();
         await page.waitForTimeout(300);
-        const groupDisabled = await page.locator("#prop-group").isDisabled();
+        // One object: Group is not offered (left out of the panel, or disabled).
+        const groupDisabled = (await page.locator("#prop-group").count()) === 0 || (await page.locator("#prop-group").isDisabled());
         for (const [id, value] of [["#prop-geom-x", "321"], ["#prop-geom-y", "123"], ["#prop-geom-w", "260"], ["#prop-geom-h", "90"], ["#prop-geom-rot", "15"]]) {
             await page.fill(id, value);
             await page.press(id, "Enter");
@@ -5212,6 +5213,8 @@ async function test(name, fn) {
         assert(JSON.stringify(result.restored) === "[100,300,700,800]" && result.locked === 800, JSON.stringify(result));
         assert(result.centred === result.expected && result.fitted.width > 100 && result.fitted.y >= 0, JSON.stringify(result));
         await showPanelTab(page, "Arrange");
+        // "Align to" is folded under its current choice.
+        await page.locator('#properties-panel details[data-section="align-reference"] > summary').click();
         await page.locator("#prop-align-reference").selectOption("slide");
         await page.locator('#properties-panel .prop-align-btn[aria-label="Align left"]').click();
         assert(await page.evaluate(() => getSelectedElementData().x === 0), "Arrange controls did not align to the slide");
@@ -6126,6 +6129,40 @@ async function test(name, fn) {
         assert(layouts[1600].layout === "grouped" && layouts[1000].layout !== "full", `layouts: ${JSON.stringify(layouts)}`);
         // Below 920px the closed slide rail takes no room (its strip covered the logo), and can be opened again.
         assert(layouts[700].railWidth === 0, `rail at 700px: ${JSON.stringify(layouts[700])}`);
+    });
+
+    await test("properties: everyday settings first, the rest folded and remembered across edits; a slimmer panel on laptops keeps its tabs whole", async () => {
+        const page = await context.newPage();
+        await page.setViewportSize({ width: 1366, height: 900 });
+        await page.goto(TEST_URL, { waitUntil: "networkidle" });
+        await page.waitForFunction(() => typeof isPresentationHydrating !== "function" || !isPresentationHydrating());
+        await page.evaluate(async () => { closeStartScreen?.({ force: true }); await createNewProject(); });
+        await page.evaluate(() => { closeStartScreen?.({ force: true }); addSlide(); setPropertiesPanelVisible(true); const t = state.slides[currentSlideIndex].elements.find(e => e.placeholder === "Click to add text"); selectElement(t.id, "replace"); });
+        await page.waitForTimeout(600);
+        await page.locator('.properties-tab[data-properties-tab="style"]').click();
+        const folded = await page.evaluate(() => ({
+            font: !!document.getElementById("prop-font")?.checkVisibility(),
+            lineSpacing: !!document.getElementById("prop-line-height")?.checkVisibility(),
+            shadow: !!document.getElementById("prop-ts-x")?.checkVisibility(),
+            zIndex: !!document.getElementById("prop-zindex")?.checkVisibility(),
+        }));
+        assert(folded.font && folded.lineSpacing && !folded.shadow && !folded.zIndex, `what shows at first: ${JSON.stringify(folded)}`);
+        await page.locator('#properties-panel details[data-section="Effects and spacing"] > summary').click();
+        assert(await page.locator("#prop-ts-x").isVisible(), "the shadow fields did not open");
+        // An edit rebuilds the panel; the section stays open.
+        await page.fill("#prop-letter-spacing", "2");
+        await page.press("#prop-letter-spacing", "Enter");
+        await page.waitForTimeout(400);
+        await page.evaluate(() => buildPropertiesPanel());
+        await page.waitForTimeout(200);
+        assert(await page.locator("#prop-ts-x").isVisible(), "the section closed again after an edit");
+        const panel = await page.evaluate(() => ({
+            width: Math.round(document.getElementById("properties-panel").getBoundingClientRect().width),
+            tabsCut: [...document.querySelectorAll(".properties-tab span")].filter(s => s.scrollWidth > s.clientWidth + 1).map(s => s.textContent),
+            slide: Math.round(document.querySelector(".slides section.present").getBoundingClientRect().width),
+        }));
+        assert(panel.width === 320 && !panel.tabsCut.length && panel.slide > 800, `panel at 1366px: ${JSON.stringify(panel)}`);
+        await page.close();
     });
 
     await test("overnight: Ctrl+C on a shape and Ctrl+V on another slide pastes the shape, not a \"[shape]\" text box", async () => {

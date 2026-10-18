@@ -48,6 +48,28 @@ function createGroup(title) {
   return wrap;
 }
 
+// Less-used settings of a group, folded under a summary line ("Effects and spacing"). The panel is rebuilt after every
+// change, so whether each one is open is remembered by its name; otherwise it closed again after each edit.
+const _openPropertySections = new Set();
+function createMoreSection(summary, nodes = []) {
+  const details = document.createElement("details");
+  details.className = "prop-more";
+  details.dataset.section = summary;
+  details.open = _openPropertySections.has(summary);
+  const head = document.createElement("summary");
+  head.textContent = summary;
+  details.appendChild(head);
+  const body = document.createElement("div");
+  body.className = "prop-more-body";
+  nodes.filter(Boolean).forEach((node) => body.appendChild(node));
+  details.appendChild(body);
+  details.addEventListener("toggle", () => {
+    if (details.open) _openPropertySections.add(summary);
+    else _openPropertySections.delete(summary);
+  });
+  return details;
+}
+
 function createField(label, inputHTML) {
   const div = document.createElement("div");
   div.className = "flex flex-col gap-1";
@@ -443,29 +465,33 @@ function _buildPropertiesPanelNow() {
             <h3 class="text-xs font-bold text-slate-700 uppercase tracking-widest">${state.selectedIds.length} Object${isSingle ? "" : "s"}</h3>
             ${!isSingle ? `<span class="text-[10px] text-accent font-bold px-2 py-0.5 rounded bg-accent/10 border border-accent/20">${isGrouped ? "GROUPED" : "MULTIPLE"}</span>` : ""}
         </div>
-        <label class="prop-field-hint" for="prop-align-reference">Align relative to</label>
-        <select id="prop-align-reference" class="w-full mb-2" onchange="selectionAlignmentReference=this.value">
-            <option value="auto" ${selectionAlignmentReference === "auto" ? "selected" : ""}>Automatic (one: slide; multiple: selection)</option>
-            <option value="slide" ${selectionAlignmentReference === "slide" ? "selected" : ""}>Slide</option>
-            <option value="selection" ${selectionAlignmentReference === "selection" ? "selected" : ""}>Selection</option>
-        </select>
+        <details class="prop-more prop-more-inline" data-section="align-reference" ${_openPropertySections.has("align-reference") ? "open" : ""} ontoggle="_openPropertySections[this.open ? 'add' : 'delete']('align-reference')">
+            <summary>Align to: ${({ auto: isSingle ? "the slide" : "the selection", slide: "the slide", selection: "the selection" })[selectionAlignmentReference] || "automatic"}</summary>
+            <div class="prop-more-body">
+                <select id="prop-align-reference" class="w-full" onchange="selectionAlignmentReference=this.value; buildPropertiesPanel()">
+                    <option value="auto" ${selectionAlignmentReference === "auto" ? "selected" : ""}>Automatic (one: slide; multiple: selection)</option>
+                    <option value="slide" ${selectionAlignmentReference === "slide" ? "selected" : ""}>Slide</option>
+                    <option value="selection" ${selectionAlignmentReference === "selection" ? "selected" : ""}>Selection</option>
+                </select>
+            </div>
+        </details>
         <div class="grid grid-cols-6 gap-1 mb-2">
             ${["left", "center", "right", "top", "middle", "bottom"].map(mode => `<button class="prop-align-btn" onclick="alignSelection('${mode}')" title="Align ${mode}" aria-label="Align ${mode}"><i class="fa-solid fa-align-${["top", "middle", "bottom"].includes(mode) ? ({top:"left",middle:"center",bottom:"right"})[mode] : mode}${["top", "middle", "bottom"].includes(mode) ? " rotate-90" : ""}"></i></button>`).join("")}
         </div>
-        <div class="flex gap-2 mb-2">
-            <button class="prop-action-btn flex-1" onclick="distributeSelection('horizontal')" ${_getSelectionAlignmentUnits(state.slides[currentSlideIndex]).length < 3 ? "disabled" : ""}>Distribute horizontally</button>
-            <button class="prop-action-btn flex-1" onclick="distributeSelection('vertical')" ${_getSelectionAlignmentUnits(state.slides[currentSlideIndex]).length < 3 ? "disabled" : ""}>Distribute vertically</button>
-        </div>
+        ${_getSelectionAlignmentUnits(state.slides[currentSlideIndex]).length < 3 ? "" : `<div class="flex gap-2 mb-2">
+            <button class="prop-action-btn flex-1" onclick="distributeSelection('horizontal')">Distribute horizontally</button>
+            <button class="prop-action-btn flex-1" onclick="distributeSelection('vertical')">Distribute vertically</button>
+        </div>`}
         ${selectedElements.some(el => el.type !== "text") ? '<button id="prop-fit-content" class="prop-action-btn w-full mb-2" onclick="fitSelectionToContentArea()">Fit to content area</button>' : ""}
         ${isSingle ? _buildGeometryFields(state.slides[currentSlideIndex].elements.find((e) => e.id === state.selectedIds[0])) : ""}
-        <div class="flex gap-2">
+        ${canGroup || canUngroup ? `<div class="flex gap-2">
             <button id="prop-group" class="prop-action-btn prop-action-primary flex-1" ${canGroup ? "" : "disabled"} title="${canGroup ? "Group the selected objects" : "Select two or more objects to group them"}">
                 <i class="fa-solid fa-object-group"></i> GROUP
             </button>
             <button id="prop-ungroup" class="prop-action-btn prop-action-secondary flex-1" ${canUngroup ? "" : "disabled"}>
                 <i class="fa-solid fa-object-ungroup"></i> UNGROUP
             </button>
-        </div>
+        </div>` : ""}
     `;
   panel.appendChild(selGrp);
 
@@ -502,7 +528,10 @@ function _buildPropertiesPanelNow() {
     bgOpacityRow.appendChild(opField);
     layerGrp.appendChild(bgOpacityRow);
 
-    appendElementOutlineControls(layerGrp, data);
+    // Outline and layer order are set now and then, not on most edits: folded under one line.
+    const outlineBox = document.createElement("div");
+    outlineBox.className = "flex flex-col gap-3";
+    appendElementOutlineControls(outlineBox, data);
 
     // Z-Index Row
     const zVal = data.styles?.zIndex ?? 1;
@@ -522,7 +551,8 @@ function _buildPropertiesPanelNow() {
                 </button>
             </div>
         `;
-    layerGrp.appendChild(zRow);
+    outlineBox.appendChild(zRow);
+    layerGrp.appendChild(createMoreSection(["text", "shape"].includes(data.type) ? "Outline and layer order" : "Layer order", [outlineBox]));
     panel.appendChild(layerGrp);
   }
 
