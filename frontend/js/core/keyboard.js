@@ -105,8 +105,17 @@ function initKeyboard() {
         const isUndoShortcut = (e.ctrlKey || e.metaKey) && !e.shiftKey && key === "z";
         const isRedoShortcut =
             ((e.ctrlKey || e.metaKey) && e.shiftKey && key === "z") || ((e.ctrlKey || e.metaKey) && key === "y");
+        // Controls that use these keys themselves keep them: arrows change a dropdown, Tab leaves it, Delete is not a
+        // command there. Only text fields counted, so with a dropdown in focus an arrow also moved the object, Tab was
+        // caught by selection cycling, and Delete removed the object. Buttons count inside the Properties panel only:
+        // after an insert-bar or toolbar button, arrows still nudge what was inserted or formatted.
         const isEditingField =
-            target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable;
+            target?.tagName === "INPUT" ||
+            target?.tagName === "TEXTAREA" ||
+            target?.tagName === "SELECT" ||
+            target?.tagName === "SUMMARY" ||
+            target?.isContentEditable ||
+            Boolean(target?.closest?.("#properties-panel") && target?.matches?.("button, [role='menuitem'], [role='tab'], a[href]"));
         const isInlineEditor =
             target?.closest?.(".text-element-content, .table-element-cell") && target?.isContentEditable;
 
@@ -145,8 +154,10 @@ function initKeyboard() {
             return;
         }
 
-        // Let focused form fields keep native text undo/redo.
-        if (isEditingField) {
+        // Let focused form fields keep native text undo/redo. A dropdown or panel button has no undo of its own: Ctrl+Z
+        // there undoes the change it just made (app undo), as it did before they counted as fields.
+        const isTextField = target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable;
+        if (isEditingField && (isTextField || !(isUndoShortcut || isRedoShortcut))) {
             return;
         }
 

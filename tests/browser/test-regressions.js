@@ -6254,6 +6254,78 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("panel audit 2026-10-19: keys in a panel dropdown stay there: arrows do not move the object, Tab moves on, Delete keeps it, Ctrl+Z still undoes", async () => {
+        const { page } = await openFreshEditor(context);
+        const id = await page.evaluate(() => { addSlide(); addChart("bar"); setPropertiesPanelVisible(true); buildPropertiesPanel(); return state.selectedIds[0]; });
+        await page.waitForTimeout(400);
+        await page.locator('.properties-tab[data-properties-tab="style"]').click();
+        const geometry = () => page.evaluate(id => { const el = state.slides[currentSlideIndex].elements.find(e => e.id === id); return el ? [el.x, el.y] : null; }, id);
+        const start = await geometry();
+        await page.locator("#prop-chart-legend").focus();
+        await page.keyboard.press("ArrowDown");
+        await page.waitForTimeout(300);
+        assert(JSON.stringify(await geometry()) === JSON.stringify(start), `the arrow moved the chart: ${JSON.stringify(start)} -> ${JSON.stringify(await geometry())}`);
+        // Ctrl+Z undoes the dropdown's change (a dropdown has no undo of its own).
+        const legend = () => page.evaluate(id => state.slides[currentSlideIndex].elements.find(e => e.id === id)?.chartStyle?.legend, id);
+        const changed = await legend();
+        await page.locator("#prop-chart-legend").focus();
+        await page.keyboard.press("Control+z");
+        await page.waitForTimeout(300);
+        assert((await legend()) !== changed, `Ctrl+Z on the dropdown did not undo (${changed})`);
+        // (Undo puts the deck back as it was, selection included.)
+        await page.evaluate(id => { selectElement(id, "replace"); setPropertiesPanelVisible(true); buildPropertiesPanel(); }, id);
+        await page.waitForTimeout(300);
+        await page.locator('.properties-tab[data-properties-tab="style"]').click();
+        await page.locator("#prop-chart-legend").focus();
+        await page.keyboard.press("Tab");
+        const focused = await page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName);
+        assert(focused !== "prop-chart-legend", "Tab did not leave the dropdown");
+        await page.locator("#prop-chart-legend").focus();
+        await page.keyboard.press("Delete");
+        await page.waitForTimeout(300);
+        assert((await geometry()) !== null, "Delete in the dropdown removed the chart");
+        // On the canvas the keys still work: an arrow nudges the selected chart.
+        await page.evaluate(id => { document.activeElement?.blur(); selectElement(id, "replace"); }, id);
+        const beforeNudge = await geometry();
+        await page.keyboard.press("ArrowRight");
+        await page.waitForTimeout(200);
+        assert((await geometry())[0] > beforeNudge[0], "the arrow no longer nudges the selected object");
+        await page.close();
+    });
+
+    await test("panel audit 2026-10-19: the text toolbar wraps inside a narrow canvas instead of running under the panel; the video preview's labels are readable", async () => {
+        const page = await context.newPage();
+        await page.setViewportSize({ width: 700, height: 900 });
+        await page.goto(TEST_URL, { waitUntil: "networkidle" });
+        await page.waitForFunction(() => typeof isPresentationHydrating !== "function" || !isPresentationHydrating());
+        await page.evaluate(() => { closeStartScreen?.({ force: true }); addSlide(); setPropertiesPanelVisible(true); });
+        await page.waitForTimeout(600);
+        const id = await page.evaluate(() => state.slides[currentSlideIndex].elements.find(e => e.placeholder === "Click to add title").id);
+        await page.locator(`.slides .presentation-slide.present [id="${id}"]`).dblclick();
+        await page.waitForTimeout(700);
+        const bar = await page.evaluate(() => {
+            const t = document.getElementById("floating-text-toolbar");
+            const panelLeft = document.getElementById("properties-panel").getBoundingClientRect().left;
+            return { shown: !t.classList.contains("hidden"), right: t.getBoundingClientRect().right, panelLeft, under: [...t.querySelectorAll("button, input")].filter(n => n.getBoundingClientRect().width && n.getBoundingClientRect().right > panelLeft).length };
+        });
+        assert(bar.shown && bar.right <= bar.panelLeft && bar.under === 0, `text toolbar at 700px: ${JSON.stringify(bar)}`);
+        await page.keyboard.press("Escape");
+        const contrast = await page.evaluate(() => {
+            const el = { id: generateId("el"), type: "video", videoType: "url", content: "https://example.com/a.mp4", x: 100, y: 160, width: "400px", height: "225px", styles: { zIndex: 5 } };
+            state.slides[currentSlideIndex].elements.push(el);
+            renderSlidesFromState();
+            selectElement(el.id, "replace");
+            _propertiesPanelActiveTab = "content";
+            buildPropertiesPanel();
+            const lum = c => { const m = c.match(/[\d.]+/g).map(Number); const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(m[0]) + 0.7152 * f(m[1]) + 0.0722 * f(m[2]); };
+            const card = document.getElementById("video-live-player");
+            const bg = lum(getComputedStyle(card).backgroundColor);
+            return [...card.querySelectorAll(":scope > div:first-child > span")].map(s => { const l = lum(getComputedStyle(s).color); return (Math.max(l, bg) + 0.05) / (Math.min(l, bg) + 0.05); });
+        });
+        assert(contrast.length === 2 && contrast.every(c => c >= 4.5), `video preview contrast: ${contrast.map(c => c.toFixed(1))}`);
+        await page.close();
+    });
+
     await test("overnight: Ctrl+C on a shape and Ctrl+V on another slide pastes the shape, not a \"[shape]\" text box", async () => {
         const { page } = await openFreshEditor(context);
         const id = await page.evaluate(() => { addSlide(); addShape("rectangle"); return state.selectedIds[0]; });

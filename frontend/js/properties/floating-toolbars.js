@@ -93,6 +93,16 @@ function positionFloatingToolbar(toolbar, targetRect, options = {}) {
     toolbar.style.transform = "";
   }
 
+  // As wide as the canvas leaves between its left edge and the Properties panel, at most: a narrower space wraps the
+  // toolbar onto a second row (layout.css). At 700px with the panel open, the text toolbar ran 257px under the panel
+  // and its right-hand tools were out of reach.
+  const room = (() => {
+    const canvas = document.getElementById("canvas-wrapper")?.getBoundingClientRect();
+    const panel = document.getElementById("properties-panel");
+    const panelLeft = panel && !panel.classList.contains("hidden") && panel.offsetWidth ? panel.getBoundingClientRect().left : window.innerWidth;
+    return Math.max(160, Math.round(panelLeft - Math.max(12, (canvas?.left || 0) + 8) - 8));
+  })();
+  toolbar.style.maxWidth = `${room}px`;
   const toolbarRect = toolbar.getBoundingClientRect();
   const toolbarWidth = toolbarRect.width || toolbar.offsetWidth || 320;
   const toolbarHeight = toolbarRect.height || toolbar.offsetHeight || 44;

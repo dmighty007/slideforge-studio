@@ -398,3 +398,21 @@ html[data-theme="dark"] #properties-panel .prop-more > summary {
 html[data-theme="dark"] #properties-panel .prop-check-row {
     color: var(--dk-text);
 }
+
+/* Floating toolbars wrap onto a second row when the canvas is narrower than they are (their maximum width is set
+   from the room between the canvas edge and the Properties panel, js/properties/floating-toolbars.js). */
+.floating-text-toolbar {
+    flex-wrap: wrap;
+    row-gap: 4px;
+    height: auto !important;
+}
+
+/* The video panel's preview card is dark in both editor themes: its label and time are light (they were about
+   2.4:1 against the card, too faint for 9-10px text). */
+#properties-panel #video-live-player > div:first-child > span {
+    color: #cbd5e1 !important;
+    font-size: 10.5px !important;
+}
+#properties-panel #video-live-player #player-time-display {
+    color: #e2e8f0 !important;
+}
