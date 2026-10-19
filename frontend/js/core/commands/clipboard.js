@@ -172,34 +172,46 @@ function _currentSlideContentBoxes(excludeId = null) {
         .filter(box => box.w > 0 && box.h > 0);
 }
 
+// Left and right edges for new objects: those of the title (wide boxes near the top), the layout's margins (64px on
+// a 1280px slide), rather than the generic 6% margin (43px), which left a new text box sticking out left of the title.
+function _insertSideEdges(bounds, boxes) {
+    const m = bounds.margin;
+    const titles = boxes.filter(b => b.y < bounds.slideH * 0.25 && b.w > bounds.slideW * 0.4);
+    if (!titles.length) return { left: m, right: bounds.slideW - m };
+    return {
+        left: Math.max(m, Math.min(...titles.map(b => b.x))),
+        right: Math.min(bounds.slideW - m, Math.max(...titles.map(b => b.x + b.w))),
+    };
+}
+
 // Of a few standard spots, the one where a width x height box covers the least existing content (centre wins ties).
 function _leastOverlapPosition(width, height, bounds, boxes, floor = bounds.slideH - bounds.margin) {
     const m = bounds.margin;
     const cx = Math.round((bounds.slideW - width) / 2);
     const cy = Math.max(m, Math.min(Math.round((bounds.slideH - height) / 2), floor - height));
-    const right = bounds.slideW - width - m;
     const bottom = Math.max(m, floor - height);
     // The content area under the title (wide boxes near the top): centred there first, then just under the title.
     // Centred on the whole slide, objects on a titled slide sat low, near the footer.
-    const titleBottom = Math.max(
-        0,
-        ...boxes.filter(b => b.y < bounds.slideH * 0.25 && b.w > bounds.slideW * 0.4).map(b => b.y + b.h),
-    );
+    const titles = boxes.filter(b => b.y < bounds.slideH * 0.25 && b.w > bounds.slideW * 0.4);
+    const titleBottom = Math.max(0, ...titles.map(b => b.y + b.h));
+    const edges = _insertSideEdges(bounds, boxes);
+    const left = edges.left;
+    const right = Math.max(left, edges.right - width);
     const contentTop = Math.max(m, Math.round(titleBottom + 16));
     const contentMiddle = Math.max(contentTop, Math.min(Math.round(contentTop + (floor - contentTop - height) / 2), floor - height));
     const candidates = [
         [cx, contentMiddle],
         [cx, contentTop],
         [right, contentTop],
-        [m, contentTop],
+        [left, contentTop],
         [cx, cy],
         [right, cy],
-        [m, cy],
+        [left, cy],
         [cx, bottom],
         [right, bottom],
         [right, m],
-        [m, bottom],
-        [m, m],
+        [left, bottom],
+        [left, m],
     ];
     const overlap = ([x, y]) =>
         boxes.reduce((sum, b) => {

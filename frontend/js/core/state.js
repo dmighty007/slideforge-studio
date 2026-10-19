@@ -83,6 +83,12 @@ function _isEmptyTextElement(el) {
 
 // Like PowerPoint's content placeholder: the first object inserted into a slide takes the empty "Click to add
 // text" box's place (scaled to fit the area above the footer) instead of landing on top of it.
+// Size an object is drawn at on the canvas, for one whose height follows its content ("auto").
+function _drawnSize(el) {
+    const node = [...document.querySelectorAll(`[id="${el?.id}"]`)].find(n => !n.closest("#slide-previews"));
+    return { w: node?.offsetWidth || 0, h: node?.offsetHeight || 0 };
+}
+
 function claimContentPlaceholder(slide, element) {
     if (!slide || !element || element.type === "text") return false;
     const index = (slide.elements || []).findIndex(el => el?.placeholderRole === "content" && _isEmptyTextElement(el));
@@ -92,9 +98,24 @@ function claimContentPlaceholder(slide, element) {
     if (!box) return false;
     const page = typeof getPresentationPageSetupConfig === "function" ? getPresentationPageSetupConfig() : {};
     const x = parseFloat(box.x) || 0;
-    const y = parseFloat(box.y) || 0;
+    const areaBottom = (Number(page.height) || 768) - 110; // stay clear of the footer
     const maxW = parseFloat(box.width) || 800;
-    const maxH = Math.max(120, (Number(page.height) || 768) - 110 - y); // stay clear of the footer
+    // Something already in the area (a text box added before): the object takes the part below it, or, with too
+    // little left there, is placed at a free spot instead. A chart took the whole area and covered the text.
+    let y = parseFloat(box.y) || 0;
+    const inside = (slide.elements || []).filter(el => {
+        if (!el || el === box || el.isMasterElement || el.editableMasterFooterElement || el.placeholderRole === "title") return false;
+        const ex = parseFloat(el.x) || 0;
+        const ey = parseFloat(el.y) || 0;
+        const ew = parseFloat(el.width) || _drawnSize(el).w;
+        const eh = parseFloat(el.height) || _drawnSize(el).h;
+        return ew > 0 && eh > 0 && ex < x + maxW && ex + ew > x && ey < areaBottom && ey + eh > y;
+    });
+    if (inside.length) {
+        y = Math.round(Math.max(...inside.map(el => (parseFloat(el.y) || 0) + (parseFloat(el.height) || _drawnSize(el).h))) + 16);
+        if (areaBottom - y < Math.max(160, (areaBottom - (parseFloat(box.y) || 0)) * 0.4)) return false;
+    }
+    const maxH = Math.max(120, areaBottom - y);
     const width = parseFloat(element.width);
     const height = parseFloat(element.height);
     if (element.type === "table" && Number.isFinite(width) && width > 0) {

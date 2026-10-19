@@ -204,10 +204,20 @@ window.onload = async () => {
     openStartScreen?.();
 };
 
+// Below 1180px the panel lies over the canvas, as a drawer, instead of taking its 320px from the slide (at 700px the
+// slide was left 344px wide). Opened there it is not remembered: the next start would cover the slide again.
+const PROPERTIES_DRAWER_QUERY = window.matchMedia?.("(max-width: 1180px)");
+
+function isPropertiesDrawer() {
+    return Boolean(PROPERTIES_DRAWER_QUERY?.matches);
+}
+window.isPropertiesDrawer = isPropertiesDrawer;
+
 function setPropertiesPanelVisible(visible, { persist = true } = {}) {
     const panel = document.getElementById("properties-panel");
     const button = document.getElementById("toggle-properties-panel");
     if (!panel) return;
+    if (isPropertiesDrawer()) persist = false;
 
     panel.classList.toggle("hidden", !visible);
     if (button) {
@@ -251,7 +261,21 @@ window.addEventListener("slideforge:render-complete", () => {
 
 function initPropertiesPanelToggle() {
     const saved = localStorage.getItem("pptmaker_properties_panel_visible");
-    setPropertiesPanelVisible(saved === "1", { persist: false });
+    setPropertiesPanelVisible(saved === "1" && !isPropertiesDrawer(), { persist: false });
+    // The window narrowed to drawer width: the drawer starts closed rather than covering the slide. Widened, the
+    // panel stays as it was (open, it now sits beside the slide).
+    PROPERTIES_DRAWER_QUERY?.addEventListener?.("change", event => {
+        if (event.matches) setPropertiesPanelVisible(false, { persist: false });
+    });
+    // A click on an empty part of the canvas (nothing selected after it) closes the drawer; choosing another object
+    // keeps it open, showing that object.
+    document.getElementById("canvas-wrapper")?.addEventListener("pointerup", () => {
+        if (!isPropertiesDrawer()) return;
+        setTimeout(() => {
+            const panel = document.getElementById("properties-panel");
+            if (panel && !panel.classList.contains("hidden") && !state.selectedIds.length) setPropertiesPanelVisible(false);
+        }, 0);
+    });
 }
 
 function setLayersPopoverVisible(visible) {

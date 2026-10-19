@@ -267,6 +267,26 @@ html[data-theme="dark"] #app-toolbar .editor-tools-menu__items .toolbar-btn {
     }
 }
 
+/* Narrow windows: Properties is a drawer over the right of the canvas, so the slide keeps the whole width (with the
+   panel in the row, 700px left the slide 344px wide, 1024px 614px). main.js closes it on a click on empty canvas. */
+@media (max-width: 1180px) {
+    #editor-shell {
+        position: relative;
+    }
+    #properties-panel {
+        position: absolute !important;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 270;
+        max-width: calc(100vw - 24px) !important;
+        box-shadow: -16px 0 40px rgba(15, 23, 42, 0.16) !important;
+    }
+    html[data-theme="dark"] #properties-panel {
+        box-shadow: -16px 0 40px rgba(0, 0, 0, 0.5) !important;
+    }
+}
+
 /* Number fields in the panel without the browser's spinner arrows: in the small four-across fields (X, Y, W, H,
    shadow offsets) they took the room of the digits, which showed as "115" for 1152. Arrow keys still step them. */
 #properties-panel input[type="number"] {

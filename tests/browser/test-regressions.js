@@ -6394,6 +6394,94 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("properties: below 1180px the panel is a drawer over the canvas (the slide keeps its width); choosing an object keeps it open, a click on empty canvas closes it", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.setViewportSize({ width: 900, height: 760 });
+        await page.waitForTimeout(400);
+        const slideWidth = () => page.evaluate(() => Math.round(document.querySelector(".slides .presentation-slide.present").getBoundingClientRect().width));
+        const hidden = () => page.evaluate(() => document.getElementById("properties-panel").classList.contains("hidden"));
+        // Earlier tests in this browser may have left the panel saved as open.
+        const id = await page.evaluate(() => { localStorage.setItem("pptmaker_properties_panel_visible", "0"); setPropertiesPanelVisible(false, { persist: false }); addShape("rectangle"); return state.selectedIds[0]; });
+        const before = await slideWidth();
+        await page.click("#toggle-properties-panel");
+        await page.waitForTimeout(600);
+        const after = await slideWidth();
+        const panel = await page.evaluate(() => getComputedStyle(document.getElementById("properties-panel")).position);
+        // In the row, the panel left the slide 544px of a 900px window.
+        assert(!(await hidden()) && panel === "absolute" && Math.abs(after - before) <= 2, `panel ${panel}, slide ${before} -> ${after}`);
+        await page.locator(`.slides .presentation-slide.present [id="${id}"]`).click({ force: true });
+        await page.waitForTimeout(300);
+        assert(!(await hidden()), "choosing an object closed the drawer");
+        const slide = await page.evaluate(() => { const b = document.querySelector(".slides .presentation-slide.present").getBoundingClientRect(); return { x: b.left, y: b.bottom }; });
+        await page.mouse.click(slide.x + 12, slide.y - 12);
+        await page.waitForTimeout(300);
+        assert(await hidden(), "a click on empty canvas left the drawer open");
+        // Opened as a drawer, it is not remembered: the next start would cover the slide.
+        assert((await page.evaluate(() => localStorage.getItem("pptmaker_properties_panel_visible"))) !== "1", "drawer opening was saved");
+        await page.setViewportSize({ width: 1440, height: 950 });
+        await page.close();
+    });
+
+    await test("insert: on a title-and-content slide a text box lines up with the title, and a chart then fills the area below the text instead of covering it", async () => {
+        const { page } = await openFreshEditor(context);
+        const out = await page.evaluate(async () => {
+            addSlide();
+            await new Promise(r => setTimeout(r, 300));
+            const title = state.slides[currentSlideIndex].elements.find(e => e.placeholderRole === "title" || e.placeholder === "Click to add title");
+            addElement("text");
+            await new Promise(r => setTimeout(r, 300));
+            const text = { ...state.slides[currentSlideIndex].elements.at(-1) };
+            const textNode = document.querySelector(`.slides .presentation-slide.present [id="${text.id}"]`);
+            addChart("bar");
+            await new Promise(r => setTimeout(r, 300));
+            const chart = state.slides[currentSlideIndex].elements.at(-1);
+            return {
+                titleX: parseFloat(title?.x),
+                textX: parseFloat(text.x),
+                textBottom: parseFloat(text.y) + (parseFloat(text.height) || textNode?.offsetHeight || 0),
+                chart: { type: chart.type, x: parseFloat(chart.x), y: parseFloat(chart.y), h: parseFloat(chart.height) },
+            };
+        });
+        // The text box started at the generic 43px margin, left of the title's 64px; the chart took the whole
+        // content area, on top of the text box.
+        assert(out.textX === out.titleX, `text x ${out.textX}, title x ${out.titleX}`);
+        assert(out.chart.type === "chart" && out.chart.y >= out.textBottom && out.chart.h >= 200, `chart ${JSON.stringify(out)}`);
+        await page.close();
+    });
+
+    await test("drag: a shape dragged near the middle of its two neighbours snaps to equal gaps and shows both gaps", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => {
+            const slide = state.slides[currentSlideIndex];
+            slide.elements = slide.elements.filter(e => e.isMasterElement || e.editableMasterFooterElement);
+            for (const [id, x] of [["gap-a", 100], ["gap-b", 433], ["gap-c", 900]]) {
+                slide.elements.push({ id, type: "shape", shapeType: "rectangle", x, y: 300, width: "150px", height: "150px", styles: { backgroundColor: "#94a3b8", zIndex: 5 } });
+            }
+            renderSlidesFromState();
+        });
+        await page.waitForTimeout(400);
+        const target = page.locator('.slides .presentation-slide.present [id="gap-b"]');
+        await target.click();
+        await page.waitForTimeout(200);
+        const b = await target.boundingBox();
+        const scale = await page.evaluate(() => getCanvasScale());
+        await page.mouse.move(b.x + 20, b.y + 20);
+        await page.mouse.down();
+        // Equal gaps at x = 500 (250 each side): dragged 4 units short of it, and 3 down.
+        for (let i = 1; i <= 8; i++) await page.mouse.move(b.x + 20 + (63 * scale * i) / 8, b.y + 20 + (3 * scale * i) / 8);
+        await page.waitForTimeout(150);
+        const during = await page.evaluate(() => ({
+            x: state.slides[currentSlideIndex].elements.find(e => e.id === "gap-b").x,
+            gaps: [...document.querySelectorAll(".snap-gap")].map(g => g.textContent),
+        }));
+        await page.mouse.up();
+        await page.waitForTimeout(200);
+        const left = await page.evaluate(() => document.querySelectorAll(".snap-gap, .snap-guide").length);
+        assert(during.x === 500 && during.gaps.length === 2 && during.gaps.every(g => g === "250"), `during drag: ${JSON.stringify(during)}`);
+        assert(left === 0, `${left} guides left after the drop`);
+        await page.close();
+    });
+
     await test("overnight: Ctrl+C on a shape and Ctrl+V on another slide pastes the shape, not a \"[shape]\" text box", async () => {
         const { page } = await openFreshEditor(context);
         const id = await page.evaluate(() => { addSlide(); addShape("rectangle"); return state.selectedIds[0]; });

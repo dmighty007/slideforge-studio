@@ -180,7 +180,8 @@ function _textBoxInsertPosition(width, height) {
     const floor = footerTop === null ? bounds.slideH - bounds.margin : footerTop - 12;
     const boxes = _currentSlideContentBoxes();
     const m = Math.round(bounds.margin);
-    const columns = [m, Math.round((bounds.slideW - width) / 2), Math.round(bounds.slideW - width - m)];
+    const edges = _insertSideEdges(bounds, boxes);
+    const columns = [Math.round(edges.left), Math.round((bounds.slideW - width) / 2), Math.round(Math.max(edges.left, edges.right - width))];
     const overlap = (x, y) =>
         boxes.reduce((sum, b) => {
             const w = Math.min(x + width, b.x + b.w) - Math.max(x, b.x);

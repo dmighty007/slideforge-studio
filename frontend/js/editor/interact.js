@@ -123,57 +123,16 @@ function _setupElementInteract() {
               const slideH = Number(slideConfig.height) || 768;
 
               const elW = parseFloat(el.style.width) || 0;
-              const elH = parseFloat(el.style.height) || 0;
+              const elH = parseFloat(el.style.height) || el.offsetHeight || 0;
 
               // 1. Grid Snap (Fallback)
               snapX = _snapVal(rawX, false);
               snapY = _snapVal(rawY, false);
 
-              // 2. Smart Snap (Alignment with other elements and slide)
-              const snapThreshold = 10;
-              const slide = state.slides[currentSlideIndex];
-
-              // X-axis targets
-              const xTargets = [0, slideW / 2 - elW / 2, slideW - elW];
-              slide.elements.forEach((other) => {
-                if (state.selectedIds.includes(other.id)) return;
-                const otherX = parseFloat(other.x) || 0;
-                const otherW = parseFloat(other.width) || 0;
-                xTargets.push(
-                  otherX,
-                  otherX + otherW,
-                  otherX + otherW / 2 - elW / 2,
-                );
-              });
-
-              for (const target of xTargets) {
-                if (Math.abs(rawX - target) < snapThreshold) {
-                  snapX = target;
-                  _drawGuide(snapX, null, true);
-                  break;
-                }
-              }
-
-              // Y-axis targets
-              const yTargets = [0, slideH / 2 - elH / 2, slideH - elH];
-              slide.elements.forEach((other) => {
-                if (state.selectedIds.includes(other.id)) return;
-                const otherY = parseFloat(other.y) || 0;
-                const otherH = parseFloat(other.height) || 0;
-                yTargets.push(
-                  otherY,
-                  otherY + otherH,
-                  otherY + otherH / 2 - elH / 2,
-                );
-              });
-
-              for (const target of yTargets) {
-                if (Math.abs(rawY - target) < snapThreshold) {
-                  snapY = target;
-                  _drawGuide(null, snapY, false);
-                  break;
-                }
-              }
+              // 2. Smart snap: edges and centres of the slide and of other objects, and equal spacing.
+              const snapped = _smartSnap(rawX, rawY, elW, elH, slideW, slideH, state.selectedIds.length === 1);
+              if (snapped.x !== null) snapX = snapped.x;
+              if (snapped.y !== null) snapY = snapped.y;
             }
 
             el.style.transform = canvasElementTransform(elData, snapX, snapY);
@@ -811,6 +770,129 @@ function _setupMarquee() {
 }
 
 // ─── Snap guides ─────────────────────────────────────────────────────────────
+
+const SNAP_THRESHOLD = 10; // slide units
+
+// Where a box being dragged to (rawX, rawY) snaps, drawing the guides that explain it. On each axis the nearest
+// target within the threshold wins: the slide's edges and centre; another object's left, right or centre (also the
+// box's right edge on its edges, which was missing); and, dragging one object, equal spacing: the middle between its
+// neighbours in its row (or column), or the gap its neighbour already keeps from the next one.
+function _smartSnap(rawX, rawY, elW, elH, slideW, slideH, single) {
+  const others = state.slides[currentSlideIndex].elements
+    .filter((other) => !state.selectedIds.includes(other.id) && !other.isMasterElement && !other.hidden)
+    .map((other) => {
+      const node = document.getElementById(other.id);
+      const w = parseFloat(other.width) || node?.offsetWidth || 0;
+      const h = parseFloat(other.height) || node?.offsetHeight || 0;
+      return { x: parseFloat(other.x) || 0, y: parseFloat(other.y) || 0, w, h };
+    })
+    .filter((box) => box.w > 0 && box.h > 0);
+
+  const axis = (horizontal) => {
+    const pos = horizontal ? rawX : rawY;
+    const size = horizontal ? elW : elH;
+    const full = horizontal ? slideW : slideH;
+    const start = (b) => (horizontal ? b.x : b.y);
+    const len = (b) => (horizontal ? b.w : b.h);
+    const targets = [
+      { at: 0, line: 0 },
+      { at: full / 2 - size / 2, line: full / 2 },
+      { at: full - size, line: full },
+    ];
+    others.forEach((b) => {
+      const a = start(b);
+      const e = a + len(b);
+      targets.push(
+        { at: a, line: a },
+        { at: e - size, line: e },
+        { at: a + len(b) / 2 - size / 2, line: a + len(b) / 2 },
+        { at: e, line: e },
+        { at: a - size, line: a },
+      );
+    });
+    if (single) {
+      // Neighbours in the box's row (for x) or column (for y): objects it overlaps across the other axis.
+      const crossStart = horizontal ? rawY : rawX;
+      const crossSize = horizontal ? elH : elW;
+      const inBand = (b, from, to) => (horizontal ? b.y < to && b.y + b.h > from : b.x < to && b.x + b.w > from);
+      const band = others.filter((b) => inBand(b, crossStart, crossStart + crossSize));
+      const centre = pos + size / 2;
+      const before = band.filter((b) => start(b) + len(b) <= centre).sort((p, q) => start(q) + len(q) - (start(p) + len(p)));
+      const after = band.filter((b) => start(b) >= centre).sort((p, q) => start(p) - start(q));
+      const prev = before[0];
+      const next = after[0];
+      const gapMarks = (gaps) => gaps.map(([from, to]) => ({ from, to }));
+      if (prev && next) {
+        const gap = (start(next) - (start(prev) + len(prev)) - size) / 2;
+        if (gap >= 0) {
+          const at = start(prev) + len(prev) + gap;
+          targets.push({ at, gaps: gapMarks([[at - gap, at], [at + size, at + size + gap]]) });
+        }
+      }
+      // The gap between the neighbour and the one beyond it, repeated on this side.
+      const beyond = (box, side) => {
+        const row = others.filter((b) => b !== box && (horizontal ? b.y < box.y + box.h && b.y + b.h > box.y : b.x < box.x + box.w && b.x + b.w > box.x));
+        return side < 0
+          ? row.filter((b) => start(b) + len(b) <= start(box)).sort((p, q) => start(q) + len(q) - (start(p) + len(p)))[0]
+          : row.filter((b) => start(b) >= start(box) + len(box)).sort((p, q) => start(p) - start(q))[0];
+      };
+      if (prev) {
+        const far = beyond(prev, -1);
+        if (far) {
+          const gap = start(prev) - (start(far) + len(far));
+          const at = start(prev) + len(prev) + gap;
+          targets.push({ at, gaps: gapMarks([[start(far) + len(far), start(prev)], [at - gap, at]]) });
+        }
+      }
+      if (next) {
+        const far = beyond(next, 1);
+        if (far) {
+          const gap = start(far) - (start(next) + len(next));
+          const at = start(next) - gap - size;
+          targets.push({ at, gaps: gapMarks([[at + size, start(next)], [start(next) + len(next), start(far)]]) });
+        }
+      }
+    }
+    let best = null;
+    targets.forEach((target) => {
+      const distance = Math.abs(pos - target.at);
+      if (distance < SNAP_THRESHOLD && (!best || distance < best.distance)) best = { ...target, distance };
+    });
+    return best;
+  };
+
+  const bx = axis(true);
+  const by = axis(false);
+  const x = bx ? bx.at : null;
+  const y = by ? by.at : null;
+  const finalY = y ?? rawY;
+  const finalX = x ?? rawX;
+  if (bx?.gaps) bx.gaps.forEach((g) => _drawGap(g.from, g.to, finalY + elH / 2, true));
+  else if (bx) _drawGuide(bx.line, null, true);
+  if (by?.gaps) by.gaps.forEach((g) => _drawGap(g.from, g.to, finalX + elW / 2, false));
+  else if (by) _drawGuide(null, by.line, false);
+  return { x, y };
+}
+
+// An equal-spacing marker: a bar across one gap, with its size in slide units.
+function _drawGap(from, to, cross, horizontal) {
+  const g = document.createElement("div");
+  g.className = `snap-gap ${horizontal ? "snap-gap-h" : "snap-gap-v"}`;
+  if (horizontal) {
+    g.style.left = `${from}px`;
+    g.style.width = `${Math.max(0, to - from)}px`;
+    g.style.top = `${cross}px`;
+  } else {
+    g.style.top = `${from}px`;
+    g.style.height = `${Math.max(0, to - from)}px`;
+    g.style.left = `${cross}px`;
+  }
+  const label = document.createElement("span");
+  label.textContent = String(Math.round(to - from));
+  g.appendChild(label);
+  document.getElementById(state.slides[currentSlideIndex].id)?.appendChild(g);
+  _guides.push(g);
+}
 
 let _guides = [];
 function _clearGuides() {

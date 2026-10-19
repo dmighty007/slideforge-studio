@@ -2462,6 +2462,61 @@ aside {
     width: 100%;
     left: 0;
 }
+/* Equal spacing: an orange bar across each of the equal gaps, with its size. */
+.snap-gap {
+    position: absolute;
+    z-index: 1000;
+    pointer-events: none;
+    color: #fff;
+    font: 600 11px/1 var(--font-ui, system-ui, sans-serif);
+}
+.snap-gap-h {
+    height: 0;
+    border-top: 1px solid #f97316;
+}
+.snap-gap-v {
+    width: 0;
+    border-left: 1px solid #f97316;
+}
+.snap-gap::before,
+.snap-gap::after {
+    content: "";
+    position: absolute;
+    background: #f97316;
+}
+.snap-gap-h::before,
+.snap-gap-h::after {
+    top: -5px;
+    width: 1px;
+    height: 9px;
+}
+.snap-gap-h::before { left: 0; }
+.snap-gap-h::after { right: 0; }
+.snap-gap-v::before,
+.snap-gap-v::after {
+    left: -5px;
+    height: 1px;
+    width: 9px;
+}
+.snap-gap-v::before { top: 0; }
+.snap-gap-v::after { bottom: 0; }
+.snap-gap > span {
+    position: absolute;
+    padding: 2px 4px;
+    border-radius: 4px;
+    background: #f97316;
+    white-space: nowrap;
+}
+.snap-gap-h > span {
+    left: 50%;
+    top: 4px;
+    transform: translateX(-50%);
+}
+.snap-gap-v > span {
+    top: 50%;
+    left: 4px;
+    transform: translateY(-50%);
+}
 
 /* --- Locked Elements --- */
 .element-locked {
