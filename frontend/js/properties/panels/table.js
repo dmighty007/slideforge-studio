@@ -149,19 +149,13 @@ function buildTablePanel(panel, data) {
                         <input type="color" id="prop-table-header-text-color" class="w-full h-8 cursor-pointer rounded-md p-0" value="${_normalizeColorForInput(tableData.headerTextColor, "#172033")}">
                     </div>
                 </div>
-                <label class="flex items-center gap-2 cursor-pointer group/chk mt-3">
-                    <input type="checkbox" id="prop-table-header-row" ${tableData.headerRow ? "checked" : ""} class="hidden">
-                    <div class="w-4 h-4 rounded border border-gray-600 flex items-center justify-center group-hover/chk:border-accent transition-colors">
-                        <div class="w-2.5 h-2.5 rounded-sm bg-accent transition-opacity ${tableData.headerRow ? "opacity-100" : "opacity-0"}"></div>
-                    </div>
-                    <span class="text-xs text-slate-700 font-medium">Header row</span>
+                <label class="prop-check-row mt-3">
+                    <input type="checkbox" id="prop-table-header-row" ${tableData.headerRow ? "checked" : ""} class="prop-check">
+                    <span>Header row</span>
                 </label>
-                <label class="flex items-center gap-2 cursor-pointer group/chk mt-2">
-                    <input type="checkbox" id="prop-table-zebra" ${tableData.zebra ? "checked" : ""} class="hidden">
-                    <div class="w-4 h-4 rounded border border-gray-600 flex items-center justify-center group-hover/chk:border-accent transition-colors">
-                        <div class="w-2.5 h-2.5 rounded-sm bg-accent transition-opacity ${tableData.zebra ? "opacity-100" : "opacity-0"}"></div>
-                    </div>
-                    <span class="text-xs text-slate-700 font-medium">Zebra rows</span>
+                <label class="prop-check-row mt-2">
+                    <input type="checkbox" id="prop-table-zebra" ${tableData.zebra ? "checked" : ""} class="prop-check">
+                    <span>Zebra rows</span>
                 </label>
                 <p class="text-xs text-slate-600 leading-snug mt-2">Double click a cell on the slide to edit it.</p>
             `;
@@ -492,18 +486,22 @@ function bindTablePanel(data) {
     "headerTextColor",
     (value) => _normalizeColorForInput(value, "#172033"),
   );
+  // The box's own state (mouse or Space), so the switch and the table never disagree.
   document
     .getElementById("prop-table-header-row")
-    ?.addEventListener("click", () => {
+    ?.addEventListener("change", (event) => {
+      const on = event.target.checked;
       mutateSelectedTableData((tableData) => {
-        tableData.headerRow = !tableData.headerRow;
+        tableData.headerRow = on;
       });
     });
+  // The box's own state (mouse or Space), so the switch and the table never disagree.
   document
     .getElementById("prop-table-zebra")
-    ?.addEventListener("click", () => {
+    ?.addEventListener("change", (event) => {
+      const on = event.target.checked;
       mutateSelectedTableData((tableData) => {
-        tableData.zebra = !tableData.zebra;
+        tableData.zebra = on;
       });
     });
 }

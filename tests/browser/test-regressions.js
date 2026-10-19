@@ -6182,6 +6182,78 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("rigorous 2026-10-18: values on a chart clear its error bars, for bars, lines, negatives and horizontal bars", async () => {
+        const { page } = await openFreshEditor(context);
+        const results = await pageAwait(page, async () => {
+            const cases = [
+                ["bar", {}, [21, 38, 29, 24], [4, 5, 6, 7]],
+                ["line", {}, [21, 38, 29, 24], [4, 5, 6, 7]],
+                ["bar", {}, [-12, 18, -25, 9], [3, 4, 5, 2]],
+                ["bar", { indexAxis: "y" }, [21, 38, 29, 24], [4, 5, 6, 7]],
+            ];
+            const out = [];
+            const realFillText = CanvasRenderingContext2D.prototype.fillText;
+            for (const [type, options, data, errors] of cases) {
+                const el = { id: "probe", type: "chart", chartType: type, width: "640px", height: "380px", chartOptions: options,
+                    chartStyle: { valueLabels: true, errorBars: true, fontSize: 16 },
+                    chartData: { labels: ["A", "B", "C", "D"], datasets: [{ label: "R", data, errors, backgroundColor: "#0f766e", borderColor: "#0f766e" }] } };
+                const config = buildChartJsConfig(el, { forExport: true });
+                config.options.animation = false;
+                const canvas = document.createElement("canvas");
+                canvas.width = 640; canvas.height = 380;
+                canvas.style.cssText = "position:fixed;left:-2000px;top:0;width:640px;height:380px";
+                document.body.appendChild(canvas);
+                const texts = [];
+                CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...rest) {
+                    if (this.canvas === canvas && /^-?\d/.test(String(text)) && this.textBaseline === "top") {
+                        texts.push({ x, y, w: this.measureText(text).width, h: parseFloat(this.font.match(/(\d+(?:\.\d+)?)px/)?.[1]) || 16, text: String(text) });
+                    }
+                    return realFillText.call(this, text, x, y, ...rest);
+                };
+                const chart = new Chart(canvas, config);
+                CanvasRenderingContext2D.prototype.fillText = realFillText;
+                const meta = chart.getDatasetMeta(0);
+                const horizontal = options.indexAxis === "y";
+                const scale = chart.scales[horizontal ? meta.xAxisID : meta.yAxisID];
+                const hits = [];
+                meta.data.forEach((element, i) => {
+                    const a = scale.getPixelForValue(data[i] - errors[i]);
+                    const b = scale.getPixelForValue(data[i] + errors[i]);
+                    const stem = horizontal
+                        ? { x: Math.min(a, b), y: element.y - 6, w: Math.abs(b - a), h: 12 }
+                        : { x: element.x - 6, y: Math.min(a, b), w: 12, h: Math.abs(b - a) };
+                    texts.forEach(t => {
+                        if (t.x < stem.x + stem.w && t.x + t.w > stem.x && t.y < stem.y + stem.h && t.y + t.h > stem.y) hits.push(`${t.text} on bar ${i}`);
+                    });
+                });
+                out.push({ type, horizontal, labels: texts.length, hits });
+                chart.destroy();
+                canvas.remove();
+            }
+            return out;
+        });
+        for (const r of results) {
+            assert(r.labels >= 3 && !r.hits.length, `${r.type}${r.horizontal ? " (horizontal)" : ""}: ${JSON.stringify(r)}`);
+        }
+        await page.close();
+    });
+
+    await test("rigorous 2026-10-18: a table's Header row and Zebra rows show their state and work from the keyboard", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => { addSlide(); addElement("table"); setPropertiesPanelVisible(true); buildPropertiesPanel(); });
+        await page.waitForTimeout(400);
+        await page.locator('.properties-tab[data-properties-tab="style"]').click();
+        const header = page.locator("#prop-table-header-row");
+        const before = await page.evaluate(() => ({ data: getSelectedElementData().tableData.headerRow, box: document.getElementById("prop-table-header-row").checked }));
+        assert(await header.isVisible() && before.box === Boolean(before.data), `header switch shows its state: ${JSON.stringify(before)}`);
+        await header.focus();
+        await page.keyboard.press("Space");
+        await page.waitForTimeout(400);
+        const after = await page.evaluate(() => ({ data: getSelectedElementData().tableData.headerRow, box: document.getElementById("prop-table-header-row")?.checked }));
+        assert(after.data === !before.data && after.box === after.data, `Space toggles it: ${JSON.stringify({ before, after })}`);
+        await page.close();
+    });
+
     await test("overnight: Ctrl+C on a shape and Ctrl+V on another slide pastes the shape, not a \"[shape]\" text box", async () => {
         const { page } = await openFreshEditor(context);
         const id = await page.evaluate(() => { addSlide(); addShape("rectangle"); return state.selectedIds[0]; });

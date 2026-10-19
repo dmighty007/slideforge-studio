@@ -369,3 +369,32 @@ html[data-theme="dark"] #properties-panel .prop-more > summary {
 #properties-panel .chart-style-grid .chart-style-check {
     grid-column: span 2;
 }
+
+/* Switches in the panel (a table's Header row, Zebra rows): real checkboxes in the accent colour, so their state shows
+   and the keyboard reaches them. The custom marker drawn instead was transparent when checked, and the real box was
+   hidden. */
+#properties-panel .prop-check-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 28px;
+    cursor: pointer;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-main, #0f172a);
+}
+#properties-panel .prop-check {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    flex: none;
+    accent-color: var(--primary, #4f46e5);
+    cursor: pointer;
+}
+#properties-panel .prop-check:focus-visible {
+    outline: 2px solid var(--primary, #4f46e5);
+    outline-offset: 2px;
+}
+html[data-theme="dark"] #properties-panel .prop-check-row {
+    color: var(--dk-text);
+}

@@ -178,6 +178,31 @@ function _chartValueLabelsPlugin(ink, font) {
             ctx.save();
             ctx.font = `600 ${font.size}px ${font.family || "sans-serif"}`;
             const drawn = [];
+            // Error bars (when drawn) count as taken room, and a number goes beyond its point's error, not on the
+            // stem: with both shown, every stem ran through its number (editor, PDF, viewer and PowerPoint alike).
+            const errorBars = !round && (chart.config.plugins || []).some(plugin => plugin?.id === "sfErrorBars");
+            const errorOf = (dataset, index) => (errorBars ? Math.abs(Number(dataset.errors?.[index])) || 0 : 0);
+            const valueScale = meta => chart.scales[horizontal ? meta.xAxisID : meta.yAxisID];
+            if (errorBars) {
+                chart.data.datasets.forEach((dataset, datasetIndex) => {
+                    const meta = chart.getDatasetMeta(datasetIndex);
+                    const scale = valueScale(meta);
+                    if (meta.hidden || !scale) return;
+                    meta.data.forEach((element, index) => {
+                        const value = Number(dataset.data?.[index]);
+                        const error = errorOf(dataset, index);
+                        if (!Number.isFinite(value) || !(error > 0)) return;
+                        const a = scale.getPixelForValue(value - error);
+                        const b = scale.getPixelForValue(value + error);
+                        const size = (horizontal ? element.height : element.width) || 20;
+                        const cap = Math.max(4, Math.min(12, size * 0.25)) + 2;
+                        const across = horizontal ? element.y : element.x;
+                        drawn.push(horizontal
+                            ? { x: Math.min(a, b), y: across - cap, w: Math.abs(b - a), h: cap * 2 }
+                            : { x: across - cap, y: Math.min(a, b), w: cap * 2, h: Math.abs(b - a) });
+                    });
+                });
+            }
             chart.data.datasets.forEach((dataset, datasetIndex) => {
                 const meta = chart.getDatasetMeta(datasetIndex);
                 if (meta.hidden) return;
@@ -206,9 +231,24 @@ function _chartValueLabelsPlugin(ink, font) {
                     const width = ctx.measureText(text).width;
                     const height = font.size;
                     const area = chart.chartArea;
+                    const error = errorOf(dataset, index);
+                    const scale = valueScale(meta);
+                    // The far end of the point's error bar in the direction of its value, or the point itself.
+                    const reach = error > 0 && scale ? scale.getPixelForValue(value < 0 ? value - error : value + error) : null;
+                    const capRoom = error > 0 ? Math.max(4, Math.min(12, ((horizontal ? element.height : element.width) || 20) * 0.25)) + 4 : 0;
                     const spots = horizontal
-                        ? [[element.x + (value < 0 ? -6 - width : 6), element.y - height / 2]]
-                        : (value < 0 ? [1, -1] : [-1, 1]).map(side => [element.x - width / 2, side < 0 ? element.y - 6 - height : element.y + 6]);
+                        ? [
+                              [(reach ?? element.x) + (value < 0 ? -6 - width : 6), element.y - height / 2],
+                              ...(error > 0 ? [[element.x + (value < 0 ? -6 - width : 6), element.y - capRoom - height]] : []),
+                          ]
+                        : [
+                              ...(value < 0 ? [1, -1] : [-1, 1]).map(side => {
+                                  const from = side === (value < 0 ? 1 : -1) && reach !== null ? reach : element.y;
+                                  return [element.x - width / 2, side < 0 ? from - 6 - height : from + 6];
+                              }),
+                              // Beside the stem (lines whose points sit close above one another).
+                              ...(error > 0 ? [[element.x + capRoom, element.y - height / 2], [element.x - capRoom - width, element.y - height / 2]] : []),
+                          ];
                     const spot = spots
                         .map(([x, y]) => [Math.max(area.left + 2, Math.min(area.right - width - 2, x)), Math.max(area.top - height, Math.min(area.bottom - height, y))])
                         .find(([x, y]) => !drawn.some(box => x < box.x + box.w && x + width > box.x && y < box.y + box.h && y + height > box.y));

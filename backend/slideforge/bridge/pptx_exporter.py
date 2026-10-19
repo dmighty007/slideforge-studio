@@ -1330,11 +1330,23 @@ class PPTXExporter:
                 data_labels.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
             else:
                 data_labels.show_value = True
+                # With error bars, the end of a bar or the top of a point is where the stem runs: PowerPoint cannot
+                # move a label past the error, so the numbers go where no stem is (a bar's base, a point's right).
+                has_errors = bool(style.get("errorBars")) and any(
+                    abs(self._chart_number(v) or 0.0) > 0 for d in datasets for v in list(d.get("errors") or [])
+                )
                 if chart_type == XL_CHART_TYPE.LINE_MARKERS:
-                    data_labels.position = XL_LABEL_POSITION.ABOVE
+                    data_labels.position = XL_LABEL_POSITION.RIGHT if has_errors else XL_LABEL_POSITION.ABOVE
                 elif chart_type in {XL_CHART_TYPE.COLUMN_CLUSTERED, XL_CHART_TYPE.BAR_CLUSTERED}:
-                    data_labels.position = XL_LABEL_POSITION.OUTSIDE_END
-                data_labels.font.color.rgb = ink
+                    data_labels.position = XL_LABEL_POSITION.INSIDE_BASE if has_errors else XL_LABEL_POSITION.OUTSIDE_END
+                inside_bars = has_errors and chart_type in {XL_CHART_TYPE.COLUMN_CLUSTERED, XL_CHART_TYPE.BAR_CLUSTERED}
+                if inside_bars:
+                    # On the bars themselves: white on dark bars, the chart's ink on light ones.
+                    fills = [self._parse_color((colours(d.get("backgroundColor")) or colours(d.get("borderColor")) or [""])[0], self.theme["accent"]) for d in datasets]
+                    dark = all((0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255 < 0.55 for c in fills) if fills else False
+                    data_labels.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF) if dark else ink
+                else:
+                    data_labels.font.color.rgb = ink
 
         # Error bars (the editor's ± column): custom plus and minus values on each series, as PowerPoint writes them.
         if style.get("errorBars") and not single_series:

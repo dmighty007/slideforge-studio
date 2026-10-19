@@ -476,6 +476,23 @@ class PPTXExportMediaTests(TestCase):
         self.assertTrue(bars.has_data_labels)
         self.assertTrue(bars.data_labels.show_value)
 
+    def test_chart_values_with_error_bars_go_where_no_stem_runs(self):
+        from pptx.enum.chart import XL_LABEL_POSITION
+
+        def labels_of(kind, errors):
+            slide = self._export([{
+                "type": "chart", "chartType": kind, "x": 100, "y": 100, "width": "500px", "height": "300px",
+                "chartData": {"labels": ["A", "B"], "datasets": [{"label": "R", "data": [21, 38], "errors": errors, "backgroundColor": "#0f766e"}]},
+                "chartStyle": {"valueLabels": True, "errorBars": True},
+            }])
+            return next(shape.chart for shape in slide.shapes if shape.has_chart).plots[0].data_labels
+
+        # The stem runs from a bar's end and a point's top: the numbers went on it.
+        self.assertEqual(labels_of("bar", [4, 5]).position, XL_LABEL_POSITION.INSIDE_BASE)
+        self.assertEqual(labels_of("line", [4, 5]).position, XL_LABEL_POSITION.RIGHT)
+        # Without errors, the usual places.
+        self.assertEqual(labels_of("bar", [0, 0]).position, XL_LABEL_POSITION.OUTSIDE_END)
+
     def test_one_series_chart_has_no_automatic_title_beside_its_legend(self):
         slide = self._export([{
             "type": "chart", "chartType": "bar", "x": 100, "y": 100, "width": "500px", "height": "300px",
