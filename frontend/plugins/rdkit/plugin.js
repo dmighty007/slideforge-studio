@@ -106,11 +106,11 @@
         fields: [
             { key: "smiles", label: "SMILES", type: "text", primary: true, placeholder: "e.g. CC(=O)Oc1ccccc1C(=O)O", hint: "Press Enter to redraw. The first drawing loads RDKit (a few seconds)." },
             { key: "highlight", label: "Highlight (SMARTS)", type: "text", placeholder: "e.g. c1ccccc1 or C(=O)[OH]", hint: "Every match is highlighted. Leave empty for none." },
-            { key: "highlightColor", label: "Highlight colour", type: "color" },
-            { key: "stereo", label: "Stereo", checkboxLabel: "Label stereocentres (R/S, E/Z)", type: "checkbox" },
-            { key: "atomColors", label: "Atom colours", checkboxLabel: "Colour heteroatoms by element", type: "checkbox" },
-            { key: "color", label: "Bond colour", type: "color", allowAuto: true },
-            { key: "bondWidth", label: "Bond width", type: "number", min: 0.5, max: 6, step: 0.5 },
+            { key: "highlightColor", advanced: true, label: "Highlight colour", type: "color" },
+            { key: "stereo", advanced: true, label: "Stereo", checkboxLabel: "Label stereocentres (R/S, E/Z)", type: "checkbox" },
+            { key: "atomColors", advanced: true, label: "Atom colours", checkboxLabel: "Colour heteroatoms by element", type: "checkbox" },
+            { key: "color", advanced: true, label: "Bond colour", type: "color", allowAuto: true },
+            { key: "bondWidth", advanced: true, label: "Bond width", type: "number", min: 0.5, max: 6, step: 0.5 },
             {
                 key: "card",
                 label: "Property card",
@@ -121,7 +121,7 @@
                     { value: "below", label: "Below the structure" },
                 ],
             },
-            { key: "fontSize", label: "Card text size (px)", type: "number", min: 8, max: 32, step: 1 },
+            { key: "fontSize", advanced: true, label: "Card text size (px)", type: "number", min: 8, max: 32, step: 1 },
         ],
 
         normalize(data) {

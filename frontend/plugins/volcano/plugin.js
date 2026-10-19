@@ -58,10 +58,10 @@
             { key: "fcThreshold", label: "Fold-change threshold (|log2FC|)", type: "number", min: 0, max: 20, step: 0.1 },
             { key: "pThreshold", label: "p-value threshold", type: "number", min: 0, max: 1, step: "any" },
             { key: "labels", label: "Label the top hits", type: "number", min: 0, max: 50, step: 1, hint: "The most significant points past both thresholds; labels that would overlap are left out." },
-            { key: "pointSize", label: "Point size (px)", type: "number", min: 1, max: 12, step: 0.5 },
+            { key: "pointSize", advanced: true, label: "Point size (px)", type: "number", min: 1, max: 12, step: 0.5 },
             { key: "xLabel", label: "X axis label", type: "text" },
             { key: "yLabel", label: "Y axis label", type: "text" },
-            { key: "fontSize", label: "Text size (px)", type: "number", min: 8, max: 28, step: 1 },
+            { key: "fontSize", advanced: true, label: "Text size (px)", type: "number", min: 8, max: 28, step: 1 },
         ],
 
         normalize(data) {

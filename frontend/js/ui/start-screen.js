@@ -192,6 +192,9 @@ function _startProjectCard(project, index) {
     return card;
 }
 
+const START_SCREEN_RECENT_LIMIT = 60;
+let _startShowAllProjects = false;
+
 function _startRenderProjects() {
     const grid = document.getElementById("sf-start-recent");
     if (!grid) return;
@@ -212,7 +215,19 @@ function _startRenderProjects() {
         grid.append(_startEl("div", "sf-recent__message", `No presentations match “${query}”.`));
         return;
     }
-    projects.forEach((project, index) => grid.append(_startProjectCard(project, index)));
+    // The most recent ones (search looks through all): drawing a card for each of a thousand decks, each with its
+    // cover and entry animation, slowed the whole app to a few frames a second while the screen was open.
+    const shown = query || _startShowAllProjects ? projects : projects.slice(0, START_SCREEN_RECENT_LIMIT);
+    shown.forEach((project, index) => grid.append(_startProjectCard(project, index)));
+    if (shown.length < projects.length) {
+        const more = _startEl("button", "sf-recent__more", `Show all ${projects.length} presentations`);
+        more.type = "button";
+        more.addEventListener("click", () => {
+            _startShowAllProjects = true;
+            _startRenderProjects();
+        });
+        grid.append(more);
+    }
 }
 
 async function _startLoadProjects() {

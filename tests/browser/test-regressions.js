@@ -6326,6 +6326,74 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("properties: a plugin's advanced settings fold under More options, settings for another mode stay hidden, and an icon has its own small panel", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        await page.evaluate(() => { addSlide(); setPropertiesPanelVisible(true); });
+        const heat = await pageAwait(page, () => insertPluginElement("heatmap", null, { ask: false }));
+        await page.evaluate(id => { selectElement(id, "replace"); _propertiesPanelActiveTab = "content"; buildPropertiesPanel(); }, heat);
+        await page.waitForTimeout(300);
+        const folded = await page.evaluate(() => ({
+            data: !!document.getElementById("prop-plugin-data")?.checkVisibility(),
+            fontSize: !!document.getElementById("prop-plugin-fontSize")?.checkVisibility(),
+            more: !!document.querySelector('#properties-panel details[data-section="plugin:heatmap:more"]'),
+        }));
+        assert(folded.data && !folded.fontSize && folded.more, `heatmap panel: ${JSON.stringify(folded)}`);
+        // Energy levels: the level tables only for the levels diagram.
+        const energy = await pageAwait(page, () => insertPluginElement("energy-levels", null, { ask: false }));
+        const shown = async () => page.evaluate(() => ({ profile: !!document.getElementById("prop-plugin-profile"), levels: !!document.getElementById("prop-plugin-levels") }));
+        await page.evaluate(id => { selectElement(id, "replace"); buildPropertiesPanel(); }, energy);
+        await page.waitForTimeout(300);
+        const asProfile = await shown();
+        await pageAwait(page, id => SlideForgePlugins.update(id, { kind: "levels" }), energy);
+        await page.evaluate(id => { selectElement(id, "replace"); buildPropertiesPanel(); }, energy);
+        await page.waitForTimeout(300);
+        const asLevels = await shown();
+        assert(asProfile.profile && !asProfile.levels && !asLevels.profile && asLevels.levels, `energy levels: ${JSON.stringify({ asProfile, asLevels })}`);
+        // An icon: Change icon, size and colour, not the text panel.
+        const icon = await page.evaluate(() => { _insertIcon({ name: "bacteria", class: "fa-solid fa-bacteria" }); _propertiesPanelActiveTab = "content"; buildPropertiesPanel(); return state.selectedIds[0]; });
+        await page.waitForTimeout(300);
+        const panel = await page.evaluate(() => ({ change: !!document.getElementById("prop-icon-change"), text: !!document.getElementById("prop-text-content") }));
+        assert(panel.change && !panel.text, `icon panel: ${JSON.stringify(panel)}`);
+        await page.locator("#prop-icon-change").click();
+        await page.locator("#icon-search-input").fill("virus");
+        await page.locator("#icon-grid button[title='virus']").click();
+        await page.waitForTimeout(300);
+        const swapped = await page.evaluate(id => ({ cls: state.slides[currentSlideIndex].elements.find(e => e.id === id)?.iconClass, icons: state.slides[currentSlideIndex].elements.filter(e => e.iconMode).length }), icon);
+        assert(swapped.cls === "fa-solid fa-virus" && swapped.icons === 1, `Change icon: ${JSON.stringify(swapped)}`);
+        await page.close();
+    });
+
+    await test("start screen: with many presentations it shows the most recent 60 and a Show all button; search still finds any of them", async () => {
+        const { page } = await openFreshEditor(context);
+        const out = await page.evaluate(() => {
+            const saved = _startScreenProjects;
+            _startShowAllProjects = false;
+            _startScreenProjects = Array.from({ length: 150 }, (_, i) => ({ id: `fake-${i}`, title: `Deck number ${i}`, coverTitle: "", slideCount: 1, updatedAt: new Date().toISOString() }));
+            let grid = document.getElementById("sf-start-recent");
+            const made = !grid;
+            if (made) { grid = document.createElement("div"); grid.id = "sf-start-recent"; document.body.appendChild(grid); }
+            _startRenderProjects();
+            const first = { cards: grid.querySelectorAll(".sf-recent-card, [data-project-id], .sf-recent__card").length || grid.children.length - 1, more: grid.querySelector(".sf-recent__more")?.textContent };
+            const search = document.getElementById("sf-start-search");
+            if (search) search.value = "number 142";
+            _startRenderProjects();
+            const found = grid.textContent.includes("Deck number 142");
+            if (search) search.value = "";
+            grid.querySelector(".sf-recent__more")?.click();
+            const all = grid.children.length;
+            _startScreenProjects = saved;
+            _startShowAllProjects = false;
+            if (made) grid.remove();
+            return { first, found, all, hasSearch: !!search };
+        });
+        // Drawing a card for each of a thousand decks slowed the app to a few frames a second.
+        assert(out.first.cards === 60 && /Show all 150/.test(out.first.more || ""), `first view: ${JSON.stringify(out)}`);
+        assert(!out.hasSearch || out.found, `search: ${JSON.stringify(out)}`);
+        assert(out.all === 150, `Show all: ${JSON.stringify(out)}`);
+        await page.close();
+    });
+
     await test("overnight: Ctrl+C on a shape and Ctrl+V on another slide pastes the shape, not a \"[shape]\" text box", async () => {
         const { page } = await openFreshEditor(context);
         const id = await page.evaluate(() => { addSlide(); addShape("rectangle"); return state.selectedIds[0]; });

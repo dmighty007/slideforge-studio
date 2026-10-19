@@ -359,7 +359,7 @@
                 options: Object.entries(MODELS).map(([value, model]) => ({ value, label: model.label })),
             },
             {
-                key: "xScale",
+                key: "xScale", advanced: true,
                 label: "x axis",
                 type: "select",
                 options: [
@@ -369,12 +369,12 @@
                 ],
             },
             { key: "showFit", label: "Fit", checkboxLabel: "Draw the fitted curve", type: "checkbox" },
-            { key: "showParams", label: "Values", checkboxLabel: "Show the fitted values in the legend", type: "checkbox" },
+            { key: "showParams", advanced: true, label: "Values", checkboxLabel: "Show the fitted values in the legend", type: "checkbox" },
             { key: "xLabel", label: "x axis label", type: "text" },
             { key: "yLabel", label: "y axis label", type: "text" },
-            { key: "pointSize", label: "Point size (px)", type: "number", min: 2, max: 16, step: 1 },
-            { key: "lineWidth", label: "Line width (px)", type: "number", min: 0.5, max: 8, step: 0.5 },
-            { key: "fontSize", label: "Text size (px)", type: "number", min: 8, max: 32, step: 1 },
+            { key: "pointSize", advanced: true, label: "Point size (px)", type: "number", min: 2, max: 16, step: 1 },
+            { key: "lineWidth", advanced: true, label: "Line width (px)", type: "number", min: 0.5, max: 8, step: 0.5 },
+            { key: "fontSize", advanced: true, label: "Text size (px)", type: "number", min: 8, max: 32, step: 1 },
         ],
 
         normalize(data) {

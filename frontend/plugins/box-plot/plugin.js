@@ -311,12 +311,12 @@
                     { value: "none", label: "None" },
                 ],
             },
-            { key: "mean", label: "Mean", checkboxLabel: "Mark the mean (◆)", type: "checkbox" },
+            { key: "mean", advanced: true, label: "Mean", checkboxLabel: "Mark the mean (◆)", type: "checkbox" },
             { key: "yLabel", label: "Y axis label", type: "text" },
-            { key: "yMin", label: "Y axis from", type: "text", placeholder: "Automatic" },
-            { key: "yMax", label: "Y axis to", type: "text", placeholder: "Automatic" },
+            { key: "yMin", advanced: true, label: "Y axis from", type: "text", placeholder: "Automatic" },
+            { key: "yMax", advanced: true, label: "Y axis to", type: "text", placeholder: "Automatic" },
             {
-                key: "palette",
+                key: "palette", advanced: true,
                 label: "Colours",
                 type: "select",
                 options: [
@@ -324,7 +324,7 @@
                     { value: "single", label: "One colour for all" },
                 ],
             },
-            { key: "fill", label: "Colour (one for all)", type: "color" },
+            { key: "fill", advanced: true, label: "Colour (one for all)", type: "color" },
             {
                 key: "comparisons",
                 label: "Comparisons",
@@ -335,7 +335,7 @@
                 hint: "Groups by name or number. Leave the label empty to compute the p-value with the test below; brackets sit above the plot and follow it.",
             },
             {
-                key: "test",
+                key: "test", advanced: true,
                 label: "Test (empty labels)",
                 type: "select",
                 options: [
@@ -344,7 +344,7 @@
                 ],
             },
             {
-                key: "pShow",
+                key: "pShow", advanced: true,
                 label: "p-values",
                 type: "select",
                 options: [
@@ -352,7 +352,7 @@
                     { value: "p", label: "Numbers (p = 0.0057)" },
                 ],
             },
-            { key: "fontSize", label: "Text size (px)", type: "number", min: 8, max: 32, step: 1 },
+            { key: "fontSize", advanced: true, label: "Text size (px)", type: "number", min: 8, max: 32, step: 1 },
         ],
 
         normalize(data) {

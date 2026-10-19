@@ -71,9 +71,9 @@
             { key: "length", label: "Length (residues)", type: "number", min: 2, max: 100000, step: 1 },
             { key: "domains", label: "Domains", type: "table", columns: ["Name", "Start", "End", "Colour", "Shape (box, rounded, oval)"], rows: 5 },
             { key: "sites", label: "Sites", type: "table", columns: ["Position", "Label"], rows: 4, hint: "Mutations, modifications or motifs, drawn as lollipops." },
-            { key: "ruler", label: "Ruler", checkboxLabel: "Show a ruler in residues", type: "checkbox" },
-            { key: "fontSize", label: "Text size (px)", type: "number", min: 7, max: 30, step: 1 },
-            { key: "color", label: "Line and text colour", type: "color", allowAuto: true },
+            { key: "ruler", advanced: true, label: "Ruler", checkboxLabel: "Show a ruler in residues", type: "checkbox" },
+            { key: "fontSize", advanced: true, label: "Text size (px)", type: "number", min: 7, max: 30, step: 1 },
+            { key: "color", advanced: true, label: "Line and text colour", type: "color", allowAuto: true },
         ],
 
         normalize(data) {

@@ -49,7 +49,7 @@
             { key: "text", label: "Link or text", type: "text", primary: true, placeholder: "https://doi.org/10.…", hint: "Press Enter to redraw." },
             { key: "caption", label: "Caption", type: "text", placeholder: "e.g. Scan for the paper" },
             {
-                key: "level",
+                key: "level", advanced: true,
                 label: "Error correction",
                 type: "select",
                 options: [
@@ -59,9 +59,9 @@
                     { value: "H", label: "High (30%): survives a logo or damage" },
                 ],
             },
-            { key: "color", label: "Code colour", type: "color" },
+            { key: "color", advanced: true, label: "Code colour", type: "color" },
             {
-                key: "background",
+                key: "background", advanced: true,
                 label: "Background",
                 type: "select",
                 options: [
@@ -69,7 +69,7 @@
                     { value: "transparent", label: "None" },
                 ],
             },
-            { key: "margin", label: "Quiet zone (modules)", type: "number", min: 1, max: 8, step: 1, hint: "Scanners need a clear border; 4 is the standard." },
+            { key: "margin", advanced: true, label: "Quiet zone (modules)", type: "number", min: 1, max: 8, step: 1, hint: "Scanners need a clear border; 4 is the standard." },
         ],
 
         normalize(data) {

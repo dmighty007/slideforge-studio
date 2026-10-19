@@ -206,9 +206,9 @@ antifermion v2 nu nubar_e`,
                 placeholder: "vertex v1 0 0\npoint a -2 1\nfermion a v1 e-\nphoton v1 v2 gamma",
                 hint: "One item per line. “point name x y” or “vertex name x y” (vertex: with a dot; y points up). Lines: fermion, antifermion, photon, boson (W/Z), gluon, scalar, ghost, plain — “photon a b label”, optional bend=0.5, side=right, color=#hex. Labels: gamma → γ, mu- → μ⁻, e+ → e⁺, nubar_e → ν̄ₑ. # starts a comment.",
             },
-            { key: "lineWidth", label: "Line width (px)", type: "number", min: 0.5, max: 6, step: 0.5 },
-            { key: "fontSize", label: "Label size (px)", type: "number", min: 8, max: 40, step: 1 },
-            { key: "color", label: "Colour", type: "color", allowAuto: true },
+            { key: "lineWidth", advanced: true, label: "Line width (px)", type: "number", min: 0.5, max: 6, step: 0.5 },
+            { key: "fontSize", advanced: true, label: "Label size (px)", type: "number", min: 8, max: 40, step: 1 },
+            { key: "color", advanced: true, label: "Colour", type: "color", allowAuto: true },
         ],
 
         normalize(data) {

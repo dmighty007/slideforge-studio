@@ -67,11 +67,11 @@
                     { value: "custom", label: "My own sizes" },
                 ],
             },
-            { key: "customLadder", label: "Ladder sizes (own)", type: "text", placeholder: "e.g. 3000, 2000, 1000, 500", hint: "For “My own sizes”: largest to smallest, separated by commas." },
-            { key: "unit", label: "Unit (own ladder)", type: "text", placeholder: "bp" },
+            { key: "customLadder", when: { ladder: "custom" }, label: "Ladder sizes (own)", type: "text", placeholder: "e.g. 3000, 2000, 1000, 500", hint: "For “My own sizes”: largest to smallest, separated by commas." },
+            { key: "unit", when: { ladder: "custom" }, label: "Unit (own ladder)", type: "text", placeholder: "bp" },
             { key: "samples", label: "Bands", type: "table", columns: ["Lane", "Size", "Intensity (0–1)"], rows: 6, hint: "One row per band; rows with the same lane name share a lane. A lane with no size stays empty." },
             {
-                key: "style",
+                key: "style", advanced: true,
                 label: "Look",
                 type: "select",
                 options: [
@@ -79,8 +79,8 @@
                     { value: "light", label: "Stained (dark bands on a light gel)" },
                 ],
             },
-            { key: "ladderLabels", label: "Ladder sizes", checkboxLabel: "Label the ladder bands", type: "checkbox" },
-            { key: "fontSize", label: "Text size (px)", type: "number", min: 8, max: 28, step: 1 },
+            { key: "ladderLabels", advanced: true, label: "Ladder sizes", checkboxLabel: "Label the ladder bands", type: "checkbox" },
+            { key: "fontSize", advanced: true, label: "Text size (px)", type: "number", min: 8, max: 28, step: 1 },
         ],
 
         normalize(data) {

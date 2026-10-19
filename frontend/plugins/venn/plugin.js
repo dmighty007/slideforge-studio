@@ -148,9 +148,9 @@
                 hint: "Counts: one row per region, its sets joined by & and the count of items in that region only. Lists: set names in the first row, items below.",
             },
             { key: "proportional", label: "Areas", checkboxLabel: "Two sets: circle sizes and overlap match the counts", type: "checkbox" },
-            { key: "totals", label: "Totals", checkboxLabel: "Show each set's total next to its name", type: "checkbox" },
-            { key: "fontSize", label: "Text size (px)", type: "number", min: 8, max: 36, step: 1 },
-            { key: "color", label: "Text colour", type: "color", allowAuto: true },
+            { key: "totals", advanced: true, label: "Totals", checkboxLabel: "Show each set's total next to its name", type: "checkbox" },
+            { key: "fontSize", advanced: true, label: "Text size (px)", type: "number", min: 8, max: 36, step: 1 },
+            { key: "color", advanced: true, label: "Text colour", type: "color", allowAuto: true },
         ],
 
         normalize(data) {

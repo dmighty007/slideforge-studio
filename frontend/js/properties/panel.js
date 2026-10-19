@@ -51,11 +51,11 @@ function createGroup(title) {
 // Less-used settings of a group, folded under a summary line ("Effects and spacing"). The panel is rebuilt after every
 // change, so whether each one is open is remembered by its name; otherwise it closed again after each edit.
 const _openPropertySections = new Set();
-function createMoreSection(summary, nodes = []) {
+function createMoreSection(summary, nodes = [], key = summary) {
   const details = document.createElement("details");
   details.className = "prop-more";
-  details.dataset.section = summary;
-  details.open = _openPropertySections.has(summary);
+  details.dataset.section = key;
+  details.open = _openPropertySections.has(key);
   const head = document.createElement("summary");
   head.textContent = summary;
   details.appendChild(head);
@@ -64,8 +64,8 @@ function createMoreSection(summary, nodes = []) {
   nodes.filter(Boolean).forEach((node) => body.appendChild(node));
   details.appendChild(body);
   details.addEventListener("toggle", () => {
-    if (details.open) _openPropertySections.add(summary);
-    else _openPropertySections.delete(summary);
+    if (details.open) _openPropertySections.add(key);
+    else _openPropertySections.delete(key);
   });
   return details;
 }
@@ -563,7 +563,8 @@ function _buildPropertiesPanelNow() {
 
   if (data) {
     if (data.type === "text") {
-      buildTextPanel(panel, data);
+      if (data.iconMode) buildIconPanel(panel, data);
+      else buildTextPanel(panel, data);
     }
 
     if (data.type === "shape") {

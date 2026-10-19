@@ -123,11 +123,11 @@
                     { value: "cladogram", label: "Cladogram (tips aligned)" },
                 ],
             },
-            { key: "support", label: "Support values", checkboxLabel: "Show support values at nodes", type: "checkbox" },
-            { key: "italic", label: "Tip names", checkboxLabel: "Italic (species names)", type: "checkbox" },
-            { key: "fontSize", label: "Label size (px)", type: "number", min: 6, max: 40, step: 1 },
-            { key: "lineWidth", label: "Line width (px)", type: "number", min: 0.5, max: 8, step: 0.5 },
-            { key: "color", label: "Colour", type: "color", allowAuto: true },
+            { key: "support", advanced: true, label: "Support values", checkboxLabel: "Show support values at nodes", type: "checkbox" },
+            { key: "italic", advanced: true, label: "Tip names", checkboxLabel: "Italic (species names)", type: "checkbox" },
+            { key: "fontSize", advanced: true, label: "Label size (px)", type: "number", min: 6, max: 40, step: 1 },
+            { key: "lineWidth", advanced: true, label: "Line width (px)", type: "number", min: 0.5, max: 8, step: 0.5 },
+            { key: "color", advanced: true, label: "Colour", type: "color", allowAuto: true },
         ],
 
         normalize(data) {

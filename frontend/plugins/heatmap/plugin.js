@@ -187,7 +187,7 @@
             { key: "clusterRows", label: "Cluster", checkboxLabel: "Cluster rows", type: "checkbox" },
             { key: "clusterColumns", label: "Cluster columns", checkboxLabel: "Cluster columns", type: "checkbox" },
             {
-                key: "metric",
+                key: "metric", advanced: true,
                 label: "Distance",
                 type: "select",
                 options: [
@@ -196,9 +196,9 @@
                 ],
                 hint: "Average linkage.",
             },
-            { key: "dendrograms", label: "Dendrograms", checkboxLabel: "Draw dendrograms", type: "checkbox" },
+            { key: "dendrograms", advanced: true, label: "Dendrograms", checkboxLabel: "Draw dendrograms", type: "checkbox" },
             {
-                key: "colormap",
+                key: "colormap", advanced: true,
                 label: "Colours",
                 type: "select",
                 options: [
@@ -210,7 +210,7 @@
                 ],
             },
             {
-                key: "range",
+                key: "range", advanced: true,
                 label: "Colour range",
                 type: "select",
                 options: [
@@ -218,12 +218,12 @@
                     { value: "centred", label: "Even around the centre value" },
                 ],
             },
-            { key: "centre", label: "Centre value", type: "number", step: "any", hint: "For diverging colours: this value gets the middle colour." },
+            { key: "centre", advanced: true, label: "Centre value", type: "number", step: "any", hint: "For diverging colours: this value gets the middle colour." },
             { key: "values", label: "Values", checkboxLabel: "Write the values in the cells", type: "checkbox" },
-            { key: "decimals", label: "Decimals", type: "number", min: 0, max: 4, step: 1 },
-            { key: "legendLabel", label: "Colour bar label", type: "text" },
-            { key: "fontSize", label: "Text size (px)", type: "number", min: 6, max: 28, step: 1 },
-            { key: "color", label: "Text colour", type: "color", allowAuto: true },
+            { key: "decimals", advanced: true, label: "Decimals", type: "number", min: 0, max: 4, step: 1 },
+            { key: "legendLabel", advanced: true, label: "Colour bar label", type: "text" },
+            { key: "fontSize", advanced: true, label: "Text size (px)", type: "number", min: 6, max: 28, step: 1 },
+            { key: "color", advanced: true, label: "Text colour", type: "color", allowAuto: true },
         ],
 
         normalize(data) {

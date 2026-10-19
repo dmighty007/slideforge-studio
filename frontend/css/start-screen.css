@@ -711,3 +711,27 @@
 
 
 .sf-cover--plain::before { display: none; }
+
+/* Below the most recent presentations: shows the rest (js/ui/start-screen.js). */
+.sf-recent__more {
+    grid-column: 1 / -1;
+    justify-self: center;
+    margin: 6px 0 4px;
+    padding: 8px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--border, #e2e8f0);
+    background: var(--panel-card, #ffffff);
+    color: var(--text-main, #0f172a);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.sf-recent__more:hover {
+    border-color: var(--primary, #4f46e5);
+    color: var(--primary, #4f46e5);
+}
+html[data-theme="dark"] .sf-recent__more {
+    background: var(--dk-raised);
+    border-color: var(--dk-border);
+    color: var(--dk-text);
+}

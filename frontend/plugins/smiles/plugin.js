@@ -208,11 +208,11 @@
                 placeholder: "e.g. caffeine; paraxanthine",
                 hint: "One name per structure, left to right, separated by semicolons. Leave one empty to skip that structure.",
             },
-            { key: "color", label: "Bond colour", type: "color", allowAuto: true },
-            { key: "atomColors", label: "Atom colours", checkboxLabel: "Colour O, N, S… labels by element", type: "checkbox" },
-            { key: "bondThickness", label: "Bond thickness", type: "number", min: 0.5, max: 4, step: 0.1 },
-            { key: "terminalCarbons", label: "Terminal carbons", checkboxLabel: "Label terminal carbons (CH₃)", type: "checkbox" },
-            { key: "explicitHydrogens", label: "Hydrogens", checkboxLabel: "Draw hydrogens written in the SMILES", type: "checkbox" },
+            { key: "color", advanced: true, label: "Bond colour", type: "color", allowAuto: true },
+            { key: "atomColors", advanced: true, label: "Atom colours", checkboxLabel: "Colour O, N, S… labels by element", type: "checkbox" },
+            { key: "bondThickness", advanced: true, label: "Bond thickness", type: "number", min: 0.5, max: 4, step: 0.1 },
+            { key: "terminalCarbons", advanced: true, label: "Terminal carbons", checkboxLabel: "Label terminal carbons (CH₃)", type: "checkbox" },
+            { key: "explicitHydrogens", advanced: true, label: "Hydrogens", checkboxLabel: "Draw hydrogens written in the SMILES", type: "checkbox" },
         ],
 
         normalize(data) {

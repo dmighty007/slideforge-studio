@@ -703,3 +703,64 @@ function buildTextPanel(panel, data) {
     };
   }
 }
+
+// An icon (a text box holding one Font Awesome glyph) gets its own small panel: which icon, its size and colour.
+// It had the whole text panel: an empty text editor, list and fitting settings, and typography for one glyph.
+function buildIconPanel(panel, data) {
+  const group = createGroup("Icon");
+  const size = Math.round(parseFloat(data.styles?.fontSize) || 64);
+  group.innerHTML += `
+    <div class="prop-icon-panel">
+      <div class="prop-icon-preview" aria-hidden="true"><i class="${escapeHtml(data.iconClass || "fa-solid fa-star")}"></i></div>
+      <button type="button" id="prop-icon-change" class="prop-action-btn w-full"><i class="fa-solid fa-icons"></i> Change icon…</button>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <label class="flex flex-col gap-1">
+        <span class="text-xs font-bold text-slate-600 uppercase tracking-wide">Size</span>
+        <input type="number" id="prop-icon-size" class="prop-input-sm" min="12" max="400" step="2" value="${size}">
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-xs font-bold text-slate-600 uppercase tracking-wide">Colour</span>
+        <input type="color" id="prop-icon-color" class="prop-color-input" value="${_normalizeColorForInput(data.styles?.color, "#0f172a")}">
+      </label>
+    </div>`;
+  panel.appendChild(group);
+  setTimeout(() => {
+    document.getElementById("prop-icon-change")?.addEventListener("click", () => {
+      window._iconPickerReplaceId = data.id;
+      openIconPicker();
+    });
+    const sizeInput = document.getElementById("prop-icon-size");
+    sizeInput?.addEventListener("change", () => {
+      const live = state.slides[currentSlideIndex]?.elements.find((item) => item.id === data.id);
+      if (!live) return;
+      const next = Math.max(12, Math.min(400, Math.round(Number(sizeInput.value) || 64)));
+      const box = Math.round(next * 1.5625);
+      const oldW = parseFloat(live.width) || box;
+      const oldH = parseFloat(live.height) || box;
+      saveStateToUndo();
+      // The box grows about its centre, so the icon stays where it was.
+      updateElementState(live.id, {
+        styles: { ...live.styles, fontSize: `${next}px` },
+        width: `${box}px`,
+        height: `${box}px`,
+        x: Math.round((Number(live.x) || 0) + (oldW - box) / 2),
+        y: Math.round((Number(live.y) || 0) + (oldH - box) / 2),
+      });
+      renderSlidesFromState();
+      selectElement(live.id, "replace");
+      schedulePresentationAutosave?.(150);
+    });
+    const colorInput = document.getElementById("prop-icon-color");
+    if (colorInput && typeof bindUndoableContinuousInput === "function") {
+      bindUndoableContinuousInput(colorInput, (event) => {
+        const live = state.slides[currentSlideIndex]?.elements.find((item) => item.id === data.id);
+        if (!live) return;
+        updateElementState(live.id, { styles: { ...live.styles, color: event.target.value } });
+        const node = [...document.querySelectorAll(`[id="${live.id}"]`)].find((n) => !n.closest("#slide-previews"));
+        if (node) node.style.color = event.target.value;
+        schedulePresentationAutosave?.(150);
+      });
+    }
+  }, 0);
+}

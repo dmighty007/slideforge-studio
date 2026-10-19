@@ -55,10 +55,10 @@
             { key: "colormap", label: "Colour scale", type: "select", options: COLORMAP_OPTIONS },
             { key: "min", label: "From", type: "number", step: "any" },
             { key: "max", label: "To", type: "number", step: "any" },
-            { key: "ticks", label: "About this many ticks", type: "number", min: 2, max: 12, step: 1 },
+            { key: "ticks", advanced: true, label: "About this many ticks", type: "number", min: 2, max: 12, step: 1 },
             { key: "label", label: "Label", type: "text", placeholder: "e.g. Expression (log₂ TPM)" },
             {
-                key: "orientation",
+                key: "orientation", advanced: true,
                 label: "Direction",
                 type: "select",
                 options: [
@@ -66,9 +66,9 @@
                     { value: "vertical", label: "Vertical" },
                 ],
             },
-            { key: "reverse", label: "Order", checkboxLabel: "Reverse the colours", type: "checkbox" },
-            { key: "fontSize", label: "Text size (px)", type: "number", min: 8, max: 32, step: 1 },
-            { key: "color", label: "Text colour", type: "color", allowAuto: true },
+            { key: "reverse", advanced: true, label: "Order", checkboxLabel: "Reverse the colours", type: "checkbox" },
+            { key: "fontSize", advanced: true, label: "Text size (px)", type: "number", min: 8, max: 32, step: 1 },
+            { key: "color", advanced: true, label: "Text colour", type: "color", allowAuto: true },
         ],
 
         normalize(data) {

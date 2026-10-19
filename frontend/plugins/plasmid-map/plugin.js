@@ -100,9 +100,9 @@
             { key: "length", label: "Length (bp)", type: "number", min: 10, max: 10000000, step: 1 },
             { key: "features", label: "Features", type: "table", columns: ["Name", "Start", "End", "Strand (+/−)", "Colour", "Type"], rows: 6, hint: "A feature may cross the origin (start after end). Type (gene, promoter, origin, terminator, resistance) picks a colour when none is given." },
             { key: "sites", label: "Restriction sites", type: "table", columns: ["Name", "Position"], rows: 4 },
-            { key: "ticks", label: "Scale", checkboxLabel: "Length ticks inside the circle", type: "checkbox" },
-            { key: "fontSize", label: "Label size (px)", type: "number", min: 7, max: 30, step: 1 },
-            { key: "color", label: "Text and backbone colour", type: "color", allowAuto: true },
+            { key: "ticks", advanced: true, label: "Scale", checkboxLabel: "Length ticks inside the circle", type: "checkbox" },
+            { key: "fontSize", advanced: true, label: "Label size (px)", type: "number", min: 7, max: 30, step: 1 },
+            { key: "color", advanced: true, label: "Text and backbone colour", type: "color", allowAuto: true },
         ],
 
         normalize(data) {

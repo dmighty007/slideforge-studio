@@ -228,10 +228,10 @@
             { key: "yMax", label: "y to", type: "text", placeholder: "Automatic" },
             { key: "xLabel", label: "x axis label", type: "text" },
             { key: "yLabel", label: "y axis label", type: "text" },
-            { key: "grid", label: "Grid", checkboxLabel: "Grid lines", type: "checkbox" },
-            { key: "legend", label: "Legend", checkboxLabel: "Legend with the labels", type: "checkbox" },
-            { key: "lineWidth", label: "Line width (px)", type: "number", min: 0.5, max: 8, step: 0.5 },
-            { key: "fontSize", label: "Text size (px)", type: "number", min: 8, max: 32, step: 1 },
+            { key: "grid", advanced: true, label: "Grid", checkboxLabel: "Grid lines", type: "checkbox" },
+            { key: "legend", advanced: true, label: "Legend", checkboxLabel: "Legend with the labels", type: "checkbox" },
+            { key: "lineWidth", advanced: true, label: "Line width (px)", type: "number", min: 0.5, max: 8, step: 0.5 },
+            { key: "fontSize", advanced: true, label: "Text size (px)", type: "number", min: 8, max: 32, step: 1 },
         ],
 
         normalize(data) {

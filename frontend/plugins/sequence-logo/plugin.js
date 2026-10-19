@@ -80,7 +80,7 @@
                     { value: "probability", label: "Probability" },
                 ],
             },
-            { key: "correction", label: "Correction", checkboxLabel: "Small-sample correction (few sequences)", type: "checkbox" },
+            { key: "correction", advanced: true, label: "Correction", checkboxLabel: "Small-sample correction (few sequences)", type: "checkbox" },
             {
                 key: "scheme",
                 label: "Colours",
@@ -90,9 +90,9 @@
                     { value: "none", label: "One colour" },
                 ],
             },
-            { key: "start", label: "First position number", type: "number", step: 1 },
-            { key: "axis", label: "Axes", checkboxLabel: "Show the axis and position numbers", type: "checkbox" },
-            { key: "fontSize", label: "Axis text size (px)", type: "number", min: 7, max: 28, step: 1 },
+            { key: "start", advanced: true, label: "First position number", type: "number", step: 1 },
+            { key: "axis", advanced: true, label: "Axes", checkboxLabel: "Show the axis and position numbers", type: "checkbox" },
+            { key: "fontSize", advanced: true, label: "Axis text size (px)", type: "number", min: 7, max: 28, step: 1 },
         ],
 
         normalize(data) {

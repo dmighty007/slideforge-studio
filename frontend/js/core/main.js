@@ -1031,6 +1031,7 @@ function openIconPicker() {
 }
 
 function closeIconPicker() {
+    window._iconPickerReplaceId = null;
     const modal = document.getElementById("icon-picker-modal");
     if (modal) modal.style.display = "none";
     requestAnimationFrame(() => endFormattingInteraction?.());
@@ -1101,6 +1102,19 @@ function filterIconPicker(query) {
 
 function _insertIcon(iconObj) {
     const activeIndex = typeof currentSlideIndex !== "undefined" ? currentSlideIndex : 0;
+    // "Change icon…" in an icon's panel: the chosen glyph replaces that icon's, in place.
+    const replaceId = window._iconPickerReplaceId;
+    window._iconPickerReplaceId = null;
+    const existing = replaceId && state.slides[activeIndex]?.elements.find(el => el.id === replaceId && el.iconMode);
+    if (existing) {
+        saveStateToUndo();
+        updateElementState(existing.id, { iconClass: iconObj.class, content: `<i class="${iconObj.class}"></i>` });
+        renderSlidesFromState();
+        selectElement(existing.id, "replace");
+        closeIconPicker();
+        schedulePresentationAutosave?.(150);
+        return;
+    }
     saveStateToUndo();
     const id = generateId("el");
     const theme =

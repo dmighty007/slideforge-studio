@@ -48,8 +48,8 @@
             { key: "objectDistance", label: "Object distance", type: "number", min: 0.01, step: "any" },
             { key: "objectHeight", label: "Object height", type: "number", min: 0.01, step: "any" },
             { key: "unit", label: "Unit", type: "select", options: ["mm", "cm", "m", "none"] },
-            { key: "labels", label: "Labels", checkboxLabel: "Show F, distances and magnification", type: "checkbox" },
-            { key: "fontSize", label: "Text size (px)", type: "number", min: 8, max: 28, step: 1 },
+            { key: "labels", advanced: true, label: "Labels", checkboxLabel: "Show F, distances and magnification", type: "checkbox" },
+            { key: "fontSize", advanced: true, label: "Text size (px)", type: "number", min: 8, max: 28, step: 1 },
         ],
 
         normalize(data) {

@@ -416,3 +416,28 @@ html[data-theme="dark"] #properties-panel .prop-check-row {
 #properties-panel #video-live-player #player-time-display {
     color: #e2e8f0 !important;
 }
+
+/* An icon's panel: a preview of the glyph above "Change icon…". */
+#properties-panel .prop-icon-panel {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+#properties-panel .prop-icon-preview {
+    flex: none;
+    width: 52px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface, #f8fafc);
+    font-size: 24px;
+    color: var(--text-main, #0f172a);
+}
+html[data-theme="dark"] #properties-panel .prop-icon-preview {
+    background: var(--dk-raised);
+    border-color: var(--dk-border);
+    color: var(--dk-text);
+}

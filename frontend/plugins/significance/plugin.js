@@ -83,10 +83,10 @@
                 placeholder: "1,2,**\n1,3,0.01",
             },
             { key: "stars", label: "p-values", checkboxLabel: "Show p-values as stars (* < 0.05, ** < 0.01, *** < 0.001, **** < 0.0001)", type: "checkbox" },
-            { key: "color", label: "Colour", type: "color", allowAuto: true },
-            { key: "lineWidth", label: "Line width (px)", type: "number", min: 0.5, max: 8, step: 0.5 },
-            { key: "fontSize", label: "Label size (px)", type: "number", min: 8, max: 48, step: 1 },
-            { key: "tip", label: "Bracket ends (px)", type: "number", min: 0, max: 40, step: 1 },
+            { key: "color", advanced: true, label: "Colour", type: "color", allowAuto: true },
+            { key: "lineWidth", advanced: true, label: "Line width (px)", type: "number", min: 0.5, max: 8, step: 0.5 },
+            { key: "fontSize", advanced: true, label: "Label size (px)", type: "number", min: 8, max: 48, step: 1 },
+            { key: "tip", advanced: true, label: "Bracket ends (px)", type: "number", min: 0, max: 40, step: 1 },
         ],
 
         normalize(data) {

@@ -122,7 +122,7 @@
                 hint: "DNA and RNA use A/C/G/T colours unless this is None.",
             },
             {
-                key: "colorMode",
+                key: "colorMode", advanced: true,
                 label: "Colour",
                 type: "select",
                 options: [
@@ -130,12 +130,12 @@
                     { value: "boxes", label: "Boxes behind the letters" },
                 ],
             },
-            { key: "perLine", label: "Residues per line", type: "number", min: 10, max: 150, step: 10 },
-            { key: "numbering", label: "Numbering", checkboxLabel: "Position numbers at line starts", type: "checkbox" },
-            { key: "title", label: "Title", checkboxLabel: "Show the FASTA name", type: "checkbox" },
+            { key: "perLine", advanced: true, label: "Residues per line", type: "number", min: 10, max: 150, step: 10 },
+            { key: "numbering", advanced: true, label: "Numbering", checkboxLabel: "Position numbers at line starts", type: "checkbox" },
+            { key: "title", advanced: true, label: "Title", checkboxLabel: "Show the FASTA name", type: "checkbox" },
             { key: "highlights", label: "Highlights", type: "table", columns: ["Start", "End", "Colour", "Label"], rows: 4, placeholder: "12,14,#fde68a,motif" },
-            { key: "fontSize", label: "Letter size (px)", type: "number", min: 8, max: 40, step: 1 },
-            { key: "color", label: "Text colour", type: "color", allowAuto: true },
+            { key: "fontSize", advanced: true, label: "Letter size (px)", type: "number", min: 8, max: 40, step: 1 },
+            { key: "color", advanced: true, label: "Text colour", type: "color", allowAuto: true },
         ],
 
         normalize(data) {

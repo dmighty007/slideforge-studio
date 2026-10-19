@@ -90,22 +90,32 @@ function buildPluginPanel(panel, data) {
   const wrap = document.createElement("div");
   wrap.className = "flex flex-col gap-3 plugin-panel";
   wrap.dataset.pluginId = plugin.id;
+  // The data and its main choices first; settings the plugin marks advanced (text size, colours, display details)
+  // fold under "More options": some plugins' panels were 1,400px of settings, most of them seldom changed.
+  const advanced = document.createElement("div");
+  advanced.className = "flex flex-col gap-3";
+  // A setting for another mode stays out of the way (an energy diagram's level tables while it draws a profile).
+  const applies = (field) => !field.when || Object.entries(field.when).every(([key, wanted]) =>
+    (Array.isArray(wanted) ? wanted.map(String) : [String(wanted)]).includes(String(values[key])));
   plugin.fields.forEach((field) => {
+    if (!applies(field)) return;
+    const target = field.advanced ? advanced : wrap;
     if (field.type === "checkbox") {
       const row = document.createElement("div");
       row.innerHTML = _pluginFieldInput(field, values[field.key]);
-      wrap.appendChild(row);
+      target.appendChild(row);
     } else {
       const example = field.type === "table" && String(values[field.key] ?? "") !== "" && String(values[field.key]) === String(plugin.defaultData?.[field.key] ?? "");
-      wrap.appendChild(createField(escapeHtml(field.label), _pluginFieldInput(field, values[field.key], { example })));
+      target.appendChild(createField(escapeHtml(field.label), _pluginFieldInput(field, values[field.key], { example })));
     }
     if (field.hint) {
       const hint = document.createElement("p");
       hint.className = "text-[11px] text-slate-500 -mt-2";
       hint.textContent = field.hint;
-      wrap.appendChild(hint);
+      target.appendChild(hint);
     }
   });
+  if (advanced.children.length) wrap.appendChild(createMoreSection("More options", [advanced], `plugin:${plugin.id}:more`));
   // What the plugin can say about the settings, such as what a lookup found ("Looked up on PubChem: Caffeine").
   const status = typeof plugin.status === "function" ? String(plugin.status(values) || "") : "";
   if (status) {

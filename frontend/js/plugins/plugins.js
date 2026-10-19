@@ -68,6 +68,10 @@ function _normalizePluginField(field) {
         key,
         type,
         label: String(field.label || key),
+        // Set now and then (text size, colours, display details): folded under "More options" in the panel.
+        advanced: field.advanced === true,
+        // Shown only while other settings have these values ({ kind: "levels" }, or a list of values).
+        when: field.when && typeof field.when === "object" && !Array.isArray(field.when) ? { ...field.when } : null,
         // A table field's column names, shown above it (the text itself is CSV, TSV or pasted spreadsheet cells).
         columns: Array.isArray(field.columns) ? field.columns.map(String).slice(0, 50) : [],
         options: Array.isArray(field.options)

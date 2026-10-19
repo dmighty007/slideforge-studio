@@ -152,9 +152,18 @@ document.fonts?.ready?.then(() => requestAnimationFrame(fitInsertToolbar));
 // A weight first used later (the bar's labels) loads after `ready`: measure again whenever fonts arrive.
 document.fonts?.addEventListener?.("loadingdone", () => requestAnimationFrame(fitInsertToolbar));
 if (typeof ResizeObserver === "function") {
+    // Only a change of width: measuring tries each layout, which changes the row's height, and refitting on that
+    // re-measured on every frame (the page drew 4 frames a second).
     const watch = () => {
         const row = document.getElementById("insert-toolbar-row");
-        if (row) new ResizeObserver(() => requestAnimationFrame(fitInsertToolbar)).observe(row);
+        if (!row) return;
+        let width = -1;
+        new ResizeObserver(entries => {
+            const next = Math.round(entries[entries.length - 1].contentRect.width);
+            if (next === width) return;
+            width = next;
+            requestAnimationFrame(fitInsertToolbar);
+        }).observe(row);
     };
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", watch);
     else watch();

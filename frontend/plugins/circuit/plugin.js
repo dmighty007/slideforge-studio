@@ -178,7 +178,7 @@
                 hint: "“node name x y” places a node on the grid (y down). Parts: “R1 a b 10k” — R resistor, C capacitor, L inductor, V source (+ at the first node), B battery, I current source, D diode (anode first), LED, SW switch, M voltmeter, A ammeter, X lamp, W wire. “gnd node” adds a ground symbol below a node. # starts a comment.",
             },
             {
-                key: "style",
+                key: "style", advanced: true,
                 label: "Resistor symbol",
                 type: "select",
                 options: [
@@ -186,10 +186,10 @@
                     { value: "iec", label: "Box (IEC)" },
                 ],
             },
-            { key: "labels", label: "Labels", checkboxLabel: "Show names and values", type: "checkbox" },
-            { key: "lineWidth", label: "Line width (px)", type: "number", min: 0.5, max: 6, step: 0.5 },
-            { key: "fontSize", label: "Label size (px)", type: "number", min: 8, max: 32, step: 1 },
-            { key: "color", label: "Colour", type: "color", allowAuto: true },
+            { key: "labels", advanced: true, label: "Labels", checkboxLabel: "Show names and values", type: "checkbox" },
+            { key: "lineWidth", advanced: true, label: "Line width (px)", type: "number", min: 0.5, max: 6, step: 0.5 },
+            { key: "fontSize", advanced: true, label: "Label size (px)", type: "number", min: 8, max: 32, step: 1 },
+            { key: "color", advanced: true, label: "Colour", type: "color", allowAuto: true },
         ],
 
         normalize(data) {

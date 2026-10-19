@@ -148,10 +148,10 @@
                     { value: "acs", label: "ACS" },
                 ],
             },
-            { key: "maxAuthors", label: "Authors listed before “et al.”", hint: "Nature style always follows its own rule: all authors up to five, else the first author et al.", type: "number", min: 1, max: 50, step: 1 },
-            { key: "showDoi", label: "Link", checkboxLabel: "Add the doi.org link", type: "checkbox" },
-            { key: "fontSize", label: "Text size (px)", type: "number", min: 8, max: 48, step: 1 },
-            { key: "color", label: "Colour", type: "color", allowAuto: true },
+            { key: "maxAuthors", advanced: true, label: "Authors listed before “et al.”", hint: "Nature style always follows its own rule: all authors up to five, else the first author et al.", type: "number", min: 1, max: 50, step: 1 },
+            { key: "showDoi", advanced: true, label: "Link", checkboxLabel: "Add the doi.org link", type: "checkbox" },
+            { key: "fontSize", advanced: true, label: "Text size (px)", type: "number", min: 8, max: 48, step: 1 },
+            { key: "color", advanced: true, label: "Colour", type: "color", allowAuto: true },
         ],
 
         normalize(data) {

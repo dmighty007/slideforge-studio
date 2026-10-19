@@ -38,11 +38,11 @@
             { key: "length", label: "Length", type: "number", min: 0, step: "any", hint: "Size the box so the bar matches this length on the picture." },
             { key: "unit", label: "Unit", type: "select", options: UNITS },
             { key: "label", label: "Label", type: "text", placeholder: "Automatic, e.g. 10 µm" },
-            { key: "color", label: "Colour", type: "color", allowAuto: true },
-            { key: "thickness", label: "Bar thickness (px)", type: "number", min: 1, max: 40, step: 1 },
-            { key: "fontSize", label: "Label size (px)", type: "number", min: 6, max: 72, step: 1 },
+            { key: "color", advanced: true, label: "Colour", type: "color", allowAuto: true },
+            { key: "thickness", advanced: true, label: "Bar thickness (px)", type: "number", min: 1, max: 40, step: 1 },
+            { key: "fontSize", advanced: true, label: "Label size (px)", type: "number", min: 6, max: 72, step: 1 },
             {
-                key: "labelPosition",
+                key: "labelPosition", advanced: true,
                 label: "Label",
                 type: "select",
                 options: [
@@ -51,9 +51,9 @@
                     { value: "none", label: "No label" },
                 ],
             },
-            { key: "endTicks", label: "Ends", checkboxLabel: "End ticks", type: "checkbox" },
+            { key: "endTicks", advanced: true, label: "Ends", checkboxLabel: "End ticks", type: "checkbox" },
             {
-                key: "backing",
+                key: "backing", advanced: true,
                 label: "Backing",
                 type: "select",
                 options: [
