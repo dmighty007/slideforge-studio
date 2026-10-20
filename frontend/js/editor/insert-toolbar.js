@@ -176,6 +176,53 @@ if (typeof ResizeObserver === "function") {
 window.fitInsertToolbar = fitInsertToolbar;
 window.closeInsertGroupMenus = closeInsertGroupMenus;
 
+// "Show button names": a short name under each icon-only button of the top bar (the icons alone were not
+// self-explanatory; their tooltips help only with a mouse).
+const TOOLBAR_BUTTON_NAMES_KEY = "slideforge_toolbar_button_names";
+const TOOLBAR_BUTTON_NAMES = [
+    ["[title^='Start screen']", "Home"],
+    ["[title='New Project']", "New"],
+    ["[title='Open Saved Project']", "Open"],
+    ["[title='Save Project']", "Save"],
+    ["[aria-label='Open command palette']", "Search"],
+    ["#btn-undo", "Undo"],
+    ["#btn-redo", "Redo"],
+    ["#toggle-app-theme", "Theme"],
+    ["#toggle-properties-panel", "Properties"],
+    ["#toggle-editor-focus", "Focus"],
+    ["#toggle-layers-popover", "Layers"],
+    ["#editor-tools-menu > summary", "More"],
+    ["#btn-share", "Share"],
+    ["#btn-present", "Present"],
+    ["[title='Export']", "Export"],
+];
+
+// Only buttons that show no words of their own get a name (Share and Export show theirs on a wide window).
+function _labelToolbarButtons() {
+    TOOLBAR_BUTTON_NAMES.forEach(([selector, name]) => {
+        const button = document.querySelector(`#app-toolbar ${selector}`);
+        if (!button) return;
+        button.removeAttribute("data-short-label");
+        if (!button.innerText.trim()) button.setAttribute("data-short-label", name);
+    });
+}
+window.addEventListener("resize", () => {
+    if (document.body.classList.contains("sf-button-names")) requestAnimationFrame(_labelToolbarButtons);
+});
+
+function setToolbarButtonNames(on, { persist = true } = {}) {
+    _labelToolbarButtons();
+    document.body.classList.toggle("sf-button-names", Boolean(on));
+    document.getElementById("toggle-button-names")?.setAttribute("aria-pressed", on ? "true" : "false");
+    if (persist) {
+        try {
+            localStorage.setItem(TOOLBAR_BUTTON_NAMES_KEY, on ? "1" : "0");
+        } catch (_err) { /* storage blocked */ }
+    }
+    requestAnimationFrame(() => window.handleEditorViewportResize?.());
+}
+window.setToolbarButtonNames = setToolbarButtonNames;
+
 function setUpEditorToolsMenu() {
     const cluster = document.querySelector("#app-toolbar .toolbar-icon-cluster");
     if (!cluster || document.getElementById("editor-tools-menu")) return;
@@ -204,9 +251,29 @@ function setUpEditorToolsMenu() {
         name.textContent = label;
         list.appendChild(button);
     });
+    // Help for what the icons and gestures do, and names under the icons for those who want them.
+    const extra = (icon, label, onClick, id) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "toolbar-btn";
+        if (id) button.id = id;
+        button.innerHTML = `<i class="fa-solid ${icon}" aria-hidden="true"></i><span class="toolbar-btn-label"></span>`;
+        button.querySelector(".toolbar-btn-label").textContent = label;
+        button.addEventListener("click", onClick);
+        list.appendChild(button);
+        return button;
+    };
+    extra("fa-keyboard", "Shortcuts and gestures", () => window.openShortcutsModal?.());
+    const names = extra("fa-tag", "Show button names", () => setToolbarButtonNames(!document.body.classList.contains("sf-button-names")), "toggle-button-names");
+    names.setAttribute("aria-pressed", "false");
     // Separators no longer separate the commands they originally accompanied.
     cluster.querySelectorAll(":scope > .w-px").forEach(node => node.remove());
     cluster.appendChild(menu);
+    let saved = false;
+    try {
+        saved = localStorage.getItem(TOOLBAR_BUTTON_NAMES_KEY) === "1";
+    } catch (_err) { /* storage blocked */ }
+    setToolbarButtonNames(saved, { persist: false });
     list.addEventListener("click", event => {
         if (event.target.closest("button")) menu.open = false;
     });

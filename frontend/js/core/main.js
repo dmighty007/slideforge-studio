@@ -216,11 +216,106 @@ function isPropertiesDrawer() {
 }
 window.isPropertiesDrawer = isPropertiesDrawer;
 
+const PROPERTIES_DRAWER_WIDTH_KEY = "slideforge_properties_drawer_width";
+
+// The drawer's width: dragged by its left edge, remembered. Beside the slide (wider windows) the panel keeps its
+// fixed width, which the slide's fit is measured against.
+function applyPropertiesDrawerWidth() {
+    const panel = document.getElementById("properties-panel");
+    if (!panel) return;
+    if (!isPropertiesDrawer()) {
+        panel.style.removeProperty("width");
+        panel.style.removeProperty("flex-basis");
+        return;
+    }
+    let width = 0;
+    try {
+        width = Number(localStorage.getItem(PROPERTIES_DRAWER_WIDTH_KEY)) || 0;
+    } catch (_err) { /* storage blocked */ }
+    if (!width) {
+        panel.style.removeProperty("width");
+        return;
+    }
+    width = Math.round(Math.max(260, Math.min(width, 560, window.innerWidth - 80)));
+    panel.style.setProperty("width", `${width}px`, "important");
+    panel.style.setProperty("flex-basis", `${width}px`, "important");
+}
+window.applyPropertiesDrawerWidth = applyPropertiesDrawerWidth;
+
+function initPropertiesDrawerResize() {
+    const panel = document.getElementById("properties-panel");
+    const grip = panel?.querySelector(".properties-drawer-resizer");
+    if (!grip) return;
+    grip.addEventListener("pointerdown", event => {
+        if (!isPropertiesDrawer() || event.button !== 0) return;
+        event.preventDefault();
+        grip.setPointerCapture?.(event.pointerId);
+        document.body.classList.add("sf-resizing-drawer");
+        const right = panel.getBoundingClientRect().right;
+        const move = e => {
+            const width = Math.round(Math.max(260, Math.min(right - e.clientX, 560, window.innerWidth - 80)));
+            panel.style.setProperty("width", `${width}px`, "important");
+            panel.style.setProperty("flex-basis", `${width}px`, "important");
+        };
+        const up = () => {
+            grip.removeEventListener("pointermove", move);
+            grip.removeEventListener("pointerup", up);
+            grip.removeEventListener("pointercancel", up);
+            document.body.classList.remove("sf-resizing-drawer");
+            try {
+                localStorage.setItem(PROPERTIES_DRAWER_WIDTH_KEY, String(panel.offsetWidth));
+            } catch (_err) { /* storage blocked */ }
+            window.handleEditorViewportResize?.();
+            revealSelectionBesideDrawerSoon();
+        };
+        grip.addEventListener("pointermove", move);
+        grip.addEventListener("pointerup", up);
+        grip.addEventListener("pointercancel", up);
+    });
+}
+
+// With the drawer open over the canvas, the selected objects (or, with none, the slide's left part) are scrolled
+// into the room left of it: it covered the right of a chart being edited. applyZoom gives the canvas the drawer's
+// width of extra room on the right, so there is somewhere to scroll to.
+function revealSelectionBesideDrawer() {
+    const panel = document.getElementById("properties-panel");
+    const wrapper = document.getElementById("canvas-wrapper");
+    if (!panel || !wrapper || panel.classList.contains("hidden") || !isPropertiesDrawer()) return;
+    const boxes = (state.selectedIds || [])
+        .map(id => typeof getActiveSlideElementDom === "function" ? getActiveSlideElementDom(id) : document.getElementById(id))
+        .filter(Boolean)
+        .map(node => node.getBoundingClientRect());
+    const slide = document.querySelector(".reveal .slides section.present")?.getBoundingClientRect();
+    const target = boxes.length
+        ? { left: Math.min(...boxes.map(b => b.left)), right: Math.max(...boxes.map(b => b.right)) }
+        : slide && { left: slide.left, right: slide.right };
+    if (!target) return;
+    const roomLeft = wrapper.getBoundingClientRect().left + 16;
+    const roomRight = panel.getBoundingClientRect().left - 16;
+    const need = target.right - roomRight; // how far it runs under the drawer
+    const spare = target.left - roomLeft; // how far it can move left and still show its left edge
+    const shift = need > 0 ? Math.min(need, Math.max(0, spare)) : spare < 0 ? spare : 0;
+    if (Math.abs(shift) >= 1) {
+        wrapper.scrollLeft += shift;
+        window.updateFloatingToolbars?.(); // the object's toolbar moves with it
+        window.updateGroupBound?.();
+    }
+}
+window.revealSelectionBesideDrawer = revealSelectionBesideDrawer;
+
+// Once the slide has been centred again, and once more after the canvas has grown its extra room (its width is
+// animated over 0.2s, and scrolling before that ran out of room).
+function revealSelectionBesideDrawerSoon() {
+    setTimeout(revealSelectionBesideDrawer, 80);
+    setTimeout(revealSelectionBesideDrawer, 320);
+}
+
 function setPropertiesPanelVisible(visible, { persist = true } = {}) {
     const panel = document.getElementById("properties-panel");
     const button = document.getElementById("toggle-properties-panel");
     if (!panel) return;
     if (isPropertiesDrawer()) persist = false;
+    applyPropertiesDrawerWidth();
 
     panel.classList.toggle("hidden", !visible);
     if (button) {
@@ -240,6 +335,8 @@ function setPropertiesPanelVisible(visible, { persist = true } = {}) {
         if (typeof updateFloatingToolbars === "function") {
             updateFloatingToolbars();
         }
+        // After the fitted slide is centred again (two frames on).
+        if (visible) revealSelectionBesideDrawerSoon();
     });
 }
 window.setPropertiesPanelVisible = setPropertiesPanelVisible;
@@ -269,7 +366,9 @@ function initPropertiesPanelToggle() {
     // panel stays as it was (open, it now sits beside the slide).
     PROPERTIES_DRAWER_QUERY?.addEventListener?.("change", event => {
         if (event.matches) setPropertiesPanelVisible(false, { persist: false });
+        else applyPropertiesDrawerWidth();
     });
+    initPropertiesDrawerResize();
     // A click on an empty part of the canvas (nothing selected after it) closes the drawer; choosing another object
     // keeps it open, showing that object.
     document.getElementById("canvas-wrapper")?.addEventListener("pointerup", () => {

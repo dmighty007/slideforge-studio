@@ -867,10 +867,11 @@
 
         <!-- ══════════════════════════════════════ RIGHT PANEL (Properties) -->
         <aside id="properties-panel" class="w-80 properties-inspector bg-white border-l border-border flex flex-col z-20 shrink-0 shadow-panel hidden">
+            <div class="properties-drawer-resizer" role="separator" aria-orientation="vertical" aria-label="Drawer width" title="Drag to resize"></div>
             <div class="h-11 border-b border-border flex items-center px-4 shrink-0">
                 <h2 class="text-xs font-bold text-text-sub uppercase tracking-widest">Properties</h2>
                 <button type="button" class="panel-collapse-btn ml-auto" onclick="setPropertiesPanelVisible(false)" aria-label="Collapse properties" title="Collapse properties">
-                    <i class="fa-solid fa-chevron-right"></i>
+                    <i class="fa-solid fa-chevron-right"></i><span class="panel-done-label">Done</span>
                 </button>
             </div>
             <div class="flex-1 overflow-y-auto" id="properties-content">
@@ -1068,99 +1069,77 @@
     </div>
     <!-- ══════════════════════════════════════════ KEYBOARD SHORTCUTS MODAL -->
     <div id="shortcuts-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] hidden items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-scaleIn">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden animate-scaleIn shortcuts-dialog" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
             <div class="px-6 py-4 border-b border-border flex items-center justify-between bg-surface/50">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
                         <i class="fa-solid fa-keyboard text-lg"></i>
                     </div>
                     <div>
-                        <h2 class="text-lg font-bold text-text-main">Keyboard Shortcuts</h2>
-                        <p class="text-xs text-text-sub">Power user cheat sheet</p>
+                        <h2 id="shortcuts-title" class="text-lg font-bold text-text-main">Shortcuts and gestures</h2>
+                        <p class="text-xs text-text-sub">Keyboard, mouse, trackpad and touch. On a Mac, Cmd for Ctrl.</p>
                     </div>
                 </div>
-                <button onclick="closeShortcutsModal()" class="w-8 h-8 rounded-lg hover:bg-surface flex items-center justify-center transition-colors">
+                <button onclick="closeShortcutsModal()" class="w-8 h-8 rounded-lg hover:bg-surface flex items-center justify-center transition-colors" aria-label="Close">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
-            <div class="p-6 grid grid-cols-2 gap-x-12 gap-y-6 overflow-y-auto max-h-[70vh]">
+            <div class="shortcut-grid">
                 <section>
-                    <h3 class="text-xs font-bold text-text-sub uppercase tracking-wider mb-4">General</h3>
-                    <div class="space-y-3">
-                        <div class="flex items-center justify-between group">
-                            <span class="text-sm text-text-main">Save Project</span>
-                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Ctrl + S</span>
-                        </div>
-                        <div class="flex items-center justify-between group">
-                            <span class="text-sm text-text-main">Undo / Redo</span>
-                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Ctrl + Z / Y</span>
-                        </div>
-                        <div class="flex items-center justify-between group">
-                            <span class="text-sm text-text-main">New Slide</span>
-                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Ctrl + M</span>
-                        </div>
+                    <h3 class="shortcut-heading">General</h3>
+                    <div class="shortcut-list">
+                        <div class="shortcut-row"><span>Save</span><kbd>Ctrl + S</kbd></div>
+                        <div class="shortcut-row"><span>Undo / Redo</span><kbd>Ctrl + Z / Y</kbd></div>
+                        <div class="shortcut-row"><span>New slide</span><kbd>Ctrl + M</kbd></div>
+                        <div class="shortcut-row"><span>Command palette</span><kbd>Ctrl + K</kbd></div>
+                        <div class="shortcut-row"><span>This help</span><kbd>F1</kbd></div>
                     </div>
                 </section>
                 <section>
-                    <h3 class="text-xs font-bold text-text-sub uppercase tracking-wider mb-4">Editing</h3>
-                    <div class="space-y-3">
-                        <div class="flex items-center justify-between group">
-                            <span class="text-sm text-text-main">Copy / Paste</span>
-                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Ctrl + C / V</span>
-                        </div>
-                        <div class="flex items-center justify-between group">
-                            <span class="text-sm text-text-main">Duplicate selection (or the slide)</span>
-                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Ctrl + D</span>
-                        </div>
-                        <div class="flex items-center justify-between group">
-                            <span class="text-sm text-text-main">Duplicate Elements</span>
-                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Ctrl + Shift + D</span>
-                        </div>
+                    <h3 class="shortcut-heading">Editing</h3>
+                    <div class="shortcut-list">
+                        <div class="shortcut-row"><span>Cut / Copy / Paste</span><kbd>Ctrl + X / C / V</kbd></div>
+                        <div class="shortcut-row"><span>Duplicate (or the slide)</span><kbd>Ctrl + D</kbd></div>
+                        <div class="shortcut-row"><span>Select all</span><kbd>Ctrl + A</kbd></div>
+                        <div class="shortcut-row"><span>Group / Ungroup</span><kbd>Ctrl + G / Ctrl + Shift + G</kbd></div>
+                        <div class="shortcut-row"><span>Nudge (10 px with Shift)</span><kbd>Arrows</kbd></div>
+                        <div class="shortcut-row"><span>Deselect / close</span><kbd>Esc</kbd></div>
                     </div>
                 </section>
                 <section>
-                    <h3 class="text-xs font-bold text-text-sub uppercase tracking-wider mb-4">Layout</h3>
-                    <div class="space-y-3">
-                        <div class="flex items-center justify-between group">
-                            <span class="text-sm text-text-main">Select All</span>
-                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Ctrl + A</span>
-                        </div>
-                        <div class="flex items-center justify-between group">
-                            <span class="text-sm text-text-main">Group Elements</span>
-                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Alt + G</span>
-                        </div>
-                        <div class="flex items-center justify-between group">
-                            <span class="text-sm text-text-main">Ungroup</span>
-                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Alt + Shift + G</span>
-                        </div>
-                        <div class="flex items-center justify-between group">
-                            <span class="text-sm text-text-main">Nudge Elements</span>
-                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Arrows</span>
-                        </div>
-                        <div class="flex items-center justify-between group">
-                            <span class="text-sm text-text-main">Fast Nudge</span>
-                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Shift + Arrows</span>
-                        </div>
+                    <h3 class="shortcut-heading">Mouse and trackpad</h3>
+                    <div class="shortcut-list">
+                        <div class="shortcut-row"><span>Select one object of a group</span><kbd>Click it again</kbd></div>
+                        <div class="shortcut-row"><span>Zoom about the pointer</span><kbd>Ctrl + wheel, or pinch</kbd></div>
+                        <div class="shortcut-row"><span>Pan the canvas</span><kbd>Space + drag, or middle drag</kbd></div>
+                        <div class="shortcut-row"><span>Keep proportions while resizing</span><kbd>Shift</kbd></div>
+                        <div class="shortcut-row"><span>Resize from the centre</span><kbd>Ctrl</kbd></div>
+                        <div class="shortcut-row"><span>Move or resize without snapping</span><kbd>Alt</kbd></div>
+                        <div class="shortcut-row"><span>Object or slide menu</span><kbd>Right-click</kbd></div>
                     </div>
                 </section>
                 <section>
-                    <h3 class="text-xs font-bold text-text-sub uppercase tracking-wider mb-4">Support</h3>
-                    <div class="space-y-3">
-                        <div class="flex items-center justify-between group">
-                            <span class="text-sm text-text-main">Show this Help</span>
-                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">F1</span>
-                        </div>
-                        <div class="flex items-center justify-between group">
-                            <span class="text-sm text-text-main">Deselect / Close</span>
-                            <span class="px-2 py-1 bg-surface border border-border rounded-md text-[10px] font-mono text-text-sub group-hover:border-primary/30 transition-colors">Esc</span>
-                        </div>
+                    <h3 class="shortcut-heading">Touch</h3>
+                    <div class="shortcut-list">
+                        <div class="shortcut-row"><span>Zoom</span><kbd>Pinch</kbd></div>
+                        <div class="shortcut-row"><span>Pan</span><kbd>Two fingers, or one on empty canvas</kbd></div>
+                        <div class="shortcut-row"><span>Edit text</span><kbd>Double-tap</kbd></div>
+                        <div class="shortcut-row"><span>Object or slide menu</span><kbd>Touch and hold</kbd></div>
+                    </div>
+                </section>
+                <section>
+                    <h3 class="shortcut-heading">Presenting</h3>
+                    <div class="shortcut-list">
+                        <div class="shortcut-row"><span>Next / previous step</span><kbd>Click, arrows, wheel</kbd></div>
+                        <div class="shortcut-row"><span>Next / previous step (touch)</span><kbd>Swipe left / right</kbd></div>
+                        <div class="shortcut-row"><span>Laser / chalk</span><kbd>L / B</kbd></div>
+                        <div class="shortcut-row"><span>Presenter view</span><kbd>P</kbd></div>
+                        <div class="shortcut-row"><span>End the show</span><kbd>Esc</kbd></div>
                     </div>
                 </section>
             </div>
             <div class="px-6 py-4 bg-surface/30 border-t border-border flex justify-end">
-                <button onclick="closeShortcutsModal()" class="px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary-hover transition-all shadow-lg shadow-primary/20">
-                    Got it
-                </button>
+                <button onclick="closeShortcutsModal()" class="shortcuts-done">Got it</button>
             </div>
         </div>
     </div>

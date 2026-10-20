@@ -70,6 +70,9 @@ function _normalizePluginField(field) {
         label: String(field.label || key),
         // Set now and then (text size, colours, display details): folded under "More options" in the panel.
         advanced: field.advanced === true,
+        // Settings for one optional part of the object (a box plot's comparison brackets): folded together under
+        // this name, open once used.
+        section: typeof field.section === "string" && field.section.trim() ? field.section.trim().slice(0, 40) : null,
         // Shown only while other settings have these values ({ kind: "levels" }, or a list of values).
         when: field.when && typeof field.when === "object" && !Array.isArray(field.when) ? { ...field.when } : null,
         // A table field's column names, shown above it (the text itself is CSV, TSV or pasted spreadsheet cells).
@@ -939,7 +942,7 @@ async function insertPluginElement(pluginId, data = null, { ask = true } = {}) {
             el.height = `${fitted.height}px`;
             // Grown, it goes where it covers the least of the slide (it would hang over the edge or the footer).
             const slide = state.slides.find(item => (item.elements || []).includes(el));
-            if (bounds && slide === state.slides[currentSlideIndex] && typeof placeWhereFree === "function") placeWhereFree(slide, el, { claim: false });
+            if (bounds && slide === state.slides[currentSlideIndex] && typeof placeWhereFree === "function") placeWhereFree(slide, el, { claim: false, quiet: true });
         }
     }
     // The picture kept in the element, for its final box (thumbnails and exports use it).

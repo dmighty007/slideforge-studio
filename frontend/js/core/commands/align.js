@@ -203,6 +203,74 @@ function fitSelectionToContentArea() {
 }
 
 
+// After an insert that had to be made smaller (or still covers something): a notice over the canvas offering the
+// content area (over what is there) or a new slide with the object alone, at its full size. Gone after a while,
+// on the next insert, or when the object is no longer selected.
+let _placementNoticeTimer = 0;
+
+function hidePlacementNotice() {
+    clearTimeout(_placementNoticeTimer);
+    document.getElementById("placement-notice")?.remove();
+}
+
+function showPlacementNotice(id, { width, height, covers = false } = {}) {
+    hidePlacementNotice();
+    const slide = state.slides[currentSlideIndex];
+    if (!slide?.elements.some(el => el.id === id)) return;
+    const wrapper = document.getElementById("canvas-wrapper");
+    if (!wrapper) return;
+    const notice = document.createElement("div");
+    notice.id = "placement-notice";
+    notice.className = "placement-notice";
+    notice.setAttribute("role", "status");
+    notice.innerHTML = `<span class="placement-notice__text"></span>
+        <button type="button" data-placement="fit">Fit to content area</button>
+        <button type="button" data-placement="slide">Move to a new slide</button>
+        <button type="button" data-placement="close" class="placement-notice__close" aria-label="Dismiss"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`;
+    notice.querySelector(".placement-notice__text").textContent = covers
+        ? "This slide is full, so the new object overlaps others."
+        : "This slide is busy, so the new object came in smaller.";
+    notice.addEventListener("click", event => {
+        const action = event.target.closest("[data-placement]")?.dataset.placement;
+        if (!action) return;
+        hidePlacementNotice();
+        if (action === "fit") {
+            setSelectedIds([id]);
+            fitSelectionToContentArea();
+            selectElement(id, "replace");
+        } else if (action === "slide") {
+            moveElementToNewSlide(id, { width, height });
+        }
+    });
+    // Over the bottom of the canvas, clear of the zoom buttons.
+    wrapper.parentElement.appendChild(notice);
+    _placementNoticeTimer = setTimeout(hidePlacementNotice, 12000);
+}
+
+// The object alone on a new slide after this one, given that slide's content area at its requested size.
+function moveElementToNewSlide(id, size = {}) {
+    const from = currentSlideIndex;
+    const element = state.slides[from]?.elements.find(el => el.id === id);
+    if (!element) return;
+    // addSlide keeps the undo step: one undo puts the object back where it was.
+    addSlide();
+    const source = state.slides[from];
+    source.elements = source.elements.filter(el => el.id !== id);
+    const target = state.slides[currentSlideIndex];
+    const moved = { ...element, x: 100, y: 100 };
+    if (size.width) moved.width = `${size.width}px`;
+    if (size.height) moved.height = `${size.height}px`;
+    if (!claimContentPlaceholder(target, moved)) placeInContentPlaceholder(target, moved, { anywhere: true });
+    target.elements.push(moved);
+    renderSlidesFromState();
+    selectElement(id, "replace");
+    window.renderSlidePreviews?.();
+    schedulePresentationAutosave?.(150);
+}
+window.showPlacementNotice = showPlacementNotice;
+window.hidePlacementNotice = hidePlacementNotice;
+window.moveElementToNewSlide = moveElementToNewSlide;
+
 const _nextFrames = (count = 2) => new Promise(resolve => {
     const step = left => (left ? requestAnimationFrame(() => step(left - 1)) : resolve());
     step(count);

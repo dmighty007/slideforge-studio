@@ -219,15 +219,23 @@
 }
 .plugin-table-footer {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: 6px 8px;
 }
 .plugin-table-summary {
+    flex: 1 1 140px;
     font-size: 11px;
     color: #64748b;
 }
+.plugin-table-actions {
+    display: inline-flex;
+    flex: 0 0 auto;
+    gap: 4px;
+}
 .plugin-table-load {
+    white-space: nowrap; /* "Load CSV…" broke onto two lines in the 320px panel */
     padding: 3px 8px;
     border: 1px solid #cbd5e1;
     border-radius: 6px;
@@ -4570,3 +4578,71 @@ body.whiteboard-mode-active
 
 /* Embedded frames must not swallow the pointer release during an object drag. */
 body.sf-moving-element iframe { pointer-events: none !important; }
+
+/* The larger data editor for a plugin's table field (properties/panels/plugin.js). */
+.plugin-table-editor {
+    width: min(920px, calc(100vw - 32px));
+    height: min(640px, calc(100vh - 32px));
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel-card, #fff);
+    color: var(--text-main);
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+}
+.plugin-table-editor::backdrop {
+    background: rgba(15, 23, 42, 0.35);
+}
+.plugin-table-editor__body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    height: 100%;
+    padding: 16px;
+    box-sizing: border-box;
+}
+.plugin-table-editor__title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+}
+.plugin-table-editor__input {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    resize: none;
+    padding: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre;
+    tab-size: 12;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-soft, #f8fafc);
+    color: var(--text-main);
+}
+.plugin-table-editor__footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.plugin-table-editor__summary {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text-sub);
+}
+.plugin-table-editor__cancel,
+.plugin-table-editor__apply {
+    padding: 7px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    background: var(--panel-card, #fff);
+    color: var(--text-main);
+}
+.plugin-table-editor__apply {
+    border-color: var(--primary, #4f46e5);
+    background: var(--primary, #4f46e5);
+    color: #fff;
+}

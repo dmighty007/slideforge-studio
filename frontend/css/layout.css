@@ -4032,12 +4032,12 @@ button:focus:not(:focus-visible) {
 }
 
 @media (max-width: 720px) {
+    /* Two rows, not three: the logo beside the deck's name (alone on its row it took 37px for a 30px icon). */
     #app-toolbar .toolbar-primary-row {
-        grid-template-columns: 1fr;
+        grid-template-columns: auto minmax(0, 1fr);
         grid-template-areas:
-            "brand"
-            "project"
-            "actions";
+            "brand project"
+            "actions actions";
     }
 
     #app-toolbar .toolbar-brand {

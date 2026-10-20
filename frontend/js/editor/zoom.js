@@ -347,7 +347,13 @@ function applyZoom(options = {}) {
         const padY = padMiddle + topInset; // slide's top offset: below the insert bar
         const padBelow = padMiddle + bottomInset;
 
-        engine.style.width = `${scaledW + padX * 2}px`;
+        // Room on the right as wide as the Properties drawer, while it lies over the canvas, so what it covers can
+        // be scrolled into view beside it (main.js, revealSelectionBesideDrawer).
+        const drawer = document.getElementById("properties-panel");
+        const drawerRoom = typeof isPropertiesDrawer === "function" && isPropertiesDrawer() && drawer && !drawer.classList.contains("hidden")
+            ? drawer.offsetWidth
+            : 0;
+        engine.style.width = `${scaledW + padX * 2 + drawerRoom}px`;
         engine.style.height = `${scaledH + padY + padBelow}px`;
         engine.style.left = "0";
         engine.style.top = "0";
@@ -504,6 +510,8 @@ function centerSlide() {
                 top: Math.max(0, targetTop),
                 behavior: 'auto' // Use auto for instant programmatic resets
             });
+            // With the Properties drawer open, what is selected goes beside it rather than under it.
+            window.revealSelectionBesideDrawer?.();
         });
     });
 }

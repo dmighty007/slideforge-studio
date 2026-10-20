@@ -326,8 +326,8 @@
             },
             { key: "fill", advanced: true, label: "Colour (one for all)", type: "color" },
             {
-                key: "comparisons",
-                label: "Comparisons",
+                key: "comparisons", section: "Comparisons",
+                label: "Pairs to compare",
                 type: "table",
                 columns: ["From group", "To group", "p-value or label"],
                 rows: 5,
@@ -335,7 +335,7 @@
                 hint: "Groups by name or number. Leave the label empty to compute the p-value with the test below; brackets sit above the plot and follow it.",
             },
             {
-                key: "test", advanced: true,
+                key: "test", section: "Comparisons",
                 label: "Test (empty labels)",
                 type: "select",
                 options: [
@@ -344,7 +344,7 @@
                 ],
             },
             {
-                key: "pShow", advanced: true,
+                key: "pShow", section: "Comparisons",
                 label: "p-values",
                 type: "select",
                 options: [

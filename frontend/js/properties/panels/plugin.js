@@ -21,7 +21,10 @@ function _pluginFieldInput(field, value, { example = false } = {}) {
     return `${columns}${exampleTag}<textarea id="${id}" rows="${field.rows || 6}" class="w-full text-xs font-mono plugin-table-input" spellcheck="false" wrap="off" placeholder="${placeholder}">${escapeHtml(value ?? "")}</textarea>
       <div class="plugin-table-footer">
         <span id="${id}-summary" class="plugin-table-summary">${escapeHtml(_pluginTableSummary(value, field))} · applied when you leave the box (Ctrl+Enter)</span>
-        <button type="button" id="${id}-load" class="plugin-table-load"><i class="fa-solid fa-file-csv"></i> Load CSV…</button>
+        <span class="plugin-table-actions">
+          <button type="button" id="${id}-expand" class="plugin-table-load" title="Edit the data in a larger box"><i class="fa-solid fa-up-right-and-down-left-from-center"></i> Expand</button>
+          <button type="button" id="${id}-load" class="plugin-table-load" title="Load CSV or TSV from a file"><i class="fa-solid fa-file-csv"></i> Load CSV…</button>
+        </span>
         <input type="file" id="${id}-file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain" hidden>
       </div>`;
   }
@@ -97,9 +100,19 @@ function buildPluginPanel(panel, data) {
   // A setting for another mode stays out of the way (an energy diagram's level tables while it draws a profile).
   const applies = (field) => !field.when || Object.entries(field.when).every(([key, wanted]) =>
     (Array.isArray(wanted) ? wanted.map(String) : [String(wanted)]).includes(String(values[key])));
+  // Named sections (a box plot's comparisons): open when one of their settings is in use, otherwise folded.
+  const sections = new Map();
+  const sectionFor = (name) => {
+    if (!sections.has(name)) {
+      const body = document.createElement("div");
+      body.className = "flex flex-col gap-3";
+      sections.set(name, body);
+    }
+    return sections.get(name);
+  };
   plugin.fields.forEach((field) => {
     if (!applies(field)) return;
-    const target = field.advanced ? advanced : wrap;
+    const target = field.section ? sectionFor(field.section) : field.advanced ? advanced : wrap;
     if (field.type === "checkbox") {
       const row = document.createElement("div");
       row.innerHTML = _pluginFieldInput(field, values[field.key]);
@@ -114,6 +127,16 @@ function buildPluginPanel(panel, data) {
       hint.textContent = field.hint;
       target.appendChild(hint);
     }
+  });
+  sections.forEach((body, name) => {
+    const key = `plugin:${plugin.id}:section:${name}`;
+    // In use (a field differs from the plugin's default): the section is shown open the first time.
+    const used = plugin.fields.some((f) => f.section === name && String(values[f.key] ?? "") !== String(plugin.defaultData?.[f.key] ?? ""));
+    if (used && typeof _openPropertySections !== "undefined" && !_openPropertySections.has(`${key}:seen`)) {
+      _openPropertySections.add(key);
+      _openPropertySections.add(`${key}:seen`);
+    }
+    wrap.appendChild(createMoreSection(name, [body], key));
   });
   if (advanced.children.length) wrap.appendChild(createMoreSection("More options", [advanced], `plugin:${plugin.id}:more`));
   // What the plugin can say about the settings, such as what a lookup found ("Looked up on PubChem: Caffeine").
@@ -261,6 +284,8 @@ function bindPluginPanel(data) {
       };
       if (clear) clear.onclick = () => commit(field.key, "");
       input.onchange = () => commit(field.key, input.value.replace(/\s+$/, ""));
+      const expand = document.getElementById(`${id}-expand`);
+      if (expand) expand.onclick = () => openPluginTableEditor(field, input.value, (text) => commit(field.key, text.replace(/\s+$/, "")));
       const load = document.getElementById(`${id}-load`);
       if (load && file) {
         load.onclick = () => file.click();
@@ -289,3 +314,56 @@ function bindPluginPanel(data) {
     }
   });
 }
+
+// A larger box for a table field's data (the panel's box shows six or seven rows of a narrow column): a dialog
+// most of the window's size, with the column names above, Tab typing a tab, Apply and Cancel.
+function openPluginTableEditor(field, text, apply) {
+  document.getElementById("plugin-table-editor")?.remove();
+  const dialog = document.createElement("dialog");
+  dialog.id = "plugin-table-editor";
+  dialog.className = "plugin-table-editor";
+  dialog.setAttribute("aria-label", `${field.label}: data`);
+  const columns = field.columns?.length
+    ? `<div class="plugin-table-columns">${field.columns.map((name) => `<span>${escapeHtml(name)}</span>`).join("")}</div>`
+    : "";
+  dialog.innerHTML = `
+    <form method="dialog" class="plugin-table-editor__body">
+      <h2 class="plugin-table-editor__title"></h2>
+      ${columns}
+      <textarea class="plugin-table-editor__input font-mono" spellcheck="false" wrap="off"></textarea>
+      <div class="plugin-table-editor__footer">
+        <span class="plugin-table-editor__summary"></span>
+        <button type="button" class="plugin-table-editor__cancel">Cancel</button>
+        <button type="submit" value="apply" class="plugin-table-editor__apply">Apply</button>
+      </div>
+    </form>`;
+  dialog.querySelector(".plugin-table-editor__title").textContent = field.label;
+  const box = dialog.querySelector("textarea");
+  const summary = dialog.querySelector(".plugin-table-editor__summary");
+  box.value = text || "";
+  box.placeholder = field.placeholder || "";
+  const update = () => { summary.textContent = `${_pluginTableSummary(box.value, field)} · Ctrl+Enter applies`; };
+  update();
+  box.addEventListener("input", update);
+  box.addEventListener("keydown", (event) => {
+    event.stopPropagation(); // the editor's shortcuts stay out of the box
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      dialog.querySelector(".plugin-table-editor__apply").click();
+    } else if (event.key === "Tab" && !event.shiftKey) {
+      event.preventDefault();
+      box.setRangeText("\t", box.selectionStart, box.selectionEnd, "end");
+      update();
+    }
+  });
+  dialog.querySelector(".plugin-table-editor__cancel").onclick = () => dialog.close("cancel");
+  dialog.addEventListener("close", () => {
+    if (dialog.returnValue === "apply") apply(box.value);
+    dialog.remove();
+  });
+  document.body.appendChild(dialog);
+  dialog.showModal();
+  box.focus();
+  return dialog;
+}
+window.openPluginTableEditor = openPluginTableEditor;

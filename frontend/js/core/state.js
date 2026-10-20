@@ -164,7 +164,7 @@ function _contentAreaUnderLoneTitle(slide, element) {
 // anywhere: place it whatever its starting position (for inserts whose default spot is only a guess: equations,
 // flowcharts, embeds and icons landed at fixed spots on top of whatever was there). claim: false keeps it out of
 // the content placeholder (an icon should not take the bullet box's place).
-function placeInContentPlaceholder(slide, element, { anywhere = false, claim = true } = {}) {
+function placeInContentPlaceholder(slide, element, { anywhere = false, claim = true, quiet = false } = {}) {
     if (claim && claimContentPlaceholder(slide, element)) return element;
     if (!anywhere && (parseFloat(element.x) !== 100 || parseFloat(element.y) !== 100)) return element;
     const width = parseFloat(element.width);
@@ -200,6 +200,13 @@ function placeInContentPlaceholder(slide, element, { anywhere = false, claim = t
     }
     element.x = best.x;
     element.y = best.y;
+    // A plot or picture that had to come in smaller, or still covers something: say so, with a way to give it the
+    // content area or a slide of its own (it was left small, and nothing said why).
+    const plotLike = ["chart", "plugin", "image", "molecule", "mermaid", "pdf", "video", "table"].includes(element.type);
+    if (!quiet && plotLike && (best.overlap > 0 || best.width < width - 0.5) && typeof showPlacementNotice === "function") {
+        const id = element.id;
+        setTimeout(() => showPlacementNotice(id, { width, height, covers: best.overlap > 0 }), 0);
+    }
     return element;
 }
 

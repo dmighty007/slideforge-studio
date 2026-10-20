@@ -6418,8 +6418,13 @@ async function test(name, fn) {
         await page.locator(`.slides .presentation-slide.present [id="${id}"]`).click({ force: true });
         await page.waitForTimeout(300);
         assert(!(await hidden()), "choosing an object closed the drawer");
-        const slide = await page.evaluate(() => { const b = document.querySelector(".slides .presentation-slide.present").getBoundingClientRect(); return { x: b.left, y: b.bottom }; });
-        await page.mouse.click(slide.x + 12, slide.y - 12);
+        // Empty canvas below the slide (the slide itself may have been scrolled left, out of the drawer's way).
+        const empty = await page.evaluate(() => {
+            const w = document.getElementById("canvas-wrapper").getBoundingClientRect();
+            const slide = document.querySelector(".slides .presentation-slide.present").getBoundingClientRect();
+            return { x: w.left + w.width * 0.4, y: Math.min(slide.bottom + 20, w.bottom - 70) };
+        });
+        await page.mouse.click(empty.x, empty.y);
         await page.waitForTimeout(300);
         assert(await hidden(), "a click on empty canvas left the drawer open");
         // Opened as a drawer, it is not remembered: the next start would cover the slide.
@@ -6727,6 +6732,112 @@ async function test(name, fn) {
         } finally {
             await touchContext.close();
         }
+    });
+
+    await test("review 2026-10-20: at 700px the top bar takes two rows and the icon-only insert bar is as wide as its icons; the drawer says Done, can be widened, and shows the chart it would cover", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.setViewportSize({ width: 700, height: 800 });
+        await page.waitForTimeout(500);
+        const chrome = await page.evaluate(() => {
+            const header = document.getElementById("app-toolbar").getBoundingClientRect();
+            const bar = document.querySelector("#insert-toolbar-row .insert-toolbar");
+            return { header: header.height, layout: bar.dataset.layout, bar: bar.getBoundingClientRect().width, content: bar.scrollWidth };
+        });
+        // The logo had a row to itself: 142px of header.
+        assert(chrome.header < 115, `header ${chrome.header}px`);
+        assert(chrome.layout === "compact" && chrome.bar <= chrome.content + 2 && chrome.bar < 500, `insert bar: ${JSON.stringify(chrome)}`);
+        await page.evaluate(() => {
+            try { localStorage.removeItem("slideforge_properties_drawer_width"); } catch (_err) {}
+            setPropertiesPanelVisible(false, { persist: false });
+            addChart("bar");
+            const chart = state.slides[currentSlideIndex].elements.at(-1);
+            Object.assign(chart, { x: 700, y: 250, width: "500px", height: "350px" });
+            renderSlidesFromState();
+            selectElement(chart.id, "replace");
+        });
+        await page.waitForTimeout(300);
+        await page.click("#toggle-properties-panel");
+        await page.waitForTimeout(700);
+        const seen = await page.evaluate(() => {
+            const chart = getActiveSlideElementDom(state.selectedIds[0]).getBoundingClientRect();
+            const panel = document.getElementById("properties-panel");
+            return { right: chart.right, left: chart.left, drawer: panel.getBoundingClientRect().left, done: panel.querySelector(".panel-done-label").checkVisibility() };
+        });
+        // The drawer covered the right of the chart being edited.
+        assert(seen.done && seen.right <= seen.drawer && seen.left >= 0, `beside the drawer: ${JSON.stringify(seen)}`);
+        const grip = await page.locator("#properties-panel .properties-drawer-resizer").boundingBox();
+        await page.mouse.move(grip.x + 4, grip.y + 300);
+        await page.mouse.down();
+        for (let i = 1; i <= 5; i++) await page.mouse.move(grip.x + 4 - i * 16, grip.y + 300);
+        await page.mouse.up();
+        await page.waitForTimeout(500);
+        const widened = await page.evaluate(() => ({ width: document.getElementById("properties-panel").offsetWidth, saved: localStorage.getItem("slideforge_properties_drawer_width") }));
+        assert(widened.width >= 390 && widened.saved === String(widened.width), `widened: ${JSON.stringify(widened)}`);
+        await page.click("#properties-panel .panel-collapse-btn");
+        await page.waitForTimeout(300);
+        assert(await page.evaluate(() => document.getElementById("properties-panel").classList.contains("hidden")), "Done left the drawer open");
+        await page.evaluate(() => { try { localStorage.removeItem("slideforge_properties_drawer_width"); } catch (_err) {} });
+        await page.setViewportSize({ width: 1440, height: 950 });
+        await page.close();
+    });
+
+    await test("review 2026-10-20: a box plot's comparisons fold into their own section, its data opens in a large editor, and a plot that came in small offers the content area or a slide of its own", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        await page.evaluate(() => { addSlide(); setPropertiesPanelVisible(true); addElement("text"); addChart("bar"); });
+        await page.waitForTimeout(300);
+        const id = await pageAwait(page, () => insertPluginElement("box-plot", null, { ask: false }));
+        await page.waitForTimeout(400);
+        const notice = await page.evaluate(() => document.getElementById("placement-notice")?.innerText || "");
+        assert(/Fit to content area/.test(notice) && /Move to a new slide/.test(notice), `notice: ${notice}`);
+        await page.evaluate(id => { selectElement(id, "replace"); _propertiesPanelActiveTab = "content"; buildPropertiesPanel(); }, id);
+        await page.waitForTimeout(300);
+        const panel = await page.evaluate(() => ({
+            section: !!document.querySelector('#properties-panel details[data-section="plugin:box-plot:section:Comparisons"]'),
+            comparisons: !!document.getElementById("prop-plugin-comparisons")?.checkVisibility(),
+            load: Math.round(document.getElementById("prop-plugin-data-load").getBoundingClientRect().height),
+        }));
+        // "Load CSV…" broke onto two lines (about 40px tall).
+        assert(panel.section && !panel.comparisons && panel.load <= 26, `box plot panel: ${JSON.stringify(panel)}`);
+        await page.click("#prop-plugin-data-expand");
+        const editor = page.locator("#plugin-table-editor textarea");
+        await editor.waitFor();
+        await editor.fill("A,B\n1,2\n3,4\n5,6");
+        await page.click("#plugin-table-editor .plugin-table-editor__apply");
+        await page.waitForFunction(id => state.slides[currentSlideIndex].elements.find(e => e.id === id)?.pluginData?.data === "A,B\n1,2\n3,4\n5,6", id);
+        const before = await page.evaluate(id => ({ slides: state.slides.length, w: parseFloat(state.slides[currentSlideIndex].elements.find(e => e.id === id).width) }), id);
+        await page.evaluate(id => showPlacementNotice(id, { width: 600, height: 400 }), id);
+        await page.click('#placement-notice [data-placement="slide"]');
+        await page.waitForTimeout(500);
+        const moved = await page.evaluate(id => {
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
+            return { slides: state.slides.length, here: !!el, w: el && parseFloat(el.width), left: state.slides[currentSlideIndex - 1].elements.some(e => e.id === id) };
+        }, id);
+        assert(moved.slides === before.slides + 1 && moved.here && !moved.left && moved.w > before.w, `moved: ${JSON.stringify({ before, moved })}`);
+        await page.evaluate(() => undo());
+        await page.waitForTimeout(300);
+        const undone = await page.evaluate(id => ({ slides: state.slides.length, back: state.slides.some(s => s.elements.some(e => e.id === id)) }), id);
+        assert(undone.slides === before.slides && undone.back, `undo: ${JSON.stringify(undone)}`);
+        await page.close();
+    });
+
+    await test("review 2026-10-20: the help lists gestures, and More tools can show names under the top bar's icons", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => openShortcutsModal());
+        const help = await page.locator("#shortcuts-modal").innerText();
+        assert(/Mouse and trackpad/.test(help) && /Touch/.test(help) && /Pinch/.test(help) && /Ctrl \+ X/.test(help), "gestures missing from the help");
+        await page.evaluate(() => closeShortcutsModal());
+        await page.locator("#editor-tools-menu > summary").click();
+        await page.locator("#toggle-button-names").click();
+        await page.waitForTimeout(200);
+        const names = await page.evaluate(() => ({
+            on: document.body.classList.contains("sf-button-names"),
+            undo: getComputedStyle(document.getElementById("btn-undo"), "::after").content,
+            saved: localStorage.getItem("slideforge_toolbar_button_names"),
+        }));
+        assert(names.on && names.undo === '"Undo"' && names.saved === "1", `button names: ${JSON.stringify(names)}`);
+        await page.evaluate(() => setToolbarButtonNames(false));
+        await page.close();
     });
 
     await test("overnight: Ctrl+C on a shape and Ctrl+V on another slide pastes the shape, not a \"[shape]\" text box", async () => {
@@ -8558,8 +8669,9 @@ async function test(name, fn) {
         // The insert box for a QR code: Enter inserts, so no "Press Enter to redraw".
         await page.evaluate(() => SlideForgePlugins.ready);
         await page.evaluate(() => { window.__qrInsert = insertPluginElement("qr-code"); });
-        await page.waitForSelector("#sf-prompt-modal, .sf-prompt, [role=dialog]", { state: "visible" });
-        const dialogText = await page.evaluate(() => document.querySelector("#sf-prompt-modal, .sf-prompt, [role=dialog]")?.textContent || "");
+        // The visible one: hidden dialogs (the shortcuts help) come earlier in the page.
+        await page.waitForSelector("#sf-prompt-modal:visible, .sf-prompt:visible, [role=dialog]:visible");
+        const dialogText = await page.evaluate(() => [...document.querySelectorAll("#sf-prompt-modal, .sf-prompt, [role=dialog]")].find(n => n.checkVisibility())?.textContent || "");
         await page.keyboard.press("Escape");
         assert(!/Press Enter to redraw/i.test(dialogText), `insert box: ${dialogText}`);
         // Escape on a closed dropdown of the panel leaves the dropdown; the object stays selected.
