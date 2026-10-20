@@ -590,7 +590,18 @@ function createElementNode(elData, options = {}) {
     }
     e.stopPropagation();
     const mode = e.shiftKey || e.ctrlKey || e.metaKey ? "toggle" : "replace";
+    // A press on an object of a selected group keeps the group (it may be dragged); the click enters it.
+    el._pressedInSelectedGroup = mode === "replace" && e.button === 0 && typeof isWholeGroupSelected === "function" && isWholeGroupSelected(el.id)
+      ? { x: e.clientX, y: e.clientY }
+      : null;
     selectElement(el.id, mode);
+  });
+  el.addEventListener("click", (e) => {
+    const press = el._pressedInSelectedGroup;
+    el._pressedInSelectedGroup = null;
+    if (!press || document.body.classList.contains("play-mode-active")) return;
+    if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 4) return; // dragged the group
+    enterGroupAt?.(el.id, true);
   });
 
   return el;

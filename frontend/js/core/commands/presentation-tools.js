@@ -542,9 +542,46 @@ function initPresentationTools() {
         },
         true,
     );
+    // Swipe left or right with a finger: the next or previous step (Reveal's own swipe skipped the bullet and
+    // animation steps, and in the editor it changed slides behind the editor's back; it is off).
+    let swipe = null;
+    let swipedAt = 0;
+    wrapper.addEventListener("pointerdown", event => {
+        swipe = event.pointerType === "touch" && document.body.classList.contains("play-mode-active") && !_presentationToolsState.chalkEnabled
+            ? { x: event.clientX, y: event.clientY, id: event.pointerId }
+            : null;
+    });
+    wrapper.addEventListener("pointerup", event => {
+        if (!swipe || swipe.id !== event.pointerId) return;
+        const dx = event.clientX - swipe.x;
+        const dy = event.clientY - swipe.y;
+        swipe = null;
+        if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+        swipedAt = Date.now();
+        if (dx < 0) presentationNextStep();
+        else presentationPrevStep();
+    });
+    // The mouse wheel steps through the presentation, as in PowerPoint; one step per flick of the wheel (a
+    // trackpad sends a stream of small events).
+    let wheelAt = 0;
+    wrapper.addEventListener("wheel", event => {
+        if (!document.body.classList.contains("play-mode-active") || event.ctrlKey) return;
+        const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+        if (Math.abs(delta) < 4) return;
+        event.preventDefault();
+        const now = Date.now();
+        if (now - wheelAt < 450) {
+            wheelAt = now;
+            return;
+        }
+        wheelAt = now;
+        if (delta > 0) presentationNextStep();
+        else presentationPrevStep();
+    }, { passive: false });
     wrapper.addEventListener("click", event => {
         if (!document.body.classList.contains("play-mode-active")) return;
         if (_presentationToolsState.chalkEnabled || event.button !== 0) return;
+        if (Date.now() - swipedAt < 400) return; // the swipe's own click
         const { menu, contextMenu, menuToggle: toggle } = _presentationToolsElements();
         if (menu?.contains(event.target) || contextMenu?.contains(event.target) || toggle?.contains(event.target))
             return;

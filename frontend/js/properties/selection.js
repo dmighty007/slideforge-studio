@@ -21,6 +21,28 @@ function clearSelectionVisualState() {
     .forEach((el) => el.classList.remove("selected", "group-member-selected"));
 }
 
+// A group "entered": a click on one of its objects while the whole group was selected picks that object alone, as
+// in PowerPoint and Keynote; there was no way to select one object of a group on the slide. Left by selecting
+// anything outside it, or nothing.
+let _enteredGroupId = null;
+
+// Called on a click (not a drag) on an object: true if it entered the object's group and selected the object alone.
+function enterGroupAt(id, groupWasSelected) {
+  const elData = state.slides[currentSlideIndex]?.elements?.find((e) => e.id === id);
+  if (!elData?.groupId || !groupWasSelected || _enteredGroupId === elData.groupId) return false;
+  _enteredGroupId = elData.groupId;
+  selectElement(id, "replace");
+  return true;
+}
+
+// The whole of an object's group is the selection, and nothing else.
+function isWholeGroupSelected(id) {
+  const elData = state.slides[currentSlideIndex]?.elements?.find((e) => e.id === id);
+  if (!elData?.groupId || _enteredGroupId === elData.groupId) return false;
+  const members = state.slides[currentSlideIndex].elements.filter((e) => e.groupId === elData.groupId).map((e) => e.id);
+  return members.length === state.selectedIds.length && members.every((m) => state.selectedIds.includes(m));
+}
+
 function selectElement(id, selectionMode = "replace") {
   const elData = state.slides[currentSlideIndex].elements.find(
     (e) => e.id === id,
@@ -32,9 +54,10 @@ function selectElement(id, selectionMode = "replace") {
   )
     return;
 
-  // Clicking any group member selects the whole group
+  // Clicking any group member selects the whole group, except inside a group entered with a second click on it.
+  if (elData.groupId !== _enteredGroupId) _enteredGroupId = null;
   let idsToSelect = [id];
-  if (elData.groupId) {
+  if (elData.groupId && elData.groupId !== _enteredGroupId) {
     idsToSelect = state.slides[currentSlideIndex].elements
       .filter((e) => e.groupId === elData.groupId)
       .map((e) => e.id);
@@ -93,6 +116,7 @@ function selectElement(id, selectionMode = "replace") {
 }
 
 function clearSelection() {
+  _enteredGroupId = null;
   if (
     document.activeElement &&
     typeof document.activeElement.blur === "function" &&

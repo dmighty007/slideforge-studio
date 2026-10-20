@@ -68,6 +68,9 @@ window.onload = async () => {
         controls: false,
         progress: false,
         keyboard: false,
+        // Swipes are the editor's (zoom.js) and the presentation's (presentation-tools.js), which know about
+        // build steps and keep the editor's slide index.
+        touch: false,
     });
 
     // Global slide navigation helper used by export routines

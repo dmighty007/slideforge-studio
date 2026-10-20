@@ -135,6 +135,9 @@ function fitInsertToolbar() {
     if (!room) return;
     const previous = bar.dataset.layout;
     let chosen = "compact";
+    // Measured without the buttons' transitions: switched from icons to labels, the buttons were still at their
+    // narrow size mid-animation, the labelled bar measured as fitting, and at 700px it then ran 86px past its row.
+    bar.classList.add("is-measuring");
     for (const layout of ["grouped", "compact"]) {
         bar.dataset.layout = layout;
         if (bar.scrollWidth <= room + 1) {
@@ -143,6 +146,8 @@ function fitInsertToolbar() {
         }
     }
     bar.dataset.layout = chosen;
+    void bar.offsetWidth; // the chosen layout's sizes applied before the transitions come back
+    bar.classList.remove("is-measuring");
     if (chosen !== previous) closeInsertGroupMenus();
 }
 

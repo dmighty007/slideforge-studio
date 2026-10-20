@@ -48,6 +48,11 @@ function _setupElementInteract() {
       listeners: {
         start(event) {
           if (document.body.classList.contains("play-mode-active")) return;
+          // Space+drag pans the canvas, and two fingers zoom it: neither moves the object under them.
+          if ((typeof isSpaceDown !== "undefined" && isSpaceDown) || window.isCanvasGestureActive?.()) {
+            event.interaction.stop();
+            return;
+          }
           const canvasTarget = getInteractCanvasTarget(event.target);
           if (!canvasTarget) return false;
           if (
@@ -68,14 +73,9 @@ function _setupElementInteract() {
 
           const isAlreadySelected = state.selectedIds.includes(canvasTarget.id);
           if (!isAlreadySelected) {
+            // Selected and dragged in one go. With a mouse the press had usually selected it already; a finger
+            // only selected it, so dragging an object by touch took two goes.
             selectElement(canvasTarget.id, isMultiSelect ? "add" : "replace");
-            // If we weren't already selected, we don't start the drag immediately.
-            // This allows the marquee logic to take over if the user continues to drag.
-            // They can drag the element once it is selected.
-            if (!isMultiSelect) {
-              event.interaction.stop();
-              return;
-            }
           }
 
           // Keep the release in the editor even when the pointer crosses an embedded iframe.
@@ -96,7 +96,7 @@ function _setupElementInteract() {
           const canvasTarget = getInteractCanvasTarget(event.target);
           if (!canvasTarget) return;
           const scale = getCanvasScale();
-          const shiftHeld = event.shiftKey;
+          const shiftHeld = event.shiftKey || event.altKey; // no snapping: Alt, as when resizing (Shift too, as before)
           const dx = event.dx / scale;
           const dy = event.dy / scale;
 
@@ -201,6 +201,11 @@ function _setupElementInteract() {
       listeners: {
         start(event) {
           if (document.body.classList.contains("play-mode-active")) return;
+          // Space+drag pans the canvas, and two fingers zoom it: neither moves the object under them.
+          if ((typeof isSpaceDown !== "undefined" && isSpaceDown) || window.isCanvasGestureActive?.()) {
+            event.interaction.stop();
+            return;
+          }
           const canvasTarget = getInteractCanvasTarget(event.target);
           if (!canvasTarget) return false;
           if (isElementInTextEditMode(event.target)) return false;
@@ -218,11 +223,23 @@ function _setupElementInteract() {
 
           selectElement(canvasTarget.id, "replace");
           saveStateToUndo();
+          // Each step is measured from the box as it was here (a step's change added to the last step's result
+          // let a snapped left or top edge drift, and the opposite edge with it).
+          canvasTarget._resizeStart = {
+            x: parseFloat(canvasTarget.getAttribute("data-x")) || 0,
+            y: parseFloat(canvasTarget.getAttribute("data-y")) || 0,
+            w: parseFloat(canvasTarget.style.width) || parseFloat(elementData?.width) || canvasTarget.offsetWidth || 100,
+            h: parseFloat(canvasTarget.style.height) || parseFloat(elementData?.height) || canvasTarget.offsetHeight || 100,
+          };
         },
         move(event) {
           const scale = getCanvasScale();
           const sourceEvent = event.sourceEvent || event;
-          const shiftHeld = Boolean(sourceEvent.shiftKey);
+          // Shift keeps the proportions, Ctrl (Cmd) resizes about the centre, Alt leaves the grid (as in
+          // PowerPoint). Shift used to switch the grid off and nothing kept a shape's proportions.
+          const keepRatio = Boolean(sourceEvent.shiftKey);
+          const fromCentre = Boolean(sourceEvent.ctrlKey || sourceEvent.metaKey);
+          const shiftHeld = Boolean(sourceEvent.altKey); // no grid snap
           const target = getInteractCanvasTarget(event.target);
           if (!target) return;
           const elementData = state.slides[currentSlideIndex].elements.find(
@@ -239,30 +256,37 @@ function _setupElementInteract() {
             event.edges?.top || event.edges?.bottom,
           );
 
-          const oldX = parseFloat(target.getAttribute("data-x")) || 0;
-          const oldY = parseFloat(target.getAttribute("data-y")) || 0;
-          const oldW =
-            parseFloat(target.style.width) ||
-            parseFloat(elementData.width) ||
-            100;
-          const oldH =
-            parseFloat(target.style.height) ||
-            parseFloat(elementData.height) ||
-            100;
+          const start = target._resizeStart || {
+            x: parseFloat(target.getAttribute("data-x")) || 0,
+            y: parseFloat(target.getAttribute("data-y")) || 0,
+            w: parseFloat(target.style.width) || parseFloat(elementData.width) || 100,
+            h: parseFloat(target.style.height) || parseFloat(elementData.height) || 100,
+          };
+          const oldX = start.x;
+          const oldY = start.y;
+          const oldW = start.w;
+          const oldH = start.h;
           let x = oldX;
           let y = oldY;
-          const rawW = Math.max(24, event.rect.width / scale);
-          const rawH = Math.max(24, event.rect.height / scale);
+          // About the centre, the dragged edge's movement is mirrored on the opposite side.
+          const grow = (raw, old) => (fromCentre ? old + 2 * (raw - old) : raw);
+          const rawW = Math.max(24, grow(event.rect.width / scale, oldW));
+          const rawH = Math.max(24, grow(event.rect.height / scale, oldH));
           let w = isImage ? rawW : Math.max(24, _snapVal(rawW, shiftHeld));
           let h = isImage ? rawH : Math.max(24, _snapVal(rawH, shiftHeld));
 
-          // Handle Aspect Ratio Locking
-          if (isImage && elementData.lockAspectRatio) {
-            const ratio = isCroppedImage
-              ? oldW / Math.max(1, oldH)
-              : typeof getImageAspectRatio === "function"
-                ? getImageAspectRatio(elementData)
-                : oldW / Math.max(1, oldH);
+          // Proportions kept: always for a picture that locks them, with Shift for anything but a text box (its
+          // height follows its text).
+          const lockRatio = (isImage && elementData.lockAspectRatio) || (keepRatio && !isText);
+          if (!lockRatio) {
+            // A side handle changes only its own dimension (the other one was snapped to the grid as well).
+            if (!event.edges?.left && !event.edges?.right) w = oldW;
+            if (!event.edges?.top && !event.edges?.bottom) h = oldH;
+          }
+          if (lockRatio) {
+            const ratio = isImage && !isCroppedImage && elementData.lockAspectRatio && typeof getImageAspectRatio === "function"
+              ? getImageAspectRatio(elementData)
+              : oldW / Math.max(1, oldH);
 
             const horizontalHandle = Boolean(
               event.edges?.left || event.edges?.right,
@@ -290,17 +314,13 @@ function _setupElementInteract() {
               h = 24;
               w = h * ratio;
             }
-            if (event.edges?.left) x = oldX + oldW - w;
-            else if (!event.edges?.left && !event.edges?.right)
-              x = oldX + (oldW - w) / 2;
-            if (event.edges?.top) y = oldY + oldH - h;
-            else if (!event.edges?.top && !event.edges?.bottom)
-              y = oldY + (oldH - h) / 2;
-          } else {
-            // Update position for handles that move the origin
-            x += event.deltaRect.left / scale;
-            y += event.deltaRect.top / scale;
           }
+          // The edge opposite the handle stays put (both stay centred about the middle with Ctrl); a side handle
+          // whose proportions are kept grows the other way about the middle.
+          if (fromCentre || (!event.edges?.left && !event.edges?.right)) x = oldX + (oldW - w) / 2;
+          else if (event.edges?.left) x = oldX + oldW - w;
+          if (fromCentre || (!event.edges?.top && !event.edges?.bottom)) y = oldY + (oldH - h) / 2;
+          else if (event.edges?.top) y = oldY + oldH - h;
 
           target.style.width = w + "px";
           target.style.height = h + "px";
@@ -688,6 +708,7 @@ function _setupMarquee() {
 
   canvasWrapper.addEventListener("mousedown", (e) => {
     if (e.button !== 0) return;
+    if (typeof isSpaceDown !== "undefined" && isSpaceDown) return; // space+drag pans the canvas
     if (e.target.closest("#group-bound")) return;
     // Any floating toolbar (text, image, shape): pressing its buttons must not first deselect the element.
     if (e.target.closest(".floating-text-toolbar")) return;

@@ -348,6 +348,15 @@ function initKeyboard() {
         copyElement(e);
     });
 
+    // Ctrl+X on objects: copied, then deleted (it did nothing).
+    document.addEventListener("cut", e => {
+        if (document.body.classList.contains("play-mode-active")) return;
+        if (e.target?.tagName === "INPUT" || e.target?.tagName === "TEXTAREA" || e.target?.isContentEditable) return;
+        if (!state.selectedIds.length) return;
+        copyElement(e);
+        deleteSelectedElements();
+    });
+
     // Paste event for images/files
     document.addEventListener("paste", handlePaste);
 }

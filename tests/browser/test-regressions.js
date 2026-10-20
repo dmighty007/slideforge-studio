@@ -6099,8 +6099,11 @@ async function test(name, fn) {
         for (const [width, height] of [[1600, 900], [1000, 800], [700, 800]]) {
             const page = await context.newPage();
             await page.setViewportSize({ width, height });
+            // The start screen opens once its list of decks arrives, which on a fresh server came after the test
+            // had closed it, and it then covered the toolbar. These tests are about the editor.
+            await page.addInitScript(() => document.addEventListener("DOMContentLoaded", () => { window.openStartScreen = () => false; }));
             await page.goto(TEST_URL, { waitUntil: "networkidle" });
-            await page.waitForFunction(() => typeof isPresentationHydrating !== "function" || !isPresentationHydrating());
+            await page.waitForFunction(() => typeof closeStartScreen === "function" && document.querySelector(".presentation-slide") && (typeof isPresentationHydrating !== "function" || !isPresentationHydrating()));
             await page.evaluate(() => closeStartScreen?.({ force: true }));
             await page.waitForTimeout(900);
             const info = await page.evaluate(() => {
@@ -6134,8 +6137,11 @@ async function test(name, fn) {
     await test("properties: everyday settings first, the rest folded and remembered across edits; a slimmer panel on laptops keeps its tabs whole", async () => {
         const page = await context.newPage();
         await page.setViewportSize({ width: 1366, height: 900 });
+        // The start screen opens once its list of decks arrives, which on a fresh server came after the test
+        // had closed it, and it then covered the toolbar. These tests are about the editor.
+        await page.addInitScript(() => document.addEventListener("DOMContentLoaded", () => { window.openStartScreen = () => false; }));
         await page.goto(TEST_URL, { waitUntil: "networkidle" });
-        await page.waitForFunction(() => typeof isPresentationHydrating !== "function" || !isPresentationHydrating());
+        await page.waitForFunction(() => typeof closeStartScreen === "function" && document.querySelector(".presentation-slide") && (typeof isPresentationHydrating !== "function" || !isPresentationHydrating()));
         await page.evaluate(async () => { closeStartScreen?.({ force: true }); await createNewProject(); });
         await page.evaluate(() => { closeStartScreen?.({ force: true }); addSlide(); setPropertiesPanelVisible(true); const t = state.slides[currentSlideIndex].elements.find(e => e.placeholder === "Click to add text"); selectElement(t.id, "replace"); });
         await page.waitForTimeout(600);
@@ -6297,7 +6303,7 @@ async function test(name, fn) {
         const page = await context.newPage();
         await page.setViewportSize({ width: 700, height: 900 });
         await page.goto(TEST_URL, { waitUntil: "networkidle" });
-        await page.waitForFunction(() => typeof isPresentationHydrating !== "function" || !isPresentationHydrating());
+        await page.waitForFunction(() => typeof closeStartScreen === "function" && document.querySelector(".presentation-slide") && (typeof isPresentationHydrating !== "function" || !isPresentationHydrating()));
         await page.evaluate(() => { closeStartScreen?.({ force: true }); addSlide(); setPropertiesPanelVisible(true); });
         await page.waitForTimeout(600);
         const id = await page.evaluate(() => state.slides[currentSlideIndex].elements.find(e => e.placeholder === "Click to add title").id);
@@ -6480,6 +6486,247 @@ async function test(name, fn) {
         assert(during.x === 500 && during.gaps.length === 2 && during.gaps.every(g => g === "250"), `during drag: ${JSON.stringify(during)}`);
         assert(left === 0, `${left} guides left after the drop`);
         await page.close();
+    });
+
+    // Three shapes, a and b grouped, for the gesture tests.
+    const gestureShapes = page => page.evaluate(() => {
+        const slide = state.slides[currentSlideIndex];
+        slide.elements = slide.elements.filter(e => e.isMasterElement || e.editableMasterFooterElement);
+        for (const [id, x, z, groupId] of [["ga", 100, 5, "gg"], ["gb", 300, 6, "gg"], ["gc", 700, 7, null]]) {
+            slide.elements.push({ id, type: "shape", shapeType: "rectangle", x, y: 200, width: "150px", height: "100px", groupId, styles: { backgroundColor: "#94a3b8", zIndex: z } });
+        }
+        renderSlidesFromState();
+        clearSelection();
+    });
+    const gestureBox = (page, id) => page.locator(`.slides .presentation-slide.present [id="${id}"]`).boundingBox();
+    const gestureEl = (page, id) => page.evaluate(id => {
+        const e = state.slides[currentSlideIndex].elements.find(x => x.id === id);
+        return { x: Math.round(e.x), y: Math.round(e.y), w: parseFloat(e.width), h: parseFloat(e.height), z: Number(e.styles?.zIndex) };
+    }, id);
+
+    await test("gestures: a trackpad pinch (many small Ctrl+wheel steps) zooms in proportion; a middle-button drag and a space-drag over an object pan", async () => {
+        const { page } = await openFreshEditor(context);
+        await gestureShapes(page);
+        const zoom = () => page.evaluate(() => stateZoom);
+        await page.evaluate(() => resetZoom());
+        const slide = await page.locator(".slides .presentation-slide.present").boundingBox();
+        await page.mouse.move(slide.x + 300, slide.y + 300);
+        const z0 = await zoom();
+        await page.keyboard.down("Control");
+        for (let i = 0; i < 40; i++) await page.mouse.wheel(0, -3);
+        await page.keyboard.up("Control");
+        await page.waitForTimeout(300);
+        const z1 = await zoom();
+        // Each event was a fixed 10% step: 40 of them hit the 500% limit.
+        assert(z1 > z0 * 1.1 && z1 < z0 * 1.4, `pinch zoom ${z0} -> ${z1}`);
+        const scroll = () => page.evaluate(() => { const w = document.getElementById("canvas-wrapper"); return [w.scrollLeft, w.scrollTop]; });
+        // Room to pan both ways, whatever earlier tests left open beside the canvas.
+        await page.evaluate(() => { setPropertiesPanelVisible(false, { persist: false }); handleZoomSlider(2); });
+        await page.waitForTimeout(300);
+        const s0 = await scroll();
+        await page.mouse.move(slide.x + 600, slide.y + 400);
+        await page.mouse.down({ button: "middle" });
+        for (let i = 1; i <= 5; i++) await page.mouse.move(slide.x + 600 - i * 10, slide.y + 400 - i * 6);
+        await page.mouse.up({ button: "middle" });
+        const s1 = await scroll();
+        assert(s1[0] - s0[0] >= 40 && s1[1] - s0[1] >= 20, `middle drag: ${s0} -> ${s1}`);
+        const c = await gestureBox(page, "gc");
+        const before = await gestureEl(page, "gc");
+        const selectedBefore = await page.evaluate(() => [...state.selectedIds]);
+        await page.mouse.move(c.x + 20, c.y + 20);
+        await page.keyboard.down(" ");
+        await page.mouse.down();
+        for (let i = 1; i <= 5; i++) await page.mouse.move(c.x + 20 + i * 10, c.y + 20 + i * 6);
+        await page.mouse.up();
+        await page.keyboard.up(" ");
+        const s2 = await scroll();
+        const after = await gestureEl(page, "gc");
+        assert(JSON.stringify(after) === JSON.stringify(before) && s1[0] - s2[0] >= 40, `space-drag moved the object (${JSON.stringify(before)} -> ${JSON.stringify(after)}) or did not pan (${s1} -> ${s2})`);
+        const selectedAfter = await page.evaluate(() => [...state.selectedIds]);
+        assert(!selectedAfter.includes("gc"), `space-drag selected the object: ${JSON.stringify(selectedBefore)} -> ${JSON.stringify(selectedAfter)}`);
+        await page.close();
+    });
+
+    await test("gestures: a second click on a selected group selects the object clicked; Shift keeps proportions, Ctrl resizes about the centre", async () => {
+        const { page } = await openFreshEditor(context);
+        await gestureShapes(page);
+        const sel = () => page.evaluate(() => [...state.selectedIds].sort().join(","));
+        const a = await gestureBox(page, "ga");
+        await page.mouse.click(a.x + 20, a.y + 20);
+        assert((await sel()) === "ga,gb", `first click: ${await sel()}`);
+        await page.mouse.click(a.x + 20, a.y + 20);
+        assert((await sel()) === "ga", `second click: ${await sel()}`);
+        const c = await gestureBox(page, "gc");
+        await page.mouse.click(c.x + 20, c.y + 20);
+        await page.mouse.click(a.x + 20, a.y + 20);
+        assert((await sel()) === "ga,gb", `group left and clicked again: ${await sel()}`);
+        await page.mouse.click(c.x + 20, c.y + 20);
+        const handle = cls => page.locator(`.slides .presentation-slide.present [id="gc"] .resize-handle.${cls}`).boundingBox();
+        let h = await handle("br");
+        await page.keyboard.down("Shift");
+        await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+        await page.mouse.down();
+        for (let i = 1; i <= 6; i++) await page.mouse.move(h.x + h.width / 2 + i * 20, h.y + h.height / 2 + i * 3);
+        await page.mouse.up();
+        await page.keyboard.up("Shift");
+        const shifted = await gestureEl(page, "gc");
+        assert(shifted.w > 200 && Math.abs(shifted.w / shifted.h - 1.5) < 0.02, `Shift resize: ${JSON.stringify(shifted)}`);
+        h = await handle("rc");
+        await page.keyboard.down("Control");
+        await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+        await page.mouse.down();
+        for (let i = 1; i <= 5; i++) await page.mouse.move(h.x + h.width / 2 + i * 10, h.y + h.height / 2);
+        await page.mouse.up();
+        await page.keyboard.up("Control");
+        const centred = await gestureEl(page, "gc");
+        const middle = el => el.x + el.w / 2;
+        assert(centred.w > shifted.w + 40 && Math.abs(middle(centred) - middle(shifted)) <= 1 && Math.abs(centred.h - shifted.h) < 0.5, `Ctrl resize: ${JSON.stringify(shifted)} -> ${JSON.stringify(centred)}`);
+        await page.close();
+    });
+
+    await test("gestures: the right-click menu has the clipboard and stacking order, Duplicate works, and on the empty slide it pastes where clicked", async () => {
+        const { page } = await openFreshEditor(context);
+        await gestureShapes(page);
+        const c = await gestureBox(page, "gc");
+        const open = async (x, y) => {
+            await page.mouse.click(x, y, { button: "right" });
+            return page.evaluate(() => [...document.querySelectorAll("#canvas-context-menu [data-ctx-action]")].map(b => b.dataset.ctxAction));
+        };
+        const items = await open(c.x + 20, c.y + 20);
+        assert(["cut", "copy", "paste", "duplicate", "front", "back", "delete"].every(a => items.includes(a)), `object menu: ${items}`);
+        await page.click('#canvas-context-menu [data-ctx-action="back"]');
+        const z = await page.evaluate(() => Object.fromEntries(state.slides[currentSlideIndex].elements.filter(e => e.id.startsWith("g")).map(e => [e.id, Number(e.styles.zIndex)])));
+        assert(z.gc < z.ga && z.gc < z.gb, `send to back: ${JSON.stringify(z)}`);
+        const count = () => page.evaluate(() => state.slides[currentSlideIndex].elements.length);
+        const n0 = await count();
+        await open(c.x + 20, c.y + 20);
+        await page.click('#canvas-context-menu [data-ctx-action="duplicate"]');
+        await page.waitForTimeout(300);
+        // It was called without the object and did nothing.
+        assert((await count()) === n0 + 1, "Duplicate added nothing");
+        await open(c.x + 20, c.y + 20);
+        await page.click('#canvas-context-menu [data-ctx-action="copy"]');
+        const slide = await page.locator(".slides .presentation-slide.present").boundingBox();
+        const scale = await page.evaluate(() => getCanvasScale());
+        const empty = await open(slide.x + 300 * scale, slide.y + 500 * scale);
+        assert(empty.includes("paste") && empty.includes("select-all"), `slide menu: ${empty}`);
+        await page.click('#canvas-context-menu [data-ctx-action="paste"]');
+        await page.waitForTimeout(600);
+        const pasted = await page.evaluate(() => state.selectedIds.map(id => state.slides[currentSlideIndex].elements.find(e => e.id === id)).map(e => [Math.round(e.x), Math.round(e.y)]));
+        assert(pasted.length === 1 && Math.abs(pasted[0][0] - 300) <= 2 && Math.abs(pasted[0][1] - 500) <= 2, `pasted at ${JSON.stringify(pasted)}`);
+        await page.close();
+    });
+
+    await test("gestures: on a touch screen two fingers pinch and pan, a finger drags an object that was not selected, a held finger opens the menu, and a double tap edits text", async () => {
+        const touchContext = await browser.newContext({ viewport: { width: 1180, height: 820 }, hasTouch: true });
+        try {
+            const { page } = await openFreshEditor(touchContext);
+            await gestureShapes(page);
+            await page.evaluate(() => {
+                state.slides[currentSlideIndex].elements.push({ id: "gt", type: "text", x: 100, y: 450, width: "400px", height: "80px", content: "Hello world", styles: { fontSize: "28px", color: "#111", zIndex: 9 } });
+                renderSlidesFromState();
+                clearSelection();
+            });
+            await page.waitForTimeout(300);
+            const cdp = await touchContext.newCDPSession(page);
+            const touch = (type, points) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points.map(([x, y], id) => ({ x, y, id })) });
+            const c = await gestureBox(page, "gc");
+            const before = await gestureEl(page, "gc");
+            await touch("touchStart", [[c.x + 20, c.y + 20]]);
+            for (let i = 1; i <= 6; i++) await touch("touchMove", [[c.x + 20 + i * 12, c.y + 20]]);
+            await touch("touchEnd", []);
+            await page.waitForTimeout(200);
+            // A finger only selected it: moving an object by touch took two goes.
+            assert((await gestureEl(page, "gc")).x > before.x + 40, "finger drag did not move the object");
+            const a = await gestureBox(page, "ga");
+            await touch("touchStart", [[a.x + 20, a.y + 20]]);
+            await page.waitForTimeout(800);
+            const menuOpen = await page.evaluate(() => !document.getElementById("canvas-context-menu").classList.contains("hidden"));
+            await touch("touchEnd", []);
+            assert(menuOpen, "holding a finger did not open the menu");
+            await page.keyboard.press("Escape");
+            const t = await gestureBox(page, "gt");
+            await page.touchscreen.tap(t.x + 40, t.y + 20);
+            await page.waitForTimeout(80);
+            await page.touchscreen.tap(t.x + 40, t.y + 20);
+            await page.waitForTimeout(300);
+            const editing = await page.evaluate(() => ({ editing: Boolean(document.activeElement?.isContentEditable), menu: !document.getElementById("canvas-context-menu").classList.contains("hidden") }));
+            assert(editing.editing && !editing.menu, `double tap: ${JSON.stringify(editing)}`);
+            await page.keyboard.press("Escape");
+            await page.keyboard.press("Escape");
+            await page.evaluate(() => { clearSelection(); resetZoom(); });
+            const slide = await page.locator(".slides .presentation-slide.present").boundingBox();
+            const cx = slide.x + slide.width / 2;
+            const cy = slide.y + slide.height / 2;
+            const z0 = await page.evaluate(() => stateZoom);
+            await touch("touchStart", [[cx - 40, cy], [cx + 40, cy]]);
+            for (let i = 1; i <= 10; i++) {
+                await touch("touchMove", [[cx - 40 - i * 4, cy], [cx + 40 + i * 4, cy]]);
+                await page.waitForTimeout(16);
+            }
+            await touch("touchEnd", []);
+            await page.waitForTimeout(300);
+            const z1 = await page.evaluate(() => stateZoom);
+            const after = await page.locator(".slides .presentation-slide.present").boundingBox();
+            // Two fingers 80px apart moved to 160px: twice the zoom, about the point between them.
+            assert(Math.abs(z1 / z0 - 2) < 0.05, `pinch zoom ${z0} -> ${z1}`);
+            assert(Math.abs(after.x + after.width / 2 - cx) < 3, `pinch centre moved: ${slide.x + slide.width / 2} -> ${after.x + after.width / 2}`);
+            await touch("touchStart", [[cx - 40, cy], [cx + 40, cy]]);
+            for (let i = 1; i <= 10; i++) {
+                await touch("touchMove", [[cx - 40 + i * 6, cy + i * 4], [cx + 40 + i * 6, cy + i * 4]]);
+                await page.waitForTimeout(16);
+            }
+            await touch("touchEnd", []);
+            await page.waitForTimeout(300);
+            const panned = await page.locator(".slides .presentation-slide.present").boundingBox();
+            assert(Math.abs(panned.x - after.x - 60) < 3 && Math.abs(panned.y - after.y - 40) < 3, `two-finger pan: ${after.x},${after.y} -> ${panned.x},${panned.y}`);
+            await page.close();
+        } finally {
+            await touchContext.close();
+        }
+    });
+
+    await test("gestures: presenting, the wheel steps one slide per flick and a swipe goes forward or back; in the editor a swipe does not change slide", async () => {
+        const touchContext = await browser.newContext({ viewport: { width: 1280, height: 800 }, hasTouch: true });
+        try {
+            const { page } = await openFreshEditor(touchContext);
+            await page.evaluate(() => { addSlide(); addSlide(); addSlide(); setCurrentSlideIndex(0); Reveal.slide(0); });
+            await page.waitForTimeout(300);
+            const cdp = await touchContext.newCDPSession(page);
+            const touch = (type, points) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points.map(([x, y], id) => ({ x, y, id })) });
+            const swipe = async dx => {
+                await touch("touchStart", [[640, 420]]);
+                for (let i = 1; i <= 6; i++) { await touch("touchMove", [[640 + (dx * i) / 6, 420]]); await page.waitForTimeout(16); }
+                await touch("touchEnd", []);
+                await page.waitForTimeout(500);
+            };
+            const at = () => page.evaluate(() => [currentSlideIndex, Reveal.getIndices().h]);
+            await swipe(-300);
+            // Reveal's own swipe changed the shown slide behind the editor's back.
+            assert(JSON.stringify(await at()) === "[0,0]", `editor swipe: ${await at()}`);
+            await page.evaluate(() => togglePlayMode());
+            await page.waitForTimeout(1000);
+            await page.mouse.move(640, 400);
+            await page.mouse.wheel(0, 120);
+            await page.waitForTimeout(600);
+            // A trackpad's stream of small events, sent at once (sent one by one, a loaded test machine spaced
+            // them out past the pause that separates two flicks).
+            await page.evaluate(() => {
+                const wrapper = document.getElementById("canvas-wrapper");
+                for (let i = 0; i < 15; i++) wrapper.dispatchEvent(new WheelEvent("wheel", { deltaY: 8, bubbles: true, cancelable: true, clientX: 640, clientY: 400 }));
+            });
+            await page.waitForTimeout(600);
+            const wheeled = await at();
+            await swipe(-300);
+            const forward = await at();
+            await swipe(300);
+            const back = await at();
+            await page.evaluate(() => togglePlayMode());
+            assert(wheeled[0] === 2 && forward[0] === 3 && back[0] === 2, `wheel ${wheeled}, swipe left ${forward}, swipe right ${back}`);
+            await page.close();
+        } finally {
+            await touchContext.close();
+        }
     });
 
     await test("overnight: Ctrl+C on a shape and Ctrl+V on another slide pastes the shape, not a \"[shape]\" text box", async () => {

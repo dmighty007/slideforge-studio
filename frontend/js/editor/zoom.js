@@ -42,12 +42,15 @@ function initZoom() {
     initZoomControlDisclosure();
 
     // --- Zoom Events ---
+    // Ctrl+wheel, and a trackpad pinch (which arrives as Ctrl+wheel), zoom in proportion to the wheel's movement,
+    // about the pointer. Each event was a fixed 10% step: a pinch sends dozens of small events, so it jumped straight
+    // to the 500% limit, and at 20% one notch halved or doubled the slide.
     wrapper.addEventListener("wheel", (e) => {
         if (isPresentationPlaying()) return;
         if (e.ctrlKey || e.metaKey) {
             e.preventDefault();
-            const delta = e.deltaY > 0 ? -0.1 : 0.1;
-            changeZoom(delta, { anchorEvent: e });
+            const pixels = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
+            zoomBy(Math.exp(-Math.max(-120, Math.min(120, pixels)) * 0.0015), { anchorEvent: e });
         }
     }, { passive: false });
 
@@ -62,6 +65,7 @@ function initZoom() {
 
             isSpaceDown = true;
             wrapper.style.cursor = "grab";
+            document.body.classList.add("sf-space-pan");
             // Prevent scrolling with space
             if (e.target === document.body) e.preventDefault();
         }
@@ -72,20 +76,25 @@ function initZoom() {
             isSpaceDown = false;
             isPanning = false;
             if (wrapper) wrapper.style.cursor = "";
+            document.body.classList.remove("sf-space-pan", "sf-canvas-panning");
         }
     });
 
+    // Space+drag or a middle-button drag pans the canvas, over objects too. Caught on the way down, before the
+    // object under the pointer selects itself and the empty canvas clears the selection or starts a marquee.
     wrapper.addEventListener("mousedown", (e) => {
-        if (isSpaceDown && !isPresentationPlaying()) {
+        if ((isSpaceDown || e.button === 1) && !isPresentationPlaying()) {
             isPanning = true;
             startPanX = e.clientX;
             startPanY = e.clientY;
             startScrollX = wrapper.scrollLeft;
             startScrollY = wrapper.scrollTop;
             wrapper.style.cursor = "grabbing";
+            document.body.classList.add("sf-canvas-panning");
             e.preventDefault();
+            e.stopPropagation();
         }
-    });
+    }, true);
 
     window.addEventListener("mousemove", (e) => {
         if (isPanning) {
@@ -96,12 +105,149 @@ function initZoom() {
         }
     });
 
+    let panEndedAt = 0;
     window.addEventListener("mouseup", () => {
         if (isPanning) {
             isPanning = false;
+            panEndedAt = Date.now();
             wrapper.style.cursor = isSpaceDown ? "grab" : "";
+            document.body.classList.remove("sf-canvas-panning");
         }
     });
+    // The click that ends a pan over an object is not a click on the object (some select themselves on click).
+    wrapper.addEventListener("click", (e) => {
+        if (Date.now() - panEndedAt < 300) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    }, true);
+    // A middle click only pans (on Linux it would also paste the text selection into a text box being edited).
+    wrapper.addEventListener("auxclick", (e) => {
+        if (e.button === 1) e.preventDefault();
+    });
+
+    initCanvasTouchGestures(wrapper);
+}
+
+// Touch on the canvas: two fingers pinch to zoom and move the view together; one finger on empty canvas pans it;
+// a finger held still on an object or the canvas opens the context menu. Before, none of these did anything (and
+// on a touch laptop a pinch zoomed the whole window, toolbars and all).
+let canvasGestureActive = false;
+function isCanvasGestureActive() {
+    return canvasGestureActive;
+}
+window.isCanvasGestureActive = isCanvasGestureActive;
+
+function initCanvasTouchGestures(wrapper) {
+    const touches = new Map();
+    let pinch = null;
+    let pan = null;
+    let hold = null;
+    let frame = 0;
+    let suppressContextMenuUntil = 0;
+    const HOLD_MS = 550;
+    const HOLD_SLOP = 8;
+
+    const cancelHold = () => {
+        if (hold) clearTimeout(hold.timer);
+        hold = null;
+    };
+    const points = () => [...touches.values()];
+    const startPinch = () => {
+        const [a, b] = points();
+        const mid = { clientX: (a.x + b.x) / 2, clientY: (a.y + b.y) / 2 };
+        pinch = {
+            distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+            zoom: stateZoom,
+            anchor: getZoomAnchor(wrapper, mid),
+        };
+        pan = null;
+        cancelHold();
+        canvasGestureActive = true;
+    };
+    const applyPinch = () => {
+        frame = 0;
+        if (!pinch || touches.size < 2) return;
+        const [a, b] = points();
+        zoomMode = "manual";
+        stateZoom = clampZoom(pinch.zoom * (Math.hypot(a.x - b.x, a.y - b.y) / pinch.distance));
+        // The point that was between the fingers stays between them: pinching zooms, moving both fingers pans.
+        const rect = wrapper.getBoundingClientRect();
+        applyZoom({
+            anchor: { ...pinch.anchor, clientX: (a.x + b.x) / 2, clientY: (a.y + b.y) / 2, rectLeft: rect.left, rectTop: rect.top },
+        });
+        if (typeof updateGroupBound === "function") updateGroupBound();
+    };
+
+    wrapper.addEventListener("pointerdown", (e) => {
+        if (e.pointerType !== "touch" || isPresentationPlaying()) return;
+        touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (touches.size === 2) {
+            // The second finger: whatever the first one started (a drag of an object) gives way to the pinch.
+            e.stopPropagation();
+            startPinch();
+            return;
+        }
+        if (touches.size > 2) return;
+        const onEmptyCanvas = !e.target.closest?.(".canvas-element, .resize-handle, .rotate-handle, #group-bound, .floating-text-toolbar, [data-floating-toolbar]");
+        if (onEmptyCanvas) {
+            pan = { x: e.clientX, y: e.clientY, left: wrapper.scrollLeft, top: wrapper.scrollTop };
+        }
+        const target = e.target;
+        hold = {
+            x: e.clientX,
+            y: e.clientY,
+            timer: setTimeout(() => {
+                hold = null;
+                if (touches.size !== 1 || canvasGestureActive) return;
+                suppressContextMenuUntil = Date.now() + 800; // the browser's own long-press menu event, if it sends one
+                pan = null;
+                target.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY, button: 2 }));
+                if (navigator.vibrate) navigator.vibrate(10);
+            }, HOLD_MS),
+        };
+    }, true);
+
+    // Moves and releases are followed on the whole window: a text box being edited stops them on their way, and a
+    // missed release left a stale long-press that opened the menu under the next tap.
+    window.addEventListener("pointermove", (e) => {
+        if (!touches.has(e.pointerId)) return;
+        touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (hold && Math.hypot(e.clientX - hold.x, e.clientY - hold.y) > HOLD_SLOP) cancelHold();
+        if (pinch) {
+            e.stopPropagation();
+            if (!frame) frame = requestAnimationFrame(applyPinch);
+        } else if (pan && touches.size === 1) {
+            wrapper.scrollLeft = pan.left - (e.clientX - pan.x);
+            wrapper.scrollTop = pan.top - (e.clientY - pan.y);
+        }
+    }, true);
+
+    const release = (e) => {
+        if (!touches.has(e.pointerId)) return;
+        touches.delete(e.pointerId);
+        cancelHold();
+        if (touches.size < 2 && pinch) {
+            pinch = null;
+            pan = null;
+            if (typeof updateFloatingToolbars === "function") updateFloatingToolbars();
+        }
+        if (!touches.size) {
+            pan = null;
+            // Cleared after the events of this release (a tap's click) have run.
+            setTimeout(() => {
+                canvasGestureActive = false;
+            }, 0);
+        }
+    };
+    window.addEventListener("pointerup", release, true);
+    window.addEventListener("pointercancel", release, true);
+    wrapper.addEventListener("contextmenu", (e) => {
+        if (e.isTrusted && Date.now() < suppressContextMenuUntil) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+        }
+    }, true);
 }
 
 function getZoomAnchor(wrapper, event = null) {
@@ -238,6 +384,9 @@ function applyZoom(options = {}) {
     }
 
     if (anchor) {
+        // At once as well as after the frame: the next wheel event of a pinch measures from the scroll position,
+        // and before it was restored each step drifted away from the pointer.
+        restoreZoomAnchor(wrapper, anchor);
         requestAnimationFrame(() => restoreZoomAnchor(wrapper, anchor));
     }
 }
@@ -272,6 +421,15 @@ function initZoomControlDisclosure() {
             setZoomControlExpanded(false);
         }
     });
+}
+
+// Zoom by a factor (1.2 = 20% larger) about the pointer, or the canvas centre.
+function zoomBy(factor, options = {}) {
+    const wrapper = document.getElementById("canvas-wrapper");
+    const anchor = getZoomAnchor(wrapper, options.anchorEvent);
+    zoomMode = "manual";
+    stateZoom = clampZoom(stateZoom * factor);
+    applyZoom({ ...options, preserveViewport: false, anchor });
 }
 
 function changeZoom(delta, options = {}) {

@@ -461,3 +461,37 @@ html[data-theme="dark"] #properties-panel .prop-icon-preview {
     border-color: var(--dk-border);
     color: var(--dk-text);
 }
+
+/* Gestures on the canvas are the app's: in the editor a pinch zooms the slide, not the whole window (zoom.js);
+   presenting, a swipe changes step (presentation-tools.js) instead of being taken by the browser. */
+#canvas-wrapper {
+    touch-action: none;
+}
+/* Space held: the hand shows over objects too (their own move and text cursors hid it). */
+body.sf-space-pan #canvas-wrapper,
+body.sf-space-pan #canvas-wrapper * {
+    cursor: grab !important;
+}
+body.sf-canvas-panning #canvas-wrapper,
+body.sf-canvas-panning #canvas-wrapper * {
+    cursor: grabbing !important;
+}
+
+/* Canvas right-click menu: shortcuts on the right, a visible keyboard focus. */
+#canvas-context-menu .ctx-menu-keys {
+    font: 500 11px/1 var(--font-ui, system-ui, sans-serif);
+    color: var(--text-sub, #64748b);
+    background: none;
+    border: 0;
+    padding: 0;
+}
+#canvas-context-menu .ctx-menu-item:focus-visible {
+    outline: 2px solid var(--primary, #4f46e5);
+    outline-offset: -2px;
+}
+
+/* insert-toolbar.js measures each layout of the insert bar with its transitions off. */
+#insert-toolbar-row .insert-toolbar.is-measuring,
+#insert-toolbar-row .insert-toolbar.is-measuring * {
+    transition: none !important;
+}
