@@ -692,3 +692,24 @@ body.sf-button-names #app-toolbar #editor-tools-menu > summary[data-short-label]
 .shortcuts-done:hover {
     background: var(--primary-hover, #4338ca);
 }
+
+/* The slide preset browser in the 320px panel: search and filter each the full width (the filter read
+   "Recommend"), room for three rows of cards rather than one and a half, and names that wrap rather than end in
+   "...". */
+#properties-panel .sf-preset-tools {
+    grid-template-columns: minmax(0, 1fr) !important;
+}
+#properties-panel .sf-preset-results {
+    max-height: min(440px, 55vh);
+}
+#properties-panel .preset-card-name,
+#properties-panel .preset-card-footer small,
+#properties-panel .preset-card-footer span {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    line-height: 1.25 !important;
+}
+#properties-panel .preset-card-name {
+    font-size: 11px !important;
+}

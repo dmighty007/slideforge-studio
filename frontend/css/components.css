@@ -850,12 +850,15 @@ body.sf-moving-element .floating-text-toolbar {
     margin: 0 2px;
 }
 
+/* Room for all eight swatches: held to 76px, they were squeezed to 6px slivers (in dark mode they also lost their
+   colour, see dark-mode.css). */
 #floating-text-palette {
-    max-width: 76px;
-    overflow: hidden;
+    flex: 0 0 auto;
+    gap: 5px !important;
 }
 
 #floating-text-palette button {
+    flex: 0 0 auto;
     width: 14px !important;
     height: 14px !important;
     border-radius: 999px;

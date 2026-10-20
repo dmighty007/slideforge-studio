@@ -6840,6 +6840,69 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("presets: applied to a new slide they keep their own title and text (no lone bullet); typed text carries over as text, not [object Object]", async () => {
+        const { page } = await openFreshEditor(context);
+        const texts = () => page.evaluate(() => [...document.querySelectorAll(".slides .presentation-slide.present .canvas-element[data-type='text']")].map(n => n.innerText.trim().replace(/\s+/g, " ")).filter(Boolean));
+        await page.evaluate(() => { addSlide(); applyPresetLayoutToCurrentSlide("two-column"); });
+        await page.waitForTimeout(400);
+        const fresh = await texts();
+        // The empty placeholders of the new slide replaced the preset's title and text with nothing (and a "•").
+        assert(fresh.includes("Compare two paths") && fresh.includes("Option A") && !fresh.includes("•"), `fresh: ${JSON.stringify(fresh)}`);
+        await page.evaluate(() => addSlide());
+        await page.waitForTimeout(300);
+        const ids = await page.evaluate(() => state.slides[currentSlideIndex].elements.filter(e => e.type === "text").map(e => [e.id, e.placeholder || ""]));
+        const title = ids.find(([, ph]) => /title/i.test(ph));
+        const body = ids.find(([, ph]) => /text/i.test(ph) && !/title/i.test(ph));
+        for (const [id, lines] of [[title[0], ["My results"]], [body[0], ["first point", "second point"]]]) {
+            await page.locator(`.slides .presentation-slide.present [id="${id}"]`).dblclick();
+            await page.waitForTimeout(200);
+            for (const [i, line] of lines.entries()) {
+                if (i) await page.keyboard.press("Enter");
+                await page.keyboard.type(line);
+            }
+            await page.keyboard.press("Escape");
+            await page.keyboard.press("Escape");
+            await page.waitForTimeout(200);
+        }
+        await page.evaluate(() => applyPresetLayoutToCurrentSlide("results-data"));
+        await page.waitForTimeout(400);
+        const typed = await texts();
+        assert(typed.includes("My results") && typed.some(t => /first point.*second point/.test(t)) && !typed.some(t => t.includes("[object Object]")), `typed: ${JSON.stringify(typed)}`);
+        await page.close();
+    });
+
+    await test("dark mode: the text toolbar's colour swatches keep their colours and their size", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => { if (document.documentElement.dataset.theme !== "dark") toggleAppTheme(); addElement("text"); });
+        await page.waitForTimeout(500);
+        const swatches = await page.evaluate(() => [...document.querySelectorAll("#floating-text-palette button")].map(b => ({ bg: getComputedStyle(b).backgroundColor, w: Math.round(b.getBoundingClientRect().width) })));
+        await page.evaluate(() => { if (document.documentElement.dataset.theme === "dark") toggleAppTheme(); });
+        // All were transparent on the dark toolbar (they looked black), and squeezed to 6px slivers.
+        const colours = new Set(swatches.map(s => s.bg));
+        assert(swatches.length >= 6 && colours.size >= 6 && !colours.has("rgba(0, 0, 0, 0)") && swatches.every(s => s.w >= 12), `swatches: ${JSON.stringify(swatches)}`);
+        await page.close();
+    });
+
+    await test("dropdowns: a Properties list stays open when the panel scrolls a little after it opened, and follows its dropdown", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        await pageAwait(page, async () => { await insertPluginElement("box-plot", null, { ask: false }); setPropertiesPanelVisible(true); _propertiesPanelActiveTab = "content"; buildPropertiesPanel(); return true; });
+        await page.waitForTimeout(400);
+        await page.locator("#prop-plugin-kind").click();
+        await page.waitForTimeout(200);
+        const before = await page.evaluate(() => document.querySelector(".sf-select-menu")?.getBoundingClientRect().top);
+        // The panel still gliding from a wheel or trackpad scroll when the list opened: it closed at once.
+        await page.evaluate(() => { document.getElementById("properties-content").scrollTop += 30; });
+        await page.waitForTimeout(200);
+        const after = await page.evaluate(() => ({
+            open: !!document.querySelector(".sf-select-menu"),
+            gap: document.querySelector(".sf-select-menu")?.getBoundingClientRect().top - document.getElementById("prop-plugin-kind").getBoundingClientRect().bottom,
+        }));
+        assert(before !== undefined && after.open && Math.abs(after.gap - 4) <= 2, `after a small scroll: ${JSON.stringify({ before, after })}`);
+        await page.keyboard.press("Escape");
+        await page.close();
+    });
+
     await test("overnight: Ctrl+C on a shape and Ctrl+V on another slide pastes the shape, not a \"[shape]\" text box", async () => {
         const { page } = await openFreshEditor(context);
         const id = await page.evaluate(() => { addSlide(); addShape("rectangle"); return state.selectedIds[0]; });

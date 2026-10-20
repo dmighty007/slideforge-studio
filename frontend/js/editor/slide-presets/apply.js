@@ -157,7 +157,11 @@ function _applyContentFromElementToPresetElement(target, source) {
     if (target.type === "text") {
         next.content = _clonePresetContentValue(source.content);
         next.bulletStyle = source.bulletStyle || target.bulletStyle || "default";
-        if (typeof createTextDocumentFromLegacyContent === "function") {
+        // The text as it is, lists and formatting included (rebuilt from its legacy content, a list came out as
+        // "[object Object]").
+        if (source.textDocument) {
+            next.textDocument = _clonePresetContentValue(source.textDocument);
+        } else if (typeof createTextDocumentFromLegacyContent === "function") {
             next.textDocument = createTextDocumentFromLegacyContent(next.content || "", {
                 bulletStyle: next.bulletStyle || "default",
             });
@@ -189,10 +193,20 @@ function _applyContentFromElementToPresetElement(target, source) {
     return next;
 }
 
+// A text box with no words (an empty "Click to add title" placeholder) has nothing to carry over: carried over, it
+// replaced the preset's own title and text with nothing, and its empty bullet list showed as a lone "•".
+function _presetSourceHasContent(el) {
+    if (el?.type !== "text") return true;
+    const plain = el.textDocument && typeof textDocumentToPlainText === "function"
+        ? textDocumentToPlainText(el.textDocument)
+        : _plainPresetTextContent(el.content);
+    return Boolean(String(plain || "").trim());
+}
+
 function preserveSlideContentForPresetLayout(nextSlide, previousSlide) {
     if (!nextSlide || !previousSlide) return nextSlide;
     const sourcesByType = new Map();
-    (previousSlide.elements || []).filter(_isReusablePresetContentElement).forEach(element => {
+    (previousSlide.elements || []).filter(el => _isReusablePresetContentElement(el) && _presetSourceHasContent(el)).forEach(element => {
         if (!sourcesByType.has(element.type)) sourcesByType.set(element.type, []);
         sourcesByType.get(element.type).push(element);
     });

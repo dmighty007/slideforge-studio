@@ -108,10 +108,20 @@ function openSelectMenu(select) {
     _sfSelectPlace(menu, select);
     setActive(active);
     select.setAttribute("aria-expanded", "true");
-    const onViewportChange = () => closeSelectMenu();
-    // Scrolling the page or a panel under the list closes it (the list would be left behind); scrolling the list does not.
+    // Scrolling the panel under the list, or resizing the window, moves the list with its dropdown; only once the
+    // dropdown is out of sight does the list close. Closing on any scroll shut lists the moment they opened: a panel
+    // still gliding from a trackpad or wheel scroll, or brought into view by the click, scrolls a few pixels more.
+    const follow = () => {
+        if (!_sfSelectMenu || _sfSelectMenu.menu !== menu) return;
+        const rect = select.getBoundingClientRect();
+        const clip = select.closest("#properties-content, .overflow-y-auto, .overflow-auto")?.getBoundingClientRect()
+            || { top: 0, bottom: window.innerHeight };
+        if (!rect.height || rect.bottom < clip.top || rect.top > clip.bottom) closeSelectMenu();
+        else _sfSelectPlace(menu, select);
+    };
+    const onViewportChange = follow;
     const onScroll = event => {
-        if (!menu.contains(event.target)) closeSelectMenu();
+        if (!menu.contains(event.target)) follow();
     };
     window.addEventListener("resize", onViewportChange);
     document.addEventListener("scroll", onScroll, true);

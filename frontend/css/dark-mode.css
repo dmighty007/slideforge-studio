@@ -768,12 +768,13 @@ html[data-theme="dark"] [id^="floating-"][id$="-toolbar"] {
     border-color: var(--dk-border) !important;
     color: var(--dk-text) !important;
 }
-html[data-theme="dark"] [id^="floating-"][id$="-toolbar"] :is(button, select, input:not([type="color"])) {
+/* Colour swatches (a button whose own style gives its colour) keep it: all of them showed as the toolbar's dark. */
+html[data-theme="dark"] [id^="floating-"][id$="-toolbar"] :is(button:not([style*="background"]), select, input:not([type="color"])) {
     background: transparent !important;
     border-color: var(--dk-border) !important;
     color: var(--dk-text) !important;
 }
-html[data-theme="dark"] [id^="floating-"][id$="-toolbar"] button:hover {
+html[data-theme="dark"] [id^="floating-"][id$="-toolbar"] button:not([style*="background"]):hover {
     background: var(--dk-hover) !important;
 }
 html[data-theme="dark"] [id^="floating-"][id$="-toolbar"] button.active {
@@ -1103,4 +1104,10 @@ html[data-theme="dark"] .insert-group-tools.is-floating {
 }
 html[data-theme="dark"] .insert-group-tools.is-floating .insert-tool-btn:hover {
     background: var(--dk-raised);
+}
+
+/* The text toolbar's swatches on the dark toolbar: a light ring, so the dark ink swatch can be seen. */
+html[data-theme="dark"] #floating-text-palette button {
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45) !important;
+    border-color: rgba(255, 255, 255, 0.25) !important;
 }
