@@ -6789,7 +6789,8 @@ async function test(name, fn) {
         const id = await pageAwait(page, () => insertPluginElement("box-plot", null, { ask: false }));
         await page.waitForTimeout(400);
         const notice = await page.evaluate(() => document.getElementById("placement-notice")?.innerText || "");
-        assert(/Fit to content area/.test(notice) && /Move to a new slide/.test(notice), `notice: ${notice}`);
+        // A full slide: no free space worth fitting into (spreading over the content hid it), so a new slide.
+        assert(/Move to a new slide/.test(notice) && !/Fit to content area/.test(notice), `notice: ${notice}`);
         await page.evaluate(id => { selectElement(id, "replace"); _propertiesPanelActiveTab = "content"; buildPropertiesPanel(); }, id);
         await page.waitForTimeout(300);
         const panel = await page.evaluate(() => ({
@@ -6900,6 +6901,128 @@ async function test(name, fn) {
         }));
         assert(before !== undefined && after.open && Math.abs(after.gap - 4) <= 2, `after a small scroll: ${JSON.stringify({ before, after })}`);
         await page.keyboard.press("Escape");
+        await page.close();
+    });
+
+    await test("workflow audit 2026-10-20 U1: with the expanded data editor open, Shift+Tab and Delete do not delete the plot behind it; Cancel leaves it", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const id = await pageAwait(page, async () => { addSlide(); const id = await insertPluginElement("box-plot", null, { ask: false }); setPropertiesPanelVisible(true); _propertiesPanelActiveTab = "content"; selectElement(id, "replace"); buildPropertiesPanel(); return id; });
+        await page.waitForTimeout(300);
+        await page.click("#prop-plugin-data-expand");
+        await page.locator("#plugin-table-editor textarea").waitFor();
+        await page.keyboard.press("Shift+Tab");
+        const focus = await page.evaluate(() => ({ inDialog: !!document.activeElement?.closest("#plugin-table-editor"), tag: document.activeElement?.tagName }));
+        for (const key of ["Delete", "Backspace", "ArrowDown", "Shift+Tab", "Delete"]) await page.keyboard.press(key);
+        // And with the focus on the page itself while the dialog is open: the slide takes no shortcuts.
+        await page.evaluate(() => document.activeElement?.blur());
+        for (const key of ["Delete", "ArrowDown", "Control+d"]) await page.keyboard.press(key);
+        const during = await page.evaluate(id => state.slides[currentSlideIndex].elements.find(e => e.id === id && e.x !== undefined), id);
+        const count = await page.evaluate(() => state.slides[currentSlideIndex].elements.filter(e => e.type === "plugin").length);
+        assert(count === 1, `a shortcut acted behind the dialog: ${count} plots`);
+        await page.click("#plugin-table-editor .plugin-table-editor__cancel");
+        await page.waitForTimeout(200);
+        const after = await page.evaluate(id => state.slides[currentSlideIndex].elements.some(e => e.id === id), id);
+        assert(focus.inDialog, `Shift+Tab left the dialog: ${JSON.stringify(focus)}`);
+        assert(during && after, `the plot was deleted behind the dialog (during: ${!!during}, after Cancel: ${after})`);
+        await page.close();
+    });
+
+    await test("workflow audit 2026-10-20 U2: applying a layout keeps a table and a chart it has no place for", async () => {
+        const { page } = await openFreshEditor(context);
+        const ids = await page.evaluate(() => {
+            addSlide();
+            addElement("table");
+            const table = state.slides[currentSlideIndex].elements.find(e => e.type === "table");
+            table.tableData.cells[0][0].text = "DO NOT LOSE: Catalyst data";
+            addChart("bar");
+            const chart = state.slides[currentSlideIndex].elements.find(e => e.type === "chart");
+            renderSlidesFromState();
+            clearSelection();
+            setPropertiesPanelVisible(true);
+            _propertiesPanelActiveTab = "layout";
+            buildPropertiesPanel();
+            return { table: table.id, chart: chart.id };
+        });
+        await page.waitForTimeout(300);
+        await page.locator("#prop-slide-layout").selectOption("blank-titled");
+        await page.click("#prop-apply-layout");
+        await page.waitForTimeout(400);
+        const kept = await page.evaluate(ids => {
+            const els = state.slides[currentSlideIndex].elements;
+            const table = els.find(e => e.id === ids.table);
+            return { table: table?.tableData?.cells?.[0]?.[0]?.text, chart: els.some(e => e.id === ids.chart) };
+        }, ids);
+        assert(kept.table === "DO NOT LOSE: Catalyst data" && kept.chart, `after Apply: ${JSON.stringify(kept)}`);
+        await page.close();
+    });
+
+    await test("workflow audit 2026-10-20 U3: after choosing a chart type from the list, the dropdown keeps the focus: ArrowDown and Delete do not move or delete the chart", async () => {
+        const { page } = await openFreshEditor(context);
+        const id = await page.evaluate(() => { addSlide(); addChart("bar"); const id = state.selectedIds[0]; setPropertiesPanelVisible(true); _propertiesPanelActiveTab = "content"; buildPropertiesPanel(); return id; });
+        await page.waitForTimeout(400);
+        await page.locator("#prop-chart-type").click();
+        await page.locator(".sf-select-menu__option", { hasText: /^Line$/ }).first().click();
+        await page.waitForTimeout(300);
+        const chosen = await page.evaluate(id => ({ type: state.slides[currentSlideIndex].elements.find(e => e.id === id)?.chartType, focus: document.activeElement?.id }), id);
+        const before = await page.evaluate(id => { const e = state.slides[currentSlideIndex].elements.find(x => x.id === id); return [e.x, e.y]; }, id);
+        await page.keyboard.press("ArrowDown");
+        await page.waitForTimeout(200);
+        const moved = await page.evaluate(id => { const e = state.slides[currentSlideIndex].elements.find(x => x.id === id); return e && [e.x, e.y]; }, id);
+        await page.keyboard.press("Delete");
+        await page.waitForTimeout(200);
+        const exists = await page.evaluate(id => state.slides[currentSlideIndex].elements.some(e => e.id === id), id);
+        assert(chosen.type === "line" && chosen.focus === "prop-chart-type", `after choosing Line: ${JSON.stringify(chosen)}`);
+        assert(JSON.stringify(moved) === JSON.stringify(before) && exists, `ArrowDown moved (${before} -> ${moved}) or Delete removed (${!exists}) the chart`);
+        await page.close();
+    });
+
+    await test("workflow audit 2026-10-20 U4: the placement notice never spreads a chart over a table; it fits it into free space or offers a new slide", async () => {
+        const { page } = await openFreshEditor(context);
+        const out = await page.evaluate(async () => {
+            addSlide();
+            addElement("table");
+            const table = state.slides[currentSlideIndex].elements.find(e => e.type === "table");
+            addChart("bar");
+            await new Promise(r => setTimeout(r, 300));
+            const chart = state.slides[currentSlideIndex].elements.find(e => e.type === "chart");
+            const notice = document.getElementById("placement-notice");
+            return { table: table.id, chart: chart.id, buttons: notice ? [...notice.querySelectorAll("[data-placement]")].map(b => b.dataset.placement) : null };
+        });
+        assert(out.buttons && out.buttons.includes("slide"), `notice: ${JSON.stringify(out)}`);
+        if (out.buttons.includes("fit")) {
+            await page.click('#placement-notice [data-placement="fit"]');
+            await page.waitForTimeout(300);
+        }
+        const overlap = await page.evaluate(({ table, chart }) => {
+            const box = id => { const e = state.slides[currentSlideIndex].elements.find(x => x.id === id); const n = getActiveSlideElementDom(id); return { x: +e.x, y: +e.y, w: parseFloat(e.width) || n.offsetWidth, h: parseFloat(e.height) || n.offsetHeight }; };
+            const a = box(table), b = box(chart);
+            const w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+            const h = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+            return w > 0 && h > 0 ? w * h : 0;
+        }, out);
+        // "Fit to content area" spread the chart over 100% of the table.
+        assert(overlap === 0, `the chart covers ${overlap} square px of the table`);
+        await page.evaluate(id => { deleteSelectedElements(); }, out.chart);
+        await page.waitForTimeout(200);
+        assert(!(await page.evaluate(() => document.getElementById("placement-notice"))), "the notice outlived its chart");
+        await page.close();
+    });
+
+    await test("workflow audit 2026-10-20 U5: at 700x800 the equation dialog fits the window and Insert works", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.setViewportSize({ width: 700, height: 800 });
+        await page.waitForTimeout(300);
+        await clickTool(page, "button[title='LaTeX Equation']");
+        await page.locator("#equation-input").fill("E=mc^2");
+        const box = await page.locator(".equation-primary-action").boundingBox();
+        assert(box && box.x >= 0 && box.x + box.width <= 700 && box.y + box.height <= 800, `Insert at ${JSON.stringify(box)}`);
+        const before = await page.evaluate(() => state.slides[currentSlideIndex].elements.filter(e => e.type === "equation").length);
+        await page.locator(".equation-primary-action").click();
+        await page.waitForTimeout(300);
+        const after = await page.evaluate(() => state.slides[currentSlideIndex].elements.filter(e => e.type === "equation").length);
+        await page.setViewportSize({ width: 1440, height: 950 });
+        assert(after === before + 1, `equations ${before} -> ${after}`);
         await page.close();
     });
 

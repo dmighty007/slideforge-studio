@@ -237,12 +237,23 @@ function _bindChartPanel(group, data) {
       // The panel is not rebuilt while one of its boxes has the caret: after a paste or Enter in the last row, the
       // grid kept showing the old rows.
       const focused = document.activeElement;
+      // Which control had the focus, found again in the new panel: blurred here, it was left on the page, and
+      // after choosing a chart type the arrow keys moved the chart and Delete removed it.
+      const again = focused && group.contains(focused)
+        ? focused.id
+          ? `[id="${focused.id}"]`
+          : focused.dataset?.row !== undefined
+            ? `.${[...focused.classList].find((c) => c.startsWith("chart-row-")) || "prop-input-sm"}[data-row="${focused.dataset.row}"]${focused.dataset.series !== undefined ? `[data-series="${focused.dataset.series}"]` : ""}`
+            : ""
+        : "";
       if (focused && group.contains(focused)) {
         leaving = true;
         focused.blur();
         leaving = false;
       }
       buildPropertiesPanel();
+      const target = again && document.querySelector(`#properties-content ${again}`);
+      if (target && target.offsetParent !== null) target.focus({ preventScroll: true });
     }
   };
 

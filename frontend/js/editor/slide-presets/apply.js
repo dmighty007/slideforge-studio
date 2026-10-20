@@ -85,7 +85,7 @@ function buildPresetSlideState(
 function _isReusablePresetContentElement(el) {
     if (!el || typeof el !== "object") return false;
     if (typeof isPresetBackgroundElement === "function" && isPresetBackgroundElement(el)) return false;
-    if (el.footerRole || el.locked) return false;
+    if (el.footerRole || el.locked || el.isMasterElement || el.editableMasterFooterElement || el.importedBackground) return false;
     return ["text", "image", "video", "chart", "table", "equation", "html", "pdf", "molecule", "whiteboard", "sketch", "plugin"].includes(el.type);
 }
 
@@ -219,6 +219,17 @@ function preserveSlideContentForPresetLayout(nextSlide, previousSlide) {
         reused += 1;
         return _applyContentFromElementToPresetElement(element, source);
     });
+    // What the new layout has no place for stays on the slide as it was (where it was, above the layout's own
+    // shapes): a table and a chart on a slide given the Blank Titled layout disappeared without a word.
+    const kept = [];
+    sourcesByType.forEach(queue => queue.forEach(element => kept.push(_clonePresetContentValue(element))));
+    if (kept.length) {
+        const top = Math.max(0, ...nextSlide.elements.map(el => parseInt(el.styles?.zIndex, 10) || 0));
+        kept.forEach((element, i) => {
+            element.styles = { ...(element.styles || {}), zIndex: top + 1 + i };
+            nextSlide.elements.push(element);
+        });
+    }
     nextSlide.contentPreservedFromLayoutId = previousSlide.layoutId || "";
     nextSlide.contentPreservedCount = reused;
     return nextSlide;

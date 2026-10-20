@@ -356,6 +356,17 @@ function openPluginTableEditor(field, text, apply) {
       update();
     }
   });
+  // The keyboard stays in the dialog: Shift+Tab from the box (and Tab from the last button) go round its own
+  // controls instead of leaving the focus on the page behind it.
+  dialog.addEventListener("keydown", (event) => {
+    if (event.key !== "Tab") return;
+    if (event.target === box && !event.shiftKey) return; // types a tab (above)
+    const stops = [box, dialog.querySelector(".plugin-table-editor__cancel"), dialog.querySelector(".plugin-table-editor__apply")];
+    const at = stops.indexOf(document.activeElement);
+    event.preventDefault();
+    event.stopPropagation();
+    stops[(at + (event.shiftKey ? stops.length - 1 : 1)) % stops.length].focus();
+  }, true); // on the way down: the box stops its keys from reaching the dialog
   dialog.querySelector(".plugin-table-editor__cancel").onclick = () => dialog.close("cancel");
   dialog.addEventListener("close", () => {
     if (dialog.returnValue === "apply") apply(box.value);

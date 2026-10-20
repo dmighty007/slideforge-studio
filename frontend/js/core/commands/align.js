@@ -223,9 +223,13 @@ function showPlacementNotice(id, { width, height, covers = false } = {}) {
     notice.id = "placement-notice";
     notice.className = "placement-notice";
     notice.setAttribute("role", "status");
+    // "Fit to content area" spread the object over everything already there (a chart hid a whole table). Offered
+    // now only when the free part of the content area gives it real room; otherwise a slide of its own.
+    const plan = _freeSpaceFit(id);
+    notice.dataset.elementId = id;
     notice.innerHTML = `<span class="placement-notice__text"></span>
-        <button type="button" data-placement="fit">Fit to content area</button>
-        <button type="button" data-placement="slide">Move to a new slide</button>
+        ${plan ? '<button type="button" data-placement="fit">Fit into the free space</button>' : ""}
+        <button type="button" data-placement="slide" class="${plan ? "" : "is-primary"}">Move to a new slide</button>
         <button type="button" data-placement="close" class="placement-notice__close" aria-label="Dismiss"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`;
     notice.querySelector(".placement-notice__text").textContent = covers
         ? "This slide is full, so the new object overlaps others."
@@ -235,9 +239,18 @@ function showPlacementNotice(id, { width, height, covers = false } = {}) {
         if (!action) return;
         hidePlacementNotice();
         if (action === "fit") {
-            setSelectedIds([id]);
-            fitSelectionToContentArea();
+            const fit = _freeSpaceFit(id);
+            if (!fit) return;
+            saveStateToUndo();
+            const el = state.slides[currentSlideIndex].elements.find(item => item.id === id);
+            if (el?.type === "table" && typeof _fitTableToContentArea === "function") {
+                _fitTableToContentArea(el, { x: fit.x, y: fit.y, width: `${fit.width}px`, height: `${fit.height}px` });
+            } else {
+                updateElementState(id, { x: fit.x, y: fit.y, width: `${fit.width}px`, height: `${fit.height}px` });
+            }
+            renderSlidesFromState();
             selectElement(id, "replace");
+            schedulePresentationAutosave?.(150);
         } else if (action === "slide") {
             moveElementToNewSlide(id, { width, height });
         }
@@ -245,6 +258,64 @@ function showPlacementNotice(id, { width, height, covers = false } = {}) {
     // Over the bottom of the canvas, clear of the zoom buttons.
     wrapper.parentElement.appendChild(notice);
     _placementNoticeTimer = setTimeout(hidePlacementNotice, 12000);
+}
+
+// The empty rectangles of an area once the boxes are taken out of it (each as large as it can be).
+function _freeRectangles(area, boxes) {
+    let free = [{ x: area.x, y: area.y, w: area.w, h: area.h }];
+    boxes.forEach(b => {
+        const next = [];
+        free.forEach(f => {
+            if (b.x >= f.x + f.w || b.x + b.w <= f.x || b.y >= f.y + f.h || b.y + b.h <= f.y) {
+                next.push(f);
+                return;
+            }
+            if (b.x > f.x) next.push({ x: f.x, y: f.y, w: b.x - f.x, h: f.h });
+            if (b.x + b.w < f.x + f.w) next.push({ x: b.x + b.w, y: f.y, w: f.x + f.w - (b.x + b.w), h: f.h });
+            if (b.y > f.y) next.push({ x: f.x, y: f.y, w: f.w, h: b.y - f.y });
+            if (b.y + b.h < f.y + f.h) next.push({ x: f.x, y: b.y + b.h, w: f.w, h: f.y + f.h - (b.y + b.h) });
+        });
+        free = next.filter((r, i) => r.w > 1 && r.h > 1 && !next.some((o, j) => j !== i &&
+            o.x <= r.x && o.y <= r.y && o.x + o.w >= r.x + r.w && o.y + o.h >= r.y + r.h &&
+            (j < i || o.w * o.h > r.w * r.h)));
+    });
+    return free;
+}
+
+// Where object `id` could grow without covering anything: the best spot in the free part of the content area, or
+// null when that would not make it usefully larger (at least 360 x 220 and a fifth larger than it is).
+function _freeSpaceFit(id) {
+    const slide = state.slides[currentSlideIndex];
+    const el = slide?.elements.find(item => item.id === id);
+    if (!el || typeof _pluginContentArea !== "function" || typeof _currentSlideContentBoxes !== "function") return null;
+    const content = _pluginContentArea(slide, new Set([id]));
+    if (!content) return null;
+    const area = { x: content.x, y: content.y, w: parseFloat(content.width), h: parseFloat(content.height) };
+    const gap = 16;
+    const boxes = _currentSlideContentBoxes(id)
+        .filter(b => !(b.text && slide.elements.some(item => item.placeholderRole === "content" && typeof _isEmptyTextElement === "function" && _isEmptyTextElement(item) && Math.abs((parseFloat(item.x) || 0) - b.x) < 1 && Math.abs((parseFloat(item.y) || 0) - b.y) < 1)))
+        .map(b => ({ x: b.x - gap, y: b.y - gap, w: b.w + gap * 2, h: b.h + gap * 2 }));
+    const width = parseFloat(el.width) || 0;
+    const height = parseFloat(el.height) || 0;
+    if (!(width > 0 && height > 0)) return null;
+    const plugin = el.type === "plugin" && typeof getSlidePlugin === "function" ? getSlidePlugin(el.pluginId) : null;
+    // Plots that lay out their own labels take the whole free rectangle; pictures keep their proportions.
+    const fills = el.type === "chart" || el.type === "table" || Boolean(plugin?.sizeAware);
+    let best = null;
+    _freeRectangles(area, boxes).forEach(r => {
+        let w = r.w;
+        let h = r.h;
+        if (!fills) {
+            const scale = Math.min(r.w / width, r.h / height);
+            w = width * scale;
+            h = height * scale;
+        }
+        if (!best || w * h > best.width * best.height) {
+            best = { x: Math.round(r.x + (r.w - w) / 2), y: Math.round(r.y + (r.h - h) / 2), width: Math.round(w), height: Math.round(h) };
+        }
+    });
+    if (!best || best.width < 360 || best.height < 220 || best.width * best.height < width * height * 1.2) return null;
+    return best;
 }
 
 // The object alone on a new slide after this one, given that slide's content area at its requested size.
@@ -267,6 +338,13 @@ function moveElementToNewSlide(id, size = {}) {
     window.renderSlidePreviews?.();
     schedulePresentationAutosave?.(150);
 }
+// The notice goes with its object: deleted, undone, taken off by a layout change or on another slide, the notice
+// stayed offering to fit an object that was no longer there.
+window.addEventListener("slideforge:render-complete", () => {
+    const notice = document.getElementById("placement-notice");
+    const id = notice?.dataset.elementId;
+    if (id && !state.slides[currentSlideIndex]?.elements.some(el => el.id === id)) hidePlacementNotice();
+});
 window.showPlacementNotice = showPlacementNotice;
 window.hidePlacementNotice = hidePlacementNotice;
 window.moveElementToNewSlide = moveElementToNewSlide;

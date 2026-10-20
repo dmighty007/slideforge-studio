@@ -64,6 +64,15 @@ function closeEditorDialogs({ all = false } = {}) {
 // Delete in an empty placeholder removes it. A click on an empty placeholder starts typing in it, so Delete did
 // nothing there; removing the unused body box took click, Escape, Delete. Captured: the list editor handles Delete
 // itself and stops it there.
+// An open dialog over the editor: a native modal <dialog>, one of the editor's own (EDITOR_DIALOGS), or another
+// visible modal (the app's prompt and share boxes).
+function isModalDialogOpen() {
+    if (document.querySelector("dialog[open]")) return true;
+    if (EDITOR_DIALOGS.some(([id]) => _isDialogOpen(document.getElementById(id)))) return true;
+    return [...document.querySelectorAll('[aria-modal="true"]')].some(node => node.id !== "start-screen" && node.checkVisibility?.());
+}
+window.isModalDialogOpen = isModalDialogOpen;
+
 function _deleteEmptyPlaceholderOnDelete(e) {
     if (e.key !== "Delete" || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
     if (document.body.classList.contains("play-mode-active")) return;
@@ -101,6 +110,9 @@ function initKeyboard() {
             e.preventDefault();
             return;
         }
+        // With a dialog open the slide behind it takes no shortcuts, wherever the focus is: Shift+Tab out of the
+        // expanded data editor left the focus on the page, and Delete then removed the plot being edited.
+        if (isModalDialogOpen()) return;
 
         const isUndoShortcut = (e.ctrlKey || e.metaKey) && !e.shiftKey && key === "z";
         const isRedoShortcut =
