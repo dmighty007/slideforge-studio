@@ -342,6 +342,28 @@ function clearTextFormatting(data = getSelectedElementData()) {
   schedulePresentationAutosave?.(150);
 }
 
+// Puts the caret `offset` characters into `editor` (at its end if the text is shorter).
+function _placeCaretAtTextOffset(editor, offset) {
+  const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+  let remaining = offset;
+  let node = walker.nextNode();
+  let last = null;
+  while (node) {
+    if (remaining <= node.textContent.length) break;
+    remaining -= node.textContent.length;
+    last = node;
+    node = walker.nextNode();
+  }
+  const range = document.createRange();
+  if (node) range.setStart(node, remaining);
+  else if (last) range.setStart(last, last.textContent.length);
+  else range.setStart(editor, editor.childNodes.length);
+  range.collapse(true);
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
 function applyTextFormatting(prop, value, options = {}) {
   const data = getSelectedElementData();
   if (!data || data.type !== "text") return;
@@ -354,8 +376,12 @@ function applyTextFormatting(prop, value, options = {}) {
   if (inlineContext) {
     // We have an active editor context.
     // We MUST restore the selection before checking or applying styles
-    // because the focus is likely on the sidebar/color picker now.
-    if (typeof restoreInlineSelection === "function") {
+    // because the focus is likely on the sidebar/color picker now. When the live selection is still in the text
+    // (the toolbar buttons keep it there), it is the one to use: the saved one could be from when editing began,
+    // and Bold with only a caret then sent the caret to the start of the box (typing went in front of the text).
+    const live = window.getSelection?.();
+    const liveRange = live?.rangeCount && inlineContext.editor.contains(live.anchorNode) ? live.getRangeAt(0).cloneRange() : null;
+    if (!liveRange && typeof restoreInlineSelection === "function") {
       restoreInlineSelection();
     }
 
@@ -373,7 +399,23 @@ function applyTextFormatting(prop, value, options = {}) {
           "textDecoration",
         ].includes(prop)
       ) {
+        const editor = inlineContext.editor;
+        const caret = liveRange || (window.getSelection?.()?.rangeCount ? window.getSelection().getRangeAt(0).cloneRange() : null);
+        // As a count of characters from the start: applying the style rewrites the box's HTML (style.js), which
+        // replaces the text nodes a saved range points into.
+        let offset = null;
+        if (caret && editor.contains(caret.startContainer)) {
+          const before = document.createRange();
+          before.selectNodeContents(editor);
+          before.setEnd(caret.startContainer, caret.startOffset);
+          offset = before.toString().length;
+        }
         applyStyle(prop, value);
+        // The whole box takes the style; the caret stays where it was.
+        if (offset !== null && editor.isConnected) {
+          _placeCaretAtTextOffset(editor, offset);
+          if (typeof captureInlineSelection === "function") captureInlineSelection();
+        }
       }
       return;
     }

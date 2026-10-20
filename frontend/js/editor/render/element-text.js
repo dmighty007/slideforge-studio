@@ -1,5 +1,30 @@
 // Text element content and inline text editing.
 
+
+// Selects the word under (x, y) in `host` (letters, digits and joining marks; a click between words selects nothing).
+function _selectWordAtPoint(host, x, y) {
+  const point = document.caretRangeFromPoint?.(x, y) ||
+    (() => { const p = document.caretPositionFromPoint?.(x, y); if (!p) return null; const r = document.createRange(); r.setStart(p.offsetNode, p.offset); return r; })();
+  const node = point?.startContainer;
+  if (!node || node.nodeType !== Node.TEXT_NODE || !host.contains(node)) return;
+  const text = node.textContent;
+  const isWord = (ch) => /[\p{L}\p{N}_'’\-]/u.test(ch || "");
+  let start = point.startOffset;
+  let end = point.startOffset;
+  if (!isWord(text[start]) && isWord(text[start - 1])) start -= 1;
+  if (!isWord(text[start])) return;
+  while (start > 0 && isWord(text[start - 1])) start -= 1;
+  end = start;
+  while (end < text.length && isWord(text[end])) end += 1;
+  const range = document.createRange();
+  range.setStart(node, start);
+  range.setEnd(node, end);
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+  if (typeof captureInlineSelection === "function") captureInlineSelection();
+}
+
 function commitActiveTextEditors() {
   let committed = false;
   document
@@ -261,6 +286,15 @@ function _applyTextTypeContent(el, elData, options) {
   el.addEventListener("dblclick", (event) => {
     event.stopPropagation();
     beginInlineTextEdit({ preserveSelection: true });
+    // A double-click on a word selects it, as in PowerPoint, also in a box that was not being edited: going into
+    // editing rebuilt the text (lists especially), the browser's own word selection was lost, and it took a second
+    // double-click before Bold or a colour had a word to apply to.
+    const { clientX, clientY } = event;
+    requestAnimationFrame(() => {
+      const selection = window.getSelection();
+      if (selection?.rangeCount && !selection.isCollapsed && contentHost.contains(selection.anchorNode)) return;
+      _selectWordAtPoint(contentHost, clientX, clientY);
+    });
   });
   contentHost.addEventListener("mousedown", (e) => {
     if (!contentHost.isContentEditable) return;

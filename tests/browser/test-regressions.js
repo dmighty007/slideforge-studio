@@ -7026,6 +7026,65 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("user session 2026-10-21: Bold with only a caret keeps the caret where it was (typing went to the start of the box)", async () => {
+        const { page } = await openFreshEditor(context);
+        const id = await page.evaluate(() => { addSlide(); return state.slides[currentSlideIndex].elements.find(e => /title/i.test(e.placeholder || "")).id; });
+        await page.waitForTimeout(300);
+        await page.locator(`.slides .presentation-slide.present [id="${id}"]`).click();
+        await page.keyboard.type("Plain words");
+        await page.locator("#floating-text-bold").click();
+        await page.waitForTimeout(200);
+        await page.keyboard.type(" here");
+        const text = await page.evaluate(id => getActiveSlideElementDom(id).querySelector(".text-element-content").textContent, id);
+        assert(text === "Plain words here", `typed after Bold: ${JSON.stringify(text)}`);
+        await page.close();
+    });
+
+    await test("user session 2026-10-21: a double-click on a word in a box not being edited selects the word", async () => {
+        const { page } = await openFreshEditor(context);
+        const id = await page.evaluate(() => { addSlide(); return state.slides[currentSlideIndex].elements.find(e => /text/i.test(e.placeholder || "") && !/title/i.test(e.placeholder || "")).id; });
+        await page.waitForTimeout(300);
+        const box = page.locator(`.slides .presentation-slide.present [id="${id}"]`);
+        await box.click();
+        await page.keyboard.type("first line");
+        await page.keyboard.press("Enter");
+        await page.keyboard.type("Catalytic routes cut waste");
+        await page.keyboard.press("Escape");
+        await page.keyboard.press("Escape");
+        await page.evaluate(() => clearSelection());
+        await page.waitForTimeout(200);
+        const point = await page.evaluate(id => {
+            const host = getActiveSlideElementDom(id);
+            const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+            let node;
+            while ((node = walker.nextNode())) {
+                const i = node.textContent.indexOf("Catalytic");
+                if (i >= 0) { const r = document.createRange(); r.setStart(node, i + 2); r.setEnd(node, i + 3); const b = r.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; }
+            }
+        }, id);
+        await page.mouse.dblclick(point.x, point.y);
+        await page.waitForTimeout(250);
+        // It went into editing with nothing selected: Bold then made the whole box bold.
+        const selected = await page.evaluate(() => getSelection().toString());
+        assert(selected === "Catalytic", `selected after one double-click: ${JSON.stringify(selected)}`);
+        await page.close();
+    });
+
+    await test("user session 2026-10-21: a plot filling the content area lines up with the title", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        const out = await pageAwait(page, async () => {
+            addSlide();
+            const id = await insertPluginElement("box-plot", null, { ask: false });
+            const els = state.slides[currentSlideIndex].elements;
+            const title = els.find(e => /title/i.test(e.placeholder || ""));
+            const plot = els.find(e => e.id === id);
+            return { titleX: parseFloat(title.x), plotX: parseFloat(plot.x), titleRight: parseFloat(title.x) + parseFloat(title.width), plotRight: parseFloat(plot.x) + parseFloat(plot.width) };
+        });
+        assert(Math.abs(out.plotX - out.titleX) <= 1 && out.plotRight <= out.titleRight + 1, `plot vs title: ${JSON.stringify(out)}`);
+        await page.close();
+    });
+
     await test("overnight: Ctrl+C on a shape and Ctrl+V on another slide pastes the shape, not a \"[shape]\" text box", async () => {
         const { page } = await openFreshEditor(context);
         const id = await page.evaluate(() => { addSlide(); addShape("rectangle"); return state.selectedIds[0]; });
@@ -7818,10 +7877,11 @@ async function test(name, fn) {
         await page.click("#prop-plugin-fit");
         const box = await page.evaluate(id => {
             const el = state.slides[currentSlideIndex].elements.find(e => e.id === id);
-            const { slideW, margin } = _getSlideInsertBounds();
-            return { x: el.x, y: el.y, w: parseFloat(el.width), h: parseFloat(el.height), slideW, margin, footer: _currentSlideFooterTop() };
+            const title = state.slides[currentSlideIndex].elements.find(e => /title/i.test(e.placeholder || ""));
+            return { x: el.x, y: el.y, w: parseFloat(el.width), h: parseFloat(el.height), titleX: parseFloat(title.x), titleW: parseFloat(title.width), footer: _currentSlideFooterTop() };
         }, plot);
-        assert(Math.abs(box.w - (box.slideW - 2 * box.margin)) <= 1 && box.y + box.h <= box.footer - 11 && box.h > 150, `filled box: ${JSON.stringify(box)}`);
+        // The width under the title, lined up with it (2026-10-21; it had used the generic 6% margin).
+        assert(Math.abs(box.x - box.titleX) <= 1 && Math.abs(box.w - box.titleW) <= 1 && box.y + box.h <= box.footer - 11 && box.h > 150, `filled box: ${JSON.stringify(box)}`);
         await page.close();
     });
 

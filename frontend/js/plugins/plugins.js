@@ -1023,10 +1023,17 @@ function _pluginContentArea(slide, id) {
             return (parseFloat(item.y) || 0) + height;
         });
     const top = Math.round(Math.max(margin, ...titleBottoms.map(bottom => bottom + 16)));
+    // Lined up with the title's left and right edges (the layout's margins, 64px on a 1280px slide) rather than
+    // the generic 6% margin (43px): a plot filling the area started left of the title.
+    const titleBox = slide.elements.find(item => !excluded.has(item.id) && item.type === "text" && !item.isMasterElement &&
+        /title/.test(item.placeholderRole || item.placeholder || "") && !/subtitle/i.test(item.placeholder || "") &&
+        (parseFloat(item.width) || 0) > slideW * 0.4);
+    const left = titleBox ? Math.max(margin, parseFloat(titleBox.x) || margin) : margin;
+    const right = titleBox ? Math.min(slideW - margin, (parseFloat(titleBox.x) || 0) + (parseFloat(titleBox.width) || 0)) : slideW - margin;
     return {
-        x: Math.round(margin),
+        x: Math.round(left),
         y: top,
-        width: `${Math.round(slideW - margin * 2)}px`,
+        width: `${Math.round(Math.max(120, right - left))}px`,
         height: `${Math.round(Math.max(80, floor - top))}px`,
     };
 }
