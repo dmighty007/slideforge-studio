@@ -70,11 +70,12 @@ irm https://raw.githubusercontent.com/dmighty007/slideforge-studio/main/install.
 ```
 
 That's all: SlideForge appears in your applications menu and as an icon on your desktop. No administrator rights,
-no Python to set up first. Run the same line again to update; add `--uninstall` (`... | sh -s -- --uninstall`) to
-remove it. Your presentations stay on your computer either way.
+no Python to set up first. It installs the latest version from this repository; run the same line again to update.
+Add `--uninstall` (`... | sh -s -- --uninstall`) to remove it. Your presentations stay on your computer either way.
 
-Prefer pip? `pip install "slideforge-studio[qt]"` (drop `[qt]` on macOS and Windows), then `slideforge`, and
-`slideforge --install-shortcut` for the icons. More in [docs/DESKTOP.md](docs/DESKTOP.md).
+Prefer pip? `pip install "slideforge-studio[qt]"` (drop `[qt]` on macOS and Windows) installs the latest release
+from PyPI, then `slideforge`, and `slideforge --install-shortcut` for the icons. More in
+[docs/DESKTOP.md](docs/DESKTOP.md).
 
 To run it from this repository instead, or to help build it, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 

@@ -4,10 +4,12 @@
 #
 # Installs SlideForge for the current user only (no administrator rights): uv (a small Python installer, if it is
 # missing), then SlideForge in its own environment, then a Start menu entry and a desktop icon. Running it again
-# updates SlideForge (set $env:SLIDEFORGE_SOURCE to a git URL or folder to install from there instead of PyPI).
+# updates SlideForge to the latest version on GitHub (the main branch, downloaded as a zip: no git needed). Set
+# $env:SLIDEFORGE_SOURCE = "pypi" for the latest release on PyPI instead, or to another URL or folder.
 # To remove it: set $env:SLIDEFORGE_UNINSTALL = "1" before running the same line.
 $ErrorActionPreference = "Stop"
 $Package = "slideforge-studio"
+$Latest = "https://github.com/dmighty007/slideforge-studio/archive/refs/heads/main.zip"
 
 function Say($text) { Write-Host "==> $text" -ForegroundColor Magenta }
 
@@ -28,9 +30,10 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
 }
 
 Say "Installing SlideForge (a few minutes the first time)"
-$Spec = $Package
-if ($env:SLIDEFORGE_SOURCE) { $Spec = "$Package @ $env:SLIDEFORGE_SOURCE" }
-uv tool install --upgrade --reinstall-package $Package --python 3.12 $Spec
+$Source = if ($env:SLIDEFORGE_SOURCE) { $env:SLIDEFORGE_SOURCE } else { $Latest }
+$Spec = if ($Source -eq "pypi") { $Package } else { "$Package @ $Source" }
+# --refresh-package: download it again (the zip's address stays the same from one version to the next).
+uv tool install --upgrade --reinstall-package $Package --refresh-package $Package --python 3.12 $Spec
 if ($LASTEXITCODE -ne 0) { throw "SlideForge could not be installed." }
 
 Say "Adding SlideForge to the Start menu and the desktop"

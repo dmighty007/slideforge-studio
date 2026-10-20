@@ -4,15 +4,18 @@
 #   curl -fsSL https://raw.githubusercontent.com/dmighty007/slideforge-studio/main/install.sh | sh
 #
 # Installs SlideForge for the current user only (no sudo): uv (a small Python installer, if it is missing), then
-# SlideForge in its own environment, then a menu entry and a desktop icon. Running it again updates SlideForge.
+# SlideForge in its own environment, then a menu entry and a desktop icon. Running it again updates SlideForge to
+# the latest version on GitHub (the main branch, downloaded as a zip: no git needed).
 #
 #   ... | sh -s -- --no-desktop-icon     menu entry only
 #   ... | sh -s -- --uninstall           remove SlideForge and its icons (your presentations are kept)
-#   SLIDEFORGE_SOURCE=git+https://github.com/dmighty007/slideforge-studio ... | sh
-#                                         install from the repository (or a local folder) instead of PyPI
+#   SLIDEFORGE_SOURCE=pypi ... | sh       the latest release on PyPI instead
+#   SLIDEFORGE_SOURCE=<URL or folder> ... | sh
+#                                         another source (a branch's zip, a git URL, a local checkout)
 set -eu
 
 PACKAGE="slideforge-studio"
+LATEST="https://github.com/dmighty007/slideforge-studio/archive/refs/heads/main.zip"
 PYTHON_VERSION="3.12"
 DESKTOP_ICON=1
 UNINSTALL=0
@@ -57,9 +60,11 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 say "Installing SlideForge (a few minutes the first time)"
+SOURCE="${SLIDEFORGE_SOURCE:-$LATEST}"
 SPEC="${PACKAGE}${EXTRA}"
-if [ -n "${SLIDEFORGE_SOURCE:-}" ]; then SPEC="$SPEC @ $SLIDEFORGE_SOURCE"; fi
-uv tool install --upgrade --reinstall-package "$PACKAGE" --python "$PYTHON_VERSION" "$SPEC"
+if [ "$SOURCE" != "pypi" ]; then SPEC="$SPEC @ $SOURCE"; fi
+# --refresh-package: download it again (the zip's address stays the same from one version to the next).
+uv tool install --upgrade --reinstall-package "$PACKAGE" --refresh-package "$PACKAGE" --python "$PYTHON_VERSION" "$SPEC"
 
 say "Adding SlideForge to your applications"
 if [ "$DESKTOP_ICON" = 1 ]; then

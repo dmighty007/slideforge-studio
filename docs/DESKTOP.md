@@ -28,10 +28,13 @@ curl -fsSL https://raw.githubusercontent.com/dmighty007/slideforge-studio/main/i
 irm https://raw.githubusercontent.com/dmighty007/slideforge-studio/main/install.ps1 | iex
 ```
 
-Run it again to update. To remove SlideForge: `curl -fsSL .../install.sh | sh -s -- --uninstall` (on Windows, set
+They install the latest version from GitHub (the `main` branch, downloaded as a zip; no git needed). Run the same
+line again to update. For the latest release on PyPI instead, set `SLIDEFORGE_SOURCE=pypi`
+(`curl ... | SLIDEFORGE_SOURCE=pypi sh`, or `$env:SLIDEFORGE_SOURCE = "pypi"` on Windows); any other URL or folder
+there installs from it. To remove SlideForge: `curl -fsSL .../install.sh | sh -s -- --uninstall` (on Windows, set
 `$env:SLIDEFORGE_UNINSTALL = "1"` first). Your presentations are kept.
 
-Or with pip:
+Or with pip, the latest release from PyPI:
 
 ```bash
 pip install slideforge-studio
