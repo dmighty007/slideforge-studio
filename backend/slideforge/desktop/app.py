@@ -167,7 +167,9 @@ def _webview_storage(data_dir: Path) -> Path:
     directory takes over that localStorage once, so the open project and any unsaved-change backups carry over;
     other data directories start with their own, empty storage.
     """
-    storage = data_dir / "webview"
+    # Absolute: given a relative --data-dir (./data), Qt kept the cookies there but dropped localStorage, so the
+    # open project and the unsaved-change backups were lost at every restart.
+    storage = Path(data_dir).expanduser().resolve() / "webview"
     legacy = Path.home() / ".pywebview" / "Local Storage"
     try:
         is_default = data_dir.resolve() == Path(paths.default_data_dir()).resolve()

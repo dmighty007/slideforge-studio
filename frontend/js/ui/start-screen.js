@@ -405,6 +405,26 @@ function isStartScreenOpen() {
     return Boolean(root && !root.hidden);
 }
 
+// Where the user left off: on the start screen, or in a deck. Started again, SlideForge goes back there: with a
+// deck in progress it opened on the start screen every time, one click away from the deck.
+const START_SCREEN_LAST_VIEW_KEY = "slideforge_last_view";
+
+function _rememberLastView(view) {
+    try {
+        localStorage.setItem(START_SCREEN_LAST_VIEW_KEY, view);
+    } catch (_err) { /* storage blocked */ }
+}
+
+// At launch: the start screen, unless the user was last working in a deck and that deck has opened again.
+function openStartScreenOnLaunch() {
+    let last = "";
+    try {
+        last = localStorage.getItem(START_SCREEN_LAST_VIEW_KEY) || "";
+    } catch (_err) { /* storage blocked */ }
+    if (last === "editor" && currentPresentationId) return false;
+    return openStartScreen();
+}
+
 function openStartScreen() {
     // Saved projects need the server and (in the web app) a signed-in account.
     if (!_backendApiAvailable) {
@@ -427,6 +447,7 @@ function openStartScreen() {
     if (search) search.value = "";
     _startUpdateClose();
     _startLoadProjects();
+    _rememberLastView("start");
     requestAnimationFrame(() => document.getElementById("sf-start-new")?.focus());
     return true;
 }
@@ -435,6 +456,7 @@ function closeStartScreen({ force = false } = {}) {
     const root = document.getElementById("start-screen");
     if (!root || root.hidden) return;
     if (!force && !_startCanClose()) return;
+    _rememberLastView("editor");
     const finish = () => {
         root.hidden = true;
         root.classList.remove("sf-start--leaving");
@@ -451,5 +473,6 @@ function closeStartScreen({ force = false } = {}) {
 }
 
 window.openStartScreen = openStartScreen;
+window.openStartScreenOnLaunch = openStartScreenOnLaunch;
 window.closeStartScreen = closeStartScreen;
 window.isStartScreenOpen = isStartScreenOpen;

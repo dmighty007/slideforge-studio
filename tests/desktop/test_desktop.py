@@ -300,14 +300,33 @@ class WindowStorageTests(TestCase):
             default = Path(root) / "SlideForge"
             other = Path(root) / "test-data"
             with mock.patch("pathlib.Path.home", return_value=home), mock.patch.object(app.paths, "default_data_dir", return_value=default):
-                self.assertEqual(app._webview_storage(other), other / "webview")
+                self.assertEqual(app._webview_storage(other), other.resolve() / "webview")
                 self.assertFalse((other / "webview" / "Local Storage").exists())
-                self.assertEqual(app._webview_storage(default), default / "webview")
+                self.assertEqual(app._webview_storage(default), default.resolve() / "webview")
                 self.assertEqual((default / "webview" / "Local Storage" / "leveldb").read_text(), "open project")
                 # Only once: later changes in the old place are not copied again.
                 (home / ".pywebview" / "Local Storage" / "leveldb").write_text("changed")
                 app._webview_storage(default)
                 self.assertEqual((default / "webview" / "Local Storage" / "leveldb").read_text(), "open project")
+
+    def test_webview_storage_is_absolute_for_a_relative_data_dir(self):
+        # Qt kept cookies in a relative profile folder but dropped localStorage: the open project, the
+        # last view and the unsaved-change backups were lost at every restart of `slideforge --data-dir ./data`.
+        import os
+        import tempfile
+        from pathlib import Path
+
+        from slideforge.desktop import app
+
+        with tempfile.TemporaryDirectory() as root:
+            cwd = os.getcwd()
+            try:
+                os.chdir(root)
+                storage = app._webview_storage(Path("data"))
+            finally:
+                os.chdir(cwd)
+            self.assertTrue(storage.is_absolute())
+            self.assertEqual(storage, (Path(root) / "data" / "webview").resolve())
 
 
 class QtPermissionTests(TestCase):

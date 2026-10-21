@@ -204,7 +204,9 @@ window.onload = async () => {
     initKeyboard();
     updateSlideCounter();
     runAutosaveSmokeTest();
-    openStartScreen?.();
+    // Back where the user left off: their deck, or the start screen (start-screen.js).
+    if (typeof openStartScreenOnLaunch === "function") openStartScreenOnLaunch();
+    else openStartScreen?.();
 };
 
 // Below 1180px the panel lies over the canvas, as a drawer, instead of taking its 320px from the slide (at 700px the

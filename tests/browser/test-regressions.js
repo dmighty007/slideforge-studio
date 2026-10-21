@@ -7085,6 +7085,36 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("launch: SlideForge reopens the deck the user was working in, and the start screen if they left it there", async () => {
+        const launchContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+        try {
+            const page = await launchContext.newPage();
+            const settle = async () => {
+                await page.waitForFunction(() => typeof isPresentationHydrating === "function" && !isPresentationHydrating() && document.querySelector(".presentation-slide"));
+                await page.waitForTimeout(800);
+                return page.evaluate(() => ({ start: Boolean(document.getElementById("start-screen") && !document.getElementById("start-screen").hidden), deck: currentPresentationId }));
+            };
+            await page.goto(TEST_URL, { waitUntil: "networkidle" });
+            if (page.url() !== TEST_URL) await page.goto(TEST_URL, { waitUntil: "networkidle" });
+            const first = await settle();
+            await page.locator("#sf-start-new").click();
+            await page.waitForTimeout(600);
+            await page.evaluate(async () => { addSlide(); await autosavePresentationNow(); });
+            await page.reload({ waitUntil: "networkidle" });
+            const resumed = await settle();
+            // One click from the start screen back to the deck, every launch.
+            assert(first.start && !resumed.start && resumed.deck, `launches: ${JSON.stringify({ first, resumed })}`);
+            await page.click("button[title^='Start screen']");
+            await page.waitForTimeout(400);
+            await page.reload({ waitUntil: "networkidle" });
+            const leftOnStart = await settle();
+            assert(leftOnStart.start, "left on the start screen, it did not come back");
+            await page.close();
+        } finally {
+            await launchContext.close();
+        }
+    });
+
     await test("overnight: Ctrl+C on a shape and Ctrl+V on another slide pastes the shape, not a \"[shape]\" text box", async () => {
         const { page } = await openFreshEditor(context);
         const id = await page.evaluate(() => { addSlide(); addShape("rectangle"); return state.selectedIds[0]; });
