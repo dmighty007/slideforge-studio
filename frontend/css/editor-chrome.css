@@ -715,8 +715,9 @@ body.sf-button-names #app-toolbar #editor-tools-menu > summary[data-short-label]
     font-size: 11px !important;
 }
 
-/* LaTeX equation dialog on a narrow window: centred, inside the window (it kept its 240px left offset while
-   growing to the window's width, so at 700px its Insert button was off the right edge). */
+/* The insert dialogs (LaTeX equation, shapes, icons, symbols) on a narrow window: centred and inside the window.
+   They kept their 240px left offset, so at 700px the equation's Insert button and the pickers' Close buttons
+   were off the right edge. */
 @media (max-width: 980px) {
     #equation-modal {
         left: max(16px, calc((100vw - 680px) / 2)) !important;
@@ -724,5 +725,24 @@ body.sf-button-names #app-toolbar #editor-tools-menu > summary[data-short-label]
     }
     #equation-modal .equation-editor-shell {
         max-height: calc(100vh - 80px);
+    }
+    #shape-picker-modal,
+    #icon-picker-modal,
+    #symbol-picker-modal {
+        left: 50% !important;
+        top: 64px !important;
+        transform: translateX(-50%);
+        max-width: calc(100vw - 32px);
+    }
+    #shape-picker-modal > div,
+    #icon-picker-modal > div,
+    #symbol-picker-modal > div {
+        width: min(660px, calc(100vw - 32px)) !important;
+        max-width: calc(100vw - 32px) !important;
+        max-height: calc(100vh - 80px) !important;
+    }
+    #icon-picker-modal > div,
+    #symbol-picker-modal > div {
+        width: min(520px, calc(100vw - 32px)) !important;
     }
 }

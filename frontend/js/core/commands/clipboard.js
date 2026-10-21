@@ -167,7 +167,19 @@ function _currentSlideContentBoxes(excludeId = null) {
                 w = w || node?.offsetWidth || 0;
                 h = h || node?.offsetHeight || 0;
             }
-            return { x: parseFloat(el.x) || 0, y: parseFloat(el.y) || 0, w, h, text: el.type === "text" && !el.iconMode };
+            const x = parseFloat(el.x) || 0;
+            const y = parseFloat(el.y) || 0;
+            // A turned object takes the room of its turned outline: with the stored, upright box a chart fitted
+            // "into the free space" covered the lower part of a table turned 30 degrees.
+            const turn = ((Number(el.rotation) || 0) * Math.PI) / 180;
+            if (turn && w > 0 && h > 0) {
+                const cos = Math.abs(Math.cos(turn));
+                const sin = Math.abs(Math.sin(turn));
+                const rw = w * cos + h * sin;
+                const rh = w * sin + h * cos;
+                return { x: x + w / 2 - rw / 2, y: y + h / 2 - rh / 2, w: rw, h: rh, text: el.type === "text" && !el.iconMode };
+            }
+            return { x, y, w, h, text: el.type === "text" && !el.iconMode };
         })
         .filter(box => box.w > 0 && box.h > 0);
 }

@@ -103,16 +103,25 @@ function claimContentPlaceholder(slide, element) {
     // Something already in the area (a text box added before): the object takes the part below it, or, with too
     // little left there, is placed at a free spot instead. A chart took the whole area and covered the text.
     let y = parseFloat(box.y) || 0;
-    const inside = (slide.elements || []).filter(el => {
-        if (!el || el === box || el.isMasterElement || el.editableMasterFooterElement || el.placeholderRole === "title") return false;
+    // Each object's outline as drawn: turned, it reaches further than its stored upright box.
+    const outline = el => {
+        const w = parseFloat(el.width) || _drawnSize(el).w;
+        const h = parseFloat(el.height) || _drawnSize(el).h;
         const ex = parseFloat(el.x) || 0;
         const ey = parseFloat(el.y) || 0;
-        const ew = parseFloat(el.width) || _drawnSize(el).w;
-        const eh = parseFloat(el.height) || _drawnSize(el).h;
-        return ew > 0 && eh > 0 && ex < x + maxW && ex + ew > x && ey < areaBottom && ey + eh > y;
+        const turn = ((Number(el.rotation) || 0) * Math.PI) / 180;
+        if (!turn) return { x: ex, y: ey, w, h };
+        const rw = w * Math.abs(Math.cos(turn)) + h * Math.abs(Math.sin(turn));
+        const rh = w * Math.abs(Math.sin(turn)) + h * Math.abs(Math.cos(turn));
+        return { x: ex + w / 2 - rw / 2, y: ey + h / 2 - rh / 2, w: rw, h: rh };
+    };
+    const inside = (slide.elements || []).filter(el => {
+        if (!el || el === box || el.isMasterElement || el.editableMasterFooterElement || el.placeholderRole === "title") return false;
+        const o = outline(el);
+        return o.w > 0 && o.h > 0 && o.x < x + maxW && o.x + o.w > x && o.y < areaBottom && o.y + o.h > y;
     });
     if (inside.length) {
-        y = Math.round(Math.max(...inside.map(el => (parseFloat(el.y) || 0) + (parseFloat(el.height) || _drawnSize(el).h))) + 16);
+        y = Math.round(Math.max(...inside.map(el => { const o = outline(el); return o.y + o.h; })) + 16);
         if (areaBottom - y < Math.max(160, (areaBottom - (parseFloat(box.y) || 0)) * 0.4)) return false;
     }
     const maxH = Math.max(120, areaBottom - y);

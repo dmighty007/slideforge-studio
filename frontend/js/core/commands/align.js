@@ -345,6 +345,22 @@ window.addEventListener("slideforge:render-complete", () => {
     const id = notice?.dataset.elementId;
     if (id && !state.slides[currentSlideIndex]?.elements.some(el => el.id === id)) hidePlacementNotice();
 });
+// A short message over the bottom of the canvas (what an action did that is not visible on the slide in view).
+function showCanvasNotice(text, { ms = 9000 } = {}) {
+    hidePlacementNotice();
+    const wrapper = document.getElementById("canvas-wrapper");
+    if (!wrapper) return;
+    const notice = document.createElement("div");
+    notice.id = "placement-notice";
+    notice.className = "placement-notice";
+    notice.setAttribute("role", "status");
+    notice.innerHTML = `<span class="placement-notice__text"></span><button type="button" class="placement-notice__close" aria-label="Dismiss"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`;
+    notice.querySelector(".placement-notice__text").textContent = text;
+    notice.querySelector("button").onclick = hidePlacementNotice;
+    wrapper.parentElement.appendChild(notice);
+    _placementNoticeTimer = setTimeout(hidePlacementNotice, ms);
+}
+window.showCanvasNotice = showCanvasNotice;
 window.showPlacementNotice = showPlacementNotice;
 window.hidePlacementNotice = hidePlacementNotice;
 window.moveElementToNewSlide = moveElementToNewSlide;

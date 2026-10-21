@@ -7115,6 +7115,164 @@ async function test(name, fn) {
         }
     });
 
+    const deckElement = (page, id) => page.evaluate(id => {
+        for (const [index, slide] of state.slides.entries()) {
+            const el = slide.elements.find(e => e.id === id);
+            if (el) return { index, el };
+        }
+        return null;
+    }, id);
+    const applyLayout = async (page, layout) => {
+        await page.evaluate(() => { clearSelection(); setPropertiesPanelVisible(true); _propertiesPanelActiveTab = "layout"; buildPropertiesPanel(); });
+        await page.waitForTimeout(250);
+        await page.locator("#prop-slide-layout").selectOption(layout);
+        await page.click("#prop-apply-layout");
+        await page.waitForTimeout(500);
+    };
+
+    await test("workflow retest 2026-10-21 R1: applying a layout keeps a locked table, a rectangle, a connector and an icon", async () => {
+        const { page } = await openFreshEditor(context);
+        const ids = await page.evaluate(() => {
+            addSlide();
+            addElement("table");
+            const table = state.slides[currentSlideIndex].elements.find(e => e.type === "table");
+            table.locked = true;
+            addShape("rectangle");
+            const rect = state.selectedIds[0];
+            addConnector("line");
+            const line = state.selectedIds[0];
+            _insertIcon({ name: "flask", class: "fa-solid fa-flask" });
+            const icon = state.selectedIds[0];
+            renderSlidesFromState();
+            return { table: table.id, rect, line, icon };
+        });
+        const slides = await page.evaluate(() => state.slides.length);
+        await applyLayout(page, "blank-titled");
+        const found = {};
+        for (const [name, id] of Object.entries(ids)) found[name] = await deckElement(page, id);
+        // All four disappeared without a word.
+        assert(Object.values(found).every(Boolean), `kept: ${JSON.stringify(Object.fromEntries(Object.entries(found).map(([k, v]) => [k, v ? v.index : null])))}`);
+        assert(found.table.el.locked === true, "the table lost its lock");
+        assert((await page.evaluate(() => state.slides.length)) <= slides + 1, "more than one overflow slide");
+        await page.close();
+    });
+
+    await test("workflow retest 2026-10-21 R2: a table taken into a layout keeps every row and column and gets no sample rows", async () => {
+        const { page } = await openFreshEditor(context);
+        const id = await page.evaluate(() => {
+            addSlide();
+            addElement("table");
+            const table = state.slides[currentSlideIndex].elements.find(e => e.type === "table");
+            const rows = 7, cols = 6;
+            const data = table.tableData;
+            data.rows = rows;
+            data.cols = cols;
+            data.cells = Array.from({ length: rows }, (_, r) => Array.from({ length: cols }, (_, c) => ({ ...(data.cells?.[0]?.[0] || {}), text: `r${r}c${c}` })));
+            data.cells[2][5].text = "DO NOT LOSE COLUMN SIX";
+            data.cells[6][0].text = "DO NOT LOSE ROW SEVEN";
+            data.colWidths = Array.from({ length: cols }, () => 120);
+            data.rowHeights = Array.from({ length: rows }, () => 36);
+            renderSlidesFromState();
+            return table.id;
+        });
+        await applyLayout(page, "comparison-table");
+        const after = await page.evaluate(() => {
+            const tables = state.slides[currentSlideIndex].elements.filter(e => e.type === "table");
+            return tables.map(t => ({ rows: t.tableData.cells.length, cols: t.tableData.cells[0].length, text: t.tableData.cells.flat().map(c => c.text).join("|") }));
+        });
+        const mine = after.find(t => t.text.includes("DO NOT LOSE"));
+        assert(mine && mine.rows === 7 && mine.cols === 6 && mine.text.includes("DO NOT LOSE COLUMN SIX") && mine.text.includes("DO NOT LOSE ROW SEVEN"), `tables after: ${JSON.stringify(after)}`);
+        assert(!/Risk|Fit/.test(mine.text), `sample rows mixed in: ${mine.text}`);
+        await page.close();
+    });
+
+    await test("workflow retest 2026-10-21 R3: objects kept through a layout change do not cover the new title", async () => {
+        const { page } = await openFreshEditor(context);
+        const ids = await page.evaluate(() => {
+            addSlide();
+            const title = state.slides[currentSlideIndex].elements.find(e => /title/i.test(e.placeholder || ""));
+            title.content = "Measured results";
+            title.textDocument = createTextDocumentFromLegacyContent("Measured results");
+            addElement("table");
+            const table = state.slides[currentSlideIndex].elements.find(e => e.type === "table");
+            addChart("bar");
+            const chart = state.slides[currentSlideIndex].elements.find(e => e.type === "chart");
+            renderSlidesFromState();
+            return { table: table.id, chart: chart.id };
+        });
+        await applyLayout(page, "section-divider");
+        await page.waitForTimeout(300);
+        const out = await page.evaluate(ids => {
+            const els = state.slides[currentSlideIndex].elements;
+            const title = els.find(e => e.type === "text" && /Measured results/.test(JSON.stringify(e.content)));
+            const box = e => { const n = getActiveSlideElementDom(e.id); const r = n.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom }; };
+            const hit = (a, b) => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
+            const t = title && box(title);
+            return {
+                title: !!title,
+                covers: Object.values(ids).map(id => els.find(e => e.id === id)).filter(Boolean).filter(e => t && hit(box(e), t)).map(e => e.type),
+                kept: Object.values(ids).filter(id => state.slides.some(s => s.elements.some(e => e.id === id))).length,
+            };
+        }, ids);
+        assert(out.title && out.kept === 2 && !out.covers.length, `after Section Divider: ${JSON.stringify(out)}`);
+        await page.close();
+    });
+
+    await test("workflow retest 2026-10-21 R4: at 700px the shape, icon and symbol pickers fit the window and close with their button", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.setViewportSize({ width: 700, height: 800 });
+        await page.waitForTimeout(300);
+        for (const [open, modal] of [["openShapePicker", "shape-picker-modal"], ["openIconPicker", "icon-picker-modal"], ["openSymbolPicker", "symbol-picker-modal"]]) {
+            await page.evaluate(fn => window[fn](), open);
+            await page.waitForTimeout(300);
+            const box = await page.evaluate(id => { const r = document.querySelector(`#${id} > div`).getBoundingClientRect(); return { l: r.left, r: r.right }; }, modal);
+            assert(box.l >= 0 && box.r <= 700, `${modal}: ${JSON.stringify(box)}`);
+            const close = page.locator(`#${modal} button[onclick*="close"], #${modal} button[aria-label*="Close" i], #${modal} button:has(.fa-xmark)`).first();
+            await close.click({ timeout: 3000 });
+            await page.waitForTimeout(200);
+            assert(await page.evaluate(id => getComputedStyle(document.getElementById(id)).display === "none", modal), `${modal} did not close`);
+        }
+        await page.setViewportSize({ width: 1440, height: 950 });
+        await page.close();
+    });
+
+    await test("workflow retest 2026-10-21 R5: a turned table counts with its turned outline: no fit over it, and a fit beside a smaller one keeps clear", async () => {
+        const { page } = await openFreshEditor(context);
+        const setup = width => page.evaluate(async width => {
+            addSlide();
+            addElement("table");
+            const table = state.slides[currentSlideIndex].elements.find(e => e.type === "table");
+            table.rotation = 30;
+            if (width) Object.assign(table, { x: 80, width: `${width}px` });
+            renderSlidesFromState();
+            addChart("bar");
+            await new Promise(r => setTimeout(r, 300));
+            const chart = state.slides[currentSlideIndex].elements.find(e => e.type === "chart");
+            const notice = document.getElementById("placement-notice");
+            return { table: table.id, chart: chart.id, fit: !!notice?.querySelector('[data-placement="fit"]'), text: notice?.innerText || "" };
+        }, width);
+        const overlap = ids => page.evaluate(ids => {
+            const r = id => getActiveSlideElementDom(id).getBoundingClientRect();
+            const a = r(ids.table), b = r(ids.chart);
+            const w = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+            const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+            return w > 0 && h > 0 ? Math.round(w * h) : 0;
+        }, ids);
+        // The table as inserted, turned 30 degrees: its outline covers most of the slide. The upright box said
+        // the lower part was free, and "Fit into the free space" spread the chart over the table.
+        const big = await setup(0);
+        assert(!big.fit && /Move to a new slide/.test(big.text), `big turned table: ${JSON.stringify(big)}`);
+        // A narrower turned table leaves room: whatever is offered keeps clear of it.
+        const small = await setup(360);
+        if (small.fit) {
+            await page.click('#placement-notice [data-placement="fit"]');
+            await page.waitForTimeout(300);
+        }
+        const covered = await overlap(small);
+        assert(covered === 0, `the chart covers ${covered} square px of the narrower turned table (fit offered: ${small.fit})`);
+        await page.close();
+    });
+
     await test("overnight: Ctrl+C on a shape and Ctrl+V on another slide pastes the shape, not a \"[shape]\" text box", async () => {
         const { page } = await openFreshEditor(context);
         const id = await page.evaluate(() => { addSlide(); addShape("rectangle"); return state.selectedIds[0]; });

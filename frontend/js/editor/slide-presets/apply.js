@@ -132,25 +132,6 @@ function _clonePresetContentValue(value) {
     return value;
 }
 
-function _mergeTableContentIntoPreset(targetTableData, sourceTableData) {
-    if (!targetTableData || !sourceTableData) return targetTableData;
-    const next = _clonePresetContentValue(targetTableData);
-    const nextCells = Array.isArray(next.cells) ? next.cells : [];
-    const sourceCells = Array.isArray(sourceTableData.cells) ? sourceTableData.cells : [];
-    next.cells = nextCells.map((row, rowIndex) => {
-        const sourceRow = Array.isArray(sourceCells[rowIndex]) ? sourceCells[rowIndex] : [];
-        return (Array.isArray(row) ? row : []).map((cell, cellIndex) => {
-            const sourceCell = sourceRow[cellIndex];
-            if (!sourceCell || typeof sourceCell !== "object") return cell;
-            return {
-                ...cell,
-                text: sourceCell.text ?? cell?.text ?? "",
-            };
-        });
-    });
-    return next;
-}
-
 function _applyContentFromElementToPresetElement(target, source) {
     if (!target || !source || target.type !== source.type) return target;
     const next = { ...target };
@@ -171,7 +152,22 @@ function _applyContentFromElementToPresetElement(target, source) {
         return next;
     }
     if (target.type === "table") {
-        next.tableData = _mergeTableContentIntoPreset(target.tableData, source.tableData);
+        // The user's whole table, every row and column: cells copied into the preset's fixed grid lost the rest
+        // (a 7 x 6 table became 5 x 4) and kept the preset's sample rows ("Risk", "Fit").
+        next.tableData = _clonePresetContentValue(source.tableData);
+        if (parseFloat(source.height)) next.height = source.height;
+        return next;
+    }
+    if (target.type === "chart") {
+        ["chartType", "chartData", "chartStyle", "chartOptions"].forEach(key => {
+            if (source[key] !== undefined) next[key] = _clonePresetContentValue(source[key]);
+        });
+        return next;
+    }
+    if (target.type === "plugin") {
+        ["pluginId", "pluginData", "pluginPreview", "pluginPreviewKey"].forEach(key => {
+            if (source[key] !== undefined) next[key] = _clonePresetContentValue(source[key]);
+        });
         return next;
     }
 
@@ -203,35 +199,152 @@ function _presetSourceHasContent(el) {
     return Boolean(String(plain || "").trim());
 }
 
-function preserveSlideContentForPresetLayout(nextSlide, previousSlide) {
+// What identifies an object a preset puts on a slide (its sample text, data or shape and place), to tell the
+// layout's own samples, left as they were, from the user's content.
+function _presetElementSignature(el) {
+    const n = value => Math.round(parseFloat(value) || 0);
+    const geometry = `${n(el.x)},${n(el.y)},${n(el.width)},${n(el.height)}`;
+    if (el.type === "text") {
+        if (el.iconMode) return `icon|${el.iconClass || ""}|${geometry}`;
+        const plain = el.textDocument && typeof textDocumentToPlainText === "function"
+            ? textDocumentToPlainText(el.textDocument)
+            : _plainPresetTextContent(el.content);
+        return `text|${String(plain || "").replace(/\s+/g, " ").trim()}`;
+    }
+    if (el.type === "table") return `table|${JSON.stringify((el.tableData?.cells || []).map(row => (row || []).map(cell => cell?.text ?? "")))}`;
+    if (el.type === "chart") return `chart|${JSON.stringify(el.chartData || null)}`;
+    if (el.type === "shape" || el.type === "connector") return `${el.type}|${el.shapeType || ""}|${geometry}`;
+    return `${el.type}|${geometry}|${String(typeof el.content === "string" ? el.content : JSON.stringify(el.content || "")).slice(0, 200)}`;
+}
+
+function _presetSampleSignatures(layoutId, theme) {
+    if (!layoutId || !SLIDE_PRESETS?.[layoutId]) return new Set();
+    try {
+        const built = buildPresetSlideState(layoutId, theme, {});
+        return new Set((built?.elements || []).map(_presetElementSignature));
+    } catch (_error) {
+        return new Set();
+    }
+}
+
+// The user's content on a slide: not the master's footer or the background, not an empty placeholder, and not a
+// sample the slide's preset put there and nobody changed. Locked objects, shapes, connectors and icons count:
+// applying a layout dropped them all.
+function _userContentOnSlide(slide, theme) {
+    const samples = _presetSampleSignatures(slide?.layoutId, theme);
+    return (slide?.elements || []).filter(el => {
+        if (!el || el.isMasterElement || el.editableMasterFooterElement || el.footerRole || el.importedBackground) return false;
+        if (typeof isPresetBackgroundElement === "function" && isPresetBackgroundElement(el)) return false;
+        if (el.type === "text" && !el.iconMode && !_presetSourceHasContent(el)) return false;
+        return !samples.has(_presetElementSignature(el));
+    });
+}
+
+function _presetBox(el) {
+    const node = typeof document !== "undefined"
+        ? [...document.querySelectorAll(`[id="${el.id}"]`)].find(n => !n.closest("#slide-previews"))
+        : null;
+    const w = parseFloat(el.width) || node?.offsetWidth || 0;
+    const h = parseFloat(el.height) || node?.offsetHeight || (el.type === "text" ? 60 : 0);
+    return { x: parseFloat(el.x) || 0, y: parseFloat(el.y) || 0, w, h };
+}
+
+// Kept objects that had no slot in the new layout: where they were if that is clear of the layout's own content,
+// else in the largest free part of the slide (smaller if need be, down to half size), else on a new slide after
+// this one. Kept in front of the new layout, they covered its title (a table hid "Measured results").
+function _placeKeptPresetObjects(nextSlide, kept) {
+    const { slideW, slideH, margin } = _getSlideInsertBounds();
+    const floor = slideH - margin;
+    const area = { x: margin, y: margin, w: slideW - margin * 2, h: floor - margin };
+    const gap = 12;
+    const layoutBoxes = (nextSlide.elements || [])
+        .filter(el => !(typeof isPresetBackgroundElement === "function" && isPresetBackgroundElement(el)) && !el.footerRole && !el.editableMasterFooterElement)
+        .map(_presetBox)
+        .filter(b => b.w > 0 && b.h > 0 && b.w * b.h < slideW * slideH * 0.6)
+        .map(b => ({ x: b.x - gap, y: b.y - gap, w: b.w + gap * 2, h: b.h + gap * 2 }));
+    const overlaps = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    // Grouped objects move together.
+    const units = [];
+    kept.forEach(el => {
+        const unit = el.groupId ? units.find(u => u.groupId === el.groupId) : null;
+        if (unit) unit.elements.push(el);
+        else units.push({ groupId: el.groupId || null, elements: [el] });
+    });
+    const unitBox = unit => {
+        const boxes = unit.elements.map(_presetBox);
+        const x = Math.min(...boxes.map(b => b.x));
+        const y = Math.min(...boxes.map(b => b.y));
+        return { x, y, w: Math.max(...boxes.map(b => b.x + b.w)) - x, h: Math.max(...boxes.map(b => b.y + b.h)) - y };
+    };
+    units.sort((a, b) => unitBox(b).w * unitBox(b).h - unitBox(a).w * unitBox(a).h);
+    const taken = [...layoutBoxes];
+    const overflow = [];
+    units.forEach(unit => {
+        const box = unitBox(unit);
+        if (!taken.some(t => overlaps(box, t))) {
+            taken.push(box);
+            return;
+        }
+        let best = null;
+        (typeof _freeRectangles === "function" ? _freeRectangles(area, taken) : []).forEach(r => {
+            const scale = Math.min(1, r.w / Math.max(1, box.w), r.h / Math.max(1, box.h));
+            if (scale < 0.5) return;
+            if (!best || scale > best.scale || (scale === best.scale && r.w * r.h > best.r.w * best.r.h)) best = { r, scale };
+        });
+        if (!best) {
+            overflow.push(unit);
+            return;
+        }
+        const { r, scale } = best;
+        const dx = r.x + (r.w - box.w * scale) / 2;
+        const dy = r.y + (r.h - box.h * scale) / 2;
+        unit.elements.forEach(el => {
+            const b = _presetBox(el);
+            el.x = Math.round(dx + (b.x - box.x) * scale);
+            el.y = Math.round(dy + (b.y - box.y) * scale);
+            if (scale < 1) {
+                if (parseFloat(el.width)) el.width = `${Math.round(b.w * scale)}px`;
+                if (parseFloat(el.height)) el.height = `${Math.round(b.h * scale)}px`;
+            }
+        });
+        taken.push({ x: dx, y: dy, w: box.w * scale, h: box.h * scale });
+    });
+    return overflow.flatMap(unit => unit.elements);
+}
+
+function preserveSlideContentForPresetLayout(nextSlide, previousSlide, { theme = null } = {}) {
     if (!nextSlide || !previousSlide) return nextSlide;
+    const resolvedTheme = theme || (typeof getPresentationTheme === "function" ? getPresentationTheme() : null);
+    const content = _userContentOnSlide(previousSlide, resolvedTheme);
     const sourcesByType = new Map();
-    (previousSlide.elements || []).filter(el => _isReusablePresetContentElement(el) && _presetSourceHasContent(el)).forEach(element => {
+    content.filter(el => _isReusablePresetContentElement(el) && !(el.type === "text" && el.iconMode)).forEach(element => {
         if (!sourcesByType.has(element.type)) sourcesByType.set(element.type, []);
         sourcesByType.get(element.type).push(element);
     });
+    const used = new Set();
     let reused = 0;
     nextSlide.elements = (nextSlide.elements || []).map(element => {
         if (!_isPresetContentTargetElement(element)) return element;
         const queue = sourcesByType.get(element.type) || [];
-        const source = queue.shift();
-        if (!source) return element;
+        // A plugin's settings only go into the same plugin.
+        const index = queue.findIndex(source => element.type !== "plugin" || source.pluginId === element.pluginId);
+        if (index < 0) return element;
+        const [source] = queue.splice(index, 1);
+        used.add(source);
         reused += 1;
         return _applyContentFromElementToPresetElement(element, source);
     });
-    // What the new layout has no place for stays on the slide as it was (where it was, above the layout's own
-    // shapes): a table and a chart on a slide given the Blank Titled layout disappeared without a word.
-    const kept = [];
-    sourcesByType.forEach(queue => queue.forEach(element => kept.push(_clonePresetContentValue(element))));
-    if (kept.length) {
-        const top = Math.max(0, ...nextSlide.elements.map(el => parseInt(el.styles?.zIndex, 10) || 0));
-        kept.forEach((element, i) => {
-            element.styles = { ...(element.styles || {}), zIndex: top + 1 + i };
-            nextSlide.elements.push(element);
-        });
-    }
+    // Everything else the user made stays: placed clear of the new layout, or on a new slide after this one.
+    const kept = content.filter(el => !used.has(el)).map(el => _clonePresetContentValue(el));
+    const top = Math.max(0, ...nextSlide.elements.map(el => parseInt(el.styles?.zIndex, 10) || 0));
+    kept.forEach((element, i) => {
+        element.styles = { ...(element.styles || {}), zIndex: top + 1 + i };
+    });
+    const overflow = kept.length ? _placeKeptPresetObjects(nextSlide, kept) : [];
+    nextSlide.elements.push(...kept.filter(el => !overflow.includes(el)));
     nextSlide.contentPreservedFromLayoutId = previousSlide.layoutId || "";
     nextSlide.contentPreservedCount = reused;
+    nextSlide._overflowElements = overflow; // taken off by applyPresetLayoutToCurrentSlide
     return nextSlide;
 }
 
@@ -252,7 +365,22 @@ function applyPresetLayoutToCurrentSlide(presetId) {
         background: existing.background || "",
         masterId: existing.masterId && existing.masterId !== "none" ? existing.masterId : "content",
     });
-    state.slides[activeIndex] = preserveSlideContentForPresetLayout(nextSlide, existing);
+    const converted = preserveSlideContentForPresetLayout(nextSlide, existing, { theme });
+    const overflow = converted._overflowElements || [];
+    delete converted._overflowElements;
+    state.slides[activeIndex] = converted;
+    // What did not fit the new layout goes on a slide of its own right after it, where it was (one undo puts it all back).
+    if (overflow.length) {
+        state.slides.splice(activeIndex + 1, 0, {
+            id: generateId("slide"),
+            layoutId: "blank-titled",
+            masterId: existing.masterId && existing.masterId !== "none" ? existing.masterId : "content",
+            background: existing.background || "",
+            notes: "",
+            elements: overflow,
+        });
+        window.showCanvasNotice?.(`${overflow.length === 1 ? "One object" : `${overflow.length} objects`} did not fit this layout and moved to a new slide after this one. Undo puts them back.`);
+    }
     clearSelection?.();
     renderSlidesFromState?.();
     buildPropertiesPanel?.();
