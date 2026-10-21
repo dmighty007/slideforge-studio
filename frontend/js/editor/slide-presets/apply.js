@@ -279,8 +279,11 @@ function _placeKeptPresetObjects(nextSlide, kept) {
     units.sort((a, b) => unitBox(b).w * unitBox(b).h - unitBox(a).w * unitBox(a).h);
     const taken = [...layoutBoxes];
     const overflow = [];
+    // A connector attached to objects is drawn between them, wherever they are: it stays on this slide as it is.
+    const attached = unit => unit.elements.every(el => el.type === "connector" && (el.connectorBindings?.start || el.connectorBindings?.end));
     units.forEach(unit => {
         const box = unitBox(unit);
+        if (attached(unit)) return;
         if (!taken.some(t => overlaps(box, t))) {
             taken.push(box);
             return;
@@ -317,7 +320,9 @@ function preserveSlideContentForPresetLayout(nextSlide, previousSlide, { theme =
     const resolvedTheme = theme || (typeof getPresentationTheme === "function" ? getPresentationTheme() : null);
     const content = _userContentOnSlide(previousSlide, resolvedTheme);
     const sourcesByType = new Map();
-    content.filter(el => _isReusablePresetContentElement(el) && !(el.type === "text" && el.iconMode)).forEach(element => {
+    // Grouped objects stay together (placed as one, below), so none of them is taken into a slot on its own:
+    // a grouped text box went into the layout's text slot and left its rectangle behind, the group broken.
+    content.filter(el => _isReusablePresetContentElement(el) && !(el.type === "text" && el.iconMode) && !el.groupId).forEach(element => {
         if (!sourcesByType.has(element.type)) sourcesByType.set(element.type, []);
         sourcesByType.get(element.type).push(element);
     });
@@ -332,7 +337,13 @@ function preserveSlideContentForPresetLayout(nextSlide, previousSlide, { theme =
         const [source] = queue.splice(index, 1);
         used.add(source);
         reused += 1;
-        return _applyContentFromElementToPresetElement(element, source);
+        const filled = _applyContentFromElementToPresetElement(element, source);
+        // The object keeps its identity in its new place: connectors attached to it still are (they came loose,
+        // pointing at an id that no longer existed), and so do animations and comments that name it.
+        filled.id = source.id;
+        // Turned by the user, it stays turned.
+        if (Number(source.rotation)) filled.rotation = source.rotation;
+        return filled;
     });
     // Everything else the user made stays: placed clear of the new layout, or on a new slide after this one.
     const kept = content.filter(el => !used.has(el)).map(el => _clonePresetContentValue(el));

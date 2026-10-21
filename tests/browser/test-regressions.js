@@ -7273,6 +7273,76 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("coverage 2026-10-21: a layout keeps a group of a rectangle and a text box together", async () => {
+        const { page } = await openFreshEditor(context);
+        const ids = await page.evaluate(() => {
+            addSlide();
+            addShape("rectangle");
+            const rect = state.selectedIds[0];
+            addElement("text");
+            const text = state.selectedIds[0];
+            const el = state.slides[currentSlideIndex].elements.find(e => e.id === text);
+            el.content = "Second result";
+            el.textDocument = createTextDocumentFromLegacyContent("Second result");
+            renderSlidesFromState();
+            setSelectedIds([rect, text]);
+            groupSelected();
+            return { rect, text, group: state.slides[currentSlideIndex].elements.find(e => e.id === rect).groupId };
+        });
+        await applyLayout(page, "content-slide");
+        const after = await page.evaluate(ids => {
+            const all = state.slides.flatMap(s => s.elements);
+            const textEl = all.find(e => /Second result/.test(JSON.stringify(e.content || "")));
+            const rectEl = all.find(e => e.id === ids.rect);
+            return { rectGroup: rectEl?.groupId, textGroup: textEl?.groupId, sameSlide: state.slides.some(s => s.elements.includes(rectEl) && s.elements.includes(textEl)) };
+        }, ids);
+        // The text box went into a text slot of the layout and the rectangle stayed alone with the group's id.
+        assert(after.rectGroup === ids.group && after.textGroup === ids.group && after.sameSlide, `group after the layout: ${JSON.stringify(after)}`);
+        await page.close();
+    });
+
+    await test("coverage 2026-10-21: a connector between two text boxes stays attached through a layout change, and follows them", async () => {
+        const { page } = await openFreshEditor(context);
+        const ids = await page.evaluate(() => {
+            addSlide();
+            const made = [];
+            for (const [words, x] of [["Input", 120], ["Output", 760]]) {
+                addElement("text");
+                const el = state.slides[currentSlideIndex].elements.find(e => e.id === state.selectedIds[0]);
+                Object.assign(el, { x, y: 420, content: words, textDocument: createTextDocumentFromLegacyContent(words) });
+                made.push(el.id);
+            }
+            renderSlidesFromState();
+            setSelectedIds(made);
+            addConnector("line");
+            const line = state.slides[currentSlideIndex].elements.find(e => e.type === "connector");
+            return { a: made[0], b: made[1], line: line.id, bound: [line.connectorBindings?.start?.id, line.connectorBindings?.end?.id] };
+        });
+        assert(ids.bound.includes(ids.a) && ids.bound.includes(ids.b), `connector not attached to start with: ${JSON.stringify(ids)}`);
+        await applyLayout(page, "content-slide");
+        const after = await page.evaluate(ids => {
+            const els = state.slides[currentSlideIndex].elements;
+            const line = els.find(e => e.id === ids.line);
+            const targets = [line?.connectorBindings?.start?.id, line?.connectorBindings?.end?.id];
+            return { line: !!line, bound: targets, exist: targets.map(id => !!els.find(e => e.id === id)) };
+        }, ids);
+        // Both bindings pointed at ids the layout had replaced, and rendering dropped them.
+        assert(after.line && after.exist.length === 2 && after.exist.every(Boolean), `connector after the layout: ${JSON.stringify(after)}`);
+        // And it follows: one of the boxes dragged down 120px, the connector's end goes with it.
+        const box = await page.locator(`.slides .presentation-slide.present [id="${after.bound[0]}"]`).boundingBox();
+        const end = () => page.evaluate(id => { const c = state.slides[currentSlideIndex].elements.find(e => e.id === id); const p = getConnectorPoints(c)[0]; return (Number(c.y) || 0) + p.y; }, ids.line);
+        const before = await end();
+        await page.mouse.click(box.x + 8, box.y + 4);
+        await page.mouse.move(box.x + 8, box.y + 4);
+        await page.mouse.down();
+        for (let i = 1; i <= 6; i++) await page.mouse.move(box.x + 8, box.y + 4 + i * 15);
+        await page.mouse.up();
+        await page.waitForTimeout(300);
+        const moved = await end();
+        assert(moved - before > 30, `the connector end did not follow the box: ${before} -> ${moved}`);
+        await page.close();
+    });
+
     await test("overnight: Ctrl+C on a shape and Ctrl+V on another slide pastes the shape, not a \"[shape]\" text box", async () => {
         const { page } = await openFreshEditor(context);
         const id = await page.evaluate(() => { addSlide(); addShape("rectangle"); return state.selectedIds[0]; });

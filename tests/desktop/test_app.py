@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import threading
 from unittest import mock
 
 from django.test import SimpleTestCase
@@ -214,3 +215,48 @@ class DatabaseBackupTests(SimpleTestCase):
         self.assertEqual(len(backups), 5)
         with sqlite3.connect(backups[-1]) as conn:
             self.assertEqual(conn.execute("select name from sqlite_master").fetchall(), [("t",)])
+
+
+class SaveBeforeCloseTests(SimpleTestCase):
+    """Closing the window lets the page save what was just typed first (a word typed right before closing could
+    be lost: the window went before the text box handed it over and before the next autosave)."""
+
+    class _Events:
+        def __init__(self):
+            self.handlers = []
+
+        def __iadd__(self, handler):
+            self.handlers.append(handler)
+            return self
+
+    class _Window:
+        def __init__(self, answers=True):
+            self.events = mock.Mock()
+            self.events.closing = SaveBeforeCloseTests._Events()
+            self.answers = answers
+            self.scripts = []
+            self.destroyed = threading.Event()
+
+        def evaluate_js(self, script, callback=None):
+            self.scripts.append(script)
+            if self.answers and callback:
+                callback(True)
+
+        def destroy(self):
+            self.destroyed.set()
+
+    def test_first_close_waits_for_the_page_then_closes(self):
+        window = self._Window()
+        app._save_before_close(window)
+        [on_closing] = window.events.closing.handlers
+        self.assertIs(on_closing(), False)  # held back
+        self.assertTrue(window.destroyed.wait(2))
+        self.assertIn("sfFlushBeforeClose", window.scripts[0])
+        self.assertIs(on_closing(), True)  # the close that follows goes through
+
+    def test_a_page_that_does_not_answer_does_not_keep_the_window_open(self):
+        window = self._Window(answers=False)
+        with mock.patch.object(app, "CLOSE_FLUSH_TIMEOUT", 0.2):
+            app._save_before_close(window)
+            self.assertIs(window.events.closing.handlers[0](), False)
+            self.assertTrue(window.destroyed.wait(2))

@@ -182,6 +182,43 @@ def _webview_storage(data_dir: Path) -> Path:
     return storage
 
 
+# How long closing the window waits for the page to put away what was just typed and save it.
+CLOSE_FLUSH_TIMEOUT = 6.0
+
+
+def _save_before_close(window) -> None:
+    """Closing the window first lets the page finish the edit in progress and save it, then closes it.
+
+    A word typed just before closing could be lost: the window went at once, before the text box had handed its
+    words to the deck and before the next autosave. The first close is held back; the page's
+    sfFlushBeforeClose() commits the edit and saves (its promise answers the callback), then the window is
+    closed for good. If the page does not answer in time (not loaded, busy), the window closes anyway.
+    """
+    state = {"closing": False}
+
+    def flush_then_close():
+        done = threading.Event()
+        try:
+            window.evaluate_js(
+                "window.sfFlushBeforeClose ? window.sfFlushBeforeClose() : true",
+                callback=lambda *_args: done.set(),
+            )
+            if not done.wait(CLOSE_FLUSH_TIMEOUT):
+                log.warning("The page did not finish saving within %.0f s of closing", CLOSE_FLUSH_TIMEOUT)
+        except Exception:  # the window must close whatever happens here
+            log.exception("Saving before close failed")
+        window.destroy()
+
+    def on_closing():
+        if state["closing"]:
+            return True  # the second close, ours: let it through
+        state["closing"] = True
+        threading.Thread(target=flush_then_close, name="save-before-close", daemon=True).start()
+        return False  # held back until the page has saved
+
+    window.events.closing += on_closing
+
+
 def _open_window(url, data_dir, *, gui: bool) -> bool:
     """Show the editor in a native window. Returns False if no GUI backend is available."""
     hint = 'On Linux, install a GUI backend with: pip install "slideforge-studio[qt]"'
@@ -194,6 +231,7 @@ def _open_window(url, data_dir, *, gui: bool) -> bool:
     try:
         webview.settings["ALLOW_DOWNLOADS"] = True
         window = webview.create_window("SlideForge", url, width=1440, height=900, min_size=(1024, 680))
+        _save_before_close(window)
         # Prefer Qt when installed: it has a built-in PDF viewer (WebKitGTK does not), and we configure it ourselves.
         backend = None
         # Persistent profile: the editor keeps the open project and unsaved-change backups in localStorage.

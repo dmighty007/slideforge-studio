@@ -263,7 +263,10 @@ function addChart(chartType = "bar") {
 function _connectorBetweenSelected(slide) {
     const picked = state.selectedIds.map(id => slide.elements.find(el => el.id === id));
     if (picked.length !== 2 || picked.some(el => !el || el.type === "connector" || el.isMasterElement || el.editableMasterFooterElement)) return null;
-    const boxes = picked.map(el => ({ x: Number(el.x) || 0, y: Number(el.y) || 0, w: parseFloat(el.width) || 0, h: parseFloat(el.height) || 0 }));
+    // A box sized by its content (a new text box's height is "auto") counts at the size it is drawn: with no stored
+    // height, two text boxes got a loose connector instead of one attached to both.
+    const drawn = el => (typeof _drawnSize === "function" ? _drawnSize(el) : { w: 0, h: 0 });
+    const boxes = picked.map(el => ({ x: Number(el.x) || 0, y: Number(el.y) || 0, w: parseFloat(el.width) || drawn(el).w, h: parseFloat(el.height) || drawn(el).h }));
     if (boxes.some(box => box.w <= 0 || box.h <= 0)) return null;
     const dx = boxes[1].x + boxes[1].w / 2 - (boxes[0].x + boxes[0].w / 2);
     const dy = boxes[1].y + boxes[1].h / 2 - (boxes[0].y + boxes[0].h / 2);

@@ -2524,6 +2524,30 @@ function flushUnsavedChangesOnExit() {
 
 window.addEventListener("pagehide", flushUnsavedChangesOnExit);
 
+// The desktop window calls this when it is closed, and waits for it (app.py, _save_before_close): the text box being
+// edited hands its words to the deck, then the deck is saved to the server. Closed at once, the last words typed
+// could be lost: the typing backup lives in localStorage, which the window writes to disk only after a while.
+async function sfFlushBeforeClose() {
+    try {
+        if (typeof commitActiveTextEditors === "function") commitActiveTextEditors();
+        const active = document.activeElement;
+        if (active && (active.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName))) active.blur();
+        await new Promise(resolve => setTimeout(resolve, 30));
+        if (isPresentationHydrating()) return true;
+        if (!_backendApiAvailable || !_presentationPersistenceEnabled) {
+            saveLocalPresentationNow();
+            return true;
+        }
+        // A deck being created by its first edit is waited for; nothing is created for a window closed unused.
+        if (_creatingPresentationRecord) await _creatingPresentationRecord.catch(() => {});
+        if (currentPresentationId) await autosavePresentationNow();
+    } catch (err) {
+        console.warn("Saving before the window closes failed:", err);
+    }
+    return true;
+}
+window.sfFlushBeforeClose = sfFlushBeforeClose;
+
 function adoptPresentationRecord(presentationId, title = null, autosaveVersion = 1) {
     if (!presentationId) return;
     currentPresentationId = presentationId;

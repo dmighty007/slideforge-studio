@@ -334,8 +334,11 @@ function syncConnectorDom(connectorId) {
 // resizes (before, moving the target left the arrow behind). Points stay stored as plain coordinates, so every
 // export draws the connector as before.
 function _connectorTargetBox(el) {
-  const width = parseFloat(el?.width) || 0;
-  const height = parseFloat(el?.height) || 0;
+  // An object sized by its content (a text box's height is "auto") counts at the size it is drawn: with no stored
+  // height it counted as gone, and a connector attached to a text box came loose at the next redraw.
+  const drawn = el && typeof _drawnSize === "function" ? _drawnSize(el) : { w: 0, h: 0 };
+  const width = parseFloat(el?.width) || drawn.w || 0;
+  const height = parseFloat(el?.height) || drawn.h || 0;
   if (!el || width <= 0 || height <= 0) return null;
   return { x: Number(el.x) || 0, y: Number(el.y) || 0, width, height };
 }
@@ -461,11 +464,13 @@ function resolveConnectorBindings(slide, { skipIds = null } = {}) {
     ["start", "end"].forEach((key) => {
       const binding = bindings[key];
       if (!binding) return;
-      const box = _connectorTargetBox(byId.get(binding.id));
-      if (!box || byId.get(binding.id)?.type === "connector") {
+      const target = byId.get(binding.id);
+      if (!target || target.type === "connector") {
         delete bindings[key]; // the element is gone: the end stays where it is, free
         return;
       }
+      const box = _connectorTargetBox(target);
+      if (!box) return; // there, but its size is not known yet (not drawn): the end stays attached, unmoved
       const index = key === "start" ? 0 : last;
       next[index] = _connectorOutlinePoint(
         byId.get(binding.id),
