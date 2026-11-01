@@ -16,6 +16,7 @@ from typing import Optional, Dict, Any, Tuple
 
 from django.conf import settings
 from django.core.files.base import File
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import models, transaction
 from django.db.models import Sum
 from django.db.models.functions import Cast
@@ -31,6 +32,7 @@ from .asset_cleanup import collect_unused_assets
 from . import sharing
 from .models import Asset, Presentation, PresentationRevision, ShareLink
 from .state_validation import StateValidationError, validate_presentation_state
+from slideforge.bridge.keynote import KeynoteError, read_keynote
 from slideforge.bridge.pptx_exporter import PPTXExporter
 
 
@@ -632,12 +634,6 @@ def asset_upload(request):
         owner=owner,
         presentation=presentation,
     )
-    playable = {}
-    # The desktop app cannot play the H.264 MP4: a WebM copy goes beside it (see _make_webm_copy).
-    if asset_type == "video" and getattr(settings, "SLIDEFORGE_VIDEO_WEBM_COPY", False) and asset.file.name.lower().endswith(".mp4"):
-        copy = _make_webm_copy(Path(asset.file.path))
-        if copy:
-            playable = {"webmUrl": asset.file.url.rsplit("/", 1)[0] + "/" + copy.name}
     return JsonResponse(
         {
             "id": str(asset.id),
@@ -645,10 +641,90 @@ def asset_upload(request):
             "url": asset.file.url,
             "contentType": normalized_content_type,
             "metadata": asset.metadata_json,
-            **playable,
+            **_playable_copy(asset),
         },
         status=201,
     )
+
+
+def _playable_copy(asset) -> Dict[str, str]:
+    """The desktop app cannot play the H.264 MP4: a WebM copy goes beside it (see _make_webm_copy)."""
+    if asset.asset_type == "video" and getattr(settings, "SLIDEFORGE_VIDEO_WEBM_COPY", False) and asset.file.name.lower().endswith(".mp4"):
+        copy = _make_webm_copy(Path(asset.file.path))
+        if copy:
+            return {"webmUrl": asset.file.url.rsplit("/", 1)[0] + "/" + copy.name}
+    return {}
+
+
+@require_http_methods(["POST"])
+@ratelimit(key="user", rate="30/h", method="POST")
+def import_keynote_view(request):
+    """Read an uploaded Keynote file into a plain deck (docs/plans/KEYNOTE.md); the browser makes slides of it.
+
+    Its pictures and movies are stored like uploads (with presentationId, they belong to that presentation), and
+    each element that shows one gets "src" (and "contentType", "webmUrl"); the media keys are dropped.
+    """
+    auth_error = _auth_required(request)
+    if auth_error:
+        return auth_error
+    uploaded_file = request.FILES.get("file")
+    if uploaded_file is None:
+        return _json_error("Missing file upload")
+    if uploaded_file.size > settings.PPTMAKER_MAX_ASSET_UPLOAD_BYTES:
+        return _json_error("File is too large", status=413)
+    presentation = None
+    presentation_id = request.POST.get("presentationId")
+    if presentation_id:
+        presentation = _owned_presentation(request, presentation_id)
+        if presentation is None:
+            return _json_error("Presentation not found", status=404)
+
+    try:
+        deck = read_keynote(uploaded_file.read())
+    except KeynoteError as exc:
+        return _json_error(str(exc), status=422)
+    except Exception:
+        logger.exception("Keynote import failed")
+        return _json_error("This Keynote file could not be read", status=422)
+
+    media_bytes = sum(len(media.data) for media in deck.media.values())
+    max_user_bytes = settings.PPTMAKER_MAX_USER_ASSET_STORAGE_BYTES
+    if _user_asset_storage_bytes(request.user) + media_bytes > max_user_bytes:
+        collect_unused_assets()
+        if _user_asset_storage_bytes(request.user) + media_bytes > max_user_bytes:
+            return _json_error("Asset storage quota exceeded", status=413)
+
+    stored: Dict[str, Dict[str, str]] = {}
+    for key, media in deck.media.items():
+        upload = SimpleUploadedFile(media.name, media.data, content_type=media.mime)
+        asset_type, validation_error = _classify_asset_upload(upload)
+        if validation_error:
+            continue
+        asset, content_type = _save_asset_file(upload, asset_type=asset_type, owner=request.user, presentation=presentation)
+        stored[key] = {"src": asset.file.url, "contentType": content_type, **_playable_copy(asset)}
+
+    result = deck.as_json()
+    unstored = "pictures and movies that could not be stored"
+    for slide in result["slides"]:
+        background = slide.get("background") or {}
+        if "media" in background:
+            key = background.pop("media")
+            if key in stored:
+                background["src"] = stored[key]["src"]
+            else:
+                slide.pop("background")
+                result["skipped"][unstored] = result["skipped"].get(unstored, 0) + 1
+        kept = []
+        for element in slide["elements"]:
+            key = element.pop("media", None)
+            if key is None:
+                kept.append(element)
+            elif key in stored:
+                kept.append({**element, **stored[key]})
+            else:
+                result["skipped"][unstored] = result["skipped"].get(unstored, 0) + 1
+        slide["elements"] = kept
+    return JsonResponse(result)
 
 
 @require_http_methods(["POST"])

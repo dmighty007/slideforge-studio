@@ -1,6 +1,7 @@
 # Plan: Keynote (.key) support
 
-Branch: `feature/keynote-support`. Status: plan only, nothing built yet.
+Branch: `feature/keynote-support`. Status: step 2a built (native reader: slides, text, pictures, movies), tested on
+synthetic files only. See "Assumptions to check" below.
 
 Goal: someone with a Keynote deck can open it in SlideForge, and a SlideForge deck can get back into Keynote, with
 as much of the content kept as is practical.
@@ -113,6 +114,49 @@ Steps 1 and 2a can ship separately; 2a alone already beats having nothing on Lin
 - **Reverse-engineered format:** reading a file format for interoperability is the norm (LibreOffice does it); we
   use MIT-licensed schemas and credit them.
 - **Phase 1 depends on Keynote and on the automation permission:** if the user declines it, fall back to Phase 2.
+
+## Step 2a: what was built
+
+- `backend/slideforge/bridge/keynote/`: `iwa.py` (zip, .iwa chunks, object table), `convert.py` (slides, text,
+  pictures, movies to a plain deck), `schema/` (Keynote 14.5 descriptors from keynote-parser, and `build_schema.py`
+  to refresh them), `tests.py` (synthetic .key files built from the same schemas).
+- `POST /api/presentations/import/keynote/` (`studio/views.py`): reads the file, stores its media as assets of the
+  new presentation, returns the deck. `frontend/js/export/importKeynote.js` makes slides of it; "Keynote" on the start
+  screen and "Import from Keynote" in the command palette.
+- Kept: slide order (indented slides after their parent), slide size, presenter notes, title/body placeholders and
+  text boxes (runs: font, size, colour and opacity, bold, italic, underline, strike; paragraph alignment; bullets
+  and numbers with levels), master objects under each slide, pictures (PDF, SVG and TIFF become PNG), movies
+  (.mov, .mp4, .m4v), rotation, groups flattened. Slides skipped in Keynote come in as ordinary slides (SlideForge
+  has no hidden slides) and the summary says so.
+- Counted and left out, listed in the message after the import: shapes, lines, tables, charts, unreadable parts.
+  Cropped pictures come in whole.
+
+## Assumptions to check against real Keynote files
+
+Checked with one real file (a 36-slide, 23.6 MB photo deck from Keynote 14, single-file format, 90 pictures):
+it read in 0.04 s with every object decoded, and slide 1 matched the deck's own preview.jpg.
+
+Confirmed:
+1. Paragraphs end with `\n`; line breaks inside a paragraph are U+2028 (U+FFFC marks attachments such as slide
+   numbers).
+3. Positions are the top-left corner of the box, in the slide's own units (720 x 405 in that file).
+6. Alignment: left and centre came out right.
+7. Files in `Data/` are named `<name>-<identifier>.<ext>`.
+8. `Index/Metadata.iwa` numbers its objects separately (its PackageMetadata had identifier 2, like the show).
+- The slide tree may have no root node: then `slideTree.slides` is the order (that file).
+- Crops: a picture's mask is a rectangle placed inside the picture's frame (56 of its 75 pictures).
+- Text box styles (`TSWP.ShapeStyleArchive`, inheriting through two `super` levels) carry shrink-to-fit, vertical
+  alignment and the default paragraph style that unstyled text uses.
+- Slide backgrounds are the fill of the slide's style chain, else its master's.
+
+Still to check (that file has none of these):
+2. A positive `GeometryArchive.angle` turns an object anticlockwise (one object had 270).
+4. Group children are placed inside the group.
+5. `ParaDataAttribute.first` is the list level (levels 1 to 4 appear only in the masters' sample text).
+9. A master's own objects appear on its slides.
+
+Known gaps found with that file: SlideForge text boxes have no vertical alignment (Keynote titles are often
+bottom-aligned), and the 9 text-less shapes are left out until step 2b.
 
 ## Open questions
 

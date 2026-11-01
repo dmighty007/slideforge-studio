@@ -12,7 +12,7 @@ It runs for a single local user, so there is no account and no sign-in. Your pre
   - PDF and PNG;
   - a stand-alone HTML viewer;
   - view-only share links.
-- **Importing:** PowerPoint files and SlideForge files. Slides can also be drafted from a PDF paper with a language model (your own API key, or a local Ollama).
+- **Importing:** PowerPoint files, Keynote files (text, pictures, movies and notes for now) and SlideForge files. Slides can also be drafted from a PDF paper with a language model (your own API key, or a local Ollama).
 
 ## Install
 
@@ -69,7 +69,7 @@ slideforge --no-open    # only starts the server and prints its URL
 SlideForge opens on a start screen. It lists your recent presentations and offers:
 - a new blank deck;
 - a deck in one of six themes;
-- an import from PowerPoint (.pptx) or a SlideForge .json file.
+- an import from PowerPoint (.pptx), Keynote (.key) or a SlideForge .json file.
 
 Reopen the start screen any time with the house button in the toolbar. Nothing is created until you choose (or start editing).
 
