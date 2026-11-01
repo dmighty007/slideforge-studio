@@ -880,6 +880,7 @@ async function importPptx(file) {
         alert("Cannot import PPTX because JSZip is missing.");
         return;
     }
+    const busy = sfBusyStart({ title: `Importing ${file.name || "PowerPoint file"}`, detail: "Reading the file…", progress: 0, delay: 0 });
     try {
         setProjectSaveHint?.("Reading PowerPoint file…", "muted");
         const pkg = new PptxPackage(await JSZip.loadAsync(file));
@@ -908,11 +909,15 @@ async function importPptx(file) {
             typeof uniqueImportTitle === "function"
                 ? await uniqueImportTitle(String(file.name || "Imported presentation").replace(/\.pptx$/i, ""))
                 : String(file.name || "Imported presentation").replace(/\.pptx$/i, "");
+        busy.update({ detail: "Saving the open project…", progress: 0.03 });
         if (typeof startNewProjectForImport === "function") await startNewProjectForImport();
 
+        // The slides take nearly all the time: 5% to 95% of the bar, one step per slide.
         const slides = [];
         for (const [index, slidePath] of slidePaths.entries()) {
             setProjectSaveHint?.(`Importing slide ${index + 1} of ${slidePaths.length}…`, "muted");
+            busy.update({ detail: `Slide ${index + 1} of ${slidePaths.length}`, progress: 0.05 + (0.9 * index) / slidePaths.length });
+            await sfBusyYield();
             const design = await _pptxSlideDesign(pkg, slidePath);
             _pptxCurrentThemeColors = design.theme.colors;
             pkg.themeColors = design.theme.colors;
@@ -953,6 +958,8 @@ async function importPptx(file) {
             });
         }
 
+        busy.update({ detail: "Drawing the slides…", progress: 0.96 });
+        await sfBusyPaint();
         state.pageSetup = setup.id;
         syncPresentationPageSetup?.(); // the canvas takes the new proportions before the slides are drawn
         state.slides = slides;
@@ -973,10 +980,14 @@ async function importPptx(file) {
         const count = type => kinds.filter(kind => kind === type).length;
         const summary = [`${slides.length} slides`, count("image") && `${count("image")} pictures`, count("table") && `${count("table")} tables`, count("chart") && `${count("chart")} charts`].filter(Boolean).join(", ");
         setProjectSaveHint?.(`Imported ${summary}`, "success");
+        busy.update({ detail: `Imported ${summary}`, progress: 1 });
         schedulePresentationAutosave?.();
     } catch (err) {
         console.error("PPTX Import Error:", err);
+        busy.done(); // gone before the alert, which blocks the page
         alert("Failed to import PPTX: " + err.message);
         setProjectSaveHint?.("Import failed", "danger");
+    } finally {
+        busy.done();
     }
 }

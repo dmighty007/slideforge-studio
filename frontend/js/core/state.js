@@ -2528,6 +2528,8 @@ window.addEventListener("pagehide", flushUnsavedChangesOnExit);
 // edited hands its words to the deck, then the deck is saved to the server. Closed at once, the last words typed
 // could be lost: the typing backup lives in localStorage, which the window writes to disk only after a while.
 async function sfFlushBeforeClose() {
+    // Shown at once: the window stays open until the save ends, and without it the close looked ignored.
+    const busy = window.sfBusyStart?.({ title: "Saving before closing…", detail: "The window closes when your work is saved.", delay: 0 });
     try {
         if (typeof commitActiveTextEditors === "function") commitActiveTextEditors();
         const active = document.activeElement;
@@ -2543,6 +2545,8 @@ async function sfFlushBeforeClose() {
         if (currentPresentationId) await autosavePresentationNow();
     } catch (err) {
         console.warn("Saving before the window closes failed:", err);
+    } finally {
+        busy?.done();
     }
     return true;
 }
@@ -2596,11 +2600,15 @@ async function saveCurrentProject() {
 async function saveProjectFromUi() {
     const button = document.querySelector(".toolbar-save-btn");
     setProjectSaveHint("Saving project…", "muted");
+    // Only a save that takes a while (a large deck, a slow server) shows the card; a quick one shows the tick.
+    const busy = window.sfBusyStart?.({ title: "Saving project…", detail: currentPresentationTitle || "", delay: 400 });
     let saved = false;
     try {
         saved = (await saveCurrentProject()) !== false;
     } catch (error) {
         console.warn("Manual save failed:", error);
+    } finally {
+        busy?.done();
     }
     if (!saved) {
         setProjectSaveHint("Save failed", "danger");

@@ -162,7 +162,33 @@ function _keynoteSkippedSummary(skipped) {
     return parts.length ? ` (left out: ${parts.join(", ")})` : "";
 }
 
+// The upload, with progress: fetch() cannot report how much of a large file has been sent. Resolves to
+// { ok, status, deck } like the fetch it replaces.
+function _keynoteUpload(form, onProgress) {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/presentations/import/keynote/");
+        xhr.withCredentials = true;
+        const csrfToken = typeof _getCsrfToken === "function" ? _getCsrfToken() : "";
+        if (csrfToken) xhr.setRequestHeader("X-CSRFToken", csrfToken);
+        xhr.upload.onprogress = event => {
+            if (event.lengthComputable) onProgress(event.loaded / event.total, false);
+        };
+        xhr.upload.onload = () => onProgress(1, true); // sent; the server is reading it now
+        xhr.onload = () => {
+            let deck = {};
+            try {
+                deck = JSON.parse(xhr.responseText);
+            } catch (_error) {}
+            resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, deck });
+        };
+        xhr.onerror = () => reject(new Error("the upload failed (is the server running?)"));
+        xhr.send(form);
+    });
+}
+
 async function importKeynote(file) {
+    const busy = sfBusyStart({ title: `Importing ${file.name || "Keynote file"}`, detail: "Preparing…", progress: 0, delay: 0 });
     try {
         setProjectSaveHint?.("Reading Keynote file…", "muted");
         const importTitle =
@@ -170,16 +196,19 @@ async function importKeynote(file) {
                 ? await uniqueImportTitle(String(file.name || "Imported presentation").replace(/\.key$/i, ""))
                 : String(file.name || "Imported presentation").replace(/\.key$/i, "");
         // Its own project first, so the pictures the server stores belong to it.
+        busy.update({ detail: "Saving the open project…" });
         if (typeof startNewProjectForImport === "function") await startNewProjectForImport();
 
         const form = new FormData();
         form.append("file", file, file.name || "presentation.key");
         if (typeof currentPresentationId !== "undefined" && currentPresentationId) form.append("presentationId", currentPresentationId);
-        const response = await _apiFetch("/api/presentations/import/keynote/", { method: "POST", body: form });
-        let deck = {};
-        try {
-            deck = await response.json();
-        } catch (_error) {}
+        // Upload is the first 60% of the bar; the server's conversion has no progress to report, so the bar runs.
+        const megabytes = (file.size || 0) / (1024 * 1024);
+        const response = await _keynoteUpload(form, (sent, finished) => {
+            if (finished) busy.update({ detail: "Converting the slides…", progress: null });
+            else busy.update({ detail: `Uploading ${(sent * megabytes).toFixed(1)} of ${megabytes.toFixed(1)} MB`, progress: 0.6 * sent });
+        });
+        const deck = response.deck || {};
         if (!response.ok) throw new Error(deck.error || `the server answered ${response.status}`);
         if (!Array.isArray(deck.slides) || !deck.slides.length) throw new Error("No slides found in this file");
 
@@ -190,6 +219,8 @@ async function importKeynote(file) {
         const setup = setups.sort((a, b) => Math.abs(a.width / a.height - sourceW / sourceH) - Math.abs(b.width / b.height - sourceW / sourceH))[0] || { id: "talk-16-9", width: 1280, height: 720 };
         const scale = Math.min(setup.width / sourceW, setup.height / sourceH);
 
+        busy.update({ detail: `Drawing ${deck.slides.length} slides…`, progress: 0.95 });
+        await sfBusyPaint();
         const makers = { text: _keynoteTextElement, image: _keynotePictureElement, video: _keynoteVideoElement };
         const slides = deck.slides.map(source => {
             const elements = (source.elements || []).map((el, index) => makers[el.kind]?.(el, scale, index + 1)).filter(Boolean);
@@ -239,11 +270,15 @@ async function importKeynote(file) {
             .filter(Boolean)
             .join(", ");
         setProjectSaveHint?.(`Imported ${summary}${_keynoteSkippedSummary(deck.skipped)}`, "success");
+        busy.update({ detail: `Imported ${summary}`, progress: 1 });
         schedulePresentationAutosave?.();
     } catch (err) {
         console.error("Keynote import error:", err);
+        busy.done(); // gone before the alert, which blocks the page
         alert("Failed to import the Keynote file: " + err.message);
         setProjectSaveHint?.("Import failed", "danger");
+    } finally {
+        busy.done();
     }
 }
 
