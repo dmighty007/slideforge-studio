@@ -777,7 +777,9 @@ class PPTXExporter:
                 fill.fore_color.rgb = self._parse_color(bg["content"], self.slide_bg_rgb)
                 self.slide_bg_rgb = fill.fore_color.rgb
             elif bg.get("type") == "image":
-                img_stream = self._get_image_stream(bg["content"])
+                # Through _picture_stream like any picture: an SVG (or WebP...) background is converted to PNG,
+                # where python-pptx refused it and the export failed.
+                img_stream = self._picture_stream(bg["content"], self.prs.slide_width / 9525, self.prs.slide_height / 9525)
                 if img_stream:
                     slide.shapes.add_picture(img_stream, 0, 0, width=self.prs.slide_width, height=self.prs.slide_height)
         elif slide_data.get("backgroundColor"):
@@ -1672,18 +1674,23 @@ class PPTXExporter:
             stream.seek(0)
             return stream
         except Exception:
-            pass
+            pass  # usually no Cairo library (macOS, Windows): PyMuPDF below brings its own renderer
 
+        # PyMuPDF is a dependency with its libraries inside its wheel, so this works on every platform. MuPDF draws
+        # embedded data: images only and ignores any outside or local reference.
         try:
-            from svglib.svglib import svg2rlg
-            from reportlab.graphics import renderPM
+            import pymupdf
 
-            drawing = svg2rlg(io.BytesIO(svg.encode("utf-8")))
-            png = renderPM.drawToString(drawing, fmt="PNG", dpi=220)
-            stream = io.BytesIO(png)
+            with pymupdf.open(stream=svg.encode("utf-8"), filetype="svg") as doc:
+                page = doc[0]
+                if page.rect.width <= 0 or page.rect.height <= 0:
+                    return None
+                matrix = pymupdf.Matrix(max(1, width_px) / page.rect.width, max(1, height_px) / page.rect.height)
+                stream = io.BytesIO(page.get_pixmap(matrix=matrix, alpha=True).tobytes("png"))
             stream.seek(0)
             return stream
         except Exception:
+            logger.warning("Could not convert an SVG picture for export")
             return None
 
     def _add_mermaid_element(self, slide: Any, el: Dict[str, Any], x: Inches, y: Inches, w: Inches, h: Inches):

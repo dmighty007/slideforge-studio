@@ -1540,6 +1540,46 @@ class BugReviewRegressionTests(TestCase):
         self.assertIsNotNone(stream)
         self.assertTrue(stream.getvalue().startswith(b"\x89PNG"))
 
+    def test_svg_converts_without_cairo(self):
+        """macOS and Windows usually have no Cairo library: PyMuPDF converts the SVG instead of dropping it."""
+        import builtins
+        import io
+        from unittest import mock
+
+        from PIL import Image
+
+        from slideforge.bridge.pptx_exporter import PPTXExporter
+
+        real_import = builtins.__import__
+
+        def no_cairo(name, *args, **kwargs):
+            if name.startswith("cairo"):
+                raise OSError("no library called cairo was found")
+            return real_import(name, *args, **kwargs)
+
+        svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 30"><rect width="40" height="30" fill="#ff0000"/></svg>'
+        with mock.patch("builtins.__import__", side_effect=no_cairo):
+            stream = PPTXExporter({"slides": []})._svg_to_png_stream(svg, 80, 60)
+        self.assertIsNotNone(stream)
+        with Image.open(io.BytesIO(stream.getvalue())) as image:
+            self.assertEqual(image.size, (80, 60))
+            self.assertEqual(image.convert("RGBA").getpixel((40, 30)), (255, 0, 0, 255))
+
+    def test_svg_slide_background_exports_as_picture(self):
+        import base64
+
+        from pptx import Presentation
+
+        from slideforge.bridge.pptx_exporter import PPTXExporter
+
+        svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 9"><rect width="16" height="9" fill="#2050a0"/></svg>'
+        content = "data:image/svg+xml;base64," + base64.b64encode(svg.encode()).decode()
+        state = {"slides": [{"background": {"type": "image", "content": content}, "elements": []}]}
+        prs = Presentation(PPTXExporter(state).export())
+        pictures = [shape for shape in prs.slides[0].shapes if shape.shape_type == 13]  # MSO_SHAPE_TYPE.PICTURE
+        self.assertEqual(len(pictures), 1)
+        self.assertEqual(pictures[0].image.content_type, "image/png")
+
     def test_export_handles_scientific_notation_and_malformed_dimensions(self):
         from pptx import Presentation
 

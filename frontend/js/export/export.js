@@ -1009,26 +1009,47 @@ async function mermaidSvgToPng(svgText, boxWidth, boxHeight, scale = 3, { stretc
   return canvas.toDataURL("image/png");
 }
 
+function _isSvgPicture(content) {
+  return typeof content === "string" && (content.startsWith("data:image/svg") || /\.svg(\?|#|$)/i.test(content));
+}
+
+// The SVG text of a picture, or null if it is not one.
+async function _svgPictureText(content) {
+  // A data URL is decoded here (the page's Content-Security-Policy does not let fetch read data: URLs).
+  let svgText;
+  if (content.startsWith("data:")) {
+    const [head, data = ""] = content.split(",", 2);
+    svgText = /;base64/i.test(head) ? decodeURIComponent(escape(atob(data))) : decodeURIComponent(data);
+  } else {
+    const response = await fetch(content);
+    if (!response.ok) return null;
+    svgText = await response.text();
+  }
+  return /<svg[\s>]/i.test(svgText) ? svgText : null;
+}
+
 // SVG pictures likewise: the server turned them into PNGs with CairoSVG, which needs the Cairo library (usually
 // missing on Windows and macOS, where the picture was dropped from the PowerPoint file). A picture fills its box, so
-// the PNG is drawn stretched to it, at twice its size as the server did.
+// the PNG is drawn stretched to it, at twice its size as the server did. SVG slide backgrounds too, at the slide's
+// size (the server stretches a background picture over the whole slide).
 async function replaceSvgPicturesWithPng(exportState) {
+  const page = (typeof getPresentationPageSetupConfig === "function" && getPresentationPageSetupConfig()) || { width: 1024, height: 768 };
   for (const slide of exportState?.slides || []) {
+    const background = slide?.background;
+    if (background?.type === "image" && _isSvgPicture(background.content)) {
+      try {
+        const svgText = await _svgPictureText(background.content);
+        if (svgText) background.content = await mermaidSvgToPng(svgText, Number(page.width) || 1024, Number(page.height) || 768, 2, { stretch: true });
+      } catch (error) {
+        console.warn("SVG background left for the server to convert:", error);
+      }
+    }
     for (const el of slide.elements || []) {
       const content = typeof el?.content === "string" ? el.content : "";
-      if (el?.type !== "image" || !(content.startsWith("data:image/svg") || /\.svg(\?|#|$)/i.test(content))) continue;
+      if (el?.type !== "image" || !_isSvgPicture(content)) continue;
       try {
-        // A data URL is decoded here (the page's Content-Security-Policy does not let fetch read data: URLs).
-        let svgText;
-        if (content.startsWith("data:")) {
-          const [head, data = ""] = content.split(",", 2);
-          svgText = /;base64/i.test(head) ? decodeURIComponent(escape(atob(data))) : decodeURIComponent(data);
-        } else {
-          const response = await fetch(content);
-          if (!response.ok) continue;
-          svgText = await response.text();
-        }
-        if (!/<svg[\s>]/i.test(svgText)) continue;
+        const svgText = await _svgPictureText(content);
+        if (!svgText) continue;
         // A plugin's drawing keeps its proportions inside its box, as on the slide: stretched, a QR code came out
         // 14% wider than tall and a reaction scheme 38% wider.
         const keepShape = String(el.exportedFrom || "").startsWith("plugin:");
