@@ -82,7 +82,8 @@ path = "backend/slideforge/__init__.py"
 [tool.hatch.build.targets.wheel]
 packages = ["backend/slideforge"]
 # Tests stay in the repository; the frontend is added by hatch_build.py (trimmed copy of frontend/).
-exclude = ["backend/slideforge/**/tests.py", "backend/slideforge/**/test_*.py"]
+# The Keynote schema script is for development (it needs keynote-parser); its output files are what ships.
+exclude = ["backend/slideforge/**/tests.py", "backend/slideforge/**/test_*.py", "backend/slideforge/bridge/keynote/schema/build_schema.py"]
 
 [tool.hatch.build.targets.wheel.hooks.custom]
 path = "hatch_build.py"
