@@ -570,7 +570,8 @@ const ANIMATION_PRESETS = {
         delay: 0,
         easing: "easeInOut",
         axis: "y",
-        rotation: 180,
+        // A whole turn: objects have no back face, and a half turn left them mirrored (text read backwards).
+        rotation: 360,
         perspective: 1000,
     },
 
@@ -582,7 +583,7 @@ const ANIMATION_PRESETS = {
         delay: 0,
         easing: "easeInOut",
         axis: "x",
-        rotation: 180,
+        rotation: 360, // a whole turn, as the horizontal flip
         perspective: 1000,
     },
 

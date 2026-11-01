@@ -412,8 +412,9 @@ class AnimationEngine {
             zIndex: element.style.zIndex,
             parentPerspective: element.parentElement?.style.perspective || "",
             textHost,
-            textHtml: textHost ? textHost.innerHTML : null,
-            textText: textHost ? textHost.textContent || "" : null,
+            // A text box emptied by Text Reveal's start state keeps its own words on itself (sfMorphHtml).
+            textHtml: textHost ? textHost.dataset?.sfMorphHtml ?? textHost.innerHTML : null,
+            textText: textHost ? textHost.dataset?.sfMorphText ?? (textHost.textContent || "") : null,
             styledChildren,
         });
     }
@@ -471,10 +472,20 @@ class AnimationEngine {
         return svg ? Array.from(svg.querySelectorAll(selector)) : [];
     }
 
+    // getTotalLength() and getBBox() throw for a part with no geometry (an empty path in a shape's picture, a part
+    // not drawn yet): the error went up through drawing the slide, and presenting a slide with a "Create" or "Write"
+    // animation on such a shape stopped there.
     _getDrawableLength(drawable) {
-        const measured = drawable?.getTotalLength?.();
+        const safely = fn => {
+            try {
+                return fn();
+            } catch (_error) {
+                return undefined;
+            }
+        };
+        const measured = safely(() => drawable?.getTotalLength?.());
         if (Number.isFinite(measured) && measured > 0) return measured;
-        const box = drawable?.getBBox?.();
+        const box = safely(() => drawable?.getBBox?.());
         if (box && Number.isFinite(box.width) && Number.isFinite(box.height)) {
             return Math.max(1, (box.width + box.height) * 2);
         }
@@ -492,7 +503,7 @@ class AnimationEngine {
         const snapshot = this._getSnapshotForElement(element);
         if (typeof snapshot?.textText === "string") return snapshot.textText;
         const textHost = element?.querySelector?.(".text-element-content") || element;
-        return textHost?.textContent || fallback || "";
+        return textHost?.dataset?.sfMorphText || textHost?.textContent || fallback || "";
     }
 
     _hasExplicitTextMorphText(animation, key) {
@@ -614,6 +625,14 @@ class AnimationEngine {
             case "blur":
             case "flip3D":
             case "glow":
+            // Entrances such as "Fade with Blur In" and "Elegant Fade In", and the combined moves: without their
+            // start state an object waiting for its click sat on the slide fully drawn, then vanished and came in.
+            case "elegantFadeIn":
+            case "elegantFadeOut":
+            case "fadeWithBlur":
+            case "diffuse":
+            case "combinedTransform":
+            case "scaleXY":
                 this._applyAnimation(element, animation, 0);
                 break;
             default:
@@ -1051,6 +1070,12 @@ class AnimationEngine {
     // Initial state for text morphing
     _applyTextMorphInitial(element, animation) {
         const textHost = element.querySelector(".text-element-content") || element;
+        // Its words before they are cleared: presenting set this start state before any snapshot was taken, so the
+        // reveal found an empty box and typed nothing, and the box stayed empty after it.
+        if (textHost.dataset && textHost.dataset.sfMorphHtml === undefined) {
+            textHost.dataset.sfMorphHtml = textHost.innerHTML;
+            textHost.dataset.sfMorphText = textHost.textContent || "";
+        }
         const startText =
             typeof animation.startText === "string" && animation.startText.length > 0 ? animation.startText : "";
         textHost.textContent = startText;
@@ -1186,8 +1211,9 @@ class AnimationEngine {
 
         switch (emphasisType) {
             case "pulse": {
-                // Scale up and down
-                const t = Math.sin(cycleProgress * Math.PI * 2) * 0.5 + 0.5;
+                // Scale up and back down, from and to its own size (sin()·0.5 + 0.5 started at half the swell: a
+                // pulsed object sat enlarged on the slide before its click).
+                const t = (1 - Math.cos(cycleProgress * Math.PI * 2)) / 2;
                 scale = 1 + t * intensity;
                 break;
             }
@@ -1232,8 +1258,9 @@ class AnimationEngine {
     // ADVANCED: Blur - Progressive blur in/out
     _applyBlur(element, animation, progress) {
         const direction = animation.direction || "in";
-        const startBlur = animation.startBlur || 10;
-        const endBlur = animation.endBlur || 0;
+        // A start of 0 is a start of 0 ("|| 10" made "Blur Out of Focus" begin already blurred).
+        const startBlur = Number.isFinite(Number(animation.startBlur)) ? Number(animation.startBlur) : 10;
+        const endBlur = Number.isFinite(Number(animation.endBlur)) ? Number(animation.endBlur) : 0;
 
         let blurAmount;
         blurAmount = interpolate(startBlur, endBlur, progress);
