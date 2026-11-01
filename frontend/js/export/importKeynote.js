@@ -115,7 +115,9 @@ function _keynotePictureElement(el, scale, zIndex) {
         height: `${Math.max(8, b.h)}px`,
         lockAspectRatio: true,
         imageAspectRatio: b.w / Math.max(1, b.h),
-        ...(el.crop ? { cropTransform: { ...el.crop } } : {}),
+        // Stretched to its box as in Keynote (without a crop SlideForge trims the picture and resets the box's height).
+        cropTransform: el.crop ? { ...el.crop } : { widthPercent: 100, heightPercent: 100, leftPercent: 0, topPercent: 0 },
+        heightSetManually: true,
         ...(b.rot ? { rotation: b.rot } : {}),
         styles: { zIndex, borderRadius: "0px" },
     };

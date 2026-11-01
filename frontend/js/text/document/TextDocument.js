@@ -67,6 +67,11 @@
         };
     }
 
+    const PARAGRAPH_STYLE_PROPS = ["marginLeft", "textIndent", "marginTop", "marginBottom", "lineHeight"];
+    function paragraphStyle(style = {}) {
+        return Object.fromEntries(PARAGRAPH_STYLE_PROPS.filter(key => style[key] && /^-?[\d.]+(?:px|em|%)?$/.test(String(style[key]))).map(key => [key, String(style[key])]));
+    }
+
     function normalizeBlock(block = {}) {
         const type = ["paragraph", "heading", "listItem", "quote", "code", "caption"].includes(block.type)
             ? block.type
@@ -78,6 +83,7 @@
             id: block.id || uid("block"),
             type,
             level: type === "heading" ? Math.max(1, Math.min(6, Number(block.level) || 1)) : undefined,
+            paragraphStyle: paragraphStyle(block.paragraphStyle),
             align: ["left", "center", "right", "justify"].includes(block.align) ? block.align : undefined,
             list: type === "listItem"
                 ? {
@@ -175,6 +181,7 @@
             type,
             level: headingMatch ? Number(headingMatch[1]) : undefined,
             align,
+            paragraphStyle: paragraphStyle(el.style),
             list: fallbackList ? { ...fallbackList, ordinal } : undefined,
         };
         return splitRunsIntoBlocks(runs, base);
@@ -389,11 +396,17 @@
             if (block.type === "heading") parts.push(`<h${block.level || 1}>${inner}</h${block.level || 1}>`);
             else if (block.type === "caption") parts.push(`<p class="ppt-caption">${inner}</p>`);
             else if (block.type === "code") parts.push(`<pre><code>${inner}</code></pre>`);
-            else parts.push(inner);
+            else if (Object.keys(block.paragraphStyle || {}).length || block.align) {
+                const styles = { margin: "0", ...block.paragraphStyle, ...(block.align ? { textAlign: block.align } : {}) };
+                parts.push(`<p style="${Object.entries(styles).map(([key, value]) => `${kebab(key)}:${escapeHtml(value)}`).join(";")}">${inner}</p>`);
+            } else parts.push(inner);
         });
         flushList();
 
-        return parts.join("<br>");
+        // Paragraphs with their own spacing (<p style>, from PowerPoint) need no line break between them; everything
+        // else keeps the <br> it always had (a heading or list followed by text kept its blank line).
+        const styled = part => /^<p style=/.test(part);
+        return parts.map((part, i) => (i && !(styled(part) || styled(parts[i - 1])) ? `<br>${part}` : part)).join("");
     }
 
     function textDocumentToPlainText(doc = null) {

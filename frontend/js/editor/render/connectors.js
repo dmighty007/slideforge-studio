@@ -264,6 +264,12 @@ function renderConnectorContent(el, elData, { interactive = false } = {}) {
   path.setAttribute("stroke-width", String(strokeWidth));
   path.setAttribute("stroke-linecap", "round");
   path.setAttribute("stroke-linejoin", "round");
+  // Dashed and dotted lines (PowerPoint import): numbers in pixels, as for stroke-dasharray.
+  const dash = Array.isArray(elData.connectorDash) ? elData.connectorDash.map(Number).filter((value) => Number.isFinite(value) && value >= 0).slice(0, 8) : [];
+  if (dash.length && dash.some((value) => value > 0)) {
+    path.setAttribute("stroke-dasharray", dash.join(" "));
+    path.setAttribute("stroke-linecap", "butt");
+  }
   svg.appendChild(path);
 
   const startEl = _buildArrowheadEl(

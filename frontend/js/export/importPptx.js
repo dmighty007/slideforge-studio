@@ -6,8 +6,10 @@
  * bold/italic/underline and colour per run), pictures, tables, charts (bar, line, pie, doughnut), basic shapes with
  * their fill, groups (flattened), speaker notes and the slide proportions. Placeholders without their own position
  * take it from the slide layout; text without its own font, size or colour takes the layout's, the master's and the
- * theme's, and a slide without its own background takes its layout's or master's. Not imported: animations, SmartArt,
- * video, and shapes drawn on the master or layout.
+ * theme's, and a slide without its own background takes its layout's or master's. Pictures keep their cropping and
+ * transparency; freeform shapes, arcs and gradient fills are drawn as SVG pictures; rotated groups turn their contents.
+ * Builds (entrance and exit effects, paragraph by paragraph for lists) become SlideForge animations in click order.
+ * Not imported: SmartArt, video, motion paths and emphasis effects, and shapes drawn on the master or layout.
  */
 
 const PPTX_EMU_PER_PX = 9525;
@@ -21,6 +23,7 @@ const PPTX_SHAPE_TYPES = {
     hexagon: "hexagon",
     parallelogram: "parallelogram",
     rightArrow: "arrow-right",
+    notchedRightArrow: "arrow-right",
     leftArrow: "arrow-left",
     upArrow: "arrow-up",
     downArrow: "arrow-down",
@@ -29,6 +32,7 @@ const PPTX_SHAPE_TYPES = {
     pentagon: "pentagon",
     octagon: "octagon",
     star5: "star",
+    star6: "star",
     plus: "plus",
     chevron: "chevron",
     wedgeRectCallout: "callout",
@@ -230,6 +234,24 @@ async function _pptxLayoutPlaceholders(pkg, slidePath) {
     };
 }
 
+// A size in pixels to 1/100 px. Whole pixels made 18 pt text 26 px instead of 25.6 on a 1024 px slide, so lines
+// wrapped a word earlier than in PowerPoint.
+function _pptxPx(value) {
+    return Math.round(value * 100) / 100;
+}
+
+// An outer shadow (<a:outerShdw blurRad dist dir>) as a CSS text-shadow: titles of many templates have one.
+function _pptxTextShadow(shadow, scale) {
+    if (!shadow) return null;
+    const emu = name => (Number(shadow.getAttribute(name)) || 0) / PPTX_EMU_PER_PX * scale;
+    const angle = ((Number(shadow.getAttribute("dir")) || 0) / 60000) * (Math.PI / 180);
+    const dist = emu("dist");
+    const color = _pptxColorValue(shadow) || "#000000";
+    const alpha = _pptxFillAlpha(shadow);
+    const round = value => Math.round(value * 10) / 10;
+    return `${round(dist * Math.cos(angle))}px ${round(dist * Math.sin(angle))}px ${round(emu("blurRad"))}px ${alpha < 1 ? _pptxRgba(color, alpha) : color}`;
+}
+
 // One paragraph as HTML plus what it says about the whole box (size, colour, font, alignment, bullet).
 function _pptxParagraph(p, fontScale, links = {}) {
     const pPr = _pptxChild(p, "a:pPr");
@@ -237,15 +259,37 @@ function _pptxParagraph(p, fontScale, links = {}) {
     const numbered = !!(pPr && _pptxChild(pPr, "a:buAutoNum"));
     const bullet = pPr && _pptxChild(pPr, "a:buNone") ? false : pPr && (_pptxChild(pPr, "a:buChar") || numbered) ? true : null;
     const align = { ctr: "center", r: "right", just: "justify", l: "left" }[pPr?.getAttribute("algn")] || null;
+    // The bullet's own character ("Ø" in Wingdings is an arrowhead), for boxes that mix bulleted and plain paragraphs.
+    const buChar = pPr && _pptxChild(pPr, "a:buChar");
+    const glyph = buChar ? _pptxBulletGlyph(buChar.getAttribute("char"), _pptxChild(pPr, "a:buFont")?.getAttribute("typeface")) : numbered ? "1." : "•";
+    // Line spacing: a percentage of single spacing (PowerPoint's single line is about 1.2 times the font size).
+    const lnPct = Number(_pptxChild(_pptxChild(pPr, "a:lnSpc"), "a:spcPct")?.getAttribute("val"));
+    const lineHeight = lnPct > 0 ? Math.round(1.2 * (lnPct / 100000) * 100) / 100 : null;
+    // The size an empty paragraph (a blank line) has: its end mark's, not the box's.
+    const endSize = Number(_pptxChild(p, "a:endParaRPr")?.getAttribute("sz"));
+    // Space before and after the paragraph, in points (spcPts is in hundredths of a point).
+    const spacing = name => (Number(_pptxChild(_pptxChild(pPr, name), "a:spcPts")?.getAttribute("val")) || 0) / 100;
+    const spaceAround = spacing("a:spcBef") + spacing("a:spcAft");
     const runs = [];
     Array.from(p.children).forEach(node => {
         if (node.tagName === "a:br") runs.push({ br: true });
         if (node.tagName !== "a:r" && node.tagName !== "a:fld") return;
-        const rPr = _pptxChild(node, "a:rPr");
+        const own = _pptxChild(node, "a:rPr");
+        const rPr = (_pptxChild(pPr, "a:defRPr") || own)?.cloneNode(true);
+        if (rPr && own) {
+            Array.from(own.attributes).forEach(a => rPr.setAttribute(a.name, a.value));
+            Array.from(own.children).forEach(child => {
+                _pptxChildren(rPr, child.tagName).forEach(old => old.remove());
+                rPr.appendChild(child.cloneNode(true));
+            });
+        }
         const size = Number(rPr?.getAttribute("sz"));
         runs.push({
             text: _pptxFirst(node, "a:t")?.textContent || "",
-            size: size ? Math.round((size / 100) * (96 / 72) * fontScale) : null,
+            size: size ? _pptxPx((size / 100) * (96 / 72) * fontScale) : null,
+            // Superscript and subscript (baseline="30000" / "-25000"): chemical formulas and units lost them.
+            baseline: Number(rPr?.getAttribute("baseline")) || 0,
+            shadow: _pptxTextShadow(_pptxChild(_pptxChild(rPr, "a:effectLst"), "a:outerShdw"), fontScale),
             bold: rPr?.getAttribute("b") === "1",
             italic: rPr?.getAttribute("i") === "1",
             underline: !!rPr?.getAttribute("u") && rPr.getAttribute("u") !== "none",
@@ -265,7 +309,35 @@ function _pptxParagraph(p, fontScale, links = {}) {
         const best = [...weight.entries()].sort((a, b) => b[1] - a[1])[0];
         return best && best[1] * 2 >= Math.max(1, length) ? best[0] : null;
     };
-    return { level, bullet, numbered, align, runs, length, dominant };
+    return {
+        level,
+        bullet,
+        numbered,
+        align,
+        runs,
+        length,
+        dominant,
+        glyph,
+        lineHeight,
+        marginLeft: pPr?.hasAttribute("marL") ? Number(pPr.getAttribute("marL")) / PPTX_EMU_PER_PX * fontScale : null,
+        indent: pPr?.hasAttribute("indent") ? Number(pPr.getAttribute("indent")) / PPTX_EMU_PER_PX * fontScale : null,
+        spaceBefore: spacing("a:spcBef") * (96 / 72) * fontScale,
+        spaceAfter: spacing("a:spcAft") * (96 / 72) * fontScale,
+        spaceAroundPx: spaceAround * (96 / 72) * fontScale,
+        endSize: endSize ? _pptxPx((endSize / 100) * (96 / 72) * fontScale) : null,
+    };
+}
+
+// Bullet characters of symbol fonts (Wingdings, Symbol) as the Unicode characters they show.
+const PPTX_SYMBOL_BULLETS = { "Ø": "➢", "§": "▪", "ü": "✓", "þ": "☑", "q": "❑", "o": "□", "p": "□", "r": "❒", "u": "◆", "w": "⬥", "v": "❖", "n": "■", "l": "●", "m": "○", "ð": "⇨", "à": "➔", "è": "➔", "Ü": "➤", "·": "•", "-": "–" };
+
+function _pptxBulletGlyph(char, font) {
+    const value = String(char || "•");
+    const code = value.codePointAt(0) || 0;
+    // Wingdings characters are often stored in the private use area (U+F0xx): the low byte is the symbol.
+    const plain = code >= 0xf000 && code <= 0xf0ff ? String.fromCharCode(code - 0xf000) : value;
+    if (/wingdings|symbol|webdings/i.test(font || "") || plain !== value) return PPTX_SYMBOL_BULLETS[plain] || "•";
+    return value;
 }
 
 function _pptxRunsHtml(runs, box) {
@@ -274,20 +346,47 @@ function _pptxRunsHtml(runs, box) {
             if (run.br) return "<br>";
             const styles = [];
             if (run.size && run.size !== box.size) styles.push(`font-size: ${run.size}px`);
+            if (run.font && run.font !== box.font && !run.font.startsWith("+")) styles.push(`font-family: ${_pptxEscape(_pptxFontStack(run.font))}`);
             if (run.color && run.color !== box.color) styles.push(`color: ${run.color}`);
             if (run.bold !== box.bold) styles.push(`font-weight: ${run.bold ? 700 : 400}`);
             if (run.italic) styles.push("font-style: italic");
             if (run.underline) styles.push("text-decoration: underline");
             const text = _pptxEscape(run.text);
-            const html = styles.length ? `<span style="${styles.join("; ")};">${text}</span>` : text;
+            let html = styles.length ? `<span style="${styles.join("; ")};">${text}</span>` : text;
+            if (run.baseline) html = run.baseline > 0 ? `<sup>${html}</sup>` : `<sub>${html}</sub>`;
             return run.link ? `<a href="${_pptxEscape(run.link)}">${html}</a>` : html;
         })
         .join("");
 }
 
+// Text boxes whose paragraphs set no alignment, neither themselves nor through the deck's text styles.
+const _pptxUnalignedText = new WeakSet();
+
 function _pptxTextElement(sp, box, { fontScale, placeholder, zIndex, links, design = null }) {
     const txBody = _pptxChild(sp, "p:txBody");
-    const paragraphs = _pptxChildren(txBody, "a:p").map(p => _pptxParagraph(p, fontScale, links));
+    const sourceBodyPr = _pptxChild(txBody, "a:bodyPr");
+    // Anchoring, margins and wrapping the box does not set come from its layout and master placeholder: titles
+    // anchored in the middle of their box came in at its top.
+    const bodyPr = _pptxBodyProperties(design, placeholder, sp);
+    const autofit = _pptxChild(sourceBodyPr, "a:normAutofit");
+    const textScale = autofit?.hasAttribute("fontScale") ? Number(autofit.getAttribute("fontScale")) / 100000 : 1;
+    const paragraphs = _pptxChildren(txBody, "a:p").map(p => {
+        const copy = p.cloneNode(true);
+        const own = _pptxChild(copy, "a:pPr");
+        const level = Number(own?.getAttribute("lvl")) || 0;
+        const inherited = _pptxParagraphDefaults(design, placeholder, sp, level);
+        if (own) {
+            Array.from(own.attributes).forEach(a => inherited.setAttribute(a.name, a.value));
+            const bulletTags = ["a:buNone", "a:buChar", "a:buAutoNum"];
+            Array.from(own.children).forEach(child => {
+                (bulletTags.includes(child.tagName) ? bulletTags : [child.tagName]).forEach(tag => _pptxChildren(inherited, tag).forEach(n => n.remove()));
+                inherited.appendChild(child.cloneNode(true));
+            });
+            own.remove();
+        }
+        copy.insertBefore(inherited, copy.firstChild);
+        return _pptxParagraph(copy, fontScale * textScale, links);
+    });
     if (!paragraphs.some(p => p.length)) return null;
     while (paragraphs.length && !paragraphs.at(-1).length) paragraphs.pop();
 
@@ -302,7 +401,7 @@ function _pptxTextElement(sp, box, { fontScale, placeholder, zIndex, links, desi
     const isTitle = placeholder && /title/i.test(placeholder.type);
     // What the text does not set itself comes from the deck's layout, master and theme.
     const inherited = design ? _pptxTextDefaults(design, placeholder) : {};
-    const inheritedSize = inherited.size ? Math.round(inherited.size * (96 / 72) * fontScale) : null;
+    const inheritedSize = inherited.size ? _pptxPx(inherited.size * (96 / 72) * fontScale * textScale) : null;
     const style = {
         size: pick("size") || inheritedSize || (isTitle ? 40 : placeholder ? 24 : 18),
         color: pick("color") || inherited.color || "#172033",
@@ -315,18 +414,44 @@ function _pptxTextElement(sp, box, { fontScale, placeholder, zIndex, links, desi
     // A box is a list when its paragraphs carry bullets (or it is a body placeholder that does not switch them off).
     const bodyPlaceholder = placeholder && !isTitle && placeholder.type === "body";
     const filled = paragraphs.filter(p => p.length);
-    const listed = filled.filter(p => p.bullet === true || (p.bullet === null && bodyPlaceholder) || p.level > 0);
+    const listed = filled.filter(p => p.bullet === true || (p.bullet === null && bodyPlaceholder));
     const isList = filled.length > 0 && listed.length === filled.length && (filled.length > 1 || filled[0].bullet === true);
     const numbered = isList && filled.every(p => p.numbered);
+    const preciseParagraphs = paragraphs.some(p => p.marginLeft !== null || p.indent !== null || p.align || p.spaceAroundPx || (p.bullet && p.glyph !== "•"));
 
     let content;
-    if (isList) {
+    if (isList && !preciseParagraphs) {
         content = filled.map(p => ({ html: _pptxRunsHtml(p.runs, style), level: Math.min(4, p.level) }));
     } else {
-        content = paragraphs.map(p => _pptxRunsHtml(p.runs, style)).join("<br>");
+        // Plain paragraphs, with the bullet character in front of those that have one (a box that mixes a heading
+        // line with bullets lost them all), and blank lines at their own size (one at 18 pt pushed 16 pt text down).
+        content = paragraphs
+            .map(p => {
+                if (!p.length) return p.endSize && p.endSize !== style.size ? `<span style="font-size: ${p.endSize}px;">\u200b</span>` : "";
+                const bulleted = p.bullet === true || (p.bullet === null && bodyPlaceholder);
+                const indent = p.level ? "\u00a0\u00a0\u00a0\u00a0".repeat(p.level) : "";
+                return (bulleted ? `${indent}${_pptxEscape(p.glyph)}\u00a0\u00a0` : "") + _pptxRunsHtml(p.runs, style);
+            })
+            .join("<br>");
     }
+    if (preciseParagraphs) {
+        let ordinal = 0;
+        content = paragraphs.map(p => {
+            // An empty paragraph has no bullet in PowerPoint (a blank line between two bullets showed a third).
+            const bulleted = p.length > 0 && (p.bullet === true || (p.bullet === null && bodyPlaceholder));
+            const margin = p.marginLeft ?? (bulleted ? 24 * fontScale : 0);
+            const indent = p.indent ?? (bulleted ? -18 * fontScale : 0);
+            const marker = bulleted ? `${_pptxEscape(p.numbered ? `${++ordinal}.` : p.glyph)}&#160;` : "";
+            const css = `margin:0;margin-left:${margin}px;text-indent:${indent}px;margin-top:${p.spaceBefore}px;margin-bottom:${p.spaceAfter}px;line-height:${p.lineHeight || 1.2};text-align:${p.align || align}`;
+            return `<p style="${css}">${marker}${_pptxRunsHtml(p.runs, style) || "<br>"}</p>`;
+        }).join("");
+    }
+    const lineHeight = paragraphs.find(p => p.lineHeight)?.lineHeight || null;
+    // A list's gap between paragraphs: their own space before and after (SlideForge's lists add 0.35 em otherwise,
+    // which made imported lists taller than their boxes).
+    const listGap = isList ? Math.round((filled.slice(1).reduce((sum, p) => sum + p.spaceAroundPx, 0) / Math.max(1, filled.length - 1) / style.size) * 100) / 100 : null;
 
-    const bodyPr = _pptxChild(txBody, "a:bodyPr");
+    const shadow = pick("shadow");
     const fill = _pptxColor(_pptxChild(sp, "p:spPr"));
     const element = {
         id: generateId("el"),
@@ -337,10 +462,16 @@ function _pptxTextElement(sp, box, { fontScale, placeholder, zIndex, links, desi
         height: `${Math.max(24, box.h)}px`,
         content,
         autoHeight: false,
-        textFitMode: bodyPr && _pptxChild(bodyPr, "a:normAutofit") ? "autofit" : "fixed",
-        ...(isList ? { bulletStyle: "default" } : {}),
+        textFitMode: "fixed",
+        ...(isList && !preciseParagraphs ? { bulletStyle: "default" } : {}),
         ...(box.rot ? { rotation: box.rot } : {}),
         styles: {
+            padding: ["tIns", "rIns", "bIns", "lIns"].map((name, i) => `${(Number(bodyPr?.getAttribute(name) ?? [45720, 91440, 45720, 91440][i]) / PPTX_EMU_PER_PX) * fontScale}px`).join(" "),
+            minWidth: "0px",
+            minHeight: "0px",
+            boxSizing: "border-box",
+            "--pptx-text-anchor": ({ ctr: "center", b: "end" }[bodyPr?.getAttribute("anchor")] || "start"),
+            ...(bodyPr?.getAttribute("wrap") === "none" ? { "--pptx-nowrap": "1" } : {}),
             color: style.color,
             fontSize: `${style.size}px`,
             fontFamily: style.font ? _pptxFontStack(style.font) : '"Manrope", sans-serif',
@@ -348,10 +479,14 @@ function _pptxTextElement(sp, box, { fontScale, placeholder, zIndex, links, desi
             textAlign: align,
             zIndex,
             ...(style.caps ? { textTransform: "uppercase" } : {}),
+            ...(lineHeight ? { lineHeight: String(lineHeight) } : {}),
+            ...(listGap !== null ? { "--bullet-gap": `${listGap}em` } : {}),
             ...(fill ? { backgroundColor: fill } : {}),
+            ...(shadow ? { textShadow: shadow } : {}),
         },
     };
-    if (numbered && typeof applyTextBulletState === "function") applyTextBulletState(element, "numbered", "decimal");
+    if (!paragraphs.some(p => p.align)) _pptxUnalignedText.add(element);
+    if (numbered && !preciseParagraphs && typeof applyTextBulletState === "function") applyTextBulletState(element, "numbered", "decimal");
     return element;
 }
 
@@ -359,10 +494,13 @@ function _pptxShapeElement(sp, box, zIndex) {
     const spPr = _pptxChild(sp, "p:spPr");
     const preset = _pptxChild(spPr, "a:prstGeom")?.getAttribute("prst");
     // Its own fill, or none when it says noFill, else its style's.
-    const fill = _pptxColor(spPr) || (_pptxChild(spPr, "a:noFill") || _pptxChild(spPr, "a:gradFill") ? null : _pptxStyleColor(sp, "a:fillRef"));
+    // A gradient fill as a CSS gradient (shapes with one were dropped: the first of four step circles went missing).
+    const gradient = _pptxChild(spPr, "a:gradFill") ? _pptxFillBackground(_pptxChild(spPr, "a:gradFill"), null, _pptxCurrentThemeColors) : null;
+    const fill = _pptxColor(spPr) || gradient?.color || (_pptxChild(spPr, "a:noFill") ? null : _pptxStyleColor(sp, "a:fillRef"));
     const line = _pptxChild(spPr, "a:ln");
     const lineColor = line && _pptxChild(line, "a:noFill") ? null : (line && _pptxColor(line)) || _pptxStyleColor(sp, "a:lnRef");
     if (!preset || (!fill && !lineColor)) return null;
+    const alpha = _pptxFillAlpha(_pptxChild(spPr, "a:solidFill"));
     const lineWidth = Math.max(1, Math.round((Number(line?.getAttribute("w")) || 12700) / 12700));
     return {
         id: generateId("el"),
@@ -375,11 +513,174 @@ function _pptxShapeElement(sp, box, zIndex) {
         content: "",
         ...(box.rot ? { rotation: box.rot } : {}),
         styles: {
-            backgroundColor: fill || "transparent",
+            backgroundColor: fill && alpha < 1 ? _pptxRgba(fill, alpha) : fill || "transparent",
+            // A CSS gradient paints the whole box: only boxes that are their own outline can take one (a turned
+            // trapezoid with a gradient came in as a square). Other shapes take the gradient's first colour.
+            ...(gradient?.gradient && ["rect", "roundRect", "ellipse"].includes(preset) ? { background: gradient.gradient } : {}),
             borderRadius: preset === "ellipse" ? "9999px" : preset === "roundRect" ? "16px" : "0px",
-            ...(lineColor ? { borderColor: lineColor, borderWidth: `${lineWidth}px`, borderStyle: "solid" } : {}),
+            ...(lineColor ? { borderColor: lineColor, borderWidth: `${lineWidth}px`, borderStyle: _pptxBorderStyle(line) } : {}),
             zIndex,
         },
+    };
+}
+
+// A dashed or dotted outline (<a:prstDash>) as a CSS border style: a dashed ellipse came in solid.
+function _pptxBorderStyle(line) {
+    const dash = _pptxChild(line, "a:prstDash")?.getAttribute("val") || "solid";
+    return dash === "solid" ? "solid" : /dot/i.test(dash) && !/dash/i.test(dash) ? "dotted" : "dashed";
+}
+
+// The opacity a colour element carries (<a:alpha val="40000"/> is 40 %).
+function _pptxFillAlpha(holder) {
+    const color = holder && (_pptxChild(holder, "a:srgbClr") || _pptxChild(holder, "a:schemeClr") || _pptxChild(holder, "a:sysClr"));
+    const alpha = Number(_pptxChild(color, "a:alpha")?.getAttribute("val"));
+    return alpha >= 0 && _pptxChild(color, "a:alpha") ? Math.max(0, Math.min(1, alpha / 100000)) : 1;
+}
+
+function _pptxRgba(hex, alpha) {
+    const value = parseInt(String(hex).slice(1), 16);
+    return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${Math.round(alpha * 1000) / 1000})`;
+}
+
+// Presets drawn as SVG instead of a SlideForge shape: a rectangle stood in for them (an arc became a filled box).
+const PPTX_DRAWN_PRESETS = new Set(["arc", "circularArrow", "curvedConnector2", "curvedConnector3", "curvedConnector4", "curvedConnector5"]);
+
+// PowerPoint's dash styles as SVG dash patterns, in line widths.
+const PPTX_DASHES = { dash: [4, 3], sysDash: [3, 1], dot: [1, 1], sysDot: [1, 1], lgDash: [8, 3], dashDot: [4, 3, 1, 3], lgDashDot: [8, 3, 1, 3], lgDashDotDot: [8, 3, 1, 3, 1, 3], sysDashDot: [3, 1, 1, 1], sysDashDotDot: [3, 1, 1, 1, 1, 1] };
+
+// The outline of a freeform shape (<a:custGeom>) or an arc preset as SVG path data, in box pixels.
+function _pptxGeometryPaths(spPr, boxW, boxH) {
+    const custom = _pptxChild(spPr, "a:custGeom");
+    const num = value => (Number.isFinite(Number(value)) ? Number(value) : 0);
+    if (!custom) {
+        const preset = _pptxChild(spPr, "a:prstGeom");
+        const kind = preset?.getAttribute("prst");
+        const adjust = name => {
+            const gd = Array.from(preset?.getElementsByTagName("a:gd") || []).find(node => node.getAttribute("name") === name);
+            const match = /^val\s+(-?\d+)/.exec(gd?.getAttribute("fmla") || "");
+            return match ? Number(match[1]) : null;
+        };
+        const rx = boxW / 2;
+        const ry = boxH / 2;
+        const point = deg => [rx + rx * Math.cos((deg * Math.PI) / 180), ry + ry * Math.sin((deg * Math.PI) / 180)];
+        if (/^(line|straightConnector1)$/.test(kind || "")) return [{ d: `M 0 0 L ${boxW} ${boxH}`, fill: false, stroke: true }];
+        if (/^bentConnector/.test(kind || "")) return [{ d: `M 0 0 L ${boxW / 2} 0 L ${boxW / 2} ${boxH} L ${boxW} ${boxH}`, fill: false, stroke: true }];
+        if (/^curvedConnector/.test(kind || "")) return [{ d: `M 0 0 C ${boxW / 2} 0, ${boxW / 2} ${boxH}, ${boxW} ${boxH}`, fill: false, stroke: true }];
+        if (kind === "arc") {
+            const start = (adjust("adj1") ?? 16200000) / 60000;
+            const end = (adjust("adj2") ?? 0) / 60000;
+            const sweep = (((end - start) % 360) + 360) % 360 || 360;
+            const [x1, y1] = point(start);
+            const [x2, y2] = point(start + sweep);
+            return [{ d: `M ${x1} ${y1} A ${rx} ${ry} 0 ${sweep > 180 ? 1 : 0} 1 ${x2} ${y2}`, fill: false, stroke: true }];
+        }
+        if (kind === "circularArrow") {
+            // A band along an arc with an arrowhead: drawn as a thick arc ending in an arrow.
+            const start = (adjust("adj4") ?? 10800000) / 60000;
+            const end = (adjust("adj3") ?? 16200000) / 60000;
+            const sweep = (((end - start) % 360) + 360) % 360 || 360;
+            const band = Math.min(rx, ry) * ((adjust("adj1") ?? 12500) / 100000);
+            const [x1, y1] = point(start);
+            const [x2, y2] = point(start + sweep);
+            return [{ d: `M ${x1} ${y1} A ${rx - band / 2} ${ry - band / 2} 0 ${sweep > 180 ? 1 : 0} 1 ${x2} ${y2}`, fill: false, stroke: true, band, arrow: true }];
+        }
+        return [];
+    }
+    return Array.from(custom.getElementsByTagName("a:path")).map(path => {
+        const pathW = num(path.getAttribute("w")) || boxW;
+        const pathH = num(path.getAttribute("h")) || boxH;
+        const sx = boxW / Math.max(1, pathW);
+        const sy = boxH / Math.max(1, pathH);
+        const pt = node => [num(node.getAttribute("x")) * sx, num(node.getAttribute("y")) * sy];
+        const parts = [];
+        let current = [0, 0];
+        let start = [0, 0];
+        Array.from(path.children).forEach(command => {
+            const points = Array.from(command.getElementsByTagName("a:pt")).map(pt);
+            if (command.tagName === "a:moveTo" && points[0]) {
+                current = start = points[0];
+                parts.push(`M ${current[0]} ${current[1]}`);
+            } else if (command.tagName === "a:lnTo" && points[0]) {
+                current = points[0];
+                parts.push(`L ${current[0]} ${current[1]}`);
+            } else if (command.tagName === "a:cubicBezTo" && points.length === 3) {
+                parts.push(`C ${points.map(p => p.join(" ")).join(", ")}`);
+                current = points[2];
+            } else if (command.tagName === "a:quadBezTo" && points.length === 2) {
+                parts.push(`Q ${points.map(p => p.join(" ")).join(", ")}`);
+                current = points[1];
+            } else if (command.tagName === "a:arcTo") {
+                const wR = num(command.getAttribute("wR")) * sx;
+                const hR = num(command.getAttribute("hR")) * sy;
+                const stAng = (num(command.getAttribute("stAng")) / 60000) * (Math.PI / 180);
+                const swAng = (num(command.getAttribute("swAng")) / 60000) * (Math.PI / 180);
+                const cx = current[0] - wR * Math.cos(stAng);
+                const cy = current[1] - hR * Math.sin(stAng);
+                const end = [cx + wR * Math.cos(stAng + swAng), cy + hR * Math.sin(stAng + swAng)];
+                parts.push(`A ${wR} ${hR} 0 ${Math.abs(swAng) > Math.PI ? 1 : 0} ${swAng > 0 ? 1 : 0} ${end[0]} ${end[1]}`);
+                current = end;
+            } else if (command.tagName === "a:close") {
+                parts.push("Z");
+                current = start;
+            }
+        });
+        return { d: parts.join(" "), fill: path.getAttribute("fill") !== "none", stroke: path.getAttribute("stroke") !== "0" };
+    });
+}
+
+// A freeform shape or an arc as an SVG picture, with its fill, outline (colour, width, dashes, arrowheads),
+// transparency and flips. Freeforms were dropped: the dashed outlines and curved arrows of a diagram went missing.
+function _pptxDrawingElement(sp, box, scale, zIndex) {
+    const spPr = _pptxChild(sp, "p:spPr");
+    const paths = _pptxGeometryPaths(spPr, Math.max(1, box.w), Math.max(1, box.h)).filter(path => path.d);
+    if (!paths.length) return null;
+    const gradient = _pptxChild(spPr, "a:gradFill") ? _pptxFillBackground(_pptxChild(spPr, "a:gradFill"), null, _pptxCurrentThemeColors) : null;
+    const fill = _pptxColor(spPr) || gradient?.color || (_pptxChild(spPr, "a:noFill") ? null : _pptxStyleColor(sp, "a:fillRef"));
+    const fillAlpha = _pptxFillAlpha(_pptxChild(spPr, "a:solidFill"));
+    const line = _pptxChild(spPr, "a:ln");
+    const lineColor = line && _pptxChild(line, "a:noFill") ? null : (line && _pptxColor(line)) || _pptxStyleColor(sp, "a:lnRef");
+    const lineAlpha = _pptxFillAlpha(_pptxChild(line, "a:solidFill"));
+    const lineWidth = Math.max(0.75, ((Number(line?.getAttribute("w")) || 12700) / PPTX_EMU_PER_PX) * scale);
+    if (!fill && !lineColor) return null;
+    const dash = PPTX_DASHES[_pptxChild(line, "a:prstDash")?.getAttribute("val")];
+    const head = name => _pptxChild(line, name)?.getAttribute("type");
+    const markers = { start: head("a:headEnd"), end: head("a:tailEnd") };
+    const pad = Math.ceil(lineWidth * 4 + 2);
+    const width = Math.max(1, box.w) + pad * 2;
+    const height = Math.max(1, box.h) + pad * 2;
+    const flip = box.flipH || box.flipV ? ` transform="translate(${box.flipH ? box.w : 0} ${box.flipV ? box.h : 0}) scale(${box.flipH ? -1 : 1} ${box.flipV ? -1 : 1})"` : "";
+    const strokeColor = lineColor || fill;
+    const marker = (id, type, reverse) => {
+        if (!type || type === "none") return "";
+        const shape = type === "oval" ? '<circle cx="5" cy="5" r="4"/>' : type === "diamond" ? '<path d="M 0 5 L 5 0 L 10 5 L 5 10 Z"/>' : type === "arrow" ? `<path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="${strokeColor}" stroke-width="1.5"/>` : '<path d="M 0 0 L 10 5 L 0 10 Z"/>';
+        return `<marker id="${id}" viewBox="0 0 10 10" refX="${type === "oval" || type === "diamond" ? 5 : 8}" refY="5" markerWidth="3.5" markerHeight="3.5" orient="${reverse ? "auto-start-reverse" : "auto"}" fill="${strokeColor}">${shape}</marker>`;
+    };
+    const defs = [marker("s", markers.start, true), marker("e", markers.end, false), paths.some(path => path.arrow) ? marker("a", "triangle", false) : ""].join("");
+    const body = paths
+        .map(path => {
+            const band = path.band ? Math.max(lineWidth, path.band) : lineWidth;
+            const stroke = path.stroke && (lineColor || path.band) ? ` stroke="${path.band ? fill || lineColor : lineColor}" stroke-width="${band}"${lineAlpha < 1 && !path.band ? ` stroke-opacity="${lineAlpha}"` : ""}${dash && !path.band ? ` stroke-dasharray="${dash.map(v => v * lineWidth).join(" ")}"` : ""} stroke-linecap="round" stroke-linejoin="round"` : ' stroke="none"';
+            const fillAttr = path.fill && fill && !path.band ? ` fill="${fill}"${fillAlpha < 1 ? ` fill-opacity="${fillAlpha}"` : ""}` : ' fill="none"';
+            const ends = `${markers.start && markers.start !== "none" ? ' marker-start="url(#s)"' : ""}${markers.end && markers.end !== "none" ? ' marker-end="url(#e)"' : ""}${path.arrow ? ' marker-end="url(#a)"' : ""}`;
+            return `<path d="${path.d}"${fillAttr}${stroke}${ends}/>`;
+        })
+        .join("");
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${-pad} ${-pad} ${width} ${height}"><defs>${defs}</defs><g${flip}>${body}</g></svg>`;
+    return {
+        id: generateId("el"),
+        type: "image",
+        content: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,
+        x: box.x - pad,
+        y: box.y - pad,
+        width: `${width}px`,
+        height: `${height}px`,
+        lockAspectRatio: false,
+        imageAspectRatio: width / height,
+        cropTransform: { widthPercent: 100, heightPercent: 100, leftPercent: 0, topPercent: 0 },
+        heightSetManually: true,
+        importedDrawing: true,
+        ...(box.rot ? { rotation: box.rot } : {}),
+        styles: { zIndex, borderRadius: "0px" },
     };
 }
 
@@ -406,14 +707,20 @@ function _pptxConnectorElement(node, box, scale, zIndex) {
     const points = bent ? [start, { x: midX, y: start.y }, { x: midX, y: end.y }, end] : [start, end];
     const head = name => PPTX_LINE_ENDS[_pptxChild(line, name)?.getAttribute("type")] || "none";
     const width = Number(line?.getAttribute("w")) || 12700;
+    const strokeWidth = Math.max(1, Math.round((width / PPTX_EMU_PER_PX) * scale * 10) / 10);
+    // Arrowheads as PowerPoint sizes them: a multiple of the line's width (small, medium, large). A fixed 14 px
+    // head dwarfed the hairline arrows of a diagram.
+    const headSize = (name, attr) => ({ sm: 2, med: 3, lg: 5 }[_pptxChild(line, name)?.getAttribute(attr)] || 3) * Math.max(2, strokeWidth);
+    const dash = PPTX_DASHES[_pptxChild(line, "a:prstDash")?.getAttribute("val")];
     const connector = {
         id: generateId("el"),
         type: "connector",
         connectorType: bent ? "poly" : "line",
         connectorStart: head("a:headEnd"),
         connectorEnd: head("a:tailEnd"),
-        connectorHeadWidth: 14,
-        connectorHeadLength: 14,
+        connectorHeadWidth: Math.round(Math.max(6, headSize("a:tailEnd", "w"), headSize("a:headEnd", "w"))),
+        connectorHeadLength: Math.round(Math.max(6, headSize("a:tailEnd", "len"), headSize("a:headEnd", "len"))),
+        ...(dash ? { connectorDash: dash.map(value => value * strokeWidth) } : {}),
         points: points.map(point => ({ x: point.x - box.x, y: point.y - box.y })),
         x: box.x,
         y: box.y,
@@ -423,7 +730,7 @@ function _pptxConnectorElement(node, box, scale, zIndex) {
         styles: {
             backgroundColor: "transparent",
             color,
-            strokeWidth: Math.max(1, Math.round((width / PPTX_EMU_PER_PX) * scale)),
+            strokeWidth,
             zIndex,
             borderRadius: "0px",
         },
@@ -432,8 +739,25 @@ function _pptxConnectorElement(node, box, scale, zIndex) {
     return connector;
 }
 
-async function _pptxPictureElement(pkg, pic, rels, box, zIndex) {
-    const embed = _pptxFirst(pic, "a:blip")?.getAttribute("r:embed");
+// Whether the browser can draw a picture file: PowerPoint shows nothing for an empty or damaged one (a deck saved
+// by another program had 20 pictures pointing to a 0-byte file, and a truncated background drew its top rows).
+async function _pptxPictureReadable(blob) {
+    if (!blob.size) return false;
+    if (blob.type === "image/svg+xml" || typeof createImageBitmap !== "function") return true;
+    try {
+        const bitmap = await createImageBitmap(blob);
+        bitmap.close?.();
+        return true;
+    } catch (_error) {
+        return false;
+    }
+}
+
+async function _pptxPictureElement(pkg, pic, rels, box, zIndex, pictureFill = null) {
+    const blip = _pptxFirst(pictureFill || pic, "a:blip");
+    const embed = blip?.getAttribute("r:embed");
+    const crop = _pptxCrop(pictureFill || _pptxChild(pic, "p:blipFill"));
+    const opacity = Math.max(0, Math.min(1, (Number(_pptxChild(blip, "a:alphaModFix")?.getAttribute("amt")) || 100000) / 100000));
     const path = rels[embed]?.path;
     const file = path && pkg.zip.file(path);
     if (!file) return null;
@@ -441,6 +765,8 @@ async function _pptxPictureElement(pkg, pic, rels, box, zIndex) {
     const mime = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", svg: "image/svg+xml", webp: "image/webp", bmp: "image/bmp" }[extension];
     if (!mime) return null; // EMF/WMF and the like: browsers cannot show them
     const blob = new Blob([await file.async("arraybuffer")], { type: mime });
+    // An empty or damaged file shows nothing in PowerPoint; here it showed a broken-picture frame.
+    if (!(await _pptxPictureReadable(blob))) return null;
     let url = null;
     try {
         // Stored like any inserted picture; a data URL is the fallback when there is no server to store it.
@@ -468,29 +794,130 @@ async function _pptxPictureElement(pkg, pic, rels, box, zIndex) {
         height: `${Math.max(8, box.h)}px`,
         lockAspectRatio: true,
         imageAspectRatio: box.w / Math.max(1, box.h),
+        // PowerPoint stretches a picture to its box. Without a crop SlideForge fills the box by trimming the picture
+        // (object-fit: cover) and resets the box's height to the picture's own shape when it loads: the whole
+        // crop draws it stretched, as a cropped one is, and keeps the box.
+        cropTransform: crop || { widthPercent: 100, heightPercent: 100, leftPercent: 0, topPercent: 0 },
+        heightSetManually: true,
         ...(box.rot ? { rotation: box.rot } : {}),
-        styles: { zIndex, borderRadius: "0px" },
+        styles: { zIndex, borderRadius: "0px", ...(opacity < 1 ? { opacity: String(opacity) } : {}) },
     };
 }
 
-function _pptxTableElement(tbl, box, scale, fontScale, zIndex) {
+// A picture's cropping (<a:srcRect l t r b>, in thousandths of a percent of the picture) as SlideForge's
+// cropTransform: the whole picture's size and offset as percentages of the box. Cropped pictures came in whole,
+// squeezed into their box or spilling over the text next to them.
+function _pptxCrop(blipFill) {
+    const rect = _pptxChild(blipFill, "a:srcRect");
+    const fill = _pptxChild(_pptxChild(blipFill, "a:stretch"), "a:fillRect");
+    if (!rect && !fill) return null;
+    const part = (node, name) => (Number(node?.getAttribute(name)) || 0) / 100000;
+    const [l, t, r, b] = ["l", "t", "r", "b"].map(name => part(rect, name));
+    const [dl, dt, dr, db] = ["l", "t", "r", "b"].map(name => part(fill, name));
+    if (![l, t, r, b, dl, dt, dr, db].some(Boolean)) return null;
+    const visibleX = 1 - l - r, visibleY = 1 - t - b;
+    if (visibleX <= 0.001 || visibleY <= 0.001) return null;
+    const widthPercent = 100 * (1 - dl - dr) / visibleX;
+    const heightPercent = 100 * (1 - dt - db) / visibleY;
+    const round = value => Math.round(value * 10000) / 10000;
+    return { widthPercent: round(widthPercent), heightPercent: round(heightPercent), leftPercent: round(100 * dl - l * widthPercent), topPercent: round(100 * dt - t * heightPercent) };
+
+}
+
+// A table with its cells' fills, text colours, weights, sizes and alignment: from the cells themselves, else from
+// the table style it names (ppt/tableStyles.xml: whole table, banded rows and columns, first and last row and
+// column). Tables came in grey and white in Manrope whatever the deck had.
+function _pptxTableElement(tbl, box, scale, fontScale, zIndex, tableStyles = null, colors = _pptxCurrentThemeColors) {
     const colWidths = _pptxChildren(_pptxChild(tbl, "a:tblGrid"), "a:gridCol").map(col => Math.max(36, Math.round(((Number(col.getAttribute("w")) || 0) / PPTX_EMU_PER_PX) * scale)));
     const rows = _pptxChildren(tbl, "a:tr");
     if (!rows.length || !colWidths.length) return null;
+    const tblPr = _pptxChild(tbl, "a:tblPr");
+    const flag = name => tblPr?.getAttribute(name) === "1" || tblPr?.getAttribute(name) === "true";
+    const styleId = _pptxChild(tblPr, "a:tableStyleId")?.textContent?.trim();
+    const style = styleId && Array.from(tableStyles?.getElementsByTagName("a:tblStyle") || []).find(node => node.getAttribute("styleId") === styleId);
+    const part = name => _pptxChild(style, name);
+    const fillOf = holder => {
+        if (!holder) return undefined;
+        if (_pptxChild(holder, "a:noFill")) return "transparent";
+        const solid = _pptxChild(holder, "a:solidFill");
+        return solid ? _pptxColorValue(solid, colors) || undefined : undefined;
+    };
+    // The style's parts that apply to a cell, weakest first.
+    const regions = (r, c) => {
+        const header = flag("firstRow") ? 1 : 0;
+        const list = ["a:wholeTbl"];
+        if (flag("bandRow") && r >= header) list.push((r - header) % 2 === 0 ? "a:band1H" : "a:band2H");
+        if (flag("bandCol")) list.push((c - (flag("firstCol") ? 1 : 0)) % 2 === 0 ? "a:band1V" : "a:band2V");
+        if (flag("firstCol") && c === 0) list.push("a:firstCol");
+        if (flag("lastCol") && c === colWidths.length - 1) list.push("a:lastCol");
+        if (flag("lastRow") && r === rows.length - 1) list.push("a:lastRow");
+        if (flag("firstRow") && r === 0) list.push("a:firstRow");
+        return list.map(part).filter(Boolean);
+    };
+    const px = emu => (emu / PPTX_EMU_PER_PX) * scale;
     let fontSize = null;
-    const cells = rows.map(tr =>
-        colWidths.map((_, index) => {
-            const tc = _pptxChildren(tr, "a:tc")[index];
+    let fontFamily = null;
+    let borderColor = null;
+    let borderWidth = null;
+    let padding = null;
+    const cells = rows.map((tr, r) =>
+        colWidths.map((_, c) => {
+            const tc = _pptxChildren(tr, "a:tc")[c];
             const paragraphs = Array.from(tc?.getElementsByTagName("a:p") || []);
-            const size = Number(_pptxFirst(tc, "a:rPr")?.getAttribute("sz"));
-            if (size && !fontSize) fontSize = Math.round((size / 100) * (96 / 72) * fontScale);
+            const styles = {};
+            regions(r, c).forEach(region => {
+                const fill = fillOf(_pptxChild(_pptxChild(region, "a:tcStyle"), "a:fill"));
+                if (fill) styles.backgroundColor = fill;
+                const text = _pptxChild(region, "a:tcTxStyle");
+                const color = text && _pptxColorValue(text, colors);
+                if (color) styles.color = color;
+                if (text?.getAttribute("b") === "on") styles.fontWeight = "700";
+                if (text?.getAttribute("b") === "off") styles.fontWeight = "400";
+            });
+            const tcPr = _pptxChild(tc, "a:tcPr");
+            const ownFill = fillOf(tcPr);
+            if (ownFill) styles.backgroundColor = ownFill;
+            // One padding for all sides here: the smaller of PowerPoint's (0.1" left and right, 0.05" top and
+            // bottom by default), so text that fits a column in PowerPoint is not pushed onto a second line.
+            if (tcPr && padding === null) padding = px(Math.min(Number(tcPr.getAttribute("marL") ?? 91440), Number(tcPr.getAttribute("marT") ?? 45720)));
+            const edge = _pptxChild(tcPr, "a:lnB") || _pptxChild(tcPr, "a:lnL");
+            if (edge && borderColor === null) {
+                borderColor = _pptxChild(edge, "a:noFill") ? "transparent" : _pptxColorValue(_pptxChild(edge, "a:solidFill"), colors);
+                borderWidth = Math.max(0, Math.round(px(Number(edge.getAttribute("w")) || 12700) * 10) / 10);
+            }
+            const rPr = _pptxFirst(tc, "a:rPr");
+            const size = Number(rPr?.getAttribute("sz"));
+            const cellSize = size ? _pptxPx((size / 100) * (96 / 72) * fontScale) : null;
+            if (cellSize && !fontSize) fontSize = cellSize;
+            if (cellSize && cellSize !== fontSize) styles.fontSize = `${cellSize}px`;
+            const font = _pptxChild(rPr, "a:latin")?.getAttribute("typeface");
+            if (font && !font.startsWith("+") && !fontFamily) fontFamily = _pptxFontStack(font);
+            if (rPr?.getAttribute("b") === "1") styles.fontWeight = "700";
+            if (rPr?.getAttribute("b") === "0") styles.fontWeight = "400";
+            if (rPr?.getAttribute("i") === "1") styles.fontStyle = "italic";
+            const runColor = _pptxColorValue(_pptxChild(rPr, "a:solidFill"), colors);
+            if (runColor) styles.color = runColor;
+            const align = { ctr: "center", r: "right", just: "justify" }[_pptxFirst(tc, "a:pPr")?.getAttribute("algn")];
+            if (align) styles.textAlign = align;
+            if (!styles.fontWeight) styles.fontWeight = "400";
+            if (!styles.backgroundColor) styles.backgroundColor = "transparent";
+            if (!styles.color) styles.color = colors?.tx1 || "#000000";
             return {
                 text: paragraphs.map(p => Array.from(p.getElementsByTagName("a:t")).map(t => t.textContent).join("")).join("\n"),
-                styles: {},
+                styles,
             };
         }),
     );
+    // The style's lines between cells when the cells set none.
+    if (borderColor === null && style) {
+        const ln = _pptxFirst(_pptxChild(_pptxChild(part("a:wholeTbl"), "a:tcStyle"), "a:tcBdr"), "a:ln");
+        if (ln) {
+            borderColor = _pptxChild(ln, "a:noFill") ? "transparent" : _pptxColorValue(_pptxChild(ln, "a:solidFill"), colors);
+            borderWidth = Math.max(0, Math.round(px(Number(ln.getAttribute("w")) || 12700) * 10) / 10);
+        }
+    }
     const base = typeof createDefaultTableData === "function" ? createDefaultTableData(rows.length, colWidths.length) : {};
+    const family = fontFamily || '"Manrope", sans-serif';
     return {
         id: generateId("el"),
         type: "table",
@@ -506,10 +933,15 @@ function _pptxTableElement(tbl, box, scale, fontScale, zIndex) {
             colWidths,
             rowHeights: rows.map(tr => Math.max(24, Math.round(((Number(tr.getAttribute("h")) || 0) / PPTX_EMU_PER_PX) * scale))),
             cells,
-            headerRow: _pptxChild(tbl, "a:tblPr")?.getAttribute("firstRow") !== "0",
+            headerRow: flag("firstRow"),
+            zebra: false,
+            fontFamily: family,
+            fontSize: `${fontSize || 16}px`,
+            ...(borderColor ? { borderColor, borderWidth: borderColor === "transparent" ? 0 : borderWidth } : {}),
+            ...(padding !== null ? { cellPadding: Math.max(2, Math.round(padding)) } : {}),
             selection: null,
         },
-        styles: { color: "#172033", fontSize: `${fontSize || 16}px`, fontFamily: '"Manrope", sans-serif', textAlign: "left", zIndex },
+        styles: { color: colors?.tx1 || "#172033", fontSize: `${fontSize || 16}px`, fontFamily: family, textAlign: "left", zIndex },
     };
 }
 
@@ -644,6 +1076,55 @@ function _pptxFontName(typeface, theme) {
     return typeface;
 }
 
+// A text box's <a:bodyPr> with what its master and layout placeholders set underneath its own attributes.
+function _pptxBodyProperties(design, placeholder, sp) {
+    const own = _pptxChild(_pptxChild(sp, "p:txBody"), "a:bodyPr");
+    if (!placeholder || !design) return own;
+    const isTitle = type => type === "title" || type === "ctrTitle";
+    const match = doc => {
+        const shapes = Array.from(doc?.getElementsByTagName("p:sp") || []).map(n => ({ n, ph: _pptxPlaceholder(n) })).filter(item => item.ph);
+        return (
+            shapes.find(item => item.ph.type === placeholder.type && item.ph.idx === placeholder.idx) ||
+            shapes.find(item => placeholder.idx && item.ph.idx === placeholder.idx) ||
+            shapes.find(item => item.ph.type === placeholder.type || (isTitle(item.ph.type) && isTitle(placeholder.type)))
+        )?.n;
+    };
+    const merged = sp.ownerDocument.createElement("a:bodyPr");
+    [match(design.master), match(design.layout)].forEach(node => {
+        const source = _pptxChild(_pptxChild(node, "p:txBody"), "a:bodyPr");
+        Array.from(source?.attributes || []).forEach(a => merged.setAttribute(a.name, a.value));
+    });
+    Array.from(own?.attributes || []).forEach(a => merged.setAttribute(a.name, a.value));
+    Array.from(own?.children || []).forEach(child => merged.appendChild(child.cloneNode(true)));
+    return merged;
+}
+
+function _pptxParagraphDefaults(design, placeholder, sp, level) {
+    const result = sp.ownerDocument.createElement("a:pPr");
+    const match = doc => {
+        const shapes = Array.from(doc?.getElementsByTagName("p:sp") || []);
+        return shapes.find(n => {
+            const ph = _pptxPlaceholder(n);
+            return ph && placeholder && ph.idx === placeholder.idx && (ph.type === placeholder.type || placeholder.idx);
+        });
+    };
+    const name = `a:lvl${level + 1}pPr`;
+    const kind = !placeholder ? "p:otherStyle" : /title/i.test(placeholder.type) ? "p:titleStyle" : "p:bodyStyle";
+    const sources = [
+        _pptxChild(_pptxChild(_pptxFirst(design?.master, "p:txStyles"), kind), name),
+        ...[match(design?.master), match(design?.layout), sp].map(n => _pptxChild(_pptxChild(_pptxChild(n, "p:txBody"), "a:lstStyle"), name)),
+    ];
+    sources.filter(Boolean).forEach(source => {
+        Array.from(source.attributes).forEach(a => result.setAttribute(a.name, a.value));
+        Array.from(source.children).forEach(child => {
+            const tags = ["a:buNone", "a:buChar", "a:buAutoNum"];
+            (tags.includes(child.tagName) ? tags : [child.tagName]).forEach(tag => _pptxChildren(result, tag).forEach(n => n.remove()));
+            result.appendChild(child.cloneNode(true));
+        });
+    });
+    return result;
+}
+
 // The first-level run properties a placeholder (or a plain text box) inherits: the layout's placeholder, the
 // master's, then the master's text styles (title, body or other). Size in points, colour, font, bold.
 function _pptxTextDefaults(design, placeholder) {
@@ -741,6 +1222,7 @@ async function _pptxBackgroundPicture(pkg, picture) {
     const mime = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", svg: "image/svg+xml", webp: "image/webp", bmp: "image/bmp" }[extension];
     if (!mime) return null;
     const blob = new Blob([await file.async("arraybuffer")], { type: mime });
+    if (!(await _pptxPictureReadable(blob))) return null;
     try {
         const uploaded = typeof _uploadAssetFile === "function" ? await _uploadAssetFile(new File([blob], path.split("/").pop(), { type: mime })) : null;
         if (uploaded?.url) return uploaded.url;
@@ -764,19 +1246,110 @@ function _pptxPlaceShapeText(sp, text, box, themeColors) {
     const srgb = _pptxChild(fontRef, "a:srgbClr")?.getAttribute("val");
     const styleColor = srgb && /^[0-9a-f]{6}$/i.test(srgb) ? `#${srgb}` : scheme ? themeColors?.[scheme] : null;
     if (!hasRunColor && styleColor) text.styles.color = styleColor;
+    // PowerPoint centres the words of a shape when nothing (paragraph, master or presentation text styles) says
+    // otherwise.
+    if (_pptxUnalignedText.has(text)) text.styles.textAlign = "center";
 
-    const anchor = _pptxChild(txBody, "a:bodyPr")?.getAttribute("anchor") || "t";
-    if (anchor !== "ctr" && anchor !== "b") return;
-    // The text's height, estimated: wrapped lines at about half an em per character, 1.2 line height.
-    const size = parseFloat(text.styles.fontSize) || 18;
-    const inner = Math.max(20, box.w - 19);
-    const lines = _pptxChildren(txBody, "a:p").reduce((sum, p) => {
-        const chars = Array.from(p.getElementsByTagName("a:t")).reduce((n, t) => n + (t.textContent || "").length, 0);
-        return sum + Math.max(1, Math.ceil((chars * size * 0.52) / inner));
-    }, 0);
-    const height = Math.min(box.h, Math.round(lines * size * 1.2 + 10));
-    text.y = anchor === "ctr" ? Math.round(box.y + (box.h - height) / 2) : box.y + box.h - height;
-    text.height = `${height}px`;
+
+}
+
+// PowerPoint's entrance effects (presetID) as SlideForge's; anything else fades in. Appear (1) is a very short fade.
+const PPTX_ENTRANCES = { 1: ["fade-in", 100], 10: ["fade-in", 0], 2: ["slide-up", 0], 12: ["slide-up", 0], 22: ["wipe-in", 0], 53: ["zoom-in", 0], 23: ["zoom-in", 0], 21: ["wipe-in", 0], 16: ["wipe-in", 0] };
+// Fly-in directions (presetSubtype): from the bottom, left, top, right.
+const PPTX_FLY_FROM = { 4: "slide-up", 8: "slide-right", 1: "slide-down", 2: "slide-left" };
+
+// The slide's builds (<p:timing>, its main sequence) as SlideForge animations on the elements made from each target:
+// one click per PowerPoint click, "with previous" in the same click, "after previous" in it with a delay, effects
+// before the first click when the slide opens. Paragraph-by-paragraph builds of a list reveal it bullet by bullet;
+// exits fade the element out on their click. Builds were dropped: every object was on the slide from the start.
+function _pptxApplyBuilds(doc, byShapeId) {
+    const timing = _pptxFirst(doc, "p:timing");
+    const mainSeq = timing && Array.from(timing.getElementsByTagName("p:cTn")).find(node => node.getAttribute("nodeType") === "mainSeq");
+    if (!mainSeq) return;
+    const steps = _pptxChildren(_pptxChild(mainSeq, "p:childTnLst"), "p:par");
+    let click = 0;
+    const entrances = new Map(); // element -> its first entrance
+    const exits = new Map(); // element -> its exit
+    const paragraphBuilds = new Map(); // element -> [click of each paragraph]
+    steps.forEach(step => {
+        const effects = Array.from(step.getElementsByTagName("p:cTn")).filter(node => node.getAttribute("presetClass"));
+        if (!effects.length) return;
+        const onClick = effects[0].getAttribute("nodeType") === "clickEffect";
+        if (onClick) click += 1;
+        let elapsed = 0;
+        effects.forEach(effect => {
+            const nodeType = effect.getAttribute("nodeType");
+            const target = _pptxFirst(effect, "p:spTgt");
+            const made = target && byShapeId.get(target.getAttribute("spid"));
+            const duration = Math.max(...Array.from(effect.getElementsByTagName("p:cTn")).map(node => Number(node.getAttribute("dur")) || 0), 0);
+            const delay = Number(_pptxFirst(_pptxChild(effect, "p:stCondLst"), "p:cond")?.getAttribute("delay")) || 0;
+            if (nodeType === "afterEffect") elapsed += 1;
+            if (!made?.length) return;
+            const presetClass = effect.getAttribute("presetClass");
+            const clickGroup = `pptx-${click}-${target.getAttribute("spid")}`;
+            const timing = { trigger: click ? "on-click" : "on-slide", order: click, delayMs: delay + (nodeType === "afterEffect" ? elapsed * 100 : 0), durationMs: duration };
+            const paragraph = _pptxFirst(target, "p:pRg");
+            made.forEach(element => {
+                if (presetClass === "exit") {
+                    if (!exits.has(element)) exits.set(element, { ...timing, clickGroup });
+                } else if (presetClass === "entr") {
+                    if (paragraph && element.type === "text") {
+                        if (!paragraphBuilds.has(element)) paragraphBuilds.set(element, []);
+                        paragraphBuilds.get(element).push(timing);
+                    }
+                    if (!entrances.has(element)) {
+                        const id = Number(effect.getAttribute("presetID"));
+                        const [mapped, fixed] = PPTX_ENTRANCES[id] || ["fade-in", 0];
+                        const effectName = id === 2 ? PPTX_FLY_FROM[Number(effect.getAttribute("presetSubtype"))] || mapped : mapped;
+                        entrances.set(element, { ...timing, effect: effectName, durationMs: fixed || Math.max(100, timing.durationMs || 500) });
+                    }
+                }
+            });
+        });
+    });
+    entrances.forEach((entrance, element) => {
+        // A list built paragraph by paragraph shows one bullet per click (SlideForge reveals bullets before the other
+        // builds of the slide); any other text box appears whole on its first paragraph's click.
+        const paragraphs = paragraphBuilds.get(element);
+        const steppable = Array.isArray(element.content) || /<p\b/.test(String(element.content || ""));
+        if (paragraphs && steppable && paragraphs.length > 1 && entrance.trigger === "on-click") {
+            element.revealBullets = true;
+            return;
+        }
+        if (exits.has(element)) return; // both: an advanced timeline below
+        element.animation = {
+            effect: entrance.effect,
+            trigger: entrance.trigger,
+            order: entrance.order,
+            durationMs: entrance.durationMs,
+            delayMs: entrance.delayMs,
+            easing: "ease-out",
+        };
+    });
+    exits.forEach((exit, element) => {
+        // SlideForge's basic builds are entrances only: an exit is an advanced timeline (fade out on its click),
+        // after the element's entrance when it has one.
+        const make = (type, overrides) =>
+            typeof createAnimation === "function"
+                ? createAnimation(type, overrides)
+                : { id: generateId("anim"), type, duration: overrides.duration, delay: overrides.delay, trigger: overrides.trigger, easing: "easeOut", keyframes: [], startOpacity: overrides.startOpacity, endOpacity: overrides.endOpacity };
+        const entrance = entrances.get(element);
+        const animations = [];
+        let start = 0;
+        if (entrance && !element.revealBullets) {
+            animations.push({ ...make("fadeIn", { duration: entrance.durationMs, delay: entrance.delayMs, trigger: entrance.trigger, startOpacity: 0, endOpacity: 1 }), startTime: 0 });
+            start = entrance.durationMs + entrance.delayMs;
+        }
+        const duration = Math.max(100, exit.durationMs || 100);
+        // Everything one PowerPoint exit removes (a group's objects) goes on the same click.
+        animations.push({ ...make("fadeOut", { duration, delay: exit.delayMs, trigger: exit.trigger, startOpacity: 1, endOpacity: 0 }), startTime: start, clickGroup: exit.clickGroup });
+        element.animation = {
+            timelines: [{ elementId: element.id, animations, totalDuration: start + duration + exit.delayMs }],
+            autoAnimate: false,
+            laggedStart: false,
+            laggedStartDelay: 50,
+        };
+    });
 }
 
 async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
@@ -785,8 +1358,18 @@ async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
     const links = await pkg.links(slidePath);
     const layoutXfrm = await _pptxLayoutPlaceholders(pkg, slidePath);
     const elements = [];
+    // Which elements each PowerPoint shape id became (a group's id stands for everything in it): builds target ids.
+    const byShapeId = new Map();
+    const owners = [];
+    const register = (node, ...made) => {
+        const id = _pptxFirst(node, "p:cNvPr")?.getAttribute("id");
+        [id, ...owners].filter(Boolean).forEach(key => {
+            if (!byShapeId.has(key)) byShapeId.set(key, []);
+            byShapeId.get(key).push(...made);
+        });
+    };
     // EMU in the coordinates of `transform` -> slide pixels
-    const toBox = (xfrm, t) => ({
+    const rawBox = (xfrm, t) => ({
         x: Math.round(((t.ox + (xfrm.x - t.cx) * t.sx) / PPTX_EMU_PER_PX) * scale),
         y: Math.round(((t.oy + (xfrm.y - t.cy) * t.sy) / PPTX_EMU_PER_PX) * scale),
         w: Math.round(((xfrm.w * t.sx) / PPTX_EMU_PER_PX) * scale),
@@ -795,19 +1378,48 @@ async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
         flipH: !!xfrm.flipH,
         flipV: !!xfrm.flipV,
     });
+    // A rotated group turns everything in it about its centre: each child's centre moves and its rotation adds up
+    // (innermost group first). Their contents came in unturned.
+    const toBox = (xfrm, t) => {
+        const box = rawBox(xfrm, t);
+        (t.turns || []).forEach(turn => {
+            const angle = (turn.deg * Math.PI) / 180;
+            const cx = box.x + box.w / 2 - turn.cx;
+            const cy = box.y + box.h / 2 - turn.cy;
+            box.x = Math.round(turn.cx + cx * Math.cos(angle) - cy * Math.sin(angle) - box.w / 2);
+            box.y = Math.round(turn.cy + cx * Math.sin(angle) + cy * Math.cos(angle) - box.h / 2);
+            box.rot = (((box.rot + turn.deg) % 360) + 360) % 360;
+        });
+        return box;
+    };
     const walk = async (container, t) => {
         for (const node of Array.from(container.children)) {
             const zIndex = elements.length + 1;
-            if (node.tagName === "p:grpSp") {
+            if (node.tagName === "mc:AlternateContent") {
+                // Content for newer PowerPoint (an equation, an ink drawing) and the picture of it older readers show.
+                const fallback = _pptxChild(node, "mc:Fallback");
+                if (fallback) await walk(fallback, t);
+            } else if (node.tagName === "p:grpSp") {
                 const g = _pptxXfrm(node);
                 if (!g) continue;
                 const sx = g.chW ? (g.w / g.chW) * t.sx : t.sx;
                 const sy = g.chH ? (g.h / g.chH) * t.sy : t.sy;
-                await walk(node, { sx, sy, cx: g.chX, cy: g.chY, ox: t.ox + (g.x - t.cx) * t.sx, oy: t.oy + (g.y - t.cy) * t.sy });
+                const frame = rawBox(g, t);
+                const turns = g.rot ? [{ deg: g.rot, cx: frame.x + frame.w / 2, cy: frame.y + frame.h / 2 }, ...(t.turns || [])] : t.turns || [];
+                const id = _pptxFirst(node, "p:cNvPr")?.getAttribute("id");
+                if (id) owners.push(id);
+                await walk(node, { sx, sy, cx: g.chX, cy: g.chY, ox: t.ox + (g.x - t.cx) * t.sx, oy: t.oy + (g.y - t.cy) * t.sy, turns });
+                if (id) owners.pop();
             } else if (node.tagName === "p:cxnSp" || (node.tagName === "p:sp" && _pptxIsLine(node) && !_pptxFirst(node, "a:t"))) {
                 const xfrm = _pptxXfrm(node);
-                const connector = xfrm && _pptxConnectorElement(node, toBox(xfrm, t), scale, zIndex);
-                if (connector) elements.push(connector);
+                const box = xfrm && toBox(xfrm, t);
+                // A connector in a turned group (or turned itself) is drawn as a picture, which can turn.
+                const curved = /^curvedConnector/.test(_pptxChild(_pptxChild(node, "p:spPr"), "a:prstGeom")?.getAttribute("prst") || "");
+                const connector = box && (box.rot || curved ? _pptxDrawingElement(node, box, scale, zIndex) || _pptxConnectorElement(node, box, scale, zIndex) : _pptxConnectorElement(node, box, scale, zIndex));
+                if (connector) {
+                    elements.push(connector);
+                    register(node, connector);
+                }
             } else if (node.tagName === "p:sp") {
                 const placeholder = _pptxPlaceholder(node);
                 if (placeholder && ["sldNum", "dt", "ftr"].includes(placeholder.type) && !_pptxFirst(node, "a:t")) continue;
@@ -815,15 +1427,52 @@ async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
                 if (!xfrm) continue;
                 const box = toBox(xfrm, t);
                 const text = _pptxTextElement(node, box, { fontScale: scale, placeholder, zIndex, links, design });
-                const shape = text && !_pptxChild(_pptxChild(node, "p:spPr"), "a:prstGeom") ? null : _pptxShapeElement(node, box, zIndex);
+                const spPr = _pptxChild(node, "p:spPr");
+                // Pictures can be stored as shape fills rather than p:pic (slide 34 of PreSynopsis).
+                const pictureFill = _pptxChild(spPr, "a:blipFill");
+                if (pictureFill) {
+                    const picture = await _pptxPictureElement(pkg, node, rels, box, zIndex, pictureFill);
+                    if (picture) {
+                        const made = [picture, text].filter(Boolean);
+                        if (text) text.styles.zIndex = zIndex + 1;
+                        elements.push(...made);
+                        register(node, ...made);
+                        continue;
+                    }
+                }
+                const drawn = _pptxChild(spPr, "a:custGeom") || PPTX_DRAWN_PRESETS.has(_pptxChild(spPr, "a:prstGeom")?.getAttribute("prst"));
+                if (drawn) {
+                    // A freeform or an arc: its picture, then its words on top.
+                    const drawing = _pptxDrawingElement(node, box, scale, zIndex);
+                    if (text) {
+                        delete text.styles.backgroundColor;
+                        text.styles.zIndex = zIndex + 1;
+                    }
+                    const made = [drawing, text].filter(Boolean);
+                    elements.push(...made);
+                    if (made.length) register(node, ...made);
+                    continue;
+                }
+                const shape = text && !_pptxChild(spPr, "a:prstGeom") ? null : _pptxShapeElement(node, box, zIndex);
+                // A text box stays a text box, its fill and outline on the box itself: as a shape with words in it,
+                // its text had a shape's wider margins and wrapped onto a line more (a title lost its last words).
+                if (text && shape && _pptxFirst(node, "p:cNvSpPr")?.getAttribute("txBox") === "1") {
+                    const keep = ["backgroundColor", "background", "borderColor", "borderWidth", "borderStyle"];
+                    keep.forEach(name => {
+                        if (shape.styles[name] && shape.styles[name] !== "transparent") text.styles[name] = shape.styles[name];
+                    });
+                    elements.push(text);
+                    register(node, text);
+                    continue;
+                }
                 // A filled shape with words in it: the shape, then its text on top (text boxes have no outline).
                 if (shape && text) {
                     delete text.styles.backgroundColor;
                     text.styles.zIndex = zIndex + 1;
                     // PowerPoint centres the words of a shape unless the paragraph says otherwise.
-                    if (!_pptxFirst(node, "a:pPr")?.getAttribute("algn")) text.styles.textAlign = "center";
+
                     _pptxPlaceShapeText(node, text, box, pkg.themeColors);
-                    if (typeof text.content === "string" && !/<a\s/i.test(text.content)) {
+                    if (typeof text.content === "string" && !/<(?:a|span|p|sub|sup)\b/i.test(text.content) && !text.styles.textShadow) {
                         // Plain words go into the shape itself, so they move and resize with it; a bulleted list
                         // stays a text box on top (shape text has no bullets).
                         const anchor = _pptxChild(_pptxChild(node, "p:txBody"), "a:bodyPr")?.getAttribute("anchor") || "t";
@@ -840,34 +1489,48 @@ async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
                             verticalAlign: anchor === "ctr" ? "middle" : anchor === "b" ? "bottom" : "top",
                         };
                         elements.push(shape);
+                        register(node, shape);
                     } else {
                         elements.push(shape, text);
+                        register(node, shape, text);
                     }
-                } else if (text) elements.push(text);
-                else if (shape) elements.push(shape);
+                } else if (text) {
+                    elements.push(text);
+                    register(node, text);
+                } else if (shape) {
+                    elements.push(shape);
+                    register(node, shape);
+                }
             } else if (node.tagName === "p:pic") {
                 const xfrm = _pptxXfrm(node);
                 const picture = xfrm && (await _pptxPictureElement(pkg, node, rels, toBox(xfrm, t), zIndex));
-                if (picture) elements.push(picture);
+                if (picture) {
+                    elements.push(picture);
+                    register(node, picture);
+                }
             } else if (node.tagName === "p:graphicFrame") {
                 const xfrm = _pptxXfrm(node);
                 if (!xfrm) continue;
                 const box = toBox(xfrm, t);
                 const tbl = _pptxFirst(node, "a:tbl");
-                const made = tbl ? _pptxTableElement(tbl, box, scale, scale, zIndex) : await _pptxChartElement(pkg, node, rels, box, zIndex);
-                // Table text in the theme's body font (it came in as Manrope).
+                const made = tbl ? _pptxTableElement(tbl, box, scale, scale, zIndex, await pkg.xml("ppt/tableStyles.xml"), design?.theme?.colors || _pptxCurrentThemeColors) : await _pptxChartElement(pkg, node, rels, box, zIndex);
+                // Table text without a font of its own in the theme's body font (it came in as Manrope).
                 const bodyFont = tbl && design?.theme?.fonts?.minor;
-                if (made && bodyFont) {
+                if (made && bodyFont && /Manrope/.test(made.tableData.fontFamily)) {
                     const family = _pptxFontStack(bodyFont);
                     made.styles.fontFamily = family;
                     made.tableData.fontFamily = family;
                 }
-                if (made) elements.push(made);
+                if (made) {
+                    elements.push(made);
+                    register(node, made);
+                }
             }
         }
     };
     const tree = _pptxFirst(doc, "p:spTree");
     if (tree) await walk(tree, { sx: 1, sy: 1, cx: 0, cy: 0, ox: 0, oy: 0 });
+    _pptxApplyBuilds(doc, byShapeId);
     return {
         elements,
         notes: await _pptxSlideNotes(pkg, rels),

@@ -2143,7 +2143,7 @@ body {
 }
 
 /* Bullet List Styles */
-.ppt-bullet-block { display: flex; flex-direction: column; gap: 0.35em; width: 100%; text-align: inherit; }
+.ppt-bullet-block { display: flex; flex-direction: column; gap: var(--bullet-gap, 0.35em); width: 100%; text-align: inherit; }
 .ppt-bullet-row { display: grid; grid-template-columns: 1.2em minmax(0, 1fr); column-gap: 12px; align-items: start; margin-left: var(--bullet-indent, 0px); }
 .ppt-bullet-marker { display: inline-block; min-width: 1.2em; line-height: 1.2; color: var(--bullet-color, currentColor); font-size: calc(1em * var(--bullet-font-scale, 1)); }
 .ppt-bullet-text { min-width: 0; line-height: inherit; text-align: inherit; }

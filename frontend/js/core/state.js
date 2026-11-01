@@ -956,6 +956,7 @@ const SAFE_TEXT_STYLE_PROPS = new Set([
     "font-style",
     "font-weight",
     "text-align",
+    "text-indent",
     "text-decoration",
     "text-decoration-line",
     "vertical-align",
@@ -974,7 +975,12 @@ const SAFE_TEXT_STYLE_PROPS = new Set([
     "width",
 ]);
 const SAFE_ELEMENT_STYLE_PROPS = new Set([
+    // A gradient fill (imported PowerPoint shapes and backgrounds): it was dropped when the deck was saved and opened.
+    "background",
     "backgroundColor",
+    "boxSizing",
+    "--pptx-text-anchor",
+    "--pptx-nowrap",
     "border",
     "borderColor",
     "borderRadius",
@@ -1006,6 +1012,12 @@ const SAFE_ELEMENT_STYLE_PROPS = new Set([
     "textStrokeWidth",
     "transform",
     "zIndex",
+    // Spacing between a list's paragraphs (components.css .ppt-bullet-block), set by PowerPoint import.
+    "--bullet-gap",
+    // A connector's line width: it was dropped, so every saved connector came back 4 px wide.
+    "strokeWidth",
+    // Titles with a shadow (PowerPoint import).
+    "textShadow",
 ]);
 const MAX_PRESENTATION_SLIDES = 250;
 const MAX_ELEMENTS_PER_SLIDE = 300;

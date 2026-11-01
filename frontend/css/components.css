@@ -1631,7 +1631,8 @@ body.play-mode-active.presentation-pointer-active .presentation-menu-shell,
 .ppt-bullet-block {
     display: flex;
     flex-direction: column;
-    gap: 0.35em;
+    /* An imported PowerPoint list sets its own spacing between paragraphs (none unless it has space before/after). */
+    gap: var(--bullet-gap, 0.35em);
     width: 100%;
     text-align: inherit;
 }
@@ -4174,18 +4175,21 @@ body.whiteboard-mode-active
 }
 
 /* "Reveal bullets one by one" while presenting (presentation-animations.js); never applied in the editor. */
-.play-mode-active .ppt-bullet-row.sf-bullet-hidden {
+.play-mode-active .ppt-bullet-row.sf-bullet-hidden,
+.play-mode-active .text-element-content > p.sf-bullet-hidden {
     opacity: 0;
     transform: translateY(10px);
 }
-.play-mode-active .ppt-bullet-row.sf-bullet-shown {
+.play-mode-active .ppt-bullet-row.sf-bullet-shown,
+.play-mode-active .text-element-content > p.sf-bullet-shown {
     opacity: 1;
     transform: none;
     transition:
         opacity 380ms ease-out,
         transform 380ms ease-out;
 }
-.play-mode-active .ppt-bullet-row.sf-bullet-instant {
+.play-mode-active .ppt-bullet-row.sf-bullet-instant,
+.play-mode-active .text-element-content > p.sf-bullet-instant {
     transition: none;
 }
 /* Branch Reveal: the parts of a flowchart (steps, arrows, labels) come in click by click. */
@@ -4648,6 +4652,20 @@ body.sf-moving-element iframe { pointer-events: none !important; }
     border-color: var(--primary, #4f46e5);
     background: var(--primary, #4f46e5);
     color: #fff;
+}
+
+/* A PowerPoint text box that does not wrap (wrap="none"): one line per paragraph, as in PowerPoint. Labels such as
+   "c7eq" broke inside the word once the box had PowerPoint's margins. */
+.canvas-element[data-type="text"][style*="--pptx-nowrap"] .text-element-content {
+    white-space: pre;
+    overflow-wrap: normal;
+    word-break: normal;
+}
+
+/* PowerPoint anchors text inside the source box after applying its insets. */
+.canvas-element[data-type="text"][style*="--pptx-text-anchor"] .text-element-content {
+    align-content: var(--pptx-text-anchor);
+    line-height: inherit;
 }
 
 /* ── Progress card for long work (imports, saving, saving before close): js/ui/busy-overlay.js ── */

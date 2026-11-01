@@ -108,7 +108,15 @@ function _getAdvancedAnimationClickGroups(slideIndex) {
             (timeline.animations || []).forEach((animation, animationIndex) => {
                 if ((animation?.trigger || "on-slide") !== "on-click") return;
                 if (!animation.id) animation.id = `anim_${el.id || "el"}_${timelineIndex}_${animationIndex}`;
+                // Animations sharing a click group (an imported PowerPoint exit of a whole group) play on one click.
+                const shared = animation.clickGroup && groups.find(group => group.clickGroup === animation.clickGroup);
+                if (shared) {
+                    shared.animationIds.push(String(animation.id));
+                    shared.entries.push({ el, animation });
+                    return;
+                }
                 groups.push({
+                    clickGroup: animation.clickGroup || null,
                     order: groups.length,
                     animationIds: [String(animation.id)],
                     entries: [{ el, animation }],
@@ -257,10 +265,15 @@ function _getBulletRevealSteps(slideIndex) {
                 steps.push(..._getDiagramRevealSteps(el, node));
                 return;
             }
-            const rows = [...(node?.querySelectorAll(".ppt-bullet-row") || [])];
+            let rows = [...(node?.querySelectorAll(".ppt-bullet-row") || [])];
+            // A PowerPoint text box keeps its paragraphs as <p> (with their own indents): each paragraph with words is a
+            // step, and one indented further than the first joins the step above it (as a sub-bullet does).
+            const imported = !rows.length;
+            if (imported) rows = [...(node?.querySelectorAll(".text-element-content > p") || [])].filter(p => p.textContent.trim());
+            const baseIndent = imported && rows.length ? parseFloat(rows[0].style.marginLeft) || 0 : 0;
             let current = null;
             rows.forEach(row => {
-                const level = Number(row.dataset.level) || 0;
+                const level = imported ? ((parseFloat(row.style.marginLeft) || 0) > baseIndent + 1 ? 1 : 0) : Number(row.dataset.level) || 0;
                 if (level === 0 || !current) {
                     current = { elementId: el.id, rows: [] };
                     steps.push(current);
