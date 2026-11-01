@@ -237,10 +237,16 @@ class SaveBeforeCloseTests(SimpleTestCase):
             self.scripts = []
             self.destroyed = threading.Event()
 
-        def evaluate_js(self, script, callback=None):
+        def run_js(self, script):
+            # A page that answers finishes its save on the second look at the flag.
             self.scripts.append(script)
-            if self.answers and callback:
-                callback(True)
+            if "sfFlushBeforeClose" in script:
+                return "started"
+            polls = sum("__sfCloseFlush ||" in s for s in self.scripts)
+            return "done" if self.answers and polls >= 2 else "saving"
+
+        def evaluate_js(self, script, callback=None):
+            raise AssertionError("evaluate_js wraps the script in eval(), which the page's CSP blocks")
 
         def destroy(self):
             self.destroyed.set()
@@ -252,6 +258,8 @@ class SaveBeforeCloseTests(SimpleTestCase):
         self.assertIs(on_closing(), False)  # held back
         self.assertTrue(window.destroyed.wait(2))
         self.assertIn("sfFlushBeforeClose", window.scripts[0])
+        self.assertNotIn("eval(", window.scripts[0])
+        self.assertGreaterEqual(len(window.scripts), 3)  # waited for the page to say it had saved
         self.assertIs(on_closing(), True)  # the close that follows goes through
 
     def test_a_page_that_does_not_answer_does_not_keep_the_window_open(self):

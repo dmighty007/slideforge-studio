@@ -184,6 +184,18 @@ def _webview_storage(data_dir: Path) -> Path:
 
 # How long closing the window waits for the page to put away what was just typed and save it.
 CLOSE_FLUSH_TIMEOUT = 6.0
+CLOSE_FLUSH_POLL = 0.1
+
+# Started with run_js, not evaluate_js: evaluate_js wraps the script in eval(), which the page's Content Security
+# Policy forbids (script-src has no 'unsafe-eval'), so the save before closing never ran. The page sets a flag when
+# the save ends; Python reads it.
+_CLOSE_FLUSH_START = (
+    "window.__sfCloseFlush = 'saving';"
+    "Promise.resolve(window.sfFlushBeforeClose ? window.sfFlushBeforeClose() : true)"
+    ".catch(function () {}).then(function () { window.__sfCloseFlush = 'done'; });"
+    "'started'"
+)
+_CLOSE_FLUSH_STATE = "window.__sfCloseFlush || ''"
 
 
 def _save_before_close(window) -> None:
@@ -191,20 +203,22 @@ def _save_before_close(window) -> None:
 
     A word typed just before closing could be lost: the window went at once, before the text box had handed its
     words to the deck and before the next autosave. The first close is held back; the page's
-    sfFlushBeforeClose() commits the edit and saves (its promise answers the callback), then the window is
-    closed for good. If the page does not answer in time (not loaded, busy), the window closes anyway.
+    sfFlushBeforeClose() commits the edit and saves (showing "Saving before closing…"), then the window is
+    closed for good. If the page does not finish in time (not loaded, busy), the window closes anyway.
     """
     state = {"closing": False}
 
     def flush_then_close():
-        done = threading.Event()
         try:
-            window.evaluate_js(
-                "window.sfFlushBeforeClose ? window.sfFlushBeforeClose() : true",
-                callback=lambda *_args: done.set(),
-            )
-            if not done.wait(CLOSE_FLUSH_TIMEOUT):
-                log.warning("The page did not finish saving within %.0f s of closing", CLOSE_FLUSH_TIMEOUT)
+            window.run_js(_CLOSE_FLUSH_START)
+            deadline = time.monotonic() + CLOSE_FLUSH_TIMEOUT
+            while True:
+                if str(window.run_js(_CLOSE_FLUSH_STATE) or "").strip('"') == "done":
+                    break
+                if time.monotonic() >= deadline:
+                    log.warning("The page did not finish saving within %.0f s of closing", CLOSE_FLUSH_TIMEOUT)
+                    break
+                time.sleep(CLOSE_FLUSH_POLL)
         except Exception:  # the window must close whatever happens here
             log.exception("Saving before close failed")
         window.destroy()
