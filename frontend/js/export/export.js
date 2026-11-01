@@ -289,6 +289,9 @@ function chartValueAxisForExport(el) {
 function createZipViewerState(snapshot, theme) {
   const exportState = JSON.parse(JSON.stringify(snapshot || {}));
   if (!Array.isArray(exportState.slides)) exportState.slides = [];
+  // The viewer is for presenting: slides hidden from presenting are left out (unless every slide is hidden).
+  const shownSlides = exportState.slides.filter((slide) => slide?.hidden !== true);
+  if (shownSlides.length) exportState.slides = shownSlides;
   // The standalone viewer injects equation markup as-is; sanitize it here like the editor does.
   exportState.slides.forEach((slide) => {
     // Untouched "Click to add ..." boxes are editor-only (an empty list would still draw its bullet).

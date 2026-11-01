@@ -159,6 +159,21 @@ function duplicateCurrentSlide(targetIndex = null) {
     updateSlideCounter();
 }
 
+// Hides a slide from presenting, or shows it again (PowerPoint's "Hide Slide"): it stays in the deck and the
+// editor, dimmed in the slide rail; presenting steps over it.
+function toggleSlideHidden(targetIndex = null) {
+    const index = _normalizeSlideIndex(targetIndex) ?? ensureActiveSlideSync();
+    const slide = state.slides[index];
+    if (!slide) return;
+    saveStateToUndo();
+    if (slide.hidden) delete slide.hidden;
+    else slide.hidden = true;
+    renderSlidesFromState();
+    schedulePresentationAutosave?.();
+    setProjectSaveHint?.(slide.hidden ? `Slide ${index + 1} is hidden when presenting` : `Slide ${index + 1} is shown when presenting`, "muted");
+}
+window.toggleSlideHidden = toggleSlideHidden;
+
 function updateSlideCounter() {
     const el = document.getElementById("slide-counter");
     if (el) el.innerText = `Slide ${currentSlideIndex + 1} / ${state.slides.length}`;

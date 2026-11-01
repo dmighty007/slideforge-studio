@@ -67,6 +67,8 @@ function _pptxResolvePath(basePart, target) {
 
 // The theme's colour scheme, once the package is read (theme colours below are looked up in it).
 let _pptxCurrentThemeColors = {};
+// The theme's shape fill styles (<a:fillStyleLst>), which a shape's <a:fillRef idx> picks from.
+let _pptxCurrentFillStyles = [];
 
 // PowerPoint's colour modifiers on a theme or RGB colour: lumMod/lumOff (brightness in HSL), shade (towards
 // black) and tint (towards white).
@@ -130,6 +132,19 @@ function _pptxStyleColor(sp, refName) {
     const ref = _pptxChild(_pptxChild(sp, "p:style"), refName);
     if (!ref || Number(ref.getAttribute("idx")) === 0) return null;
     return _pptxColorValue(ref);
+}
+
+// The fill a shape's style picks from the theme: { color, gradient? }. The bare style colour stood in for it, so a
+// text box whose style is the theme's light grey gradient of the text colour came in solid black, hiding its words.
+function _pptxStyleFill(sp) {
+    const ref = _pptxChild(_pptxChild(sp, "p:style"), "a:fillRef");
+    const index = Number(ref?.getAttribute("idx")) || 0;
+    if (!ref || index === 0) return null;
+    const color = _pptxColorValue(ref);
+    const style = _pptxCurrentFillStyles[index - 1];
+    if (style?.tagName === "a:noFill") return null;
+    const found = style && _pptxFillBackground(style, null, _pptxCurrentThemeColors, color);
+    return found?.color ? found : color ? { color } : null; // a picture fill style: its colour
 }
 
 class PptxPackage {
@@ -495,8 +510,9 @@ function _pptxShapeElement(sp, box, zIndex) {
     const preset = _pptxChild(spPr, "a:prstGeom")?.getAttribute("prst");
     // Its own fill, or none when it says noFill, else its style's.
     // A gradient fill as a CSS gradient (shapes with one were dropped: the first of four step circles went missing).
-    const gradient = _pptxChild(spPr, "a:gradFill") ? _pptxFillBackground(_pptxChild(spPr, "a:gradFill"), null, _pptxCurrentThemeColors) : null;
-    const fill = _pptxColor(spPr) || gradient?.color || (_pptxChild(spPr, "a:noFill") ? null : _pptxStyleColor(sp, "a:fillRef"));
+    const ownFill = _pptxColor(spPr) || _pptxChild(spPr, "a:gradFill") || _pptxChild(spPr, "a:noFill") || _pptxChild(spPr, "a:blipFill");
+    const gradient = _pptxChild(spPr, "a:gradFill") ? _pptxFillBackground(_pptxChild(spPr, "a:gradFill"), null, _pptxCurrentThemeColors) : ownFill ? null : _pptxStyleFill(sp);
+    const fill = _pptxColor(spPr) || gradient?.color || null;
     const line = _pptxChild(spPr, "a:ln");
     const lineColor = line && _pptxChild(line, "a:noFill") ? null : (line && _pptxColor(line)) || _pptxStyleColor(sp, "a:lnRef");
     if (!preset || (!fill && !lineColor)) return null;
@@ -542,8 +558,9 @@ function _pptxRgba(hex, alpha) {
     return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${Math.round(alpha * 1000) / 1000})`;
 }
 
-// Presets drawn as SVG instead of a SlideForge shape: a rectangle stood in for them (an arc became a filled box).
-const PPTX_DRAWN_PRESETS = new Set(["arc", "circularArrow", "curvedConnector2", "curvedConnector3", "curvedConnector4", "curvedConnector5"]);
+// Presets drawn as SVG instead of a SlideForge shape: a rectangle stood in for them (an arc became a filled box, a
+// donut ringing a picture a solid square that hid it, a brace an empty box).
+const PPTX_DRAWN_PRESETS = new Set(["arc", "circularArrow", "curvedConnector2", "curvedConnector3", "curvedConnector4", "curvedConnector5", "donut", "leftBrace", "rightBrace"]);
 
 // PowerPoint's dash styles as SVG dash patterns, in line widths.
 const PPTX_DASHES = { dash: [4, 3], sysDash: [3, 1], dot: [1, 1], sysDot: [1, 1], lgDash: [8, 3], dashDot: [4, 3, 1, 3], lgDashDot: [8, 3, 1, 3], lgDashDotDot: [8, 3, 1, 3, 1, 3], sysDashDot: [3, 1, 1, 1], sysDashDotDot: [3, 1, 1, 1, 1, 1] };
@@ -565,6 +582,13 @@ function _pptxGeometryPaths(spPr, boxW, boxH) {
         const point = deg => [rx + rx * Math.cos((deg * Math.PI) / 180), ry + ry * Math.sin((deg * Math.PI) / 180)];
         if (/^(line|straightConnector1)$/.test(kind || "")) return [{ d: `M 0 0 L ${boxW} ${boxH}`, fill: false, stroke: true }];
         if (/^bentConnector/.test(kind || "")) return [{ d: `M 0 0 L ${boxW / 2} 0 L ${boxW / 2} ${boxH} L ${boxW} ${boxH}`, fill: false, stroke: true }];
+        // Curved connectors as PowerPoint draws them: curvedConnector2 is one bend (it came in as an S); the S of
+        // curvedConnector3 turns at adj1 of the width.
+        if (kind === "curvedConnector2") return [{ d: `M 0 0 C ${boxW / 2} 0, ${boxW} ${boxH / 2}, ${boxW} ${boxH}`, fill: false, stroke: true }];
+        if (kind === "curvedConnector3") {
+            const x2 = (boxW * (adjust("adj1") ?? 50000)) / 100000;
+            return [{ d: `M 0 0 C ${x2 / 2} 0, ${x2} ${boxH / 4}, ${x2} ${boxH / 2} C ${x2} ${(boxH * 3) / 4}, ${(boxW + x2) / 2} ${boxH}, ${boxW} ${boxH}`, fill: false, stroke: true }];
+        }
         if (/^curvedConnector/.test(kind || "")) return [{ d: `M 0 0 C ${boxW / 2} 0, ${boxW / 2} ${boxH}, ${boxW} ${boxH}`, fill: false, stroke: true }];
         if (kind === "arc") {
             const start = (adjust("adj1") ?? 16200000) / 60000;
@@ -575,14 +599,64 @@ function _pptxGeometryPaths(spPr, boxW, boxH) {
             return [{ d: `M ${x1} ${y1} A ${rx} ${ry} 0 ${sweep > 180 ? 1 : 0} 1 ${x2} ${y2}`, fill: false, stroke: true }];
         }
         if (kind === "circularArrow") {
-            // A band along an arc with an arrowhead: drawn as a thick arc ending in an arrow.
+            // One outline, filled and outlined like any shape: a band along an ellipse from adj4 to adj3 (degrees
+            // clockwise from 3 o'clock), then a head adj5 of the shorter side either side of the band's middle,
+            // its tip adj2 further round. It came in as a stroked arc with a small marker head off its end.
+            const ss = Math.min(boxW, boxH);
+            const headHalf = (ss * Math.max(0, Math.min(25000, adjust("adj5") ?? 12500))) / 100000;
+            const band = (ss * Math.max(0, Math.min(2 * Math.max(0, Math.min(25000, adjust("adj5") ?? 12500)), adjust("adj1") ?? 12500))) / 100000;
             const start = (adjust("adj4") ?? 10800000) / 60000;
-            const end = (adjust("adj3") ?? 16200000) / 60000;
+            const end = (adjust("adj3") ?? 20457681) / 60000;
+            const head = (adjust("adj2") ?? 1142319) / 60000;
             const sweep = (((end - start) % 360) + 360) % 360 || 360;
-            const band = Math.min(rx, ry) * ((adjust("adj1") ?? 12500) / 100000);
-            const [x1, y1] = point(start);
-            const [x2, y2] = point(start + sweep);
-            return [{ d: `M ${x1} ${y1} A ${rx - band / 2} ${ry - band / 2} 0 ${sweep > 180 ? 1 : 0} 1 ${x2} ${y2}`, fill: false, stroke: true, band, arrow: true }];
+            const midX = rx - headHalf;
+            const midY = ry - headHalf;
+            // The point where a ray at `deg` from the centre meets the ellipse with half-axes (ax, ay).
+            const at = (ax, ay, deg) => {
+                const t = (deg * Math.PI) / 180;
+                const r = (ax * ay) / Math.hypot(ay * Math.cos(t), ax * Math.sin(t)) || 0;
+                return `${rx + r * Math.cos(t)} ${ry + r * Math.sin(t)}`;
+            };
+            const outer = [midX + band / 2, midY + band / 2];
+            const inner = [Math.max(0, midX - band / 2), Math.max(0, midY - band / 2)];
+            const large = sweep > 180 ? 1 : 0;
+            const d = [
+                `M ${at(...outer, start)}`,
+                `A ${outer[0]} ${outer[1]} 0 ${large} 1 ${at(...outer, end)}`,
+                `L ${at(midX + headHalf, midY + headHalf, end)}`,
+                `L ${at(midX, midY, end + head)}`,
+                `L ${at(Math.max(0, midX - headHalf), Math.max(0, midY - headHalf), end)}`,
+                `L ${at(...inner, end)}`,
+                `A ${inner[0]} ${inner[1]} 0 ${large} 0 ${at(...inner, start)}`,
+                "Z",
+            ].join(" ");
+            return [{ d, fill: true, stroke: true }];
+        }
+        if (kind === "donut") {
+            // A ring: the outer ellipse with the inner one cut out (adj: the ring's thickness, of the shorter side).
+            const ring = Math.min(rx, ry, Math.min(boxW, boxH) * ((adjust("adj") ?? 25000) / 100000));
+            const ellipse = (erx, ery) => `M ${rx - erx} ${ry} A ${erx} ${ery} 0 1 0 ${rx + erx} ${ry} A ${erx} ${ery} 0 1 0 ${rx - erx} ${ry} Z`;
+            return [{ d: `${ellipse(rx, ry)} ${ring < Math.min(rx, ry) ? ellipse(rx - ring, ry - ring) : ""}`, fill: true, stroke: true, evenodd: true }];
+        }
+        if (kind === "rightBrace" || kind === "leftBrace") {
+            // The curly outline only (PowerPoint's brace fill is the sliver behind it, rarely set). adj1: the curls'
+            // height, of the shorter side; adj2: where the point is, down the height.
+            const mid = boxH * Math.max(0, Math.min(1, (adjust("adj2") ?? 50000) / 100000));
+            const curl = Math.min(Math.min(boxW, boxH) * ((adjust("adj1") ?? 8333) / 100000), mid / 2, (boxH - mid) / 2);
+            const left = kind === "leftBrace";
+            const x = value => (left ? boxW - value : value);
+            const cw = left ? 0 : 1; // sweep flags mirror with the shape
+            const hw = boxW / 2;
+            const d = [
+                `M ${x(0)} 0`,
+                `A ${hw} ${curl} 0 0 ${cw} ${x(hw)} ${curl}`,
+                `L ${x(hw)} ${mid - curl}`,
+                `A ${hw} ${curl} 0 0 ${1 - cw} ${x(boxW)} ${mid}`,
+                `A ${hw} ${curl} 0 0 ${1 - cw} ${x(hw)} ${mid + curl}`,
+                `L ${x(hw)} ${boxH - curl}`,
+                `A ${hw} ${curl} 0 0 ${cw} ${x(0)} ${boxH}`,
+            ].join(" ");
+            return [{ d, fill: false, stroke: true }];
         }
         return [];
     }
@@ -634,8 +708,9 @@ function _pptxDrawingElement(sp, box, scale, zIndex) {
     const spPr = _pptxChild(sp, "p:spPr");
     const paths = _pptxGeometryPaths(spPr, Math.max(1, box.w), Math.max(1, box.h)).filter(path => path.d);
     if (!paths.length) return null;
-    const gradient = _pptxChild(spPr, "a:gradFill") ? _pptxFillBackground(_pptxChild(spPr, "a:gradFill"), null, _pptxCurrentThemeColors) : null;
-    const fill = _pptxColor(spPr) || gradient?.color || (_pptxChild(spPr, "a:noFill") ? null : _pptxStyleColor(sp, "a:fillRef"));
+    const ownFill = _pptxColor(spPr) || _pptxChild(spPr, "a:gradFill") || _pptxChild(spPr, "a:noFill") || _pptxChild(spPr, "a:blipFill");
+    const gradient = _pptxChild(spPr, "a:gradFill") ? _pptxFillBackground(_pptxChild(spPr, "a:gradFill"), null, _pptxCurrentThemeColors) : ownFill ? null : _pptxStyleFill(sp);
+    const fill = _pptxColor(spPr) || gradient?.color || null;
     const fillAlpha = _pptxFillAlpha(_pptxChild(spPr, "a:solidFill"));
     const line = _pptxChild(spPr, "a:ln");
     const lineColor = line && _pptxChild(line, "a:noFill") ? null : (line && _pptxColor(line)) || _pptxStyleColor(sp, "a:lnRef");
@@ -643,25 +718,44 @@ function _pptxDrawingElement(sp, box, scale, zIndex) {
     const lineWidth = Math.max(0.75, ((Number(line?.getAttribute("w")) || 12700) / PPTX_EMU_PER_PX) * scale);
     if (!fill && !lineColor) return null;
     const dash = PPTX_DASHES[_pptxChild(line, "a:prstDash")?.getAttribute("val")];
-    const head = name => _pptxChild(line, name)?.getAttribute("type");
-    const markers = { start: head("a:headEnd"), end: head("a:tailEnd") };
-    const pad = Math.ceil(lineWidth * 4 + 2);
+    const pad = Math.ceil(lineWidth * 6 + 2); // room for a large line end
     const width = Math.max(1, box.w) + pad * 2;
     const height = Math.max(1, box.h) + pad * 2;
     const flip = box.flipH || box.flipV ? ` transform="translate(${box.flipH ? box.w : 0} ${box.flipV ? box.h : 0}) scale(${box.flipH ? -1 : 1} ${box.flipV ? -1 : 1})"` : "";
     const strokeColor = lineColor || fill;
-    const marker = (id, type, reverse) => {
+    // Line ends as PowerPoint draws them: their length and width are small, medium or large multiples of the line's
+    // width (len, w); a stealth head has a notch; an "arrow" head is two strokes as thick as the line.
+    const PPTX_HEAD_SIZES = { sm: 2, med: 3, lg: 5 };
+    const marker = (id, end, reverse) => {
+        const type = end?.getAttribute("type");
         if (!type || type === "none") return "";
-        const shape = type === "oval" ? '<circle cx="5" cy="5" r="4"/>' : type === "diamond" ? '<path d="M 0 5 L 5 0 L 10 5 L 5 10 Z"/>' : type === "arrow" ? `<path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="${strokeColor}" stroke-width="1.5"/>` : '<path d="M 0 0 L 10 5 L 0 10 Z"/>';
-        return `<marker id="${id}" viewBox="0 0 10 10" refX="${type === "oval" || type === "diamond" ? 5 : 8}" refY="5" markerWidth="3.5" markerHeight="3.5" orient="${reverse ? "auto-start-reverse" : "auto"}" fill="${strokeColor}">${shape}</marker>`;
+        const len = PPTX_HEAD_SIZES[end.getAttribute("len")] || PPTX_HEAD_SIZES.med;
+        // An open head is drawn a little wider than a filled one (as LibreOffice reads PowerPoint's sizes).
+        const wide = (PPTX_HEAD_SIZES[end.getAttribute("w")] || PPTX_HEAD_SIZES.med) + (type === "arrow" ? 0.5 : 0);
+        const shape =
+            type === "oval" ? '<circle cx="5" cy="5" r="4.5"/>'
+            : type === "diamond" ? '<path d="M 0 5 L 5 0 L 10 5 L 5 10 Z"/>'
+            : type === "arrow" ? `<path d="M 1 1 L 9 5 L 1 9" fill="none" stroke="${strokeColor}" stroke-width="${10 / Math.min(len, wide)}" stroke-linejoin="miter"/>`
+            : type === "stealth" ? '<path d="M 0 0 L 10 5 L 0 10 L 3 5 Z"/>'
+            : '<path d="M 0 0 L 10 5 L 0 10 Z"/>';
+        const refX = type === "oval" || type === "diamond" ? 5 : type === "stealth" ? 7 : 8;
+        return `<marker id="${id}" viewBox="0 0 10 10" preserveAspectRatio="none" refX="${refX}" refY="5" markerWidth="${len}" markerHeight="${wide}" orient="${reverse ? "auto-start-reverse" : "auto"}" fill="${strokeColor}">${shape}</marker>`;
     };
-    const defs = [marker("s", markers.start, true), marker("e", markers.end, false), paths.some(path => path.arrow) ? marker("a", "triangle", false) : ""].join("");
+    const markers = { start: _pptxChild(line, "a:headEnd"), end: _pptxChild(line, "a:tailEnd") };
+    const hasEnd = end => !!end && !["", "none"].includes(end.getAttribute("type") || "");
+    // A gradient fill as an SVG gradient (it took only its first colour), turning with the shape.
+    const gradientDef = gradient?.stops?.length
+        ? gradient.radial
+            ? `<radialGradient id="g">${gradient.stops.map(stop => `<stop offset="${stop.pos}%" stop-color="${stop.color}"/>`).join("")}</radialGradient>`
+            : `<linearGradient id="g" gradientTransform="rotate(${gradient.angle || 0} 0.5 0.5)">${gradient.stops.map(stop => `<stop offset="${stop.pos}%" stop-color="${stop.color}"/>`).join("")}</linearGradient>`
+        : "";
+    const fillPaint = gradientDef && !_pptxColor(spPr) ? "url(#g)" : fill;
+    const defs = [marker("s", markers.start, true), marker("e", markers.end, false), gradientDef].join("");
     const body = paths
         .map(path => {
-            const band = path.band ? Math.max(lineWidth, path.band) : lineWidth;
-            const stroke = path.stroke && (lineColor || path.band) ? ` stroke="${path.band ? fill || lineColor : lineColor}" stroke-width="${band}"${lineAlpha < 1 && !path.band ? ` stroke-opacity="${lineAlpha}"` : ""}${dash && !path.band ? ` stroke-dasharray="${dash.map(v => v * lineWidth).join(" ")}"` : ""} stroke-linecap="round" stroke-linejoin="round"` : ' stroke="none"';
-            const fillAttr = path.fill && fill && !path.band ? ` fill="${fill}"${fillAlpha < 1 ? ` fill-opacity="${fillAlpha}"` : ""}` : ' fill="none"';
-            const ends = `${markers.start && markers.start !== "none" ? ' marker-start="url(#s)"' : ""}${markers.end && markers.end !== "none" ? ' marker-end="url(#e)"' : ""}${path.arrow ? ' marker-end="url(#a)"' : ""}`;
+            const stroke = path.stroke && lineColor ? ` stroke="${lineColor}" stroke-width="${lineWidth}"${lineAlpha < 1 ? ` stroke-opacity="${lineAlpha}"` : ""}${dash ? ` stroke-dasharray="${dash.map(v => v * lineWidth).join(" ")}"` : ""} stroke-linecap="round" stroke-linejoin="round"` : ' stroke="none"';
+            const fillAttr = path.fill && fill ? ` fill="${fillPaint}"${fillAlpha < 1 ? ` fill-opacity="${fillAlpha}"` : ""}${path.evenodd ? ' fill-rule="evenodd"' : ""}` : ' fill="none"';
+            const ends = `${hasEnd(markers.start) ? ' marker-start="url(#s)"' : ""}${hasEnd(markers.end) ? ' marker-end="url(#e)"' : ""}`;
             return `<path d="${path.d}"${fillAttr}${stroke}${ends}/>`;
         })
         .join("");
@@ -1032,6 +1126,7 @@ async function _pptxTheme(pkg, themePath = null, clrMap = null) {
         colors,
         fonts: { major: font("a:majorFont"), minor: font("a:minorFont") },
         bgFillStyles: Array.from(_pptxFirst(doc, "a:bgFillStyleLst")?.children || []),
+        fillStyles: Array.from(_pptxFirst(doc, "a:fillStyleLst")?.children || []),
     };
 }
 
@@ -1181,7 +1276,9 @@ function _pptxFillBackground(fillHolder, part, colors, phColor = null) {
         const css = linear || !_pptxChild(gradient, "a:path")
             ? `linear-gradient(${Math.round((Number(linear?.getAttribute("ang")) || 0) / 60000 + 90)}deg, ${list})`
             : `radial-gradient(circle at center, ${list})`;
-        return { color: stops[0].color, gradient: css };
+        // stops and angle (degrees, clockwise from left-to-right) for drawn shapes' SVG gradients.
+        const angle = (Number(linear?.getAttribute("ang")) || 0) / 60000;
+        return { color: stops[0].color, gradient: css, stops, angle, radial: !(linear || !_pptxChild(gradient, "a:path")) };
     }
     const blip = fillHolder.tagName === "a:blipFill" ? fillHolder : _pptxChild(fillHolder, "a:blipFill");
     const embed = blip && _pptxFirst(blip, "a:blip")?.getAttribute("r:embed");
@@ -1551,6 +1648,7 @@ async function importPptx(file) {
         if (!presentation) throw new Error("This does not look like a PowerPoint file");
         pkg.themeColors = await _pptxThemeColors(pkg);
         _pptxCurrentThemeColors = pkg.themeColors || {};
+        _pptxCurrentFillStyles = [];
 
         // The page setup closest to the deck's proportions; everything is scaled by one factor so nothing is squashed.
         const size = _pptxFirst(presentation, "p:sldSz");
@@ -1583,6 +1681,7 @@ async function importPptx(file) {
             await sfBusyYield();
             const design = await _pptxSlideDesign(pkg, slidePath);
             _pptxCurrentThemeColors = design.theme.colors;
+            _pptxCurrentFillStyles = design.theme.fillStyles || [];
             pkg.themeColors = design.theme.colors;
             const { elements, notes, background } = await _pptxSlideElements(pkg, slidePath, scale, design);
             let slideBackground = null;
@@ -1610,6 +1709,8 @@ async function importPptx(file) {
                     },
                 });
             }
+            // Hidden in PowerPoint (<p:sld show="0">): hidden when presenting here too.
+            const hidden = (await pkg.xml(slidePath))?.documentElement?.getAttribute("show") === "0";
             slides.push({
                 id: generateId("slide"),
                 layoutId: "blank",
@@ -1617,6 +1718,7 @@ async function importPptx(file) {
                 notes,
                 presentationTransition: "none",
                 ...(slideBackground ? { background: slideBackground } : {}),
+                ...(hidden ? { hidden: true } : {}),
                 elements,
             });
         }
@@ -1641,7 +1743,8 @@ async function importPptx(file) {
         });
         const kinds = slides.flatMap(slide => slide.elements.map(el => el.type));
         const count = type => kinds.filter(kind => kind === type).length;
-        const summary = [`${slides.length} slides`, count("image") && `${count("image")} pictures`, count("table") && `${count("table")} tables`, count("chart") && `${count("chart")} charts`].filter(Boolean).join(", ");
+        const hiddenSlides = slides.filter(slide => slide.hidden).length;
+        const summary = [`${slides.length} slides`, count("image") && `${count("image")} pictures`, count("table") && `${count("table")} tables`, count("chart") && `${count("chart")} charts`, hiddenSlides && `${hiddenSlides} hidden when presenting`].filter(Boolean).join(", ");
         setProjectSaveHint?.(`Imported ${summary}`, "success");
         busy.update({ detail: `Imported ${summary}`, progress: 1 });
         schedulePresentationAutosave?.();

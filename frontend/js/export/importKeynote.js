@@ -239,7 +239,7 @@ async function importKeynote(file) {
                 notes: source.notes || "",
                 presentationTransition: "none",
                 ...(picture ? { background: { type: "image", content: picture, fit } } : {}),
-                ...(source.hidden ? { importedSkipped: true } : {}),
+                ...(source.hidden ? { hidden: true } : {}), // skipped in Keynote: hidden when presenting here too
                 elements,
             };
         });
@@ -267,7 +267,7 @@ async function importKeynote(file) {
             `${slides.length} slides`,
             count("image") && `${count("image")} pictures`,
             count("video") && `${count("video")} movies`,
-            skippedSlides && `${skippedSlides} skipped in Keynote, shown here`,
+            skippedSlides && `${skippedSlides} hidden when presenting`,
         ]
             .filter(Boolean)
             .join(", ");

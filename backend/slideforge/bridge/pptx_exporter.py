@@ -754,6 +754,9 @@ class PPTXExporter:
         # Use a blank layout (index 6 is usually blank)
         slide_layout = self.prs.slide_layouts[6]
         slide = self.prs.slides.add_slide(slide_layout)
+        # A slide hidden from presenting stays hidden in PowerPoint (<p:sld show="0">, its "Hide Slide").
+        if slide_data.get("hidden") is True:
+            slide._element.set("show", "0")
 
         # 1. Background
         fill = slide.background.fill

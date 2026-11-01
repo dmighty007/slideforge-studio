@@ -639,7 +639,10 @@ function initPresentationTools() {
             presentationPrevStep();
         } else if (key === "home" || key === "end") {
             event.preventDefault();
-            presentationGoToSlide(key === "home" ? 0 : (state.slides?.length || 1) - 1);
+            // The first or last slide that is shown (a hidden one is stepped over).
+            const count = state.slides?.length || 1;
+            const edge = key === "home" ? presentationShownSlideFrom(-1, 1) : presentationShownSlideFrom(count, -1);
+            presentationGoToSlide(edge >= 0 ? edge : key === "home" ? 0 : count - 1);
         }
     });
 }

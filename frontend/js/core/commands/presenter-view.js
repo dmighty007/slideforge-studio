@@ -31,7 +31,8 @@ function _syncPresenterPayload() {
     const currentSlide = state.slides?.[currentSlideIndex];
     const liveCurrentSection = document.getElementById(currentSlide?.id || "");
     const currentSection = liveCurrentSection || buildPresenterSection(currentSlide);
-    const nextSlide = state.slides?.[currentSlideIndex + 1];
+    // The slide that comes next when presenting: hidden slides are stepped over.
+    const nextSlide = state.slides?.[presentationShownSlideFrom(currentSlideIndex, 1)];
     const liveNextSection = nextSlide ? document.getElementById(nextSlide.id) : null;
     const nextSection = liveNextSection || buildPresenterSection(nextSlide);
     const payload = {

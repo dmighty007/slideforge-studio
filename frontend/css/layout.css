@@ -4805,3 +4805,17 @@ button:focus:not(:focus-visible) {
         bottom: 24px;
     }
 }
+
+/* A slide hidden from presenting (slide-previews.js, toggleSlideHidden): dimmed, its number marked. */
+.slide-preview-card.is-hidden-slide .slide-thumbnail {
+    opacity: 0.45;
+    filter: grayscale(0.6);
+}
+.slide-preview-card.is-hidden-slide .slide-preview-number {
+    gap: 4px;
+    color: #64748b;
+    text-decoration: line-through;
+}
+.slide-preview-card.is-hidden-slide .slide-preview-number i {
+    font-size: 9px;
+}

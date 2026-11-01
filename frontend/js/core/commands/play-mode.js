@@ -1,5 +1,20 @@
 // Presentation mode: entering/leaving play mode and slide navigation.
 
+// A slide hidden from presenting (slide.hidden): next and previous step over it, as PowerPoint's "Hide Slide" does.
+// It still shows when presenting starts on it or the presenter jumps to it by number.
+function isSlideHidden(slide) {
+    return slide?.hidden === true;
+}
+
+// The nearest slide that is shown, from `from` (excluded) in direction `step` (+1 or -1); -1 when there is none.
+function presentationShownSlideFrom(from, step) {
+    const slides = state.slides || [];
+    for (let i = from + step; i >= 0 && i < slides.length; i += step) {
+        if (!isSlideHidden(slides[i])) return i;
+    }
+    return -1;
+}
+
 function presentationGoToSlide(index) {
     const safeIndex = Math.max(0, Math.min(Number(index) || 0, Math.max(0, (state.slides?.length || 1) - 1)));
     currentSlideIndex = safeIndex;
@@ -27,8 +42,8 @@ function presentationNextStep() {
     if (_revealNextBulletStep()) return true;
     if (_revealNextAnimationGroup()) return true;
     if (_revealNextAdvancedAnimationGroup()) return true;
-    const nextIndex = Math.min((state.slides?.length || 1) - 1, currentSlideIndex + 1);
-    if (nextIndex === currentSlideIndex) return true;
+    const nextIndex = presentationShownSlideFrom(currentSlideIndex, 1);
+    if (nextIndex < 0) return true;
     presentationGoToSlide(nextIndex);
     return true;
 }
@@ -42,8 +57,8 @@ function presentationPrevStep() {
         _syncPresenterPayload();
         return true;
     }
-    const prevIndex = Math.max(0, currentSlideIndex - 1);
-    if (prevIndex === currentSlideIndex) return true;
+    const prevIndex = presentationShownSlideFrom(currentSlideIndex, -1);
+    if (prevIndex < 0) return true;
     _presentationRuntimeState.restorePreviousSlideFully = true;
     presentationGoToSlide(prevIndex);
     return true;
@@ -70,6 +85,9 @@ function _whenViewportSettles(maxMs = 700) {
         requestAnimationFrame(check);
     });
 }
+
+window.isSlideHidden = isSlideHidden;
+window.presentationShownSlideFrom = presentationShownSlideFrom;
 
 async function togglePlayMode() {
     if (_playModeExiting) return;

@@ -232,6 +232,14 @@ class PPTXExportFidelityTests(TestCase):
     def _slide(self, elements, **state):
         return self._prs(elements, **state).slides[0]
 
+    def test_a_slide_hidden_from_presenting_stays_hidden_in_powerpoint(self):
+        from pptx import Presentation
+        from slideforge.bridge.pptx_exporter import PPTXExporter
+
+        slides = [{"masterId": "none", "elements": []}, {"masterId": "none", "hidden": True, "elements": []}]
+        prs = Presentation(PPTXExporter({"slides": slides}).export())
+        self.assertEqual([slide._element.get("show") for slide in prs.slides], [None, "0"])
+
     def test_every_page_setup_of_the_editor_gives_its_own_slide_size(self):
         from pptx.util import Inches
 

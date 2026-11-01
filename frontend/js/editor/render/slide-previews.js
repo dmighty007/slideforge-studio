@@ -13,7 +13,8 @@ function getSlidePreviewStructureSignature() {
     typeof getPresentationPageSetupConfig === "function"
       ? getPresentationPageSetupConfig()
       : { width: 1024, height: 768 };
-  const slideIds = (state.slides || []).map((slide) => slide.id).join("|");
+  // A slide hidden or shown again rebuilds the rail too: its card is dimmed and its number marked.
+  const slideIds = (state.slides || []).map((slide) => `${slide.id}${slide.hidden ? ":hidden" : ""}`).join("|");
   return `${slideConfig.width}x${slideConfig.height}:${slideIds}`;
 }
 
@@ -92,6 +93,9 @@ function openSlidePreviewMenu(index, x, y) {
         if (target !== index) move(target > index ? target + 1 : target);
       },
     },
+    state.slides[index]?.hidden
+      ? { label: "Show slide when presenting", icon: "fa-eye", run: () => toggleSlideHidden(index) }
+      : { label: "Hide slide when presenting", icon: "fa-eye-slash", run: () => toggleSlideHidden(index) },
     { label: "Delete", icon: "fa-trash-can", danger: true, disabled: count <= 1, run: () => deleteCurrentSlide(index) },
   ];
   const menu = document.createElement("div");
@@ -320,6 +324,13 @@ function renderSlidePreviews(targetIndex = null, options = {}) {
     const num = document.createElement("div");
     num.className = "slide-preview-number";
     num.innerText = index + 1;
+    // A slide hidden from presenting: dimmed, its number struck through with an eye-slash beside it.
+    if (slide.hidden) {
+      card.classList.add("is-hidden-slide");
+      card.title = "Hidden when presenting (right-click to show it)";
+      num.insertAdjacentHTML("afterbegin", '<i class="fa-solid fa-eye-slash" aria-hidden="true"></i>');
+      num.setAttribute("aria-label", `Slide ${index + 1}, hidden when presenting`);
+    }
     card.appendChild(num);
 
     const actions = document.createElement("div");
