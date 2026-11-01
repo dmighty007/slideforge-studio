@@ -135,7 +135,7 @@ The Django app exposes the editor at `/` and serves backend endpoints under `/ap
 
 ## Desktop app
 
-The same code also ships as a single-user desktop app with a native window and no sign-in. See [DESKTOP.md](DESKTOP.md). In short: `pip install slideforge-studio` (or `pip install .` from a clone; add `[qt]` on Linux), then run `slideforge`.
+The same code also ships as a single-user desktop app with a native window and no sign-in. See [DESKTOP.md](DESKTOP.md). In short: `pip install slideforge-studio` (or `pip install .` from a clone; add `[qt]` on Linux and macOS), then run `slideforge`.
 
 ## Development
 

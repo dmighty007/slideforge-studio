@@ -73,7 +73,7 @@ That's all: SlideForge appears in your applications menu and as an icon on your 
 no Python to set up first. It installs the latest version from this repository; run the same line again to update.
 Add `--uninstall` (`... | sh -s -- --uninstall`) to remove it. Your presentations stay on your computer either way.
 
-Prefer pip? `pip install "slideforge-studio[qt]"` (drop `[qt]` on macOS and Windows) installs the latest release
+Prefer pip? `pip install "slideforge-studio[qt]"` (drop `[qt]` on Windows) installs the latest release
 from PyPI, then `slideforge`, and `slideforge --install-shortcut` for the icons. More in
 [docs/DESKTOP.md](docs/DESKTOP.md).
 

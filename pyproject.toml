@@ -59,7 +59,8 @@ Source = "https://github.com/dmighty007/slideforge-studio"
 Issues = "https://github.com/dmighty007/slideforge-studio/issues"
 
 [project.optional-dependencies]
-# Native window backend that pip can install on Linux (macOS/Windows need nothing extra).
+# Native window backend: needed on Linux, recommended on macOS (presenter view, full screen, PDF viewer);
+# Windows needs nothing extra.
 qt = ["pywebview[qt]>=6.2,<7"]
 # Heavy PDF/figure extraction stack (torch, vLLM; several GB).
 pdf = ["mineru[all]"]

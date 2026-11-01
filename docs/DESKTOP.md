@@ -40,13 +40,15 @@ Or with pip, the latest release from PyPI:
 pip install slideforge-studio
 ```
 
-The command is `slideforge`. On Linux, the native window needs a GUI backend; the easiest one to install is Qt:
+The command is `slideforge`. On Linux and macOS, install it with Qt, which provides the native window:
 
 ```bash
 pip install "slideforge-studio[qt]"
 ```
 
-macOS and Windows use the system web view and need nothing extra. Without a GUI backend, SlideForge opens in your default browser instead.
+On Linux, the window needs a GUI backend, and Qt is the easiest to install. macOS can fall back on its system web view,
+but without Qt the presenter view, links and full-screen presentations do not work there. Windows uses its system web
+view and needs nothing extra. Without a GUI backend, SlideForge opens in your default browser instead.
 
 When Qt is installed, SlideForge always uses it: it has a built-in PDF viewer for PDF elements, which the GTK (WebKitGTK) backend lacks. With Qt, presentation mode is full screen, and the presenter view opens as a second app window.
 

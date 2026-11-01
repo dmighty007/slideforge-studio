@@ -221,7 +221,7 @@ def _save_before_close(window) -> None:
 
 def _open_window(url, data_dir, *, gui: bool) -> bool:
     """Show the editor in a native window. Returns False if no GUI backend is available."""
-    hint = 'On Linux, install a GUI backend with: pip install "slideforge-studio[qt]"'
+    hint = 'On Linux and macOS, install a GUI backend with: pip install "slideforge-studio[qt]"'
     try:
         import webview
     except ImportError as exc:

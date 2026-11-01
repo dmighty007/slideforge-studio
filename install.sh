@@ -32,8 +32,9 @@ warn() { printf '\033[1;33mNote:\033[0m %s\n' "$1"; }
 
 OS="$(uname -s)"
 case "$OS" in
-    Linux) EXTRA="[qt]" ;;   # the native window on Linux comes from Qt (macOS uses its own web view)
-    Darwin) EXTRA="" ;;
+    # The native window comes from Qt. macOS has its own web view, but pywebview's macOS backend opens no popups
+    # (presenter view, links) and no element full screen, so Qt is installed there too.
+    Linux|Darwin) EXTRA="[qt]" ;;
     *) echo "This installer is for Linux and macOS. On Windows, run in PowerShell:" >&2
        echo "  irm https://raw.githubusercontent.com/dmighty007/slideforge-studio/main/install.ps1 | iex" >&2
        exit 1 ;;
