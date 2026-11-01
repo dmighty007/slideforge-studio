@@ -7,3 +7,5 @@ pillow>=10.0
 python-pptx>=1.0,<2
 django-ratelimit>=4.1,<5
 CairoSVG>=2.7,<3
+protobuf>=4.22
+cramjam>=2.7

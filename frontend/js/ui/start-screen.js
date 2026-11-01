@@ -334,6 +334,7 @@ function _buildStartScreen() {
     const imports = _startEl("div", "sf-imports");
     [
         ["fa-regular fa-file-powerpoint", "PowerPoint", ".pptx file", () => triggerImportPptx()],
+        ["fa-regular fa-file-image", "Keynote", ".key file", () => triggerImportKeynote()],
         ["fa-regular fa-file-code", "SlideForge file", ".json export", () => importPresentationJson()],
     ].forEach(([icon, label, hint, action]) => {
         const button = _startEl("button", "sf-import");
