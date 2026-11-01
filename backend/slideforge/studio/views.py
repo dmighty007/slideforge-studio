@@ -700,8 +700,13 @@ def import_keynote_view(request):
         asset_type, validation_error = _classify_asset_upload(upload)
         if validation_error:
             continue
-        asset, content_type = _save_asset_file(upload, asset_type=asset_type, owner=request.user, presentation=presentation)
-        stored[key] = {"src": asset.file.url, "contentType": content_type, **_playable_copy(asset)}
+        try:
+            asset, content_type = _save_asset_file(upload, asset_type=asset_type, owner=request.user, presentation=presentation)
+            stored[key] = {"src": asset.file.url, "contentType": content_type, **_playable_copy(asset)}
+        except Exception:
+            # One picture or movie that cannot be stored (disk, ffmpeg) is counted, not the end of the import: the
+            # files already stored would otherwise be left with no slide using them.
+            logger.exception("Could not store a picture or movie from a Keynote file")
 
     result = deck.as_json()
     unstored = "pictures and movies that could not be stored"

@@ -1018,7 +1018,11 @@ async function _svgPictureText(content) {
   // A data URL is decoded here (the page's Content-Security-Policy does not let fetch read data: URLs).
   let svgText;
   if (content.startsWith("data:")) {
-    const [head, data = ""] = content.split(",", 2);
+    // Split at the first comma only: split(",", 2) drops everything after a second one, and SVG text is full of
+    // them ("M0,0", "rgb(1,2,3)").
+    const comma = content.indexOf(",");
+    const head = comma < 0 ? content : content.slice(0, comma);
+    const data = comma < 0 ? "" : content.slice(comma + 1);
     svgText = /;base64/i.test(head) ? decodeURIComponent(escape(atob(data))) : decodeURIComponent(data);
   } else {
     const response = await fetch(content);

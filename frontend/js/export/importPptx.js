@@ -626,7 +626,8 @@ async function _pptxSlideDesign(pkg, slidePath) {
 // A font name as a CSS font list, with the generic family it belongs to behind it: a serif such as Georgia fell back
 // to a sans-serif where it is not installed.
 function _pptxFontStack(name) {
-    const font = String(name || "").replace(/"/g, "").trim();
+    // Only characters font names use: the stack goes into style attributes, where ";" or "}" would end the declaration.
+    const font = String(name || "").replace(/["';{}<>\\]/g, "").trim();
     const generic = /mono|courier|consolas|menlo/i.test(font)
         ? "monospace"
         : /georgia|times|cambria|garamond|palatino|baskerville|book antiqua|constantia|didot|bodoni|serif$|minion|charter|merriweather|playfair|lora|libre baskerville/i.test(font) && !/sans/i.test(font)

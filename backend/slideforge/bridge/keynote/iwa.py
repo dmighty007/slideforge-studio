@@ -24,6 +24,7 @@ SCHEMA_DIR = Path(__file__).resolve().parent / "schema"
 MAX_MEMBERS = 50_000
 MAX_INDEX_BYTES = 512 * 1024 * 1024  # all .iwa data, decompressed
 MAX_DATA_FILE_BYTES = 512 * 1024 * 1024  # one picture or movie
+MAX_DATA_TOTAL_BYTES = 1024 * 1024 * 1024  # every picture and movie read from one file, together
 MAX_OBJECTS = 2_000_000
 
 
@@ -91,6 +92,9 @@ def decompress_iwa(data: bytes, budget: int = MAX_INDEX_BYTES) -> bytes:
         if len(chunk) != length:
             raise KeynoteError("The presentation's data is damaged (cut short)")
         pos += 4 + length
+        # A Snappy block starts with its decompressed size: refuse before decompressing, not after.
+        if len(out) + _varint(chunk, 0)[0] > budget:
+            raise KeynoteError("The presentation is too large to import")
         try:
             block = bytes(cramjam.snappy.decompress_raw(chunk))
         except Exception as exc:
@@ -118,6 +122,7 @@ class KeynotePackage:
     _zip: Optional[zipfile.ZipFile] = None
     _data_prefix: str = ""
     undecodable: int = 0
+    data_budget: int = MAX_DATA_TOTAL_BYTES
 
     def get(self, reference) -> Optional[KeynoteObject]:
         """The object a TSP.Reference (or a plain identifier) points to."""
@@ -137,6 +142,9 @@ class KeynotePackage:
         info = self.data_files.get(name)
         if info is None or self._zip is None or info.file_size > MAX_DATA_FILE_BYTES:
             return None
+        if info.file_size > self.data_budget:
+            raise KeynoteError("The presentation's pictures and movies are too large to import")
+        self.data_budget -= info.file_size
         return self._zip.read(info)
 
 
@@ -152,21 +160,19 @@ def _parse_archives(raw: bytes, package: KeynotePackage, table: dict[int, Keynot
         pos += length
         decoded = None
         first_type = None
-        for message_info in info.message_infos:
+        # The object is the first message. Keynote files also hold archives with further messages (a real deck
+        # repeated its table styles twice); merging those in duplicated every list in the object, so they are skipped.
+        for index, message_info in enumerate(info.message_infos):
             payload = raw[pos : pos + message_info.length]
             pos += message_info.length
-            name = pool_types.get(message_info.type)
-            if first_type is None:
-                first_type = message_info.type
-            if name is None or message_info.type != first_type:
+            if index:
+                continue
+            first_type = message_info.type
+            name = pool_types.get(first_type)
+            if name is None:
                 continue
             try:
-                # Further messages of the same type are later changes to the object: merged in, in order.
-                part = message_class(name).FromString(payload)
-                if decoded is None:
-                    decoded = part
-                else:
-                    decoded.MergeFrom(part)
+                decoded = message_class(name).FromString(payload)
             except Exception:
                 package.undecodable += 1
         if first_type is None or not info.identifier:

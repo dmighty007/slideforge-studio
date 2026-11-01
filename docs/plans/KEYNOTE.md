@@ -158,6 +158,14 @@ Still to check (that file has none of these):
 Known gaps found with that file: SlideForge text boxes have no vertical alignment (Keynote titles are often
 bottom-aligned), and the 9 text-less shapes are left out until step 2b.
 
+Known gaps found in the 0.3.0 review: a group's rotation is not passed on to its children; a rotated, cropped
+picture keeps its rotation but turns about the visible part's centre, not the picture's; a text box with mixed
+paragraph alignments takes the first paragraph's; a failed import leaves the new, empty project open.
+
+Limits (`iwa.py`, `convert.py`): 512 MB of decompressed document data, 1 GB of pictures and movies per file,
+512 MB per file in `Data/`; PDF and SVG pictures are drawn 2000 px along the longer side; other pictures over
+64 million pixels are left out, and the rest are scaled down to 4096 px.
+
 ## Open questions
 
 1. Import only, or also a real .key export (only possible through Keynote on a Mac)?

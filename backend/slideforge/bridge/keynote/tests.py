@@ -467,6 +467,94 @@ class KeynoteRejectionTests(SimpleTestCase):
         self.assertEqual(len(read_keynote(data).slides), 3)
 
 
+class KeynoteReviewTests(SimpleTestCase):
+    """Bugs found in the 0.3.0 review: each test failed before its fix."""
+
+    def test_movie_type_comes_from_the_stored_file(self):
+        # Keynote keeps the name the movie had ("clip.avi") but stores the file it converted it to (a .mov).
+        d = Deck()
+        d.k.next_id += 1
+        movie_id = d.k.next_id
+        d.k.data[f"clip-{movie_id}.mov"] = b"\x00\x00\x00\x14ftypqt  "
+        d.k.datas.append((movie_id, "clip.avi"))
+        deck = read_keynote(d.build([d.node(d.slide([d.movie(movie_id, 0, 0, 320, 180)]))]))
+        (movie,) = deck.slides[0]["elements"]
+        media = deck.media[movie["media"]]
+        self.assertEqual((media.name, media.mime), ("clip.mov", "video/quicktime"))
+
+    def test_huge_vector_pictures_are_drawn_at_a_bounded_size(self):
+        import pymupdf
+
+        from slideforge.bridge.keynote.convert import _web_picture
+
+        document = pymupdf.open()
+        document.new_page(width=14400, height=7200)
+        svg = b'<svg xmlns="http://www.w3.org/2000/svg" width="9000" height="30000"><rect width="9" height="9"/></svg>'
+        for name, data in (("page.pdf", document.tobytes()), ("drawing.svg", svg)):
+            with Image.open(io.BytesIO(_web_picture(name, data).data)) as picture:
+                self.assertLessEqual(max(picture.size), 2000, name)
+
+    def test_huge_raster_pictures_are_left_out_or_scaled_down(self):
+        from slideforge.bridge.keynote.convert import _web_picture
+
+        def tiff(size):
+            out = io.BytesIO()
+            Image.new("1", size).save(out, "TIFF", compression="group4")
+            return out.getvalue()
+
+        self.assertIsNone(_web_picture("scan.tiff", tiff((9000, 9000))))  # 81 million pixels
+        with Image.open(io.BytesIO(_web_picture("scan.tiff", tiff((6000, 3000))).data)) as picture:
+            self.assertEqual(picture.size, (4096, 2048))
+
+    def test_media_read_from_one_file_is_bounded_in_total(self):
+        from slideforge.bridge.keynote import convert, iwa
+
+        d = Deck()
+        pictures = [d.picture(d.k.add_data(f"p{n}.png", _png(size=(50, 50))), 0, 0, 10, 10) for n in range(3)]
+        data = d.build([d.node(d.slide(pictures))])
+        package = iwa.open_keynote(data)
+        package.data_budget = 2 * len(_png(size=(50, 50))) + 1
+        with self.assertRaises(KeynoteError):
+            convert._Converter(package).convert()
+
+    def test_declared_snappy_size_is_checked_before_decompressing(self):
+        block = _varint(0xFFFFFFF0) + b"\x00A"
+        with self.assertRaises(KeynoteError) as caught:
+            decompress_iwa(b"\x00" + len(block).to_bytes(3, "little") + block, budget=1_000_000)
+        self.assertIn("too large", str(caught.exception))
+
+    def test_further_messages_in_an_archive_do_not_duplicate_lists(self):
+        d = Deck()
+        caption = d.text_box(d.storage("Only once"), 0, 0, 500, 100)
+        slide_id = d.slide([caption])
+        data = d.build([d.node(slide_id)])
+        # Rewrite the slide's archive with its message twice (as a real deck does for table styles).
+        builder_objects = dict(d.k.objects)
+        name, message = builder_objects[slide_id]
+        payload = message.SerializePartialToString()
+        info = message_class("TSP.ArchiveInfo")(identifier=slide_id)
+        info.message_infos.add(type=TYPES[name], length=len(payload))
+        info.message_infos.add(type=TYPES[name], length=len(payload))
+        info_bytes = info.SerializePartialToString()
+        twice = _varint(len(info_bytes)) + info_bytes + payload + payload
+        others = KeyBuilder._archives(sorted((i, o) for i, o in builder_objects.items() if i != slide_id))
+        out = io.BytesIO()
+        with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w") as archive:
+            for member in source.namelist():
+                archive.writestr(member, _compress(others + twice) if member == "Index/Document.iwa" else source.read(member))
+        from slideforge.bridge.keynote.iwa import open_keynote
+
+        slide = open_keynote(out.getvalue()).message(slide_id)
+        self.assertEqual(len(slide.drawables_z_order), 1)
+
+    def test_font_names_cannot_break_out_of_css(self):
+        d = Deck()
+        style = d.char_style(font_name='Evil;}body{color:red-Bold"')
+        deck = read_keynote(d.build([d.node(d.slide([d.text_box(d.storage("Hi", char_styles=[(0, style)]), 0, 0, 500, 100)]))]))
+        run = deck.slides[0]["elements"][0]["paragraphs"][0]["runs"][0]
+        self.assertNotRegex(run["font"], r"[;{}\"'<>]")
+
+
 class KeynoteImportViewTests(TestCase):
     def setUp(self):
         self.media = tempfile.mkdtemp()
@@ -515,3 +603,21 @@ class KeynoteImportViewTests(TestCase):
         response = self.client.post("/api/presentations/import/keynote/", {"file": self._upload(b"not a zip")})
         self.assertEqual(response.status_code, 422)
         self.assertIn("not a Keynote file", response.json()["error"])
+
+    def test_presentation_of_another_user_is_not_found(self):
+        from slideforge.studio.models import Presentation
+
+        other = get_user_model().objects.create_user(username="other", password="strong-password-123")
+        theirs = Presentation.objects.create(owner=other, title="Theirs")
+        self.client.force_login(self.user)
+        response = self.client.post("/api/presentations/import/keynote/", {"file": self._upload(sample_deck()), "presentationId": str(theirs.id)})
+        self.assertEqual(response.status_code, 404)
+
+    def test_a_picture_that_cannot_be_stored_does_not_stop_the_import(self):
+        from unittest import mock
+
+        self.client.force_login(self.user)
+        with mock.patch("slideforge.studio.views._save_asset_file", side_effect=OSError("disk full")):
+            response = self.client.post("/api/presentations/import/keynote/", {"file": self._upload(sample_deck())})
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["skipped"].get("pictures and movies that could not be stored"), 1)

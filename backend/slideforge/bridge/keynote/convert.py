@@ -9,6 +9,7 @@ backgrounds and builds are counted in "skipped" and come in later phases.
 
 from __future__ import annotations
 
+import bisect
 import io
 import re
 from dataclasses import dataclass, field
@@ -22,6 +23,9 @@ ALIGNMENTS = {0: "left", 1: "right", 2: "center", 3: "justify"}  # 4 is "natural
 PLACEHOLDER_KINDS = {1: "slideNumber", 2: "title", 3: "body", 4: "object"}
 MAX_STYLE_DEPTH = 32
 MAX_GROUP_DEPTH = 16
+VECTOR_PICTURE_SIDE = 2000  # PDF and SVG pictures are drawn this many pixels along their longer side
+MAX_PICTURE_PIXELS = 64_000_000  # larger TIFF/BMP/... pictures are left out (decoding them takes gigabytes)
+MAX_CONVERTED_SIDE = 4096  # converted pictures are scaled down to this
 
 
 @dataclass
@@ -72,6 +76,8 @@ def _font_family(postscript: str) -> tuple[str, bool, bool]:
     """A family name and its weight/slant from a PostScript name: "HelveticaNeue-BoldItalic" -> Helvetica Neue."""
     family, _, face = postscript.partition("-")
     family = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", family).replace("MT", "").strip() or postscript
+    # The name ends up in CSS (font-family): only characters font names use, so it cannot end the declaration.
+    family = re.sub(r"[^\w .&+-]", "", family).strip()[:100] or "sans-serif"
     face = face.lower()
     return family, any(word in face for word in ("bold", "black", "heavy", "semibold")), any(word in face for word in ("italic", "oblique"))
 
@@ -82,6 +88,7 @@ class _Converter:
         self.media: dict[str, Media] = {}
         self.skipped: dict[str, int] = {}
         self.data_infos = {}
+        self._starts: dict[int, tuple[Any, list[int]]] = {}  # attribute table -> its entries' character indexes
         for meta in package.metadata.values():
             if meta.name != "TSP.PackageMetadata" or meta.message is None:
                 continue
@@ -168,7 +175,7 @@ class _Converter:
             key = f"data-{identifier}"
             if key not in self.media:
                 found = self._data_file(identifier) if identifier else None
-                converted = _web_picture(*found) if found else None
+                converted = _web_picture(found[0], found[2]) if found else None
                 if converted is None:
                     self.skip("background pictures")
                     return {"color": _color(image.tint)} if _has(image, "tint") else None
@@ -323,16 +330,16 @@ class _Converter:
             reference = base.parent if base is not None and _has(base, "parent") else None
         return chain
 
-    @staticmethod
-    def _at(table, index: int):
-        """The entry of an attribute table that covers a character index (the last one starting at or before it)."""
-        found = None
-        for entry in table.entries:
-            if entry.character_index <= index:
-                found = entry
-            else:
-                break
-        return found
+    def _at(self, table, index: int):
+        """The entry of an attribute table that covers a character index (the last one starting at or before it).
+
+        Binary search over the table's starts (kept per table): a scan per lookup made long texts quadratic."""
+        starts = self._starts.get(id(table))
+        if starts is None or starts[0] is not table:  # the table is kept in the entry, so its id is not reused
+            starts = (table, [entry.character_index for entry in table.entries])
+            self._starts[id(table)] = starts
+        position = bisect.bisect_right(starts[1], index) - 1
+        return table.entries[position] if position >= 0 else None
 
     def _paragraphs(self, storage, default_style=None) -> list[dict[str, Any]]:
         text = "".join(storage.text)
@@ -349,7 +356,8 @@ class _Converter:
             para_chain += [style for style in default_chain if style not in para_chain]  # what the paragraph leaves unset
             level_entry = self._at(storage.table_para_data, start)
             level = int(level_entry.first) if level_entry is not None and level_entry.character_index == start else 0
-            cuts = sorted({start, end, *[index for index in char_starts if start < index < end]})
+            inside = char_starts[bisect.bisect_right(char_starts, start) : bisect.bisect_left(char_starts, end)]
+            cuts = sorted({start, end, *inside})
             runs = []
             for run_start, run_end in zip(cuts, cuts[1:], strict=False):
                 piece = _clean_text(text[run_start:run_end])
@@ -438,7 +446,10 @@ class _Converter:
 
     # ---- media -----------------------------------------------------------------------------------------------
 
-    def _data_file(self, identifier: int) -> Optional[tuple[str, bytes]]:
+    def _data_file(self, identifier: int) -> Optional[tuple[str, str, bytes]]:
+        """(display name, stored name, bytes) of a file in Data/. The display name is the one the file had when it
+        went into Keynote ("photo.png", not "photo-111.png"); the stored file can differ from it in type (Keynote
+        converts some movies and pictures), so the type comes from the stored name or the bytes."""
         info = self.data_infos.get(identifier)
         candidates = []
         if info is not None:
@@ -451,9 +462,8 @@ class _Converter:
             if name and name in self.pkg.data_files:
                 data = self.pkg.read_data(name)
                 if data is not None:
-                    # The name the file had when it went into Keynote, when it has one ("photo.png", not "photo-111.png").
                     preferred = info.preferred_file_name if info is not None else ""
-                    return (preferred if "." in preferred else name), data
+                    return (preferred if "." in preferred else name), name, data
         return None
 
     def _picture(self, image, offset) -> Optional[dict[str, Any]]:
@@ -467,7 +477,7 @@ class _Converter:
         key = f"data-{identifier}"
         if key not in self.media:
             found = self._data_file(identifier)
-            converted = _web_picture(*found) if found else None
+            converted = _web_picture(found[0], found[2]) if found else None
             if converted is None:
                 self.skip("pictures that could not be found" if found is None else "pictures in formats SlideForge cannot show")
                 return None
@@ -502,12 +512,14 @@ class _Converter:
     def _movie(self, movie, offset) -> Optional[dict[str, Any]]:
         identifier = movie.movieData.identifier if _has(movie, "movieData") else 0
         found = self._data_file(identifier) if identifier else None
-        extension = ("." + found[0].rsplit(".", 1)[-1].lower()) if found and "." in found[0] else ""
+        stored = found[1].rsplit("/", 1)[-1] if found else ""
+        extension = ("." + stored.rsplit(".", 1)[-1].lower()) if "." in stored else ""
         if found is None or extension not in MOVIE_MIME or movie.audioOnly:
             self.skip("sounds and movies in other formats" if found else "movies that could not be found")
             return None
         key = f"data-{identifier}"
-        self.media.setdefault(key, Media(found[0].rsplit("/", 1)[-1], MOVIE_MIME[extension], found[1]))
+        stem = found[0].rsplit("/", 1)[-1].rsplit(".", 1)[0] or "movie"
+        self.media.setdefault(key, Media(stem + extension, MOVIE_MIME[extension], found[2]))
         return {
             "kind": "video",
             **self._geometry(movie.super, offset),
@@ -571,6 +583,9 @@ def _web_picture(name: str, data: bytes) -> Optional[Media]:
             from PIL import Image
 
             with Image.open(io.BytesIO(data)) as picture:
+                if picture.width * picture.height > MAX_PICTURE_PIXELS:
+                    return None
+                picture.thumbnail((MAX_CONVERTED_SIDE, MAX_CONVERTED_SIDE))
                 out = io.BytesIO()
                 picture.convert("RGBA").save(out, "PNG")
                 png = out.getvalue()
@@ -580,13 +595,15 @@ def _web_picture(name: str, data: bytes) -> Optional[Media]:
 
 
 def _render_vector(data: bytes, filetype: str) -> Optional[bytes]:
-    """First page of a PDF, or an SVG, drawn as a PNG about 2000 px wide (Keynote keeps vector pictures as PDF)."""
+    """First page of a PDF, or an SVG, drawn as a PNG 2000 px along its longer side (Keynote keeps vector pictures as
+    PDF). The scale follows the page's size both ways: a huge page must not become a huge picture."""
     try:
         import pymupdf
 
         with pymupdf.open(stream=data, filetype=filetype) as document:
             page = document[0]
-            scale = max(1.0, min(8.0, 2000 / max(1.0, page.rect.width)))
+            longest = max(1.0, page.rect.width, page.rect.height)
+            scale = min(8.0, VECTOR_PICTURE_SIDE / longest)
             return page.get_pixmap(matrix=pymupdf.Matrix(scale, scale), alpha=True).tobytes("png")
     except Exception:
         return None
