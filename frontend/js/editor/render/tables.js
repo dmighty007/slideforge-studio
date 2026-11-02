@@ -274,6 +274,8 @@ function _renderTableDom(container, elData, { interactive = true } = {}) {
       cell.style.fontWeight = cellStyles.fontWeight;
       cell.style.verticalAlign = "top";
       cell.style.whiteSpace = "pre-wrap";
+      // Set by the PowerPoint import (PowerPoint's 1.2); other tables keep the page's line height.
+      if (Number(tableData.lineHeight) > 0) cell.style.lineHeight = String(tableData.lineHeight);
       cell.textContent = cellData.text || "";
 
       if (interactive) {

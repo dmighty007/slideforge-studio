@@ -9880,7 +9880,8 @@ async function test(name, fn) {
             assert(first.background === "#14213d", `master background: ${JSON.stringify(first)}`);
             assert(/^"Georgia"/.test(first.texts[0].font) && first.texts[0].color === "#e4572e" && parseFloat(first.texts[0].size) > 50, `title from the master: ${JSON.stringify(first.texts[0])}`);
             assert(/^"Verdana"/.test(first.texts[1].font) && first.texts[1].color === "#ffffff", `body from the master: ${JSON.stringify(first.texts[1])}`);
-            assert(/^linear-gradient\(180deg, #e4572e 0%, #72(2b|2c)17 100%\)$/.test(second.background || ""), `layout background: ${JSON.stringify(second)}`);
+            // shade 50% of #e4572e in linear light, as PowerPoint shades (on sRGB values it was #722b17, far too dark).
+            assert(/^linear-gradient\(180deg, #e4572e 0%, #a73e(1e|1f) 100%\)$/.test(second.background || ""), `layout background: ${JSON.stringify(second)}`);
             assert(out.added.background === "#14213d" && /Georgia/.test(out.added.title?.fontFamily || "") && out.added.title?.color === "#e4572e", `a new slide: ${JSON.stringify(out.added)}`);
             assert(!errors.length, errors.join("\n"));
             await page.close();
@@ -10004,7 +10005,8 @@ async function test(name, fn) {
             assert(outcome.shapes.length === 2, `shapes imported: ${JSON.stringify(outcome.shapes)}`);
             const [oval, box] = outcome.shapes;
             assert(oval.type === "circle" && String(oval.fill).toLowerCase() === "#4f81bd" && oval.text === "Oval", `oval: ${JSON.stringify(oval)}`);
-            assert(String(box.fill).toLowerCase() === "#4f81bd" && String(box.line).toLowerCase() === "#28415f", `grouped box: ${JSON.stringify(box)}`);
+            // accent1 shaded 50% in linear light: #385D8A, Office's own outline for default shapes (#28415F on sRGB).
+            assert(String(box.fill).toLowerCase() === "#4f81bd" && String(box.line).toLowerCase() === "#385d8a", `grouped box: ${JSON.stringify(box)}`);
             assert(outcome.line, "the connector was dropped");
             assert(outcome.line.start === "none" && outcome.line.end === "triangle" && String(outcome.line.color).toLowerCase() === "#c00000", `connector: ${JSON.stringify(outcome.line)}`);
             // flipV: from the bottom-left corner of its box up to the top-right
@@ -10046,6 +10048,141 @@ async function test(name, fn) {
             assert(JSON.stringify(chart.names) === '["Run 1","Run 2"]' && JSON.stringify(chart.data) === "[[2.1,3.4],[2.3,3.1]]", `series: ${JSON.stringify(chart)}`);
             assert(JSON.stringify(chart.colors) === '["#2563EB","#DC2626"]', `series colours: ${JSON.stringify(chart.colors)}`);
             assert(chart.style?.title === "RMSD by mutant" && chart.style.xTitle === "Mutant" && chart.style.yTitle === "RMSD" && chart.style.legend === "bottom", `titles: ${JSON.stringify(chart.style)}`);
+            await page.close();
+        });
+
+        // Found by comparing a real talk with LibreOffice's rendering of it, slide by slide (2026-11-03).
+        await test("PowerPoint import matches the deck: theme gradients, style text colour, slide numbers, table styles, picture effects, text sizes", async () => {
+            const { page, errors } = await openEditor(context);
+            const out = await page.evaluate(async () => {
+                const ns = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"';
+                const rels = items => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${items.map(([id, type, target]) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`).join("")}</Relationships>`;
+                const xfrm = (x, y, w, h) => `<a:xfrm><a:off x="${x * 9525}" y="${y * 9525}"/><a:ext cx="${w * 9525}" cy="${h * 9525}"/></a:xfrm>`;
+                // A picture: blue left half, white right half (60 x 40).
+                const canvas = document.createElement("canvas");
+                canvas.width = 60;
+                canvas.height = 40;
+                const ctx = canvas.getContext("2d");
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(0, 0, 60, 40);
+                ctx.fillStyle = "#1d4ed8";
+                ctx.fillRect(0, 0, 30, 40);
+                const png = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+                const pic = (id, name, box, geometry, blipExtra = "") => `<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="${name}"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="rIdImg">${blipExtra}</a:blip><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>${xfrm(...box)}${geometry}</p:spPr></p:pic>`;
+                const circlePath = `<a:custGeom><a:pathLst><a:path w="100" h="100"><a:moveTo><a:pt x="50" y="0"/></a:moveTo><a:cubicBezTo><a:pt x="78" y="0"/><a:pt x="100" y="22"/><a:pt x="100" y="50"/></a:cubicBezTo><a:cubicBezTo><a:pt x="100" y="78"/><a:pt x="78" y="100"/><a:pt x="50" y="100"/></a:cubicBezTo><a:cubicBezTo><a:pt x="22" y="100"/><a:pt x="0" y="78"/><a:pt x="0" y="50"/></a:cubicBezTo><a:cubicBezTo><a:pt x="0" y="22"/><a:pt x="22" y="0"/><a:pt x="50" y="0"/></a:cubicBezTo><a:close/></a:path></a:pathLst></a:custGeom>`;
+                const slide = `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>
+                    <p:sp><p:nvSpPr><p:cNvPr id="2" name="Title bar"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(20, 10, 900, 50)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                        <a:gradFill><a:gsLst><a:gs pos="0"><a:schemeClr val="accent2"><a:shade val="51000"/><a:satMod val="130000"/></a:schemeClr></a:gs><a:gs pos="100000"><a:schemeClr val="accent2"><a:shade val="94000"/><a:satMod val="135000"/></a:schemeClr></a:gs></a:gsLst><a:lin ang="16200000" scaled="0"/></a:gradFill></p:spPr>
+                        <p:style><a:lnRef idx="0"><a:schemeClr val="accent2"/></a:lnRef><a:fillRef idx="3"><a:schemeClr val="accent2"/></a:fillRef><a:effectRef idx="0"><a:schemeClr val="accent2"/></a:effectRef><a:fontRef idx="minor"><a:schemeClr val="lt1"/></a:fontRef></p:style>
+                        <p:txBody><a:bodyPr/><a:p><a:r><a:rPr sz="2400" b="1"/><a:t>White title </a:t></a:r><a:r><a:rPr sz="2400" b="1"><a:solidFill><a:srgbClr val="7030A0"/></a:solidFill></a:rPr><a:t>purple phrase</a:t></a:r></a:p></p:txBody></p:sp>
+                    <p:sp><p:nvSpPr><p:cNvPr id="3" name="Body text"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(20, 80, 400, 200)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>
+                        <p:txBody><a:bodyPr/><a:p><a:r><a:rPr/><a:t>Default size</a:t></a:r></a:p><a:p><a:endParaRPr sz="3200"/></a:p><a:p><a:r><a:rPr/><a:t>After a 32 pt blank line</a:t></a:r><a:br><a:rPr sz="2800"/></a:br><a:r><a:rPr/><a:t>after a 28 pt break</a:t></a:r></a:p></p:txBody></p:sp>
+                    <p:sp><p:nvSpPr><p:cNvPr id="4" name="Slide Number"/><p:cNvSpPr/><p:nvPr><p:ph type="sldNum" idx="12"/></p:nvPr></p:nvSpPr><p:spPr>${xfrm(900, 700, 100, 40)}</p:spPr><p:txBody><a:bodyPr/><a:p><a:fld id="{1}" type="slidenum"><a:t>1</a:t></a:fld></a:p></p:txBody></p:sp>
+                    <p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="5" name="Table"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x="${450 * 9525}" y="${80 * 9525}"/><a:ext cx="${400 * 9525}" cy="${90 * 9525}"/></p:xfrm><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl>
+                        <a:tblPr firstRow="1" bandRow="1"><a:tableStyleId>{F5AB1C69-6EDB-4FF4-983F-18BD219EF322}</a:tableStyleId></a:tblPr><a:tblGrid><a:gridCol w="${200 * 9525}"/><a:gridCol w="${200 * 9525}"/></a:tblGrid>
+                        <a:tr h="${30 * 9525}"><a:tc><a:txBody><a:bodyPr/><a:p><a:r><a:t>System</a:t></a:r></a:p></a:txBody><a:tcPr/></a:tc><a:tc><a:txBody><a:bodyPr/><a:p><a:r><a:t>Time</a:t></a:r></a:p></a:txBody><a:tcPr/></a:tc></a:tr>
+                        <a:tr h="${30 * 9525}"><a:tc><a:txBody><a:bodyPr/><a:p><a:r><a:t>OAME-G1</a:t></a:r></a:p></a:txBody><a:tcPr/></a:tc><a:tc><a:txBody><a:bodyPr/><a:p><a:r><a:t>4.25 X 10</a:t></a:r><a:r><a:rPr baseline="30000"/><a:t>-4</a:t></a:r></a:p></a:txBody><a:tcPr/></a:tc></a:tr>
+                    </a:tbl></a:graphicData></a:graphic></p:graphicFrame>
+                    ${pic(6, "Grey logo", [450, 200, 60, 40], '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>', "<a:grayscl/>")}
+                    ${pic(7, "Round photo", [530, 200, 40, 40], '<a:prstGeom prst="flowChartConnector"><a:avLst/></a:prstGeom>')}
+                    ${pic(8, "Freeform photo", [590, 200, 40, 40], circlePath)}
+                    <p:cxnSp><p:nvCxnSpPr><p:cNvPr id="9" name="Arrow"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr><p:spPr>${xfrm(450, 300, 200, 0)}<a:prstGeom prst="straightConnector1"><a:avLst/></a:prstGeom><a:ln><a:tailEnd type="arrow"/></a:ln></p:spPr><p:style><a:lnRef idx="3"><a:schemeClr val="accent6"/></a:lnRef><a:fillRef idx="0"><a:schemeClr val="accent6"/></a:fillRef><a:effectRef idx="0"><a:schemeClr val="accent6"/></a:effectRef><a:fontRef idx="minor"><a:schemeClr val="tx1"/></a:fontRef></p:style></p:cxnSp>
+                </p:spTree></p:cSld></p:sld>`;
+                // The master's body style has bullets and its "other" style a small 13.5 pt (a master scaled for 4:3);
+                // the presentation's default text style is 18 pt.
+                const level = (sz, bullet) => `<a:lvl1pPr marL="0" indent="0">${bullet}<a:defRPr sz="${sz}"/></a:lvl1pPr>`;
+                const master = `<p:sldMaster ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/></p:spTree></p:cSld><p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>
+                    <p:txStyles><p:titleStyle>${level(4400, "")}</p:titleStyle><p:bodyStyle>${level(3200, '<a:buChar char="•"/>')}</p:bodyStyle><p:otherStyle>${level(1350, "")}</p:otherStyle></p:txStyles></p:sldMaster>`;
+                const theme = `<a:theme ${ns} name="T"><a:themeElements><a:clrScheme name="Office"><a:dk1><a:srgbClr val="000000"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="1F497D"/></a:dk2><a:lt2><a:srgbClr val="EEECE1"/></a:lt2>
+                    <a:accent1><a:srgbClr val="4F81BD"/></a:accent1><a:accent2><a:srgbClr val="C0504D"/></a:accent2><a:accent3><a:srgbClr val="9BBB59"/></a:accent3><a:accent4><a:srgbClr val="8064A2"/></a:accent4><a:accent5><a:srgbClr val="4BACC6"/></a:accent5><a:accent6><a:srgbClr val="F79646"/></a:accent6><a:hlink><a:srgbClr val="0000FF"/></a:hlink><a:folHlink><a:srgbClr val="800080"/></a:folHlink></a:clrScheme>
+                    <a:fontScheme name="F"><a:majorFont><a:latin typeface="Arial"/></a:majorFont><a:minorFont><a:latin typeface="Arial"/></a:minorFont></a:fontScheme>
+                    <a:fmtScheme name="F"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>
+                    <a:lnStyleLst><a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln><a:ln w="25400"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln><a:ln w="38100"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst></a:fmtScheme></a:themeElements></a:theme>`;
+                const zip = new JSZip();
+                zip.file("ppt/presentation.xml", `<p:presentation ${ns}><p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst><p:sldSz cx="${1024 * 9525}" cy="${768 * 9525}"/><p:defaultTextStyle>${level(1800, "")}</p:defaultTextStyle></p:presentation>`);
+                zip.file("ppt/_rels/presentation.xml.rels", rels([["rId1", "slide", "slides/slide1.xml"]]));
+                zip.file("ppt/slides/slide1.xml", slide);
+                zip.file("ppt/slides/_rels/slide1.xml.rels", rels([["rIdL", "slideLayout", "../slideLayouts/slideLayout1.xml"], ["rIdImg", "image", "../media/image1.png"]]));
+                zip.file("ppt/slideLayouts/slideLayout1.xml", `<p:sldLayout ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/></p:spTree></p:cSld></p:sldLayout>`);
+                zip.file("ppt/slideLayouts/_rels/slideLayout1.xml.rels", rels([["rIdM", "slideMaster", "../slideMasters/slideMaster1.xml"]]));
+                zip.file("ppt/slideMasters/slideMaster1.xml", master);
+                zip.file("ppt/slideMasters/_rels/slideMaster1.xml.rels", rels([["rIdT", "theme", "../theme/theme1.xml"]]));
+                zip.file("ppt/theme/theme1.xml", theme);
+                zip.file("ppt/media/image1.png", png);
+                await importPptx(new File([await zip.generateAsync({ type: "blob" })], "Fidelity.pptx"));
+                const els = state.slides[0].elements;
+                const textOf = needle => els.find(e => e.type === "text" && String(e.content).includes(needle));
+                const pixels = async (url, points) => {
+                    const img = new Image();
+                    img.src = url;
+                    await img.decode();
+                    const c = document.createElement("canvas");
+                    c.width = img.naturalWidth;
+                    c.height = img.naturalHeight;
+                    const g = c.getContext("2d");
+                    g.drawImage(img, 0, 0);
+                    return points.map(([fx, fy]) => [...g.getImageData(Math.floor(fx * (c.width - 1)), Math.floor(fy * (c.height - 1)), 1, 1).data]);
+                };
+                const title = textOf("White title");
+                const body = textOf("Default size");
+                const number = els.find(e => e.type === "text" && /(^|>)1(<|$)/.test(String(e.content)));
+                const table = els.find(e => e.type === "table");
+                const images = els.filter(e => e.type === "image");
+                const [grey, round, freeform] = ["Grey logo", "Round photo", "Freeform photo"].map((_, i) => images[i]);
+                const arrow = els.find(e => e.type === "connector" || e.type === "line" || e.type === "arrow" || e.lineEnd || e.arrowEnd || /connector|line/.test(String(e.type)));
+                // The colour each phrase is drawn in (the box's colour, or its own span's).
+                const drawnColor = (element, needle) => {
+                    const host = document.createElement("div");
+                    host.style.color = element.styles.color;
+                    host.innerHTML = element.content;
+                    document.body.appendChild(host);
+                    const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+                    let found = null;
+                    while (walker.nextNode()) if (walker.currentNode.textContent.includes(needle)) found = getComputedStyle(walker.currentNode.parentElement).color;
+                    host.remove();
+                    return found;
+                };
+                return {
+                    gradient: title?.styles.background || "",
+                    titleColor: title && drawnColor(title, "White title"),
+                    phraseColor: title && drawnColor(title, "purple phrase"),
+                    titleHtml: title?.content,
+                    bodySize: body?.styles.fontSize,
+                    bodyHtml: body?.content,
+                    number: number?.content || null,
+                    header: table?.tableData.cells[0][0].styles,
+                    band: table?.tableData.cells[1][0].styles.backgroundColor,
+                    superscript: table?.tableData.cells[1][1].text,
+                    lineHeight: table?.tableData.lineHeight,
+                    greyPixels: grey ? await pixels(grey.content, [[0.1, 0.5], [0.9, 0.5]]) : null,
+                    roundRadius: round?.styles.borderRadius,
+                    freeformPixels: freeform ? await pixels(freeform.content, [[0.02, 0.02], [0.5, 0.5]]) : null,
+                    arrow: arrow ? JSON.stringify(arrow).slice(0, 600) : null,
+                };
+            });
+            const rgb = hex => [1, 3, 5].map(i => parseInt(String(hex).slice(i, i + 2), 16));
+            // shade 51% + satMod 130% of #C0504D, in linear light as PowerPoint does: a deep red, not near black.
+            const stops = [...out.gradient.matchAll(/#[0-9a-f]{6}/gi)].map(m => m[0]);
+            assert(stops.length >= 2, `gradient: ${out.gradient}`);
+            const [dark] = stops.map(rgb);
+            assert(dark[0] >= 140 && dark[0] <= 175 && dark[1] < 70, `the dark stop should be about #9b2d2b..#a83230, got ${stops[0]}`);
+            assert(out.titleColor === "rgb(255, 255, 255)", `filled text box: words drawn in ${out.titleColor}, want the style's white`);
+            assert(out.phraseColor === "rgb(112, 48, 160)", `the run's own purple: ${out.phraseColor} (${out.titleHtml})`);
+            // Text boxes: the presentation's 18 pt (24 px at 1024 wide), not the master's 13.5 pt.
+            assert(out.bodySize === "24px", `text box size ${out.bodySize}`);
+            assert(/font-size: 42\.67px;">​<\/span><br>/.test(out.bodyHtml || ""), `32 pt blank line lost: ${out.bodyHtml}`);
+            assert(/font-size: 37\.33px;">​<\/span><br>/.test(out.bodyHtml || ""), `28 pt line break lost: ${out.bodyHtml}`);
+            assert(out.number && !/[••]|ppt-bullet|<li/.test(out.number), `the slide number has a bullet: ${out.number}`);
+            assert(String(out.header?.backgroundColor).toLowerCase() === "#9bbb59" && String(out.header?.color).toLowerCase() === "#ffffff" && out.header?.fontWeight === "700", `table header: ${JSON.stringify(out.header)}`);
+            assert(/^#[0-9a-f]{6}$/i.test(out.band || "") && String(out.band).toLowerCase() !== "#9bbb59", `banded row: ${out.band}`);
+            assert(out.superscript === "4.25 X 10⁻⁴", `superscript: ${out.superscript}`);
+            assert(out.lineHeight === 1.2, `table line height ${out.lineHeight}`);
+            const [blueSide, whiteSide] = out.greyPixels || [];
+            assert(blueSide && blueSide[0] === blueSide[1] && blueSide[1] === blueSide[2] && blueSide[0] < 120 && whiteSide[0] > 240, `greyscale: ${JSON.stringify(out.greyPixels)}`);
+            assert(out.roundRadius === "50%", `round photo radius ${out.roundRadius}`);
+            assert(out.freeformPixels && out.freeformPixels[0][3] === 0 && out.freeformPixels[1][3] === 255, `freeform outline not cut: ${JSON.stringify(out.freeformPixels)}`);
+            assert(out.arrow && /"(strokeWidth|lineWidth|width)":\s*"?4/.test(out.arrow), `the theme's 3 pt arrow (4 px): ${out.arrow}`);
+            assert(!errors.length, errors.join("\n"));
             await page.close();
         });
 

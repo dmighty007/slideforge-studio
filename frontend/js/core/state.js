@@ -508,6 +508,8 @@ function normalizeTableData(tableData) {
         fontWeight: typeof tableData.fontWeight === "string" ? tableData.fontWeight : "400",
         fontStyle: typeof tableData.fontStyle === "string" ? tableData.fontStyle : "normal",
         textAlign: typeof tableData.textAlign === "string" ? tableData.textAlign : "left",
+        // Line spacing in cells, set by the PowerPoint import (1.2, as PowerPoint draws them); absent otherwise.
+        ...(Number(tableData.lineHeight) >= 0.8 && Number(tableData.lineHeight) <= 3 ? { lineHeight: Number(tableData.lineHeight) } : {}),
         // The smallest text "Fit to content area" may use (table settings), and the sizes it had before a fit
         // tightened it (a split goes back to them).
         ...(Number(tableData.fitMinFontSize) >= 8 ? { fitMinFontSize: Math.min(40, Number(tableData.fitMinFontSize)) } : {}),
@@ -1933,10 +1935,10 @@ function getPersistableState() {
         slides: JSON.parse(JSON.stringify(state.slides || [])),
         // "Use this background on all slides" was chosen: new slides get the shared background.
         ...(state.backgroundOnAllSlides ? { backgroundOnAllSlides: true } : {}),
-        selectedIds: [],
-        clipboard: null,
         // The talk's length, for the show timer's countdown (show-recorder.js).
         ...(Number(state.showSettings?.targetMinutes) > 0 ? { showSettings: { targetMinutes: Number(state.showSettings.targetMinutes) } } : {}),
+        selectedIds: [],
+        clipboard: null,
     };
 }
 
