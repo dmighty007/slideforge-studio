@@ -1,0 +1,78 @@
+name: Docs
+
+# The documentation site on GitHub Pages: the showcase decks are made with the editor itself
+# (tools/build-showcase.cjs, against a local server), then MkDocs builds the site around them.
+# Pages must be set to deploy from GitHub Actions (Settings → Pages → Source).
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/**
+      - mkdocs.yml
+      - requirements-docs.txt
+      - tools/build-showcase.cjs
+      - tools/showcase/**
+      - frontend/**
+      - .github/workflows/docs.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # As the browser tests: Playwright 1.60 cannot install its browser on ubuntu-latest (26.04) yet.
+    runs-on: ubuntu-24.04
+    env:
+      DJANGO_SECRET_KEY: docs-build-only-secret-key
+      DJANGO_ALLOWED_HOSTS: 127.0.0.1,localhost
+      SLIDEFORGE_ACCOUNTS_ENABLED: "0"
+      NO_MKDOCS_2_WARNING: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements.lock
+            requirements-docs.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock -r requirements-docs.txt
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Start SlideForge
+        run: |
+          python backend/manage.py migrate --noinput
+          python backend/manage.py runserver 127.0.0.1:8076 > /tmp/slideforge-docs-server.log 2>&1 &
+          for attempt in {1..30}; do curl --fail --silent http://127.0.0.1:8076/ > /dev/null && break; sleep 1; done
+          curl --fail --silent http://127.0.0.1:8076/ > /dev/null
+      - name: Build the showcase decks
+        run: node tools/build-showcase.cjs --url=http://127.0.0.1:8076/
+      - name: Build the site
+        run: mkdocs build --strict
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

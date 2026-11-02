@@ -1,7 +1,7 @@
 # Developing SlideForge
 
 How the code is laid out, how to run it from source, and how to test it. For what SlideForge does, see the
-[README](../README.md); for the desktop app, [DESKTOP.md](DESKTOP.md); for writing plugins, [PLUGINS.md](PLUGINS.md).
+[README](https://github.com/dmighty007/slideforge-studio#readme); for the desktop app, [DESKTOP.md](DESKTOP.md); for writing plugins, [PLUGINS.md](PLUGINS.md).
 
 ## Project Layout
 
@@ -183,6 +183,20 @@ npm run check:frontend
 ```
 
 CI (`.github/workflows/ci.yml`) runs the Python lint, the Django checks, the frontend syntax check and the Django tests.
+
+## Documentation site
+
+The site at <https://dmighty007.github.io/slideforge-studio/> is built with MkDocs Material from `docs/`
+(`mkdocs.yml`). Its showcase decks are made by `tools/build-showcase.cjs`, which drives the editor on a running
+server and saves each deck's web export, with a screenshot of every slide, under `docs/showcase/decks/` (not
+committed). `.github/workflows/docs.yml` does the same on every push to `main` and publishes to GitHub Pages.
+
+```bash
+pip install -r requirements-docs.txt
+SLIDEFORGE_ACCOUNTS_ENABLED=0 python backend/manage.py runserver 127.0.0.1:8076 &
+node tools/build-showcase.cjs            # or --only=capabilities
+mkdocs serve                             # http://127.0.0.1:8000/
+```
 
 ## Maintenance
 

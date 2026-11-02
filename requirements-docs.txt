@@ -1,0 +1,3 @@
+# The documentation site (mkdocs.yml): pip install -r requirements-docs.txt
+mkdocs==1.6.1
+mkdocs-material==9.8.0

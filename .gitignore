@@ -40,3 +40,7 @@ dist/
 build/
 *.egg-info/
 .pytest_cache/
+
+# Documentation site: showcase decks made by tools/build-showcase.cjs, and the built site
+docs/showcase/decks/
+site/
