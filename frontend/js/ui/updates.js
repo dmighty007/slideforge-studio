@@ -1,7 +1,8 @@
 // Updating the desktop app to a new version (backend/slideforge/desktop/updates.py). A few seconds after the window
 // opens, at most once a day, the app looks for a newer version; when there is one, a card offers to install it while
 // you keep working, and to restart into it. "Check for updates…" in the command palette asks at any time.
-// The web app has no such endpoint: nothing shows there.
+// The web app has no such endpoint (even run without accounts): the server marks only the desktop app's page
+// "desktop-app" (studio/views.py, spa_index), and nothing shows elsewhere.
 
 const SF_UPDATE_URL = "/api/desktop/update/";
 let _sfUpdatePoll = null;
@@ -153,7 +154,7 @@ function _sfUpdateWatch() {
 
 // "Check for updates…": asks now and always answers (up to date, available, or could not check).
 async function checkForUpdates() {
-    if (!document.body.classList.contains("accounts-disabled")) {
+    if (!document.body.classList.contains("desktop-app")) {
         setProjectSaveHint?.("Updates are for the desktop app; the web app is updated on its server", "muted");
         return;
     }
@@ -171,7 +172,7 @@ async function checkForUpdates() {
 
 // The automatic check, a few seconds after the window opens (desktop app only).
 function _sfUpdateAutoCheck() {
-    if (!document.body.classList.contains("accounts-disabled")) return;
+    if (!document.body.classList.contains("desktop-app")) return;
     setTimeout(async () => {
         try {
             const status = await _sfUpdateRequest(null);

@@ -136,6 +136,8 @@ class NoSignInUiTests(TestCase):
     def test_page_is_served_with_accounts_disabled(self):
         response = Client().get("/")
         self.assertContains(response, '<body class="accounts-disabled ')
+        # Only the desktop app's page looks for updates (js/ui/updates.js).
+        self.assertContains(response, '<body class="accounts-disabled desktop-app ')
 
     def test_css_hides_all_sign_in_ui_when_accounts_are_disabled(self):
         css = (FRONTEND_DIR / "css" / "base.css").read_text(encoding="utf-8")

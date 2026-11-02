@@ -599,12 +599,18 @@ def _save_asset_file(uploaded_file, *, asset_type="other", owner=None, presentat
 @ensure_csrf_cookie
 def spa_index(request):
     index = settings.FRONTEND_DIR / "index.html"
-    if getattr(settings, "SLIDEFORGE_ACCOUNTS_ENABLED", True):
-        response = FileResponse(open(index, "rb"))
-    else:
-        # Without accounts (the desktop app), mark the page before it renders so no sign-in UI ever flashes up.
-        html = index.read_text(encoding="utf-8").replace('<body class="', '<body class="accounts-disabled ', 1)
+    # Without accounts (the desktop app, or a web server run that way), mark the page before it renders so no sign-in
+    # UI ever flashes up. "desktop-app": only the desktop app has updates to look for (js/ui/updates.js).
+    marks = []
+    if not getattr(settings, "SLIDEFORGE_ACCOUNTS_ENABLED", True):
+        marks.append("accounts-disabled")
+    if getattr(settings, "SLIDEFORGE_DESKTOP_APP", False):
+        marks.append("desktop-app")
+    if marks:
+        html = index.read_text(encoding="utf-8").replace('<body class="', f'<body class="{" ".join(marks)} ', 1)
         response = HttpResponse(html, content_type="text/html; charset=utf-8")
+    else:
+        response = FileResponse(open(index, "rb"))
     response["Cache-Control"] = "no-cache"  # always the current page after an update (see frontend_files.py)
     return response
 

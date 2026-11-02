@@ -1622,6 +1622,37 @@ class BugReviewRegressionTests(TestCase):
         self.assertIn("Survived", texts)
 
 
+class SpaIndexMarksTests(TestCase):
+    """The page's body classes: accounts-disabled hides sign-in; desktop-app turns on the update check (updates.js)."""
+
+    def _body(self):
+        from django.test import RequestFactory
+
+        from slideforge.studio.views import spa_index
+
+        response = spa_index(RequestFactory().get("/"))
+        html = b"".join(response.streaming_content if response.streaming else [response.content]).decode()
+        return re.search(r'<body class="([^"]*)"', html).group(1).split()
+
+    def test_web_server_without_accounts_does_not_look_for_updates(self):
+        with override_settings(SLIDEFORGE_ACCOUNTS_ENABLED=False, SLIDEFORGE_DESKTOP_APP=False):
+            classes = self._body()
+        self.assertIn("accounts-disabled", classes)
+        self.assertNotIn("desktop-app", classes)
+
+    def test_desktop_app_is_marked(self):
+        with override_settings(SLIDEFORGE_ACCOUNTS_ENABLED=False, SLIDEFORGE_DESKTOP_APP=True):
+            classes = self._body()
+        self.assertIn("accounts-disabled", classes)
+        self.assertIn("desktop-app", classes)
+
+    def test_web_app_with_accounts_has_neither(self):
+        with override_settings(SLIDEFORGE_ACCOUNTS_ENABLED=True, SLIDEFORGE_DESKTOP_APP=False):
+            classes = self._body()
+        self.assertNotIn("accounts-disabled", classes)
+        self.assertNotIn("desktop-app", classes)
+
+
 class GoogleFontsTests(TestCase):
     """Downloading fonts from Google Fonts for imported decks (google_fonts.py); Google's answers are made up here."""
 
