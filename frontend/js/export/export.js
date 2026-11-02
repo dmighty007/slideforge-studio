@@ -228,9 +228,30 @@ async function drawChartsAndDiagramsAsPictures(exportState) {
         ...(el.fragment ? { fragment: el.fragment } : {}),
         ...(el.fragmentIndex !== undefined ? { fragmentIndex: el.fragmentIndex } : {}),
         exportedFrom: el.type,
+        ..._diagramRevealForViewer(el),
       };
     }
   }
+}
+
+// A flowchart with "Branch Reveal" stays a drawing in the viewer, not only a picture: its steps (each box with the
+// arrows into it, in the order the flow is read) come in click by click, as in the editor
+// (_getDiagramRevealSteps). Flattened to a picture, the whole chart showed at once and its clicks were skipped.
+function _diagramRevealForViewer(el) {
+  const graph = el?.type === "mermaid" ? el.graphDocument : null;
+  if (graph?.presentationState?.activePreset !== "branch-reveal" || !el.svgContent) return {};
+  const ids = (graph.nodes || []).map(node => node.id);
+  const stored = (graph.presentationState.revealOrder || []).filter(id => ids.includes(id));
+  const order = [...stored, ...ids.filter(id => !stored.includes(id))];
+  const steps = order.map(id => ({
+    node: id,
+    edges: (graph.edges || []).filter(edge => edge.to === id).map(edge => edge.id),
+  }));
+  // The viewer puts this markup in the page: only drawing markup, no scripts or handlers.
+  const svg = typeof DOMPurify !== "undefined"
+    ? DOMPurify.sanitize(String(el.svgContent), { USE_PROFILES: { svg: true, svgFilters: true }, ADD_TAGS: ["style"] })
+    : "";
+  return svg && steps.length ? { diagramSvg: svg, diagramRevealSteps: steps } : {};
 }
 
 function _chartToDataUrl(el) {
@@ -1554,6 +1575,8 @@ body {
     height: var(--slide-height);
     transform: translate(-50%, -50%);
     transform-origin: center center;
+    perspective: 600px;
+    perspective-origin: 50% 40%;
 }
 
 .presentation-slide {
@@ -2116,6 +2139,31 @@ body {
     transition: none;
 }
 
+/* Branch Reveal: a flowchart's steps (boxes, arrows, labels) come in click by click, as in the editor. */
+.sf-diagram-step-part.sf-bullet-hidden {
+    opacity: 0;
+}
+.sf-diagram-step-part.sf-bullet-shown {
+    opacity: 1;
+    transition: opacity 380ms ease-out;
+}
+.sf-diagram-step-part.sf-bullet-instant {
+    transition: none;
+}
+.mermaid-svg-host {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.mermaid-svg-host svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    overflow: visible;
+}
+
 .table-element-cell {
     min-width: 56px;
     line-height: 1.35;
@@ -2229,6 +2277,9 @@ function generateViewerJs(moleculeScriptUrl = null) {
 ${sanitizeHtml.toString()}
 ${typeof _audioCardNode === "function" ? _audioCardNode.toString() : ""}
 ${typeof _audioTimeLabel === "function" ? _audioTimeLabel.toString() : ""}
+${typeof _parseShapePolygonPoints === "function" ? _parseShapePolygonPoints.toString() : ""}
+${typeof _parseBorderShorthand === "function" ? _parseBorderShorthand.toString() : ""}
+${typeof _getShapePaint === "function" ? _getShapePaint.toString() : ""}
 
 const animationEffects = ['fade-in', 'slide-up', 'slide-down', 'slide-left', 'slide-right', 'zoom-in', 'pop-in', 'wipe-in', 'pulse', 'glow'];
 const MOLECULE_EMBED_NGL_SRC = ${JSON.stringify(moleculeScriptUrl || (typeof MOLECULE_EMBED_NGL_SRC === "string" ? MOLECULE_EMBED_NGL_SRC : "vendor/ngl/ngl.js"))};
@@ -2582,7 +2633,13 @@ function initViewer(data) {
                 (timeline.animations || []).forEach((animation, animationIndex) => {
                     if ((animation && animation.trigger || 'on-slide') !== 'on-click') return;
                     if (!animation.id) animation.id = 'anim_' + (el.id || 'el') + '_' + timelineIndex + '_' + animationIndex;
-                    groups.push({ animationIds: [String(animation.id)], entries: [{ el, animation }] });
+                    const shared = animation.clickGroup && groups.find(group => group.clickGroup === animation.clickGroup);
+                    if (shared) {
+                        shared.animationIds.push(String(animation.id));
+                        shared.entries.push({ el, animation });
+                    } else {
+                        groups.push({ clickGroup: animation.clickGroup || null, animationIds: [String(animation.id)], entries: [{ el, animation }] });
+                    }
                 });
             });
         });
@@ -2624,6 +2681,20 @@ function initViewer(data) {
                     steps.push(current);
                 }
                 current.rows.push(row);
+            });
+        });
+        // Branch Reveal flowcharts: each box with the arrows into it is one click (as in the editor).
+        (slide && slide.elements || []).filter(el => el && el.diagramSvg && Array.isArray(el.diagramRevealSteps)).forEach(el => {
+            const svg = document.getElementById(el.id)?.querySelector('.mermaid-svg-host svg');
+            if (!svg) return;
+            const parts = (selector, attr, value) => Array.from(svg.querySelectorAll(selector)).filter(part => part.getAttribute(attr) === value);
+            el.diagramRevealSteps.forEach(step => {
+                const rows = [
+                    ...parts('.mermaid-graph-node', 'data-node-id', step.node),
+                    ...(step.edges || []).flatMap(edgeId => parts('[data-edge-id]', 'data-edge-id', edgeId)),
+                ];
+                rows.forEach(part => part.classList.add('sf-diagram-step-part'));
+                if (rows.length) steps.push({ elementId: el.id, rows });
             });
         });
         return steps;
@@ -2837,7 +2908,38 @@ function initViewer(data) {
             }
     }
 
+    let slideTransitionAnimations = [];
+
+    function playSlideTransition(previousIndex) {
+        slideTransitionAnimations.forEach(animation => animation.cancel());
+        slideTransitionAnimations = [];
+        if (previousIndex < 0 || previousIndex === activeSlideIndex) return;
+        const effect = slides[activeSlideIndex].presentationTransition || 'none';
+        if (!['fade', 'diffuse', 'slide', 'convex', 'concave', 'zoom'].includes(effect)) return;
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        const forward = activeSlideIndex > previousIndex;
+        // Match Reveal's horizontal transforms, timing and diffuse-to-fade mapping.
+        const transform = side => {
+            if (effect === 'slide') return 'translate(' + side * 150 + '%, 0)';
+            if (effect === 'zoom') return 'scale(' + (side < 0 ? 16 : 0.2) + ')';
+            if (effect === 'convex' || effect === 'concave') {
+                const angle = side * (effect === 'convex' ? 90 : -90);
+                return 'translate3d(' + side * 100 + '%,0,0) rotateY(' + angle + 'deg) translate3d(' + side * 100 + '%,0,0)';
+            }
+            return 'none';
+        };
+        const center = { opacity: 1, transform: 'none', visibility: 'visible' };
+        const incoming = { opacity: 0, transform: transform(forward ? 1 : -1), visibility: 'visible' };
+        const outgoing = { opacity: 0, transform: transform(forward ? -1 : 1), visibility: 'visible' };
+        const timing = { duration: 800, easing: 'cubic-bezier(.26,.86,.44,.985)' };
+        slideTransitionAnimations = [
+            getSlideDom(previousIndex).animate([center, outgoing], timing),
+            getSlideDom(activeSlideIndex).animate([incoming, center], timing),
+        ];
+    }
+
     function applySlideState() {
+        const previousIndex = runtime.slideIndex;
         Array.from(container.children).forEach((slideDom, slideIndex) => {
             slideDom.classList.toggle('is-active', slideIndex === activeSlideIndex);
             const fragments = getFragments(slideDom);
@@ -2849,6 +2951,7 @@ function initViewer(data) {
         });
         if (runtime.slideIndex !== activeSlideIndex) {
             prepareSlideAnimations(activeSlideIndex);
+            playSlideTransition(previousIndex);
         }
         if (status) status.textContent = (activeSlideIndex + 1) + ' / ' + Math.max(1, slides.length);
         syncViewerActiveMedia();
@@ -2922,12 +3025,11 @@ function initViewer(data) {
 
     function nextStep() {
         const fragments = getFragments(getSlideDom(activeSlideIndex));
-        if (revealNextBulletStep()) return;
-        if (revealNextAnimationGroup()) return;
-        if (revealNextAdvancedGroup()) return;
         if (activeFragmentIndex < fragments.length - 1) {
             activeFragmentIndex += 1;
             applySlideState();
+        } else if (revealNextBulletStep() || revealNextAnimationGroup() || revealNextAdvancedGroup()) {
+            return;
         } else if (activeSlideIndex < slides.length - 1) {
             activeSlideIndex += 1;
             activeFragmentIndex = -1;
@@ -3309,6 +3411,18 @@ function createViewerElement(elData, mediaOptions = {}) {
         scroll.appendChild(table);
         shell.appendChild(scroll);
         el.appendChild(shell);
+    } else if (elData.type === 'image' && elData.diagramSvg) {
+        // A Branch Reveal flowchart, kept as a drawing so its steps can come in one by one (getBulletSteps).
+        const host = document.createElement('div');
+        host.className = 'mermaid-svg-host';
+        host.innerHTML = elData.diagramSvg;
+        if (!host.querySelector('svg')) {
+            const img = document.createElement('img');
+            img.src = elData.content;
+            img.className = 'media-fill rounded-inherit';
+            host.appendChild(img);
+        }
+        el.appendChild(host);
     } else if (elData.type === 'image') {
         if (elData.cropTransform) {
             const crop = normalizeImageCropTransform(elData.cropTransform);
@@ -3818,9 +3932,42 @@ function getViewerShapeVisualStyle(elData) {
 
 function applyShapeStyles(el, elData) {
     const visual = getViewerShapeVisualStyle(elData);
-    el.style.clipPath = visual.clipPath;
-    if (!elData?.styles?.borderRadius) {
-        el.style.borderRadius = visual.borderRadius;
+    // A star, triangle, arrow... is drawn as an outlined polygon, as in the editor (renderShapeContent). Cut out of a
+    // box with a clip-path, its outline was cut away with the box's border, and a "Create" build had no stroke to trace.
+    const points = typeof _parseShapePolygonPoints === 'function' ? _parseShapePolygonPoints(visual.clipPath) : [];
+    if (points.length && typeof _getShapePaint === 'function') {
+        const paint = _getShapePaint(elData);
+        el.style.clipPath = 'none';
+        el.style.borderRadius = '0px';
+        el.style.backgroundColor = 'transparent';
+        el.style.border = '0';
+        el.style.overflow = 'visible';
+        const ns = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(ns, 'svg');
+        svg.classList.add('sf-shape-visual-svg');
+        svg.setAttribute('viewBox', '0 0 100 100');
+        svg.setAttribute('preserveAspectRatio', 'none');
+        svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;';
+        const polygon = document.createElementNS(ns, 'polygon');
+        polygon.setAttribute('points', points.map(p => p[0] + ',' + p[1]).join(' '));
+        polygon.setAttribute('fill', paint.fill || 'transparent');
+        polygon.setAttribute('stroke', paint.hasStroke ? paint.strokeColor : 'none');
+        polygon.setAttribute('stroke-width', paint.hasStroke ? String(paint.strokeWidth) : '0');
+        polygon.setAttribute('vector-effect', 'non-scaling-stroke');
+        polygon.setAttribute('stroke-linejoin', 'round');
+        if (paint.strokeStyle === 'dashed') {
+            polygon.setAttribute('stroke-dasharray', (paint.strokeWidth * 3) + ' ' + (paint.strokeWidth * 2));
+        } else if (paint.strokeStyle === 'dotted') {
+            polygon.setAttribute('stroke-dasharray', paint.strokeWidth + ' ' + (paint.strokeWidth * 2));
+            polygon.setAttribute('stroke-linecap', 'round');
+        }
+        svg.appendChild(polygon);
+        el.insertBefore(svg, el.firstChild);
+    } else {
+        el.style.clipPath = visual.clipPath;
+        if (!elData?.styles?.borderRadius) {
+            el.style.borderRadius = visual.borderRadius;
+        }
     }
     // Words typed into the shape (their style was worked out at export).
     if (elData?.shapeText) {

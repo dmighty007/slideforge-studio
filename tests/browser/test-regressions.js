@@ -114,6 +114,87 @@ async function test(name, fn) {
         ...(process.env.SLIDEFORGE_STORAGE_STATE ? { storageState: process.env.SLIDEFORGE_STORAGE_STATE } : {}),
     });
 
+    await test("Web animation parity: transitions, shared click groups, fragments and final states match local playback", async () => {
+        const { page } = await openFreshEditor(context);
+        const settled = await page.evaluate(() => {
+            const engine = new AnimationEngine();
+            const types = ['elegantFadeIn', 'elegantFadeOut', 'fadeWithBlur', 'diffuse'];
+            const elements = types.map((type, i) => {
+                const el = document.createElement('div');
+                el.id = `parity-final-${i}`;
+                document.body.appendChild(el);
+                engine.addAnimation(el.id, { type, duration: 120, easing: 'linear', endOpacity: i % 2 });
+                return el;
+            });
+            engine.seek(60);
+            engine.seek(121); // Simulate skipping the exact last frame.
+            const result = elements.map((el, i) => ({ type: types[i], opacity: el.style.opacity, expected: String(i % 2) }));
+            elements.forEach(el => el.remove());
+            return result;
+        });
+        assert(settled.every(item => item.opacity === item.expected), `effects stranded before final state: ${JSON.stringify(settled)}`);
+        const files = await page.evaluate(async () => {
+            const base = JSON.parse(JSON.stringify(state.slides[0]));
+            const effects = ['none', 'fade', 'diffuse', 'slide', 'convex', 'concave', 'zoom'];
+            state.slides = effects.map((effect, i) => ({ ...base, id: `parity-slide-${i}`, elements: [], presentationTransition: effect }));
+            const element = (id, extra = {}) => ({ id, type: 'text', content: id, x: 40, y: 40,
+                width: '200px', height: '50px', styles: { color: '#ffffff' }, ...extra });
+            state.slides[0].elements = [element('parity-fragment', { fragmentAnimation: 'fade-in', fragmentIndex: 0 }),
+                ...['parity-a', 'parity-b'].map(id => element(id, { animation: { timelines: [{ animations: [{
+                    id: `anim-${id}`, type: 'fadeWithBlur', duration: 120, easing: 'linear', trigger: 'on-click',
+                    clickGroup: 'together', startOpacity: 0, endOpacity: 1, startBlur: 12, endBlur: 0,
+                }] }] } }))];
+            currentSlideIndex = 0;
+            renderSlidesFromState();
+            const zip = await JSZip.loadAsync(await buildViewerBundle({ includeVendor: false }));
+            const out = {};
+            for (const [name, file] of Object.entries(zip.files)) if (!file.dir) out[name] = await file.async('base64');
+            return out;
+        });
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sf-animation-parity-'));
+        const viewer = await context.newPage();
+        try {
+            for (const [name, data] of Object.entries(files)) {
+                fs.mkdirSync(path.dirname(path.join(dir, name)), { recursive: true });
+                fs.writeFileSync(path.join(dir, name), Buffer.from(data, 'base64'));
+            }
+            await viewer.goto(`file://${path.join(dir, 'index.html')}`);
+            await viewer.waitForFunction(() => document.querySelector('.presentation-slide.is-active'));
+            await viewer.keyboard.press('ArrowRight');
+            assert(await viewer.locator('#parity-fragment').evaluate(el => el.classList.contains('visible')), 'fragment must precede click builds');
+            assert(await viewer.locator('#parity-a').evaluate(el => el.style.opacity === '0'), 'click build started before its click');
+            await viewer.keyboard.press('ArrowRight');
+            await viewer.waitForTimeout(260);
+            for (const id of ['parity-a', 'parity-b']) {
+                const style = await viewer.locator(`#${id}`).evaluate(el => ({ opacity: el.style.opacity, filter: el.style.filter }));
+                assert(style.opacity === '1' && style.filter === 'blur(0px)', `shared build did not finish: ${id} ${JSON.stringify(style)}`);
+            }
+            for (const effect of ['fade', 'diffuse', 'slide', 'convex', 'concave', 'zoom']) {
+                await viewer.keyboard.press('ArrowRight');
+                const animation = await viewer.locator('.presentation-slide.is-active').evaluate(el => {
+                    const a = el.getAnimations()[0];
+                    return a && { frames: a.effect.getKeyframes(), duration: a.effect.getTiming().duration };
+                });
+                assert(animation?.duration === 800, `${effect} missing transition`);
+                const transform = animation.frames[0].transform;
+                if (effect === 'fade' || effect === 'diffuse') assert(transform === 'none', `${effect}: ${transform}`);
+                else assert(transform !== 'none', `${effect} missing transform`);
+                await viewer.waitForTimeout(850);
+                assert(await viewer.locator('.presentation-slide.is-active').evaluate(el => el.getAnimations().length === 0), `${effect} did not settle`);
+            }
+            // Changing direction while a transition is in flight cancels its old animations.
+            await viewer.keyboard.press('ArrowLeft');
+            await viewer.keyboard.press('ArrowLeft');
+            await viewer.waitForTimeout(850);
+            assert(await viewer.evaluate(() => document.querySelectorAll('.presentation-slide.is-active').length === 1 &&
+                [...document.querySelectorAll('.presentation-slide')].every(el => el.getAnimations().length === 0)), 'rapid navigation left stale transitions');
+        } finally {
+            await viewer.close();
+            await page.close();
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
     await test("whiteboard text: Escape cancels without an error or a committed text", async () => {
         const { page, errors } = await openEditor(context);
         const before = await page.evaluate(async () => {

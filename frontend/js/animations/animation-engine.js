@@ -738,6 +738,10 @@ class AnimationEngine {
             case "blur":
             case "flip3D":
             case "glow":
+            case "elegantFadeIn":
+            case "elegantFadeOut":
+            case "fadeWithBlur":
+            case "diffuse":
                 this._applyAnimation(element, animation, 1);
                 break;
             default:
