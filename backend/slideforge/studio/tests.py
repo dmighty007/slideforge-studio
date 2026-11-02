@@ -1679,7 +1679,8 @@ class GoogleFontsTests(TestCase):
 
         from slideforge.studio import google_fonts
 
-        self.assertEqual(self.client.get("/api/fonts/").status_code, 401)
+        self.assertEqual(self.client.get("/api/fonts/").json(), {"fonts": {}})
+        self.assertEqual(self._post(["Roboto"]).status_code, 401)
         self.client.force_login(self.user)
         self.assertEqual(self._post(["../../etc"]).status_code, 400)
         self.assertEqual(self._post([]).status_code, 400)

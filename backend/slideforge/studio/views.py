@@ -798,11 +798,12 @@ def fonts_view(request):
     downloads each one Google Fonts has; {"results": [{"family", "status"}], "fonts": ...}."""
     from . import google_fonts
 
+    if request.method == "GET":
+        # The page asks at every start; signed out there is nothing to load (and no 401 in the console).
+        return JsonResponse({"fonts": google_fonts.installed() if request.user.is_authenticated else {}})
     auth_error = _auth_required(request)
     if auth_error:
         return auth_error
-    if request.method == "GET":
-        return JsonResponse({"fonts": google_fonts.installed()})
     try:
         payload = _request_json(request)
     except ValueError:
