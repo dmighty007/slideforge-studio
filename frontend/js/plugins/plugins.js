@@ -277,7 +277,7 @@ async function _loadPluginFont(stack = pluginFontStack()) {
 // ─── Helpers plugins get in their context ─────────────────────────────────────
 
 function pluginEscapeXml(text) {
-    return String(text ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    return stripXmlInvalidChars(text).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
 
 let _sfMeasureCanvas = null;
@@ -383,9 +383,18 @@ function _pluginPreviewKey(plugin, data, elData = null) {
     return JSON.stringify([plugin.id, plugin.version, getPresentationTheme(), _pluginThemeColor(), pluginFontStack(), data, ...(box ? [box.width, box.height] : [])]);
 }
 
+// Characters XML does not allow, even escaped: C0 controls other than tab, line feed and carriage return, U+FFFE/U+FFFF,
+// and halves of a surrogate pair. A label pasted from a PDF (form feed) or a spreadsheet brought them in, and the
+// whole drawing failed to parse. Vertical tab and form feed become spaces (they separated words); the rest go.
+const SF_XML_INVALID_CHARS = /[\u0000-\u0008\u000E-\u001F￾￿]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
+function stripXmlInvalidChars(text) {
+    return String(text ?? "").replace(/[\u000B\u000C]/g, " ").replace(SF_XML_INVALID_CHARS, "");
+}
+
 // A plugin's SVG made safe to keep and show: no scripts, handlers or outside references, and a viewBox so it scales.
 function cleanPluginSvg(svgText) {
-    const doc = new DOMParser().parseFromString(String(svgText || ""), "image/svg+xml");
+    const doc = new DOMParser().parseFromString(stripXmlInvalidChars(svgText || ""), "image/svg+xml");
     const svg = doc.documentElement;
     if (!svg || svg.nodeName.toLowerCase() !== "svg" || doc.querySelector("parsererror")) {
         throw new Error("The plugin did not return an SVG drawing");

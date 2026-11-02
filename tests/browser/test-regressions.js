@@ -8353,6 +8353,42 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("Plugins: control characters in labels and table cells (a form feed pasted from a PDF) do not break the drawing", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        // Each of these made the SVG unparseable ("The plugin did not return an SVG drawing"). Scale bar and QR code
+        // escape with their own helper; the others use context.escapeXml; volcano and heatmap take the text in a table.
+        const bad = "page\u000Cbreak\u000Bvt\u0000nul\uD800lone";
+        const drawn = await pageAwait(page, async bad => {
+            const cases = [
+                ["scale-bar", { label: bad }],
+                ["qr-code", { caption: bad }],
+                ["kaplan-meier", { xLabel: bad }],
+                ["volcano", { xLabel: bad, data: `label,log2FC,p\n${bad},4,0.000001\nB,-1,0.5` }],
+                ["heatmap", { data: `,c1,c2\n${bad},1,2\nr2,3,4` }],
+            ];
+            const out = [];
+            for (const [id, changes] of cases) {
+                const plugin = SlideForgePlugins.get(id);
+                const element = { id: `cc-${id}`, type: "plugin", pluginId: id, pluginData: { ...plugin.defaultData, ...changes }, width: 480, height: 320 };
+                try {
+                    const { dataUrl } = await SlideForgePlugins.draw(element);
+                    out.push({ id, svg: decodeURIComponent(dataUrl.slice(dataUrl.indexOf(",") + 1)) });
+                } catch (error) {
+                    out.push({ id, error: error.message });
+                }
+            }
+            return out;
+        }, bad);
+        for (const { id, svg, error } of drawn) {
+            assert(!error, `${id}: ${error}`);
+            assert(!/[\u0000-\u0008\u000B\u000C\u000E-\u001F]|[\uD800-\uDFFF]/.test(svg), `${id}: the SVG still holds a control character`);
+        }
+        const scaleBar = drawn.find(d => d.id === "scale-bar").svg;
+        assert(scaleBar.includes("page break vt"), `the form feed and vertical tab should read as spaces: ${scaleBar}`);
+        await page.close();
+    });
+
     // ─── Research deck study, 2026-10-15 (test-results/research-deck-2026-10-15/REPORT.md) ──────────────────────────
 
     await test("research deck: a plugin drawing keeps its shape in PowerPoint and in the PDF capture", async () => {
