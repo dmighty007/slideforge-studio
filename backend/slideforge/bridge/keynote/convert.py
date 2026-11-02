@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import bisect
 import io
+import math
 import re
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Optional
@@ -146,7 +147,13 @@ class _Converter:
                 element["fromMaster"] = True
                 elements.append(element)
         elements += self._drawables(slide, master=False)
+        self._builds(slide, elements)
+        for element in elements:
+            element.pop("source", None)
         result = {"hidden": hidden, "notes": self._notes(slide), "elements": elements}
+        transition = self._transition(slide)
+        if transition:
+            result["transition"] = transition
         background = self._background(slide, template)
         if background:
             result["background"] = background
@@ -214,7 +221,9 @@ class _Converter:
                 kind = PLACEHOLDER_KINDS.get(obj.message.kind)
                 if master or kind not in ("title", "body", "object") or (kind in visible and not visible[kind]):
                     continue
-            elements += self._drawable(obj, offset=(0.0, 0.0), depth=0)
+            for element in self._drawable(obj, offset=(0.0, 0.0), depth=0):
+                element.setdefault("source", identifier)  # what the slide's builds point at (a group: all of it)
+                elements.append(element)
         return elements
 
     # ---- drawables -------------------------------------------------------------------------------------------
@@ -226,13 +235,12 @@ class _Converter:
             element = self._text(message.super, offset, placeholder=kind)
             return [element] if element else []
         if obj.name == "TSWP.ShapeInfoArchive":
-            element = self._text(message, offset, placeholder=None)
-            if element is None:
-                self.skip("shapes")
-                return []
-            if not message.is_text_box:
-                self.skip("shape outlines and fills")  # the text is kept; the shape itself comes in phase 2b
-            return [element]
+            # The shape (its outline and fill: a bar, a rule, a box behind a caption), then its words on top. Text
+            # boxes are usually neither filled nor outlined, and come in as text only.
+            return [element for element in (self._shape(message.super, offset), self._text(message, offset, placeholder=None)) if element]
+        if obj.name in ("TSD.ShapeArchive", "TSD.ConnectionLineArchive"):
+            element = self._shape(message if obj.name == "TSD.ShapeArchive" else message.super, offset)
+            return [element] if element else []
         if obj.name == "TSD.ImageArchive":
             element = self._picture(message, offset)
             return [element] if element else []
@@ -528,6 +536,258 @@ class _Converter:
             "autoplay": bool(movie.autoPlay),
         }
 
+    # ---- shapes ----------------------------------------------------------------------------------------------
+
+    def _shape(self, shape, offset) -> Optional[dict[str, Any]]:
+        """A shape or line as an outline (SVG path data in the box's points) with its fill, stroke and line ends.
+
+        None when it draws nothing (no fill and no stroke: most text boxes)."""
+        box = self._geometry(shape.super, offset)
+        props = self._shape_properties(shape)
+        fill = self._fill(props.get("fill"))
+        stroke = _stroke(props.get("stroke"))
+        if fill is None and stroke is None:
+            return None
+        path = _path_data(shape.pathsource, box["width"], box["height"]) if _has(shape, "pathsource") else None
+        if not path:
+            self.skip("shapes")
+            return None
+        element: dict[str, Any] = {"kind": "shape", **box, "path": path, "fill": fill, "stroke": stroke}
+        opacity = props.get("opacity")
+        if opacity is not None and 0 <= opacity < 1:
+            element["opacity"] = round(opacity, 3)
+        if stroke is not None:
+            for name, key in (("head_line_end", "headEnd"), ("tail_line_end", "tailEnd")):
+                end = getattr(shape, name) if _has(shape, name) else props.get(name)
+                kind = _line_end(end)
+                if kind:
+                    element[key] = kind
+        return element
+
+    def _shape_properties(self, shape) -> dict[str, Any]:
+        """Fill, stroke, opacity and line ends from the shape's style chain (nearest style first)."""
+        props: dict[str, Any] = {}
+        for style in self._style_chain(shape.style if _has(shape, "style") else None):
+            if style.DESCRIPTOR.full_name == "TSWP.ShapeStyleArchive":
+                style = style.super  # TSD.ShapeStyleArchive
+            if style.DESCRIPTOR.full_name != "TSD.ShapeStyleArchive" or not _has(style, "shape_properties"):
+                continue
+            for descriptor, value in style.shape_properties.ListFields():
+                props.setdefault(descriptor.name, value)
+        return props
+
+    def _fill(self, fill) -> Optional[dict[str, Any]]:
+        if fill is None:
+            return None
+        if _has(fill, "color"):
+            color = _rgba(fill.color)
+            return {"color": color} if color else None
+        if _has(fill, "gradient") and fill.gradient.stops:
+            gradient = fill.gradient
+            stops = [{"pos": round(max(0.0, min(1.0, stop.fraction)) * 100, 2), "color": _rgba(stop.color, gradient.opacity if _has(gradient, "opacity") else 1.0)} for stop in gradient.stops]
+            angle = 0.0
+            if _has(gradient, "anglegradient"):
+                angle = -gradient.anglegradient.gradientangle  # Keynote turns anticlockwise, SVG clockwise
+            elif _has(gradient, "transformgradient"):
+                t = gradient.transformgradient
+                angle = math.degrees(math.atan2(t.end.y - t.start.y, t.end.x - t.start.x))
+            return {"gradient": {"radial": gradient.type == 1, "angle": round(angle, 2), "stops": stops}}
+        if _has(fill, "image"):
+            self.skip("shapes filled with a picture (left unfilled)")
+        return None
+
+    def _transition(self, slide) -> Optional[dict[str, Any]]:
+        """The slide's transition effect ("apple:dissolve"), from the slide or its style; None for no effect."""
+        attributes = slide.transition.attributes if _has(slide, "transition") and _has(slide.transition, "attributes") else self._slide_property(slide, "transition")
+        animation = attributes.animationAttributes if attributes is not None and _has(attributes, "animationAttributes") else None
+        effect = animation.effect if animation is not None else ""
+        if not effect or effect == "none":
+            return None
+        return {"effect": effect, "duration": round(animation.duration, 3) if animation.duration else 1.0, "direction": animation.direction}
+
+    def _builds(self, slide, elements: list[dict[str, Any]]) -> None:
+        """Keynote's builds as entrances on the elements made from their objects, in the slide's build order: one
+        click per chunk that waits for a click, automatic chunks with the click before them (or when the slide
+        opens). Starting or stopping a movie is what clicking it does here, and exits are left out (counted)."""
+        chunks = list(slide.buildChunkArchives) + [chunk for chunk in (self.pkg.message(ref, "KN.BuildChunkArchive") for ref in slide.buildChunks) if chunk is not None]
+        click = 0
+        for chunk in chunks:
+            build = self.pkg.message(chunk.build, "KN.BuildArchive")
+            if build is None:
+                continue
+            if not chunk.automatic:
+                click += 1
+            animation = build.attributes.animationAttributes if _has(build, "attributes") else None
+            effect = animation.effect if animation is not None else ""
+            if effect in ("apple:movie-start", "apple:movie-stop", "apple:audio-start", "apple:audio-stop"):
+                continue
+            targets = [element for element in elements if element.get("source") == build.drawable.identifier]
+            if not targets:
+                continue
+            kind = animation.animation_type if animation is not None else "In"
+            if kind != "In":
+                self.skip("builds out" if kind == "Out" else "action builds")
+                continue
+            for element in targets:
+                element.setdefault("build", {"effect": effect, "order": click, "delay": round(chunk.delay, 3), "duration": round(chunk.duration or build.duration or 1.0, 3), "direction": animation.direction if animation is not None else 0})
+
+
+def _rgba(color, alpha: float = 1.0) -> Optional[str]:
+    hex_color = _color(color)
+    if hex_color is None:
+        return None
+    a = (color.a if _has(color, "a") else 1.0) * alpha
+    if a >= 0.999:
+        return hex_color
+    value = int(hex_color[1:], 16)
+    return f"rgba({value >> 16 & 255}, {value >> 8 & 255}, {value & 255}, {round(max(0.0, a), 3)})"
+
+
+def _stroke(stroke) -> Optional[dict[str, Any]]:
+    """An outline: colour, width, dashes, caps. None for no outline (Keynote's empty stroke pattern)."""
+    if stroke is None or not _has(stroke, "color"):
+        return None
+    pattern = stroke.pattern if _has(stroke, "pattern") else None
+    if pattern is not None and pattern.type == 2:  # TSDEmptyPattern
+        return None
+    width = stroke.width if _has(stroke, "width") else 1.0
+    if width <= 0:
+        return None
+    result: dict[str, Any] = {"color": _rgba(stroke.color), "width": round(width, 3)}
+    if pattern is not None and pattern.type == 0 and pattern.count:
+        dashes = [round(value * width, 3) for value in list(pattern.pattern)[: pattern.count] if value >= 0]
+        if any(dashes):
+            result["dash"] = dashes
+    result["cap"] = {0: "butt", 1: "round", 2: "square"}.get(stroke.cap, "butt") if _has(stroke, "cap") else "butt"
+    result["join"] = {0: "miter", 1: "round", 2: "bevel"}.get(stroke.join, "miter") if _has(stroke, "join") else "miter"
+    return result
+
+
+# Keynote's line ends (their identifiers) as the ends SlideForge draws.
+LINE_ENDS = {
+    "simple arrow": "arrow", "open arrow": "arrow", "filled arrow": "triangle", "inverted arrow": "triangle",
+    "filled circle": "circle", "open circle": "open-circle", "filled square": "square", "open square": "open-square",
+    "filled diamond": "diamond", "open diamond": "open-diamond", "line": "bar",
+}
+
+
+def _line_end(end) -> Optional[str]:
+    identifier = (end.identifier if end is not None and _has(end, "identifier") else "").strip().lower()
+    if not identifier or identifier == "none":
+        return None
+    return LINE_ENDS.get(identifier) or ("arrow" if "arrow" in identifier else "circle" if "circle" in identifier else "triangle")
+
+
+def _fmt(value: float) -> str:
+    return f"{value:.2f}".rstrip("0").rstrip(".") if value else "0"
+
+
+def _path_data(source, width: float, height: float) -> Optional[str]:
+    """SVG path data for a shape's outline, scaled from its natural size to its box (points), flips applied."""
+    commands: list[tuple[str, list[tuple[float, float]]]] = []
+    natural = None
+    if _has(source, "bezier_path_source") or _has(source, "connection_line_path_source"):
+        bezier = source.bezier_path_source if _has(source, "bezier_path_source") else source.connection_line_path_source.super
+        natural = bezier.naturalSize
+        letters = {1: "M", 2: "L", 3: "Q", 4: "C", 5: "Z"}
+        for element in bezier.path.elements:
+            letter = letters.get(element.type)
+            if letter:
+                commands.append((letter, [(point.x, point.y) for point in element.points]))
+    elif _has(source, "editable_bezier_path_source"):
+        editable = source.editable_bezier_path_source
+        natural = editable.naturalSize
+        for subpath in editable.subpaths:
+            nodes = list(subpath.nodes)
+            if not nodes:
+                continue
+            point = lambda p: (p.x, p.y)  # noqa: E731
+            commands.append(("M", [point(nodes[0].nodePoint)]))
+            pairs = list(zip(nodes, nodes[1:])) + ([(nodes[-1], nodes[0])] if subpath.closed else [])
+            for before, after in pairs:
+                commands.append(("C", [point(before.outControlPoint), point(after.inControlPoint), point(after.nodePoint)]))
+            if subpath.closed:
+                commands.append(("Z", []))
+    elif _has(source, "scalar_path_source"):
+        scalar = source.scalar_path_source
+        natural = scalar.naturalSize
+        commands = _scalar_path(scalar.type, scalar.scalar, natural.width, natural.height)
+    elif _has(source, "point_path_source"):
+        point_source = source.point_path_source
+        natural = point_source.naturalSize
+        commands = _point_path(point_source.type, point_source.point.x, point_source.point.y, natural.width, natural.height)
+    if not commands or natural is None:
+        return None
+    sx = width / natural.width if natural.width > 0 else 1.0
+    sy = height / natural.height if natural.height > 0 else 1.0
+    flip_x = bool(source.horizontalFlip)
+    flip_y = bool(source.verticalFlip)
+    parts = []
+    for letter, points in commands:
+        coords = []
+        for x, y in points:
+            x, y = x * sx, y * sy
+            coords.append(f"{_fmt(width - x if flip_x else x)} {_fmt(height - y if flip_y else y)}")
+        parts.append(" ".join([letter, *coords]))
+    if parts and parts[-1].startswith("M"):
+        parts.pop()  # Keynote ends closed outlines with a move, which draws nothing
+    return " ".join(parts) if any(p[0] in "LCQ" for p in parts) else None
+
+
+def _scalar_path(kind: int, scalar: float, w: float, h: float) -> list[tuple[str, list[tuple[float, float]]]]:
+    """Rounded rectangles (scalar: corner radius), regular polygons (scalar: sides) and chevrons (scalar: notch)."""
+    if w <= 0 or h <= 0:
+        return []
+    if kind == 0:  # rounded rectangle
+        r = max(0.0, min(scalar, w / 2, h / 2))
+        k = r * 0.5523  # a quarter circle as a cubic curve
+        return [
+            ("M", [(r, 0)]), ("L", [(w - r, 0)]), ("C", [(w - r + k, 0), (w, r - k), (w, r)]),
+            ("L", [(w, h - r)]), ("C", [(w, h - r + k), (w - r + k, h), (w - r, h)]),
+            ("L", [(r, h)]), ("C", [(r - k, h), (0, h - r + k), (0, h - r)]),
+            ("L", [(0, r)]), ("C", [(0, r - k), (r - k, 0), (r, 0)]), ("Z", []),
+        ]
+    if kind == 1:  # regular polygon, a point at the top
+        sides = max(3, min(64, round(scalar) or 5))
+        points = [(w / 2 + w / 2 * math.sin(2 * math.pi * i / sides), h / 2 - h / 2 * math.cos(2 * math.pi * i / sides)) for i in range(sides)]
+        return [("M", [points[0]]), *[("L", [p]) for p in points[1:]], ("Z", [])]
+    if kind == 2:  # chevron pointing right
+        notch = max(0.0, min(scalar, w / 2))
+        return [("M", [(0, 0)]), ("L", [(w - notch, 0)]), ("L", [(w, h / 2)]), ("L", [(w - notch, h)]), ("L", [(0, h)]), ("L", [(notch, h / 2)]), ("Z", [])]
+    return []
+
+
+def _point_path(kind: int, px: float, py: float, w: float, h: float) -> list[tuple[str, list[tuple[float, float]]]]:
+    """Arrows (point: where the head starts along the length, and the shaft's half-thickness as a fraction of the
+    half-height), stars (point: number of points, inner radius as a fraction) and plus signs."""
+    if w <= 0 or h <= 0:
+        return []
+    poly = lambda points: [("M", [points[0]]), *[("L", [p]) for p in points[1:]], ("Z", [])]  # noqa: E731
+    if kind in (0, 1, 2):  # left, right, double arrow
+        head = max(0.0, min(w - px if px <= w else w / 2, w / (2 if kind == 2 else 1)))
+        shaft = h / 2 * max(0.05, min(1.0, py)) if py <= 1 else max(1.0, min(h / 2, h / 2 - py))
+        top, bottom = h / 2 - shaft, h / 2 + shaft
+        right = [(0, top), (w - head, top), (w - head, 0), (w, h / 2), (w - head, h), (w - head, bottom), (0, bottom)]
+        if kind == 1:
+            return poly(right)
+        if kind == 0:
+            return poly([(w - x, y) for x, y in right])
+        return poly([(0, h / 2), (head, 0), (head, top), (w - head, top), (w - head, 0), (w, h / 2), (w - head, h), (w - head, bottom), (head, bottom), (head, h)])
+    if kind == 3:  # star
+        count = max(3, min(64, round(px) or 5))
+        inner = max(0.05, min(1.0, py or 0.5))
+        points = []
+        for i in range(count * 2):
+            radius = 1.0 if i % 2 == 0 else inner
+            angle = math.pi * i / count
+            points.append((w / 2 + w / 2 * radius * math.sin(angle), h / 2 - h / 2 * radius * math.cos(angle)))
+        return poly(points)
+    if kind == 4:  # plus
+        arm = max(0.05, min(1.0, px if px <= 1 else px / max(w, 1))) * min(w, h) / 2
+        cx, cy = w / 2, h / 2
+        return poly([(cx - arm, 0), (cx + arm, 0), (cx + arm, cy - arm), (w, cy - arm), (w, cy + arm), (cx + arm, cy + arm), (cx + arm, h), (cx - arm, h), (cx - arm, cy + arm), (0, cy + arm), (0, cy - arm), (cx - arm, cy - arm)])
+    return []
+
 
 def _is_rectangle(mask) -> bool:
     if not _has(mask, "pathsource") or not _has(mask.pathsource, "bezier_path_source"):
@@ -541,8 +801,6 @@ def _is_rectangle(mask) -> bool:
 
 
 _SKIPPED_NAMES = {
-    "TSD.ShapeArchive": "shapes",
-    "TSD.ConnectionLineArchive": "lines",
     "TST.TableInfoArchive": "tables",
     "TSCH.ChartDrawableArchive": "charts",
     "TSD.GroupArchive": "groups nested too deep",

@@ -338,12 +338,85 @@ class KeynoteReaderTests(SimpleTestCase):
 
     def test_unknown_objects_and_missing_pictures_are_counted(self):
         d = Deck()
-        shape_id, shape = d.k.new("TSD.ShapeArchive")
-        _geometry(shape.super, 0, 0, 10, 10)
+        chart_id, chart = d.k.new("TSCH.ChartDrawableArchive")
         missing = d.picture(999_999, 0, 0, 10, 10)
-        deck = read_keynote(d.build([d.node(d.slide([shape_id, missing]))]))
+        deck = read_keynote(d.build([d.node(d.slide([chart_id, missing]))]))
         self.assertEqual(deck.slides[0]["elements"], [])
-        self.assertEqual(deck.skipped, {"shapes": 1, "pictures that could not be found": 1})
+        self.assertEqual(deck.skipped, {"charts": 1, "pictures that could not be found": 1})
+
+    def _shape(self, d, x, y, w, h, path, *, fill=None, stroke=None, dashes=None, empty_stroke=False, head=None, text=None):
+        """A Keynote shape: a Bezier outline (path: [(type, [(x, y), ...]), ...] in its natural size) and a style."""
+        style_id, style = d.k.new("TSWP.ShapeStyleArchive")
+        props = style.super.shape_properties
+        if fill:
+            _color(props.fill.color, fill)
+        else:
+            props.fill.SetInParent()
+        if stroke or empty_stroke:
+            _color(props.stroke.color, stroke or "#000000")
+            props.stroke.width = 2.0
+            props.stroke.pattern.type = 2 if empty_stroke else (0 if dashes else 1)
+            if dashes:
+                props.stroke.pattern.count = len(dashes)
+                props.stroke.pattern.pattern.extend(dashes)
+        sid, info = d.k.new("TSWP.ShapeInfoArchive", is_text_box=False)
+        shape = info.super
+        _geometry(shape.super, x, y, w, h)
+        shape.style.identifier = style_id
+        bezier = shape.pathsource.bezier_path_source
+        bezier.naturalSize.width, bezier.naturalSize.height = w / 2, h / 2  # scaled up to the box
+        for kind, points in path:
+            element = bezier.path.elements.add(type=kind)
+            for px, py in points:
+                element.points.add(x=px, y=py)
+        if head:
+            shape.head_line_end.identifier = head
+        if text:
+            info.owned_storage.identifier = d.storage(text)
+        return sid
+
+    def test_shapes_come_in_as_outlines_with_fill_and_stroke(self):
+        d = Deck()
+        square = [(1, [(0, 0)]), (2, [(50, 0)]), (2, [(50, 25)]), (2, [(0, 25)]), (5, []), (1, [(0, 0)])]
+        bar = self._shape(d, 10, 20, 100, 50, square, fill="#ff8800", text="Caption")
+        rule = self._shape(d, 0, 300, 200, 0, [(1, [(0, 0)]), (2, [(100, 0)])], stroke="#112233", dashes=[2, 1], head="open circle")
+        invisible = self._shape(d, 0, 0, 10, 10, square, empty_stroke=True)
+        deck = read_keynote(d.build([d.node(d.slide([bar, rule, invisible]))]))
+        shape, caption, line = deck.slides[0]["elements"]
+        self.assertEqual((shape["kind"], shape["x"], shape["y"], shape["fill"]), ("shape", 10, 20, {"color": "#ff8800"}))
+        self.assertEqual(shape["path"], "M 0 0 L 100 0 L 100 50 L 0 50 Z")  # scaled to the box; the trailing move dropped
+        self.assertIsNone(shape["stroke"])
+        self.assertEqual((caption["kind"], caption["paragraphs"][0]["runs"][0]["text"]), ("text", "Caption"))
+        self.assertEqual(line["path"], "M 0 0 L 200 0")  # no height: not scaled vertically
+        self.assertEqual(line["stroke"]["color"], "#112233")
+        self.assertEqual(line["stroke"]["dash"], [4.0, 2.0])  # in line widths
+        self.assertEqual(line["headEnd"], "open-circle")
+        self.assertEqual(deck.skipped, {})
+
+    def test_transitions_and_builds_are_read(self):
+        d = Deck()
+        box = d.text_box(d.storage("Builds in"), 0, 0, 100, 50)
+        slide_id = d.slide([box])
+        slide = d.k.objects[slide_id][1]
+        animation = slide.transition.attributes.animationAttributes
+        animation.animation_type, animation.effect, animation.duration, animation.direction = "Transition", "apple:push", 1.5, 11
+        build_id, build = d.k.new("KN.BuildArchive", delivery="All at Once", duration=0.5)
+        build.drawable.identifier = box
+        build.attributes.animationAttributes.animation_type = "In"
+        build.attributes.animationAttributes.effect = "apple:dissolve"
+        slide.builds.add(identifier=build_id)
+        chunk = slide.buildChunkArchives.add(index=0, delay=0.25, duration=0.5, automatic=False)
+        chunk.build.identifier = build_id
+        out_id, out = d.k.new("KN.BuildArchive", delivery="All at Once")
+        out.drawable.identifier = box
+        out.attributes.animationAttributes.animation_type = "Out"
+        out.attributes.animationAttributes.effect = "apple:dissolve"
+        slide.buildChunkArchives.add(index=0, automatic=False).build.identifier = out_id
+        deck = read_keynote(d.build([d.node(slide_id)]))
+        result = deck.slides[0]
+        self.assertEqual(result["transition"], {"effect": "apple:push", "duration": 1.5, "direction": 11})
+        self.assertEqual(result["elements"][0]["build"], {"effect": "apple:dissolve", "order": 1, "delay": 0.25, "duration": 0.5, "direction": 0})
+        self.assertEqual(deck.skipped, {"builds out": 1})
 
     def test_group_children_inside_the_group_are_offset(self):
         d = Deck()

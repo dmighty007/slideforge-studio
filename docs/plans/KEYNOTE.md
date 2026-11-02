@@ -131,6 +131,19 @@ Steps 1 and 2a can ship separately; 2a alone already beats having nothing on Lin
 - Counted and left out, listed in the message after the import: shapes, lines, tables, charts, unreadable parts.
   Cropped pictures come in whole.
 
+## Step 2b/2c, in part: shapes, transitions, builds (2 November 2026)
+
+- Shapes and lines (`TSWP.ShapeInfoArchive`, `TSD.ShapeArchive`, `TSD.ConnectionLineArchive`): their outline as SVG
+  path data (Bezier, editable Bezier, rounded rectangle, polygon, chevron, arrows, star, plus), fill (colour or
+  gradient), stroke (colour, width, dashes; Keynote's empty pattern is no stroke), opacity and line ends, from the
+  style chain. The browser draws each as a picture, as PowerPoint freeforms; a master's shapes are locked behind
+  the slide. Shapes that draw nothing (no fill, no stroke) are not counted as lost.
+- Transitions: the slide's effect ("apple:push"), mapped by name to the nearest SlideForge transition.
+- Builds in: an entrance on the element made from the build's object, on its click; outs and actions are counted
+  in skipped; movie start/stop builds are what clicking the movie does.
+- Text boxes keep their vertical alignment; a box shorter than its text grows the way it is aligned.
+- Still left out: tables, audio (SlideForge has no audio element), charts, shapes filled with a picture.
+
 ## Assumptions to check against real Keynote files
 
 Checked with one real file (a 36-slide, 23.6 MB photo deck from Keynote 14, single-file format, 90 pictures):

@@ -75,6 +75,13 @@ function _keynoteTextElement(el, scale, zIndex) {
         ? filled.map(p => ({ html: _keynoteRunsHtml(p.runs, box, scale), level: Math.min(4, p.level || 0) }))
         : paragraphs.map(p => _keynoteRunsHtml(p.runs, box, scale)).join("<br>");
     const b = _keynoteBox(el, scale);
+    // A box shorter than its words grows the way its alignment points: a bottom-aligned title in a 1 pt box sits
+    // on that box's bottom edge in Keynote, and came in hanging down over the text below it.
+    const needed = Math.round(paragraphs.reduce((sum, p) => sum + Math.max(...p.runs.map(run => Number(run.size) || 0), sizePt || 24) * 1.2, 0) * scale);
+    if (needed > b.h && (el.verticalAlign === "bottom" || el.verticalAlign === "middle")) {
+        b.y -= el.verticalAlign === "bottom" ? needed - b.h : Math.round((needed - b.h) / 2);
+        b.h = needed;
+    }
     const element = {
         id: generateId("el"),
         type: "text",
@@ -84,8 +91,7 @@ function _keynoteTextElement(el, scale, zIndex) {
         height: `${Math.max(24, b.h)}px`,
         content,
         autoHeight: false,
-        // "Shrink text to fit" in Keynote. Its vertical alignment (top, middle, bottom) has no equivalent in
-        // SlideForge text boxes yet: the text starts at the top.
+        // "Shrink text to fit" in Keynote.
         textFitMode: el.shrinkToFit ? "autofit" : "fixed",
         ...(isList ? { bulletStyle: "default" } : {}),
         ...(b.rot ? { rotation: b.rot } : {}),
@@ -96,6 +102,8 @@ function _keynoteTextElement(el, scale, zIndex) {
             fontFamily: box.font ? _pptxFontStack(box.font) : KEYNOTE_DEFAULT_FONT,
             fontWeight: box.bold ? "700" : "400",
             textAlign: filled[0]?.align || "left",
+            // Keynote's vertical alignment (titles are often at the bottom of their box): it started at the top.
+            ...(el.verticalAlign === "middle" || el.verticalAlign === "bottom" ? { "--pptx-text-anchor": el.verticalAlign === "middle" ? "center" : "end" } : {}),
             zIndex,
         },
     };
@@ -120,6 +128,94 @@ function _keynotePictureElement(el, scale, zIndex) {
         heightSetManually: true,
         ...(b.rot ? { rotation: b.rot } : {}),
         styles: { zIndex, borderRadius: "0px" },
+    };
+}
+
+// Keynote's line ends, drawn at the end of the line as SVG markers (in line widths).
+const KEYNOTE_LINE_ENDS = {
+    arrow: '<path d="M 1 1 L 9 5 L 1 9" fill="none" stroke="context-stroke" stroke-width="1.6"/>',
+    triangle: '<path d="M 0 0 L 10 5 L 0 10 Z"/>',
+    circle: '<circle cx="5" cy="5" r="4"/>',
+    "open-circle": '<circle cx="5" cy="5" r="3.6" fill="none" stroke="context-stroke" stroke-width="1.2"/>',
+    square: '<rect x="1" y="1" width="8" height="8"/>',
+    "open-square": '<rect x="1.6" y="1.6" width="6.8" height="6.8" fill="none" stroke="context-stroke" stroke-width="1.2"/>',
+    diamond: '<path d="M 0 5 L 5 0 L 10 5 L 5 10 Z"/>',
+    "open-diamond": '<path d="M 0.8 5 L 5 0.8 L 9.2 5 L 5 9.2 Z" fill="none" stroke="context-stroke" stroke-width="1.2"/>',
+    bar: '<rect x="4.4" y="0" width="1.2" height="10"/>',
+};
+
+// A Keynote shape or line (its outline as SVG path data in points, with its fill, stroke and line ends) as a
+// picture of it, as PowerPoint freeforms come in. They were left out: bars, rules and boxes behind captions.
+function _keynoteShapeElement(el, scale, zIndex) {
+    if (!el.path) return null;
+    const stroke = el.stroke;
+    const fill = el.fill || {};
+    const strokeWidth = stroke ? Math.max(0.25, Number(stroke.width) || 1) : 0;
+    const pad = Math.ceil(strokeWidth * 4 + 2);
+    const w = Math.max(1, el.width);
+    const h = Math.max(1, el.height);
+    const gradient = fill.gradient?.stops?.length ? fill.gradient : null;
+    const stops = gradient ? gradient.stops.map(stop => `<stop offset="${Number(stop.pos) || 0}%" stop-color="${_pptxEscape(stop.color)}"/>`).join("") : "";
+    const gradientDef = gradient
+        ? gradient.radial
+            ? `<radialGradient id="g">${stops}</radialGradient>`
+            : `<linearGradient id="g" gradientTransform="rotate(${Number(gradient.angle) || 0} 0.5 0.5)">${stops}</linearGradient>`
+        : "";
+    const paint = gradient ? "url(#g)" : fill.color ? _pptxEscape(fill.color) : "none";
+    const strokeColor = stroke ? _pptxEscape(stroke.color || "#000000") : "none";
+    const marker = (id, kind, reverse) =>
+        KEYNOTE_LINE_ENDS[kind]
+            ? `<marker id="${id}" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="${reverse ? "auto-start-reverse" : "auto"}" fill="${strokeColor}" stroke="${strokeColor}">${KEYNOTE_LINE_ENDS[kind].replace(/context-stroke/g, strokeColor)}</marker>`
+            : "";
+    const defs = gradientDef + marker("s", el.headEnd, true) + marker("e", el.tailEnd, false);
+    const strokeAttrs = stroke
+        ? ` stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-linecap="${stroke.cap || "butt"}" stroke-linejoin="${stroke.join || "miter"}"${Array.isArray(stroke.dash) && stroke.dash.length ? ` stroke-dasharray="${stroke.dash.join(" ")}"` : ""}`
+        : ' stroke="none"';
+    const ends = `${KEYNOTE_LINE_ENDS[el.headEnd] ? ' marker-start="url(#s)"' : ""}${KEYNOTE_LINE_ENDS[el.tailEnd] ? ' marker-end="url(#e)"' : ""}`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${(w + pad * 2) * scale}" height="${(h + pad * 2) * scale}" viewBox="${-pad} ${-pad} ${w + pad * 2} ${h + pad * 2}"><defs>${defs}</defs><path d="${_pptxEscape(el.path)}" fill="${paint}"${strokeAttrs}${ends}${el.opacity != null && el.opacity < 1 ? ` opacity="${Number(el.opacity)}"` : ""}/></svg>`;
+    const b = _keynoteBox({ ...el, x: el.x - pad, y: el.y - pad, width: w + pad * 2, height: h + pad * 2 }, scale);
+    return {
+        id: generateId("el"),
+        type: "image",
+        content: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,
+        x: b.x,
+        y: b.y,
+        width: `${Math.max(1, b.w)}px`,
+        height: `${Math.max(1, b.h)}px`,
+        lockAspectRatio: false,
+        imageAspectRatio: b.w / Math.max(1, b.h),
+        cropTransform: { widthPercent: 100, heightPercent: 100, leftPercent: 0, topPercent: 0 },
+        heightSetManually: true,
+        importedDrawing: true,
+        ...(b.rot ? { rotation: b.rot } : {}),
+        styles: { zIndex, borderRadius: "0px" },
+    };
+}
+
+// Keynote's transitions as the nearest of SlideForge's (they all came in as none). By name, so newer effects find
+// their family; anything unrecognised fades.
+function _keynoteTransition(transition) {
+    const effect = String(transition?.effect || "").toLowerCase();
+    if (!effect || effect === "none") return "none";
+    if (/dissolve|fade|blur|shimmer|sparkle|confetti|mosaic|droplet|clothesline/.test(effect)) return /mosaic|confetti|shimmer|sparkle/.test(effect) ? "diffuse" : "fade";
+    if (/cube|revolve|flip|swing|swap|reflection|doorway|page|twist|twirl|perspective|object|switch|fall|flop/.test(effect)) return "convex";
+    if (/scale|zoom|grid|iris|anagram|magic/.test(effect)) return "zoom";
+    if (/push|move|wipe|reveal|slide|cover|drop|blinds|color-planes|pivot/.test(effect)) return "slide";
+    return "fade";
+}
+
+// A Keynote build in as a SlideForge entrance: its effect by name, on its click (0: when the slide opens).
+function _keynoteEntrance(build) {
+    const effect = String(build?.effect || "").toLowerCase();
+    const name = /wipe|reveal/.test(effect) ? "wipe-in" : /scale|zoom|pop|grow|bounce/.test(effect) ? "zoom-in" : /move|fly|push|slide|drop/.test(effect) ? "slide-up" : "fade-in";
+    const order = Math.max(0, Number(build.order) || 0);
+    return {
+        effect: name,
+        trigger: order ? "on-click" : "on-slide",
+        order,
+        durationMs: /appear/.test(effect) ? 100 : Math.max(100, Math.round((Number(build.duration) || 1) * 1000)),
+        delayMs: Math.max(0, Math.round((Number(build.delay) || 0) * 1000)),
+        easing: "ease-out",
     };
 }
 
@@ -223,9 +319,20 @@ async function importKeynote(file) {
 
         busy.update({ detail: `Drawing ${deck.slides.length} slides…`, progress: 0.95 });
         await sfBusyPaint();
-        const makers = { text: _keynoteTextElement, image: _keynotePictureElement, video: _keynoteVideoElement };
+        const makers = { text: _keynoteTextElement, image: _keynotePictureElement, video: _keynoteVideoElement, shape: _keynoteShapeElement };
         const slides = deck.slides.map(source => {
-            const elements = (source.elements || []).map((el, index) => makers[el.kind]?.(el, scale, index + 1)).filter(Boolean);
+            const elements = (source.elements || [])
+                .map((el, index) => {
+                    const made = makers[el.kind]?.(el, scale, index + 1);
+                    if (made && el.build) made.animation = _keynoteEntrance(el.build);
+                    if (made && el.fromMaster && el.kind === "shape") {
+                        // A master's bars and rules, as on a Keynote slide: behind the slide's objects, not selectable.
+                        made.locked = true;
+                        made.backgroundRole = "preset";
+                    }
+                    return made;
+                })
+                .filter(Boolean);
             const background = source.background || {};
             // The slide's own background, never an object on it: a full-slide rectangle took the drags meant for
             // the text boxes and pictures above it. A colour becomes a tiny picture of that colour (slide
@@ -237,7 +344,7 @@ async function importKeynote(file) {
                 layoutId: "blank",
                 masterId: "none",
                 notes: source.notes || "",
-                presentationTransition: "none",
+                presentationTransition: _keynoteTransition(source.transition),
                 ...(picture ? { background: { type: "image", content: picture, fit } } : {}),
                 ...(source.hidden ? { hidden: true } : {}), // skipped in Keynote: hidden when presenting here too
                 elements,
