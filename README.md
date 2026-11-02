@@ -7,7 +7,7 @@
 Charts you can edit, equations that look right, molecules you can turn, and plots that fit their own curves,
 all on one canvas, then out to PowerPoint or PDF.
 
-[Install](#install) · [What you can make](#what-you-can-make) · [Desktop app](docs/DESKTOP.md) · [Plugins](docs/PLUGINS.md) · [Develop](docs/DEVELOPMENT.md)
+[Install](#install) · [What you can make](#what-you-can-make) · [Bring your decks](#bring-your-decks) · [Desktop app](docs/DESKTOP.md) · [Plugins](docs/PLUGINS.md) · [Develop](docs/DEVELOPMENT.md)
 
 ![A deck made in SlideForge: a plasmid map, a heatmap of MICs, an enzyme-kinetics fit with its equation, and a mechanism diagram](docs/images/gallery.jpg)
 
@@ -22,8 +22,8 @@ rotate during your talk. Change a number and the figure follows.
 - **Free and on your computer.** Your decks stay in a folder on your machine. No account, no upload.
 - **Made for figures.** 26 built-in science tools, from survival curves to gels, so the figure is born on the slide
   instead of being pasted in from a screenshot.
-- **Fits the rest of your world.** Open PowerPoint files, export editable PowerPoint (charts stay charts), searchable
-  PDF, or a web page that plays offline.
+- **Fits the rest of your world.** Open PowerPoint and Keynote files, export editable PowerPoint (charts stay
+  charts), searchable PDF, or a web page that plays offline.
 
 ![The editor: a Kaplan–Meier survival plot on a slide, with the slide rail on the left and the toolbar above](docs/images/editor.jpg)
 
@@ -38,7 +38,7 @@ rotate during your talk. Change a number and the figure follows.
 | **Biology** | Plasmid maps, protein domains, sequences and sequence logos, phylogenetic trees, gels. |
 | **Statistics** | Box and violin plots with tests, curve fits (dose–response, Michaelis–Menten, decay) with their units, forest plots, Kaplan–Meier curves, volcano plots, heatmaps, Venn diagrams. |
 | **Diagrams** | Flowcharts you draw or type (Mermaid), shapes joined by arrows that follow them, and hand-drawn sketches. |
-| **Media** | Pictures you can crop, looping videos, PDF pages, web embeds. |
+| **Media** | Pictures you can crop, looping videos, sounds that play on a click or when the slide opens, PDF pages, web embeds. |
 | **References** | A citation from a DOI, a QR code to the paper, a scale bar for a micrograph. |
 
 <p align="center">
@@ -49,11 +49,20 @@ rotate during your talk. Change a number and the figure follows.
 ## Present it
 
 - Full-screen show with a presenter view, notes and a timer.
-- Bullets that appear one at a time, and diagrams that build in the order you choose.
+- Bullets that appear one at a time, diagrams that build in the order you choose, and animations from fades to motion
+  paths. Open [the animation showcase](docs/examples/animation-showcase.json) to see them all.
+- Slides you keep for questions can be hidden from the show, and sounds can play without showing a player.
 - A laser pointer, spotlight and chalkboard for the questions afterwards.
 - A view-only link to share the deck, which follows your later edits and can be switched off.
 
 ![The plugin menu: chemistry, biology and statistics tools, searchable](docs/images/plugins.jpg)
+
+## Bring your decks
+
+Open a PowerPoint (.pptx) or Keynote (.key) file and keep working on it. Text keeps its fonts, sizes, spacing and
+bullets; pictures keep their crops; and the template's logos and bars, shapes, transitions, builds, videos and
+sounds come along, with PowerPoint's SmartArt diagrams, tables and charts too. When a deck uses a font this
+computer doesn't have, SlideForge offers to download it from Google Fonts, so lines break where the author's did.
 
 ## Install
 
@@ -70,14 +79,25 @@ irm https://raw.githubusercontent.com/dmighty007/slideforge-studio/main/install.
 ```
 
 That's all: SlideForge appears in your applications menu and as an icon on your desktop. No administrator rights,
-no Python to set up first. It installs the latest version from this repository; run the same line again to update.
-Add `--uninstall` (`... | sh -s -- --uninstall`) to remove it. Your presentations stay on your computer either way.
+no Python to set up first. It installs the latest version from this repository. When a newer one comes out,
+SlideForge says so and updates itself (or run the same line again). Add `--uninstall` (`... | sh -s -- --uninstall`)
+to remove it. Your presentations stay on your computer either way.
 
 Prefer pip? `pip install "slideforge-studio[qt]"` (drop `[qt]` on Windows) installs the latest release
 from PyPI, then `slideforge`, and `slideforge --install-shortcut` for the icons. More in
 [docs/DESKTOP.md](docs/DESKTOP.md).
 
 To run it from this repository instead, or to help build it, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+
+## New in 0.4
+
+- **Sound on slides:** a small player, or none at all, for narration and music; imported from PowerPoint and Keynote,
+  exported to PowerPoint.
+- **Better imports:** PowerPoint SmartArt, template artwork, transitions and video; Keynote shapes, transitions,
+  builds and lists; fonts downloaded from Google Fonts when missing.
+- **Updates from inside the app**, and hidden slides.
+- **Faster and safer with big decks:** editing a 200-slide deck is several times faster, saving never drops slides,
+  and reloading keeps the deck you were working on.
 
 ## Extend it
 
