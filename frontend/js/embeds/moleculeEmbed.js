@@ -966,6 +966,15 @@ window.addEventListener("message", async event => {
 window.addEventListener("message", event => {
   if (event.data?.type === "pptmaker:molecule:reset-view") resetView();
 });
+// Keys pressed after the molecule was dragged land in this frame, not on the slideshow: Escape did not end the
+// presentation. The slideshow's keys go to the page (init.js), which acts on them only while presenting. Keys typed
+// on the trajectory controls stay there, except Escape.
+window.addEventListener("keydown", event => {
+  const onControl = ["INPUT", "SELECT", "BUTTON", "TEXTAREA"].includes(event.target?.tagName || "");
+  if (event.key !== "Escape" && onControl) return;
+  const { key, ctrlKey, metaKey, shiftKey, altKey } = event;
+  window.parent.postMessage({ type: "pptmaker:molecule:keydown", key, ctrlKey, metaKey, shiftKey, altKey }, "*");
+});
 window.addEventListener("message", event => {
   const message = event.data || {};
   if (message.type !== "pptmaker:molecule:render-scale") return;
