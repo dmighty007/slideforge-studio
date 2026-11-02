@@ -7,7 +7,7 @@
 The free desktop presentation app for researchers, teachers and students.
 Build charts, equations and molecular views directly on your slides, then present or export to PowerPoint and PDF.
 
-[**Install SlideForge**](#install) · [See what you can make](#what-you-can-make) · [Desktop guide](docs/DESKTOP.md)
+[**Install SlideForge**](#install) · [Documentation](https://dmighty007.github.io/slideforge-studio/) · [Live showcase](https://dmighty007.github.io/slideforge-studio/showcase/) · [Desktop guide](docs/DESKTOP.md)
 
 Free & open source · Local deck storage · Linux, macOS & Windows
 
@@ -30,6 +30,9 @@ Keep the figure and the story together as your slides take shape.
 ## What you can make
 
 ![Four slides from one research story, all made in SlideForge: a plasmid map, an MIC heatmap, an enzyme-kinetics curve fit with its equation, and a mechanism diagram](docs/images/readme-gallery.webp)
+
+**See it play:** the [showcase](https://dmighty007.github.io/slideforge-studio/showcase/) has two decks made in
+SlideForge that run in your browser through its web export, with charts, fits, plugins and a protein you can turn.
 
 **Start with your data.** Paste spreadsheet values for a chart, enter an equation, or load a molecular structure.
 Then arrange your slide and present it.
