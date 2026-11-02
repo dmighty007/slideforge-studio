@@ -279,8 +279,8 @@ class _Converter:
         relative = True
         if boxes:
             union = (min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes))
-            inside = sum(abs(u - f) for u, f in zip(union, (0, 0, frame["width"], frame["height"])))
-            on_slide = sum(abs(u - f) for u, f in zip(union, (frame["x"] - offset[0], frame["y"] - offset[1], frame["x"] - offset[0] + frame["width"], frame["y"] - offset[1] + frame["height"])))
+            inside = sum(abs(u - f) for u, f in zip(union, (0, 0, frame["width"], frame["height"]), strict=True))
+            on_slide = sum(abs(u - f) for u, f in zip(union, (frame["x"] - offset[0], frame["y"] - offset[1], frame["x"] - offset[0] + frame["width"], frame["y"] - offset[1] + frame["height"]), strict=True))
             relative = inside <= on_slide
         inner = (frame["x"], frame["y"]) if relative else offset
         elements = []
@@ -851,7 +851,7 @@ def _path_data(source, width: float, height: float) -> Optional[str]:
                 continue
             point = lambda p: (p.x, p.y)  # noqa: E731
             commands.append(("M", [point(nodes[0].nodePoint)]))
-            pairs = list(zip(nodes, nodes[1:])) + ([(nodes[-1], nodes[0])] if subpath.closed else [])
+            pairs = list(zip(nodes, nodes[1:], strict=False)) + ([(nodes[-1], nodes[0])] if subpath.closed else [])
             for before, after in pairs:
                 commands.append(("C", [point(before.outControlPoint), point(after.inControlPoint), point(after.nodePoint)]))
             if subpath.closed:

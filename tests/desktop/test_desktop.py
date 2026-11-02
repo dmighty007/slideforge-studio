@@ -300,6 +300,11 @@ class WindowStorageTests(TestCase):
     """The window's cookies and localStorage live in <data dir>/webview, not in a profile shared by every window."""
 
     def test_the_qt_backend_uses_the_data_directory_for_its_profile(self):
+        import importlib.util
+
+        # The Qt window backend is the optional "qt" extra (PyQt or PySide through qtpy); CI installs only "dev".
+        if importlib.util.find_spec("qtpy") is None:
+            self.skipTest("the Qt backend (pip install slideforge-studio[qt]) is not installed")
         from webview.platforms import qt as pywebview_qt
 
         from slideforge.desktop import qt_support

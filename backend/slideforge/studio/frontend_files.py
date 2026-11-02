@@ -7,9 +7,13 @@ from django.http import HttpResponseNotModified
 from django.utils._os import safe_join
 from django.views.static import serve
 
+from slideforge import __version__
+
 
 def _file_tag(document_root, path):
-    """A validator for the file as it is now: its modification time to the nanosecond and its size."""
+    """A validator for the file as it is now: the app's version, its modification time to the nanosecond and its
+    size. The version too: an installed wheel dates every file the same, so a changed file of the same size would
+    keep its tag after an upgrade."""
     try:
         full = Path(safe_join(document_root, posixpath.normpath(path).lstrip("/")))
         stat = full.stat()
@@ -17,7 +21,7 @@ def _file_tag(document_root, path):
         return None
     if not full.is_file():
         return None
-    return f'"{stat.st_mtime_ns:x}-{stat.st_size:x}"'
+    return f'"{__version__}-{stat.st_mtime_ns:x}-{stat.st_size:x}"'
 
 
 def serve_frontend_file(request, path, document_root=None):
