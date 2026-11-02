@@ -55,6 +55,19 @@ const COMMANDS = [
     { id: "download-fonts", title: "Download Fonts for This Presentation…", icon: "fa-font", action: () => window.downloadPresentationFonts?.() },
     { id: "ai-cleanup", title: "Tidy Slide Layout", icon: "fa-wand-magic-sparkles", keywords: "ai clean up polish align grid", action: aiCleanUpSlide },
     { id: "present", title: "Toggle Presentation Mode", icon: "fa-play", action: togglePlayMode },
+    { id: "record-show", title: "Record Slide Show…", icon: "fa-circle-dot", keywords: "video screen recording narration rehearse", action: () => openShowRecorder() },
+    { id: "toggle-show-timer", title: "Show / Hide Presentation Timer", icon: "fa-stopwatch", keywords: "clock rehearse timing countdown", action: () => toggleShowTimerVisible() },
+    {
+        id: "talk-length",
+        title: "Set Talk Length…",
+        icon: "fa-hourglass-half",
+        keywords: "timer countdown minutes duration",
+        action: async () => {
+            const current = Number(state.showSettings?.targetMinutes) || "";
+            const value = await sfPrompt({ title: "Talk length", label: "Minutes (blank: the timer counts up)", value: String(current), okLabel: "Set" });
+            if (value !== null) setShowTargetMinutes(value);
+        },
+    },
     { id: "dark-mode", title: "Dark Mode / Light Mode (switch)", icon: "fa-moon", action: () => toggleAppTheme() },
     { id: "export-pdf", title: "Export to PDF", icon: "fa-file-pdf", action: exportPresentationPDF },
     {

@@ -113,6 +113,7 @@ window.onload = async () => {
             if (typeof _playSlideAnimations === "function") {
                 _playSlideAnimations(event.indexh);
             }
+            if (typeof showTimerOnSlideChange === "function") showTimerOnSlideChange(event.indexh);
         } else if (typeof centerSlide === "function") {
             // Editor-only recentering. In presentation mode this causes a visible
             // stage bump because the fullscreen wrapper is intentionally fixed.
@@ -200,6 +201,7 @@ window.onload = async () => {
     });
 
     initPresentationTools?.();
+    if (typeof initShowRecorder === "function") initShowRecorder();
     initInteract();
     initKeyboard();
     updateSlideCounter();

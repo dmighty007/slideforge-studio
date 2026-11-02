@@ -405,6 +405,119 @@ class QtPermissionTests(TestCase):
         handler(BrokenPage(), QUrl("http://127.0.0.1:8123"), feature.ClipboardReadWrite)  # logged, not raised
 
 
+class QtScreenCaptureTests(TestCase):
+    """Recording a slide show: the app's own pages may capture the screen, and getDisplayMedia() records the
+    editor's window (Qt shows no picker)."""
+
+    def test_screen_capture_is_granted_to_app_pages_only(self):
+        import unittest
+
+        from slideforge.desktop import qt_support
+
+        if not qt_support.available():
+            raise unittest.SkipTest("Qt WebEngine is not installed")
+        from qtpy.QtCore import QUrl
+        from qtpy.QtWebEngineCore import QWebEnginePage
+        from webview.platforms import qt as pywebview_qt
+
+        qt_support._app_port = 8123
+        qt_support._patch_permissions()
+        handler = pywebview_qt.BrowserView.WebPage.onFeaturePermissionRequested
+        answers = []
+
+        class Page:
+            def setFeaturePermission(self, url, feature, policy):
+                answers.append(policy)
+
+        feature = QWebEnginePage.Feature
+        policy = QWebEnginePage.PermissionPolicy
+        handler(Page(), QUrl("http://127.0.0.1:8123"), feature.DesktopVideoCapture)
+        handler(Page(), QUrl("http://127.0.0.1:8123"), feature.DesktopAudioVideoCapture)
+        handler(Page(), QUrl("https://example.com"), feature.DesktopVideoCapture)
+        self.assertEqual(
+            answers, [policy.PermissionGrantedByUser, policy.PermissionGrantedByUser, policy.PermissionDeniedByUser]
+        )
+
+    def test_screen_capture_is_switched_on_for_pages(self):
+        # Off by default in Qt WebEngine: getDisplayMedia() then failed with "Invalid state" whatever was granted.
+        import unittest
+
+        from slideforge.desktop import qt_support
+
+        if not qt_support.available():
+            raise unittest.SkipTest("Qt WebEngine is not installed")
+        from qtpy.QtWebEngineCore import QWebEngineSettings
+
+        switched_on = []
+
+        class Settings:
+            def setAttribute(self, attribute, value):
+                if value:
+                    switched_on.append(attribute)
+
+        class Page:
+            def settings(self):
+                return Settings()
+
+        qt_support._enable_features(Page())
+        self.assertIn(QWebEngineSettings.WebAttribute.ScreenCaptureEnabled, switched_on)
+
+    def test_the_editor_window_is_chosen_else_the_screen(self):
+        import unittest
+
+        from slideforge.desktop import qt_support
+
+        if not qt_support.available():
+            raise unittest.SkipTest("Qt WebEngine is not installed")
+        from qtpy.QtCore import QStringListModel
+
+        class Request:
+            def __init__(self, windows, screens=("Screen 1",)):
+                self._windows = QStringListModel(list(windows))
+                self._screens = QStringListModel(list(screens))
+                self.chosen = None
+
+            def windowsModel(self):
+                return self._windows
+
+            def screensModel(self):
+                return self._screens
+
+            def selectWindow(self, index):
+                self.chosen = ("window", index.data())
+
+            def selectScreen(self, index):
+                self.chosen = ("screen", index.data())
+
+            def cancel(self):
+                self.chosen = ("cancelled", None)
+
+        request = Request(["Presenter View", "Terminal", "SlideForge"])
+        qt_support._choose_desktop_source(request, "SlideForge")
+        self.assertEqual(request.chosen, ("window", "SlideForge"))
+
+        # A web browser showing SlideForge in a tab is not the app.
+        request = Request(["Notes", "My talk - SlideForge — Firefox"])
+        qt_support._choose_desktop_source(request, "SlideForge")
+        self.assertEqual(request.chosen, ("screen", "Screen 1"))
+
+        request = Request(["Notes"])
+        qt_support._choose_desktop_source(request, "SlideForge")
+        self.assertEqual(request.chosen, ("screen", "Screen 1"))
+
+        request = Request([], screens=())
+        qt_support._choose_desktop_source(request, "SlideForge")
+        self.assertEqual(request.chosen, ("cancelled", None))
+
+        class BrokenRequest(Request):
+            def windowsModel(self):
+                raise RuntimeError("boom")
+
+        broken = BrokenRequest([])
+        qt_support._choose_desktop_source(broken, "SlideForge")  # logged, not raised
+        self.assertEqual(broken.chosen, ("cancelled", None))
+
+
 class QtPopupNavigationTests(TestCase):
     """Opening a share link (an outside address) from the app closed its popup inside Qt's navigation callback;
     Qt WebEngine then aborted the whole app with SIGTRAP."""

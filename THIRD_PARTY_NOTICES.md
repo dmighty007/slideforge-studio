@@ -38,6 +38,7 @@ The Excalidraw build bundles further open-source modules; their notices are in `
 | chart.js | 4.5.1 | MIT | https://www.chartjs.org |
 | dompurify | 3.0.0 | (MPL-2.0 OR Apache-2.0) | https://github.com/cure53/DOMPurify |
 | file-saver | 2.0.5 | MIT | https://github.com/eligrey/FileSaver.js#readme |
+| fix-webm-duration (vendor/fix-webm-duration, gives the show recorder's WebM files their length) | 1.0.6 | MIT | https://github.com/yusitnikov/fix-webm-duration |
 | html2canvas | 1.4.1 | MIT | https://html2canvas.hertzen.com |
 | interactjs | 1.10.27 | MIT | https://interactjs.io |
 | jspdf | 2.5.1 | MIT | https://github.com/mrrio/jspdf |
@@ -3760,6 +3761,32 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 The WebAssembly build also contains Boost libraries (Boost Software License 1.0) and other third-party code
 used by RDKit; see https://github.com/rdkit/rdkit/blob/master/license.txt and the RDKit source distribution.
+```
+
+## fix-webm-duration 1.0.6
+
+```
+The MIT license
+
+Copyright (c) 2018 Yury Sitnikov
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 ```
 
 ## qrcode-generator 2.0.4

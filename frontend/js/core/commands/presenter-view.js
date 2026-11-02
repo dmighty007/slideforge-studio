@@ -41,6 +41,8 @@ function _syncPresenterPayload() {
         total: state.slides?.length || 0,
         notes: state.slides?.[currentSlideIndex]?.notes || "",
         elapsedMs: Math.max(0, Date.now() - (_presentationRuntimeState.presenterStartTs || Date.now())),
+        // The show timer and the recording (show-recorder.js): the presenter window shows the same clock.
+        ...(typeof showTimerPayload === "function" ? showTimerPayload() : {}),
         slideWidth: Number(slideConfig.width) || 1024,
         slideHeight: Number(slideConfig.height) || 768,
         // The theme's colours (slide background, text, accents): the presenter window has the app's stylesheets
@@ -49,11 +51,35 @@ function _syncPresenterPayload() {
         currentHtml: _presenterSectionHtml(currentSection),
         nextHtml: _presenterSectionHtml(nextSection),
     };
+    _postPresenterMessage(payload);
+}
+
+function _postPresenterMessage(payload) {
     if (_presentationRuntimeState.channel) {
         _presentationRuntimeState.channel.postMessage(payload);
-    } else {
-        localStorage.setItem(_PRESENTER_SYNC_STORAGE_KEY, JSON.stringify({ ...payload, stamp: Date.now() }));
+    } else if (_presentationRuntimeState.presenterBound) {
+        try {
+            localStorage.setItem(_PRESENTER_SYNC_STORAGE_KEY, JSON.stringify({ ...payload, stamp: Date.now() }));
+        } catch (_error) {
+            // storage full or blocked: the presenter window catches up with the next slide
+        }
     }
+}
+
+// A command from the presenter window (buttons and keys there).
+function _handlePresenterCommand(msg) {
+    if (msg.action === "next") presentationNextStep();
+    if (msg.action === "prev") presentationPrevStep();
+    if (msg.action === "jump") presentationGoToSlide(Number(msg.index) || 0);
+    if (msg.action === "ready") _syncPresenterPayload();
+    if (msg.action === "reset-timer") {
+        _presentationRuntimeState.presenterStartTs = Date.now();
+        if (typeof resetShowTimer === "function") resetShowTimer();
+        _syncPresenterPayload();
+    }
+    if (msg.action === "toggle-timer" && typeof toggleShowTimerRunning === "function") toggleShowTimerRunning();
+    if (msg.action === "toggle-recording" && typeof toggleShowRecordingPaused === "function") toggleShowRecordingPaused();
+    if (msg.action === "stop-recording" && typeof stopShowRecording === "function") stopShowRecording();
 }
 
 // A slide's markup for the presenter window. Canvases (charts) carry no pixels in markup, so each is sent as a
@@ -84,30 +110,13 @@ function _ensurePresenterMessaging() {
         _presentationRuntimeState.channel = new BroadcastChannel("slideforge-presenter");
         _presentationRuntimeState.channel.addEventListener("message", event => {
             const msg = event.data || {};
-            if (msg.type === "command") {
-                if (msg.action === "next") presentationNextStep();
-                if (msg.action === "prev") presentationPrevStep();
-                if (msg.action === "jump") presentationGoToSlide(Number(msg.index) || 0);
-                if (msg.action === "ready") _syncPresenterPayload();
-                if (msg.action === "reset-timer") {
-                    _presentationRuntimeState.presenterStartTs = Date.now();
-                    _syncPresenterPayload();
-                }
-            }
+            if (msg.type === "command") _handlePresenterCommand(msg);
         });
     }
     window.addEventListener("storage", event => {
         if (event.key !== _PRESENTER_COMMAND_STORAGE_KEY || !event.newValue) return;
         try {
-            const msg = JSON.parse(event.newValue);
-            if (msg.action === "next") presentationNextStep();
-            if (msg.action === "prev") presentationPrevStep();
-            if (msg.action === "jump") presentationGoToSlide(Number(msg.index) || 0);
-            if (msg.action === "ready") _syncPresenterPayload();
-            if (msg.action === "reset-timer") {
-                _presentationRuntimeState.presenterStartTs = Date.now();
-                _syncPresenterPayload();
-            }
+            _handlePresenterCommand(JSON.parse(event.newValue));
         } catch (_err) {
             return;
         }
@@ -148,6 +157,17 @@ html,body{margin:0 !important;height:100% !important;overflow:hidden !important;
 .presenter-controls button{cursor:pointer;font-weight:700}
 .presenter-controls button:hover{background:#22314f}
 .presenter-end{display:grid;place-items:center;height:100%;color:#64748b;font-size:14px}
+.presenter-clock{display:flex;gap:18px;align-items:flex-end}
+.presenter-clock .presenter-meta[data-phase="warn"]{color:#fbbf24}
+.presenter-clock .presenter-meta[data-phase="over"]{color:#f87171}
+.presenter-clock .is-paused{opacity:.55}
+.presenter-rec{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:rgba(239,68,68,.16);color:#fca5a5;font-size:13px;font-weight:800;letter-spacing:.04em}
+.presenter-rec::before{content:"";width:9px;height:9px;border-radius:50%;background:#ef4444}
+.presenter-rec[hidden]{display:none}
+.presenter-rec.is-paused{background:rgba(245,158,11,.16);color:#fcd34d}
+.presenter-rec.is-paused::before{background:#f59e0b}
+.presenter-controls.presenter-controls-wide{grid-template-columns:repeat(6,minmax(0,1fr))}
+.presenter-controls button[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -155,14 +175,20 @@ html,body{margin:0 !important;height:100% !important;overflow:hidden !important;
   <div class="presenter-main">
     <div class="presenter-head">
       <div><div class="presenter-title">Current Slide</div><div id="presenter-meta" class="presenter-meta">1 / 1</div></div>
-      <div><div class="presenter-title">Elapsed</div><div id="presenter-timer" class="presenter-meta">00:00</div></div>
+      <span id="presenter-rec" class="presenter-rec" hidden>REC</span>
+      <div class="presenter-clock">
+        <div><div id="presenter-timer-label" class="presenter-title">Elapsed</div><div id="presenter-timer" class="presenter-meta">00:00</div></div>
+        <div><div class="presenter-title">This slide</div><div id="presenter-slide-timer" class="presenter-meta">00:00</div></div>
+      </div>
     </div>
     <div class="presenter-card presenter-stage"><div id="presenter-current" class="presenter-slide-frame"></div></div>
-    <div class="presenter-controls">
+    <div class="presenter-controls presenter-controls-wide">
       <button data-action="prev" type="button">Previous</button>
       <button data-action="next" type="button">Next</button>
       <input id="presenter-jump" type="number" min="1" placeholder="Slide #" />
+      <button data-action="toggle-timer" id="presenter-timer-toggle" type="button">Pause Timer</button>
       <button data-action="reset-timer" type="button">Reset Timer</button>
+      <button data-action="toggle-recording" id="presenter-rec-toggle" type="button" hidden>Pause Recording</button>
     </div>
   </div>
   <aside class="presenter-side">
@@ -197,10 +223,53 @@ const nextEl = document.getElementById("presenter-next");
 const notesEl = document.getElementById("presenter-notes");
 const metaEl = document.getElementById("presenter-meta");
 const timerEl = document.getElementById("presenter-timer");
+const timerLabelEl = document.getElementById("presenter-timer-label");
+const slideTimerEl = document.getElementById("presenter-slide-timer");
+const timerToggleEl = document.getElementById("presenter-timer-toggle");
+const recEl = document.getElementById("presenter-rec");
+const recToggleEl = document.getElementById("presenter-rec-toggle");
 const jumpEl = document.getElementById("presenter-jump");
-function formatTime(ms){const s=Math.max(0,Math.floor(ms/1000));const m=String(Math.floor(s/60)).padStart(2,"0");const r=String(s%60).padStart(2,"0");return m+":"+r;}
+function formatTime(ms){const s=Math.floor(Math.abs(ms)/1000);const h=Math.floor(s/3600);const m=Math.floor((s%3600)/60);const r=String(s%60).padStart(2,"0");return h?h+":"+String(m).padStart(2,"0")+":"+r:String(m).padStart(2,"0")+":"+r;}
 let slideSize = { width: 1024, height: 768 };
-let timerBase = { elapsed: 0, at: Date.now() };
+// The show timer as the main window last sent it; it runs on here between messages.
+let clock = { totalMs: 0, slideMs: 0, running: true, targetMs: 0, at: Date.now() };
+let recording = { state: "idle", ms: 0, at: Date.now() };
+function warnMs(target){return Math.min(Math.max(target*0.2,120000),target*0.5);}
+function renderClock(){
+  const passed = clock.running ? Date.now() - clock.at : 0;
+  const total = clock.totalMs + passed;
+  const slide = clock.slideMs + passed;
+  let phase = "normal";
+  if (clock.targetMs) {
+    const left = clock.targetMs - total;
+    phase = left <= 0 ? "over" : left <= warnMs(clock.targetMs) ? "warn" : "normal";
+    timerLabelEl.textContent = left >= 0 ? "Time left" : "Over time";
+    timerEl.textContent = (left < 0 ? "+" : "") + formatTime(left);
+  } else {
+    timerLabelEl.textContent = "Elapsed";
+    timerEl.textContent = formatTime(total);
+  }
+  timerEl.dataset.phase = phase;
+  timerEl.classList.toggle("is-paused", !clock.running);
+  slideTimerEl.textContent = formatTime(slide);
+  slideTimerEl.classList.toggle("is-paused", !clock.running);
+  timerToggleEl.textContent = clock.running ? "Pause Timer" : "Resume Timer";
+  const active = recording.state === "recording" || recording.state === "paused";
+  recEl.hidden = !active;
+  recToggleEl.hidden = !active;
+  if (active) {
+    const recMs = recording.ms + (recording.state === "recording" ? Date.now() - recording.at : 0);
+    recEl.classList.toggle("is-paused", recording.state === "paused");
+    recEl.textContent = (recording.state === "paused" ? "PAUSED " : "REC ") + formatTime(recMs);
+    recToggleEl.textContent = recording.state === "paused" ? "Resume Recording" : "Pause Recording";
+  }
+}
+function updateClock(payload){
+  if (payload.timer) clock = { ...payload.timer, at: Date.now() };
+  else if (typeof payload.elapsedMs === "number") clock = { totalMs: payload.elapsedMs, slideMs: 0, running: true, targetMs: 0, at: Date.now() };
+  if (payload.recording) recording = { ...payload.recording, at: Date.now() };
+  renderClock();
+}
 // Scales each slide to fit its frame (the slide keeps its real size and is shrunk as a whole).
 function fitSlides(){
   document.querySelector(".presenter-next").style.aspectRatio = slideSize.width + " / " + slideSize.height;
@@ -223,12 +292,11 @@ function updateFromPayload(payload){
   notesEl.textContent = payload.notes || "No notes for this slide.";
   notesEl.classList.toggle("is-empty", !payload.notes);
   metaEl.textContent = (payload.currentIndex + 1) + " / " + Math.max(1, payload.total || 1);
-  timerBase = { elapsed: payload.elapsedMs || 0, at: Date.now() };
-  timerEl.textContent = formatTime(timerBase.elapsed);
+  updateClock(payload);
   fitSlides();
 }
 window.addEventListener("resize", fitSlides);
-setInterval(() => { timerEl.textContent = formatTime(timerBase.elapsed + Date.now() - timerBase.at); }, 1000);
+setInterval(renderClock, 250);
 document.addEventListener("keydown", event => {
   if (event.target === jumpEl) return;
   if (["ArrowRight", "ArrowDown", "PageDown", " "].includes(event.key)) { event.preventDefault(); sendCommand("next"); }
@@ -244,17 +312,21 @@ if (typeof BroadcastChannel !== "undefined") {
   window.presenterChannel.addEventListener("message", event => {
     const payload = event.data || {};
     if (payload.type === "state") updateFromPayload(payload);
+    if (payload.type === "timer") updateClock(payload);
   });
 }
 window.addEventListener("storage", event => {
   if (event.key === syncKey && event.newValue) {
-    try { updateFromPayload(JSON.parse(event.newValue)); } catch (_err) {}
+    try {
+      const payload = JSON.parse(event.newValue);
+      if (payload.type === "timer") updateClock(payload); else updateFromPayload(payload);
+    } catch (_err) {}
   }
 });
 document.querySelectorAll("[data-action]").forEach(button => {
   button.addEventListener("click", () => {
     const action = button.getAttribute("data-action");
-    if (action === "next" || action === "prev" || action === "reset-timer") sendCommand(action);
+    if (["next", "prev", "reset-timer", "toggle-timer", "toggle-recording"].includes(action)) sendCommand(action);
   });
 });
 jumpEl.addEventListener("change", () => sendCommand("jump", Math.max(0, (parseInt(jumpEl.value, 10) || 1) - 1)));

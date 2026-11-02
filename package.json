@@ -11,6 +11,7 @@
     "test:ui": "node tests/browser/test-ui-smoke.js",
     "lint:python": "ruff check .",
     "test:regressions": "node tests/browser/test-regressions.js",
+    "test:recorder": "node tests/browser/test-show-recorder.js",
     "test:desktop": "python3 -m pytest"
   },
   "dependencies": {

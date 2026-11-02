@@ -1935,6 +1935,8 @@ function getPersistableState() {
         ...(state.backgroundOnAllSlides ? { backgroundOnAllSlides: true } : {}),
         selectedIds: [],
         clipboard: null,
+        // The talk's length, for the show timer's countdown (show-recorder.js).
+        ...(Number(state.showSettings?.targetMinutes) > 0 ? { showSettings: { targetMinutes: Number(state.showSettings.targetMinutes) } } : {}),
     };
 }
 

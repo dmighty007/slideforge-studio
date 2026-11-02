@@ -6,7 +6,7 @@ It runs for a single local user, so there is no account and no sign-in. Your pre
 
 - **Editing:** themes and slide layouts, bullet lists, grouping, alignment guides, undo, and an animation timeline.
 - **Science-friendly elements:** KaTeX equations, Mermaid flowcharts and other diagrams, molecules from PDB and trajectory files, and charts with an editable data table.
-- **Presenting:** full-screen show, presenter view with notes, bullet-by-bullet and step-by-step reveals, a laser pointer, a spotlight and a chalkboard.
+- **Presenting:** full-screen show, presenter view with notes, bullet-by-bullet and step-by-step reveals, a laser pointer, a spotlight and a chalkboard; a timer (count up or down to a talk length) and recording the show as a video with your voice ([how](getting-started.md#time-and-record-a-talk)).
 - **Exporting:**
   - PowerPoint, with animations and bullet builds;
   - PDF and PNG;

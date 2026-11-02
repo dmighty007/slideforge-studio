@@ -7,6 +7,8 @@
 - Permission requests (clipboard, microphone, ...): pywebview's handler passes a plain int where PyQt6 wants an enum,
   and the TypeError aborts the whole app. Ours answers them correctly and never raises.
 - Downloads: Qt 6 replaced setPath() with separate directory and filename setters.
+- Screen capture (recording a slide show): Qt has no picker of its own, so getDisplayMedia() records the app's own
+  window (desktopMediaRequested).
 
 pywebview runs its event handlers on worker threads, so view changes are queued to the Qt GUI thread.
 """
@@ -91,7 +93,8 @@ def _enable_features(page) -> None:
     from qtpy.QtWebEngineCore import QWebEngineSettings
 
     settings = page.settings()
-    for attribute in ("PluginsEnabled", "PdfViewerEnabled", "FullScreenSupportEnabled"):
+    # ScreenCaptureEnabled: without it Qt answers getDisplayMedia() (the show recorder) with "Invalid state".
+    for attribute in ("PluginsEnabled", "PdfViewerEnabled", "FullScreenSupportEnabled", "ScreenCaptureEnabled"):
         settings.setAttribute(getattr(QWebEngineSettings.WebAttribute, attribute), True)
 
 
@@ -124,6 +127,40 @@ def _configure_window(window) -> None:
     # cache then aborts the load (blank window). Fresh files come from the server's "Cache-Control: no-cache".
     _enable_features(page)
     _follow_fullscreen(page, browser)
+    _answer_desktop_media(page, browser)
+
+
+def _choose_desktop_source(request, window_title) -> None:
+    """Answer getDisplayMedia() (the show recorder): the app's own window (its exact title now), else the first
+    screen, where the show is fullscreen. Qt lists every window on the desktop: a looser match picked a web browser
+    with "SlideForge" in a tab's title. Never raises: an exception escaping a Qt slot aborts the app."""
+    try:
+        from qtpy.QtCore import Qt
+
+        windows = request.windowsModel()
+        display = Qt.ItemDataRole.DisplayRole
+        titles = [str(windows.data(windows.index(row, 0), display) or "") for row in range(windows.rowCount())]
+        if window_title in titles:
+            request.selectWindow(windows.index(titles.index(window_title), 0))
+            return
+        screens = request.screensModel()
+        if screens.rowCount():
+            request.selectScreen(screens.index(0, 0))
+            return
+        request.cancel()
+    except Exception:
+        log.exception("Could not choose what to record")
+        try:
+            request.cancel()
+        except Exception:
+            log.exception("Could not refuse the screen capture request")
+
+
+def _answer_desktop_media(page, top_level) -> None:
+    signal = getattr(page, "desktopMediaRequested", None)  # Qt 6.7+
+    if signal is None:
+        return
+    signal.connect(lambda request: _choose_desktop_source(request, top_level.windowTitle()))
 
 
 def _is_app_url(url) -> bool:
@@ -132,10 +169,11 @@ def _is_app_url(url) -> bool:
     return url.host() in ("127.0.0.1", "localhost") and url.port() == _app_port
 
 
-# Granted to the app's own pages: Share's "Copy link" and pasting use the clipboard, recording uses the microphone
-# and camera (pywebview granted those too). Everything else (location, notifications, screen capture...) is refused.
+# Granted to the app's own pages: Share's "Copy link" and pasting use the clipboard, recording a slide show uses
+# the microphone and the screen (the app's own window, see _choose_desktop_source); pywebview granted the camera too.
+# Everything else (location, notifications...) is refused.
 _GRANTED_FEATURES = ("ClipboardReadWrite", "ClipboardSanitizedWrite", "MediaAudioCapture", "MediaVideoCapture",
-                     "MediaAudioVideoCapture")
+                     "MediaAudioVideoCapture", "DesktopVideoCapture", "DesktopAudioVideoCapture")
 
 
 def _patch_permissions() -> None:
@@ -257,7 +295,10 @@ def _patch_popups() -> None:
         view.setPage(popup)
         _enable_features(popup)
         _follow_fullscreen(popup, view)
+        _answer_desktop_media(popup, view)
         popup.windowCloseRequested.connect(view.close)
+        # The page's own title ("Presenter View"): the editor's window stays the only "SlideForge" to record.
+        popup.titleChanged.connect(lambda title: view.setWindowTitle(title or "SlideForge"))
         view.destroyed.connect(lambda *_: _popups.remove(view) if view in _popups else None)
         view.setWindowTitle("SlideForge")
         view.resize(1400, 900)
