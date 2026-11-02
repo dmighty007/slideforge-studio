@@ -560,7 +560,7 @@ function _pptxRgba(hex, alpha) {
 
 // Presets drawn as SVG instead of a SlideForge shape: a rectangle stood in for them (an arc became a filled box, a
 // donut ringing a picture a solid square that hid it, a brace an empty box).
-const PPTX_DRAWN_PRESETS = new Set(["arc", "circularArrow", "curvedConnector2", "curvedConnector3", "curvedConnector4", "curvedConnector5", "donut", "leftBrace", "rightBrace"]);
+const PPTX_DRAWN_PRESETS = new Set(["arc", "blockArc", "circularArrow", "leftCircularArrow", "leftRightArrow", "upDownArrow", "curvedConnector2", "curvedConnector3", "curvedConnector4", "curvedConnector5", "donut", "leftBrace", "rightBrace"]);
 
 // PowerPoint's dash styles as SVG dash patterns, in line widths.
 const PPTX_DASHES = { dash: [4, 3], sysDash: [3, 1], dot: [1, 1], sysDot: [1, 1], lgDash: [8, 3], dashDot: [4, 3, 1, 3], lgDashDot: [8, 3, 1, 3], lgDashDotDot: [8, 3, 1, 3, 1, 3], sysDashDot: [3, 1, 1, 1], sysDashDotDot: [3, 1, 1, 1, 1, 1] };
@@ -598,17 +598,44 @@ function _pptxGeometryPaths(spPr, boxW, boxH) {
             const [x2, y2] = point(start + sweep);
             return [{ d: `M ${x1} ${y1} A ${rx} ${ry} 0 ${sweep > 180 ? 1 : 0} 1 ${x2} ${y2}`, fill: false, stroke: true }];
         }
-        if (kind === "circularArrow") {
+        if (kind === "leftRightArrow" || kind === "upDownArrow") {
+            // A two-headed block arrow (the links of a SmartArt cycle; they came in as plain bars). adj1: the shaft's
+            // thickness, of the box's height (width); adj2: each head's length, of the shorter side.
+            const across = kind === "leftRightArrow";
+            const long = across ? boxW : boxH;
+            const wide = across ? boxH : boxW;
+            const shaft = (wide * Math.max(0, Math.min(100000, adjust("adj1") ?? 50000))) / 200000;
+            const headLen = Math.min(long / 2, (Math.min(boxW, boxH) * Math.max(0, adjust("adj2") ?? 50000)) / 100000);
+            const c = wide / 2;
+            const pts = [[0, c], [headLen, 0], [headLen, c - shaft], [long - headLen, c - shaft], [long - headLen, 0], [long, c], [long - headLen, wide], [long - headLen, c + shaft], [headLen, c + shaft], [headLen, wide]];
+            const d = pts.map(([u, v], i) => `${i ? "L" : "M"} ${across ? u : v} ${across ? v : u}`).join(" ") + " Z";
+            return [{ d, fill: true, stroke: true }];
+        }
+        if (kind === "blockArc") {
+            // A thick arc: a band adj3 (of the shorter side) wide, clockwise from adj1 to adj2.
+            const band = Math.min(rx, ry, (Math.min(boxW, boxH) * Math.max(0, adjust("adj3") ?? 25000)) / 100000);
+            const start = (adjust("adj1") ?? 10800000) / 60000;
+            const end = (adjust("adj2") ?? 0) / 60000;
+            const sweep = (((end - start) % 360) + 360) % 360 || 360;
+            const on = (ax, ay, deg) => `${rx + ax * Math.cos((deg * Math.PI) / 180)} ${ry + ay * Math.sin((deg * Math.PI) / 180)}`;
+            const large = sweep > 180 ? 1 : 0;
+            const [ix, iy] = [rx - band, ry - band];
+            const d = `M ${on(rx, ry, start)} A ${rx} ${ry} 0 ${large} 1 ${on(rx, ry, start + sweep)} L ${on(ix, iy, start + sweep)} A ${ix} ${iy} 0 ${large} 0 ${on(ix, iy, start)} Z`;
+            return [{ d, fill: true, stroke: true }];
+        }
+        if (kind === "circularArrow" || kind === "leftCircularArrow") {
             // One outline, filled and outlined like any shape: a band along an ellipse from adj4 to adj3 (degrees
             // clockwise from 3 o'clock), then a head adj5 of the shorter side either side of the band's middle,
             // its tip adj2 further round. It came in as a stroked arc with a small marker head off its end.
             const ss = Math.min(boxW, boxH);
             const headHalf = (ss * Math.max(0, Math.min(25000, adjust("adj5") ?? 12500))) / 100000;
             const band = (ss * Math.max(0, Math.min(2 * Math.max(0, Math.min(25000, adjust("adj5") ?? 12500)), adjust("adj1") ?? 12500))) / 100000;
+            // leftCircularArrow runs the other way: anticlockwise from adj4 to adj3, its head there.
+            const left = kind === "leftCircularArrow";
             const start = (adjust("adj4") ?? 10800000) / 60000;
-            const end = (adjust("adj3") ?? 20457681) / 60000;
-            const head = (adjust("adj2") ?? 1142319) / 60000;
-            const sweep = (((end - start) % 360) + 360) % 360 || 360;
+            const end = (adjust("adj3") ?? (left ? 1142319 : 20457681)) / 60000;
+            const head = Math.abs(adjust("adj2") ?? 1142319) / 60000;
+            const sweep = ((((left ? start - end : end - start) % 360) + 360) % 360) || 360;
             const midX = rx - headHalf;
             const midY = ry - headHalf;
             // The point where a ray at `deg` from the centre meets the ellipse with half-axes (ax, ay).
@@ -620,14 +647,15 @@ function _pptxGeometryPaths(spPr, boxW, boxH) {
             const outer = [midX + band / 2, midY + band / 2];
             const inner = [Math.max(0, midX - band / 2), Math.max(0, midY - band / 2)];
             const large = sweep > 180 ? 1 : 0;
+            const way = left ? 0 : 1; // the arcs' sweep flag, clockwise for circularArrow
             const d = [
                 `M ${at(...outer, start)}`,
-                `A ${outer[0]} ${outer[1]} 0 ${large} 1 ${at(...outer, end)}`,
+                `A ${outer[0]} ${outer[1]} 0 ${large} ${way} ${at(...outer, end)}`,
                 `L ${at(midX + headHalf, midY + headHalf, end)}`,
-                `L ${at(midX, midY, end + head)}`,
+                `L ${at(midX, midY, left ? end - head : end + head)}`,
                 `L ${at(Math.max(0, midX - headHalf), Math.max(0, midY - headHalf), end)}`,
                 `L ${at(...inner, end)}`,
-                `A ${inner[0]} ${inner[1]} 0 ${large} 0 ${at(...inner, start)}`,
+                `A ${inner[0]} ${inner[1]} 0 ${large} ${1 - way} ${at(...inner, start)}`,
                 "Z",
             ].join(" ");
             return [{ d, fill: true, stroke: true }];
@@ -843,8 +871,222 @@ async function _pptxPictureReadable(blob) {
         bitmap.close?.();
         return true;
     } catch (_error) {
-        return false;
+        // A second opinion from an <img>: createImageBitmap gave up on a valid 99 MB animated GIF that an image
+        // shows. A damaged file (cut short, wrong header) fails both.
+        const url = URL.createObjectURL(blob);
+        try {
+            const image = new Image();
+            image.src = url;
+            await Promise.race([image.decode(), new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 15000))]);
+            return image.naturalWidth > 0;
+        } catch (_secondError) {
+            return false;
+        } finally {
+            URL.revokeObjectURL(url);
+        }
     }
+}
+
+// A movie embedded in the file (<a:videoFile> or <p14:media> pointing into ppt/media/) as a video object. Movies
+// came in as their poster picture only. Formats a browser cannot play (WMV, AVI) keep the picture.
+const PPTX_VIDEO_TYPES = { mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", webm: "video/webm", ogv: "video/ogg" };
+async function _pptxVideoElement(pkg, pic, rels, box, zIndex) {
+    const nvPr = _pptxFirst(_pptxChild(pic, "p:nvPicPr"), "p:nvPr");
+    const refs = [_pptxFirst(nvPr, "p14:media"), _pptxFirst(nvPr, "a:videoFile")].filter(Boolean);
+    const path = refs.map(ref => rels[ref.getAttribute("r:embed") || ref.getAttribute("r:link")]?.path).find(Boolean);
+    const file = path && pkg.zip.file(path);
+    const mime = path && PPTX_VIDEO_TYPES[path.split(".").pop().toLowerCase()];
+    if (!file || !mime) return null;
+    if (!pkg.pictureUrls) pkg.pictureUrls = new Map();
+    if (!pkg.pictureUrls.has(path)) {
+        pkg.pictureUrls.set(
+            path,
+            (async () => {
+                const blob = new Blob([await file.async("arraybuffer")], { type: mime });
+                if (!blob.size) return null;
+                try {
+                    const url = typeof _uploadAssetFile === "function" ? (await _uploadAssetFile(new File([blob], path.split("/").pop(), { type: mime })))?.url : null;
+                    if (url) return url;
+                } catch (_error) {}
+                // No server to store it: kept in the deck itself (a blob: address would not survive a reload).
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(String(reader.result));
+                    reader.onerror = () => reject(reader.error);
+                    reader.readAsDataURL(blob);
+                });
+            })(),
+        );
+    }
+    const url = await pkg.pictureUrls.get(path);
+    if (!url) return null;
+    return {
+        id: generateId("el"),
+        type: "video",
+        content: url,
+        videoType: "local",
+        localMimeType: mime,
+        x: box.x,
+        y: box.y,
+        width: `${Math.max(40, box.w)}px`,
+        height: `${Math.max(24, box.h)}px`,
+        muted: false,
+        autoplay: false,
+        loop: false,
+        ...(box.rot ? { rotation: box.rot } : {}),
+        styles: { zIndex, borderRadius: "0px" },
+        animation: null,
+    };
+}
+
+// The slide's size in editor pixels at the import's scale.
+async function _pptxPageSize(pkg, scale) {
+    const size = _pptxFirst(await pkg.xml("ppt/presentation.xml"), "p:sldSz");
+    return {
+        w: Math.round(((Number(size?.getAttribute("cx")) || 9144000) / PPTX_EMU_PER_PX) * scale),
+        h: Math.round(((Number(size?.getAttribute("cy")) || 6858000) / PPTX_EMU_PER_PX) * scale),
+    };
+}
+
+// Runs of drawn shapes (SVG pictures of freeforms and the like), in stacking order, as one picture each; what lies
+// between them (photos, text, plain shapes, anything animated or from another part) stays as it is, so the stacking
+// order is kept. minRun: the shortest run flattened. region "page": the picture covers the slide (a layout's artwork);
+// "bounds": just the run's own area (a figure pasted on a slide as thousands of freeforms).
+async function _pptxFlattenDrawings(elements, page, { minRun = 2, region = "page" } = {}) {
+    const out = [];
+    let run = [];
+    const flush = async () => {
+        if (run.length < minRun) {
+            out.push(...run);
+        } else {
+            const area = region === "page" ? { x: 0, y: 0, w: page.w, h: page.h } : _pptxDrawingBounds(run, page);
+            const url = area && (await _pptxRasterizeDrawings(run, area).catch(() => null));
+            if (url) {
+                out.push({
+                    id: generateId("el"),
+                    type: "image",
+                    content: url,
+                    x: area.x,
+                    y: area.y,
+                    width: `${area.w}px`,
+                    height: `${area.h}px`,
+                    lockAspectRatio: false,
+                    imageAspectRatio: area.w / area.h,
+                    cropTransform: { widthPercent: 100, heightPercent: 100, leftPercent: 0, topPercent: 0 },
+                    heightSetManually: true,
+                    importedDrawing: true,
+                    styles: { zIndex: run[0].styles?.zIndex ?? 1, borderRadius: "0px" },
+                });
+            } else {
+                out.push(...run);
+            }
+        }
+        run = [];
+    };
+    const joins = element => element.type === "image" && element.importedDrawing && !element.animation && !element.importedFrom;
+    for (const element of elements) {
+        if (joins(element)) run.push(element);
+        else {
+            await flush();
+            out.push(element);
+        }
+    }
+    await flush();
+    return out;
+}
+
+// The area a run of drawings covers (turned ones by their turned corners), kept on the slide.
+function _pptxDrawingBounds(drawings, page) {
+    let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+    drawings.forEach(el => {
+        const w = parseFloat(el.width) || 0;
+        const h = parseFloat(el.height) || 0;
+        const a = ((el.rotation || 0) * Math.PI) / 180;
+        const [cx, cy] = [el.x + w / 2, el.y + h / 2];
+        [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]].forEach(([dx, dy]) => {
+            const px = cx + dx * Math.cos(a) - dy * Math.sin(a);
+            const py = cy + dx * Math.sin(a) + dy * Math.cos(a);
+            [x0, y0, x1, y1] = [Math.min(x0, px), Math.min(y0, py), Math.max(x1, px), Math.max(y1, py)];
+        });
+    });
+    x0 = Math.max(0, Math.floor(x0));
+    y0 = Math.max(0, Math.floor(y0));
+    x1 = Math.min(page.w, Math.ceil(x1));
+    y1 = Math.min(page.h, Math.ceil(y1));
+    return x1 - x0 >= 2 && y1 - y0 >= 2 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
+}
+
+// Drawn shapes painted into one PNG at twice the size of `area` (slide pixels), stored like any picture.
+async function _pptxRasterizeDrawings(drawings, area) {
+    const k = Math.min(2, 4096 / Math.max(area.w, area.h));
+    // Each drawing's own SVG (made by _pptxDrawingElement) goes into one document as a nested <svg> at its place,
+    // its ids made unique (arrowheads, gradients). As nested <image>s, each was a document of its own, and a figure
+    // of 5,886 of them took minutes and then crashed the page.
+    const items = drawings.map((el, n) => {
+        const w = parseFloat(el.width) || 0;
+        const h = parseFloat(el.height) || 0;
+        let markup = "";
+        try {
+            markup = decodeURIComponent(String(el.content).replace(/^data:image\/svg\+xml;charset=utf-8,/, ""));
+        } catch (_error) {
+            return "";
+        }
+        const open = /^<svg\b([^>]*)>/.exec(markup);
+        if (!open) return "";
+        const viewBox = /viewBox="([^"]*)"/.exec(open[1])?.[1] || `0 0 ${w} ${h}`;
+        const body = markup
+            .slice(open[0].length, markup.lastIndexOf("</svg>"))
+            .replace(/\bid="([^"]+)"/g, `id="d${n}-$1"`)
+            .replace(/url\(#([^)]+)\)/g, `url(#d${n}-$1)`);
+        const svg = `<svg x="${el.x}" y="${el.y}" width="${w}" height="${h}" viewBox="${viewBox}" preserveAspectRatio="none" overflow="visible">${body}</svg>`;
+        return el.rotation ? `<g transform="rotate(${el.rotation} ${el.x + w / 2} ${el.y + h / 2})">${svg}</g>` : svg;
+    });
+    const [pw, ph] = [Math.round(area.w * k), Math.round(area.h * k)];
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pw}" height="${ph}" viewBox="${area.x} ${area.y} ${area.w} ${area.h}">${items.join("")}</svg>`;
+    const source = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+    try {
+        const image = new Image();
+        image.src = source;
+        await image.decode();
+        const canvas = document.createElement("canvas");
+        canvas.width = pw;
+        canvas.height = ph;
+        canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+        if (!blob) return null;
+        try {
+            const url = typeof _uploadAssetFile === "function" ? (await _uploadAssetFile(new File([blob], "slide-artwork.png", { type: "image/png" })))?.url : null;
+            if (url) return url;
+        } catch (_error) {}
+        return await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result));
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(blob);
+        });
+    } finally {
+        URL.revokeObjectURL(source);
+    }
+}
+
+// A picture file of the package stored for the deck: its address, or null when the browser cannot draw it.
+async function _pptxStorePicture(file, path, mime) {
+    const blob = new Blob([await file.async("arraybuffer")], { type: mime });
+    // An empty or damaged file shows nothing in PowerPoint; here it showed a broken-picture frame.
+    if (!(await _pptxPictureReadable(blob))) return null;
+    try {
+        // Stored like any inserted picture; a data URL is the fallback when there is no server to store it.
+        if (typeof _uploadAssetFile === "function") {
+            const url = (await _uploadAssetFile(new File([blob], path.split("/").pop(), { type: mime })))?.url;
+            if (url) return url;
+        }
+    } catch (_error) {}
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+    });
 }
 
 async function _pptxPictureElement(pkg, pic, rels, box, zIndex, pictureFill = null) {
@@ -858,26 +1100,12 @@ async function _pptxPictureElement(pkg, pic, rels, box, zIndex, pictureFill = nu
     const extension = path.split(".").pop().toLowerCase();
     const mime = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", svg: "image/svg+xml", webp: "image/webp", bmp: "image/bmp" }[extension];
     if (!mime) return null; // EMF/WMF and the like: browsers cannot show them
-    const blob = new Blob([await file.async("arraybuffer")], { type: mime });
-    // An empty or damaged file shows nothing in PowerPoint; here it showed a broken-picture frame.
-    if (!(await _pptxPictureReadable(blob))) return null;
-    let url = null;
-    try {
-        // Stored like any inserted picture; a data URL is the fallback when there is no server to store it.
-        if (typeof _uploadAssetFile === "function") {
-            url = (await _uploadAssetFile(new File([blob], path.split("/").pop(), { type: mime })))?.url || null;
-        }
-    } catch (_error) {
-        url = null;
-    }
-    if (!url) {
-        url = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result));
-            reader.onerror = () => reject(reader.error);
-            reader.readAsDataURL(blob);
-        });
-    }
+    // Each media file is read and stored once per import: a master's logo is on every slide, and a picture used
+    // on several slides was uploaded again for each.
+    if (!pkg.pictureUrls) pkg.pictureUrls = new Map();
+    if (!pkg.pictureUrls.has(path)) pkg.pictureUrls.set(path, _pptxStorePicture(file, path, mime));
+    const url = await pkg.pictureUrls.get(path);
+    if (!url) return null;
     return {
         id: generateId("el"),
         type: "image",
@@ -1449,16 +1677,111 @@ function _pptxApplyBuilds(doc, byShapeId) {
     });
 }
 
+// PowerPoint's slide transitions as the nearest of SlideForge's (fade, diffuse, slide, convex, concave, zoom): every
+// imported slide came in with none. Newer ones (p14:, in mc:AlternateContent) fall back to their older choice.
+const PPTX_TRANSITIONS = {
+    fade: "fade", flash: "fade", morph: "fade",
+    dissolve: "diffuse", randomBar: "diffuse", checker: "diffuse", blinds: "diffuse", comb: "diffuse", strips: "diffuse",
+    vortex: "diffuse", shred: "diffuse", honeycomb: "diffuse", glitter: "diffuse", ripple: "diffuse",
+    push: "slide", cover: "slide", pull: "slide", wipe: "slide", split: "slide", reveal: "slide", pan: "slide",
+    circle: "slide", diamond: "slide", plus: "slide", wedge: "slide", wheel: "slide", wheelReverse: "slide",
+    zoom: "zoom", newsflash: "zoom", flythrough: "zoom", warp: "zoom",
+    flip: "convex", gallery: "convex", cube: "convex", box: "convex", prism: "convex", conveyor: "convex", ferris: "convex",
+    switch: "convex", doors: "concave", window: "concave",
+};
+function _pptxTransition(doc) {
+    for (const transition of Array.from(doc?.getElementsByTagName("p:transition") || [])) {
+        for (const effect of Array.from(transition.children)) {
+            const name = effect.tagName.replace(/^[\w]+:/, "");
+            if (PPTX_TRANSITIONS[name]) return PPTX_TRANSITIONS[name];
+        }
+    }
+    return "none"; // no effect (a transition element can hold only timing or a sound)
+}
+
+// A SmartArt diagram's drawing (the shapes PowerPoint last laid it out as, in ppt/diagrams/drawingN.xml), read as
+// slide shapes: its tree, relationships and extent (EMU, in the frame's coordinates). Diagrams came in as nothing.
+// The drawing is found through the diagram data's dataModelExt, or is the slide's only one.
+async function _pptxSmartArtDrawing(pkg, frame, rels) {
+    const ids = _pptxFirst(frame, "dgm:relIds");
+    const dataPath = rels[ids?.getAttribute("r:dm")]?.path;
+    const dataDoc = dataPath && (await pkg.xml(dataPath));
+    const extId = dataDoc && _pptxFirst(dataDoc, "dsp:dataModelExt")?.getAttribute("relId");
+    const drawings = Object.values(rels).filter(rel => rel.type === "diagramDrawing");
+    const path = rels[extId]?.type === "diagramDrawing" ? rels[extId].path : drawings.length === 1 ? drawings[0].path : null;
+    const file = path && pkg.zip.file(path);
+    if (!file) return null;
+    if (!pkg.smartArt) pkg.smartArt = new Map();
+    if (!pkg.smartArt.has(path)) {
+        // dsp: shapes are p: shapes in another namespace.
+        const source = (await file.async("string")).replace(/(<\/?)dsp:/g, "$1p:").replace(/xmlns:dsp=/g, "xmlns:p=");
+        const doc = pkg.parser.parseFromString(source, "text/xml");
+        const tree = _pptxFirst(doc, "p:spTree");
+        if (!tree || doc.getElementsByTagName("parsererror").length) {
+            pkg.smartArt.set(path, null);
+        } else {
+            const ns = "http://schemas.openxmlformats.org/drawingml/2006/main";
+            // Words drawn in a box of their own (txXfrm), not the shape's (beside a circle, below an icon): a
+            // borderless shape of their own on top.
+            Array.from(tree.getElementsByTagName("p:sp")).forEach(sp => {
+                const txXfrm = _pptxChild(sp, "p:txXfrm");
+                const shapeXfrm = _pptxChild(_pptxChild(sp, "p:spPr"), "a:xfrm");
+                if (!txXfrm) return;
+                txXfrm.remove();
+                const txBody = _pptxChild(sp, "p:txBody");
+                const same = ["x", "y", "cx", "cy"].every(attr => {
+                    const pick = el => _pptxChild(el, "a:off")?.getAttribute(attr) ?? _pptxChild(el, "a:ext")?.getAttribute(attr);
+                    return pick(txXfrm) === pick(shapeXfrm);
+                });
+                if (same || !txBody || !_pptxFirst(txBody, "a:t")) return;
+                const words = sp.cloneNode(false);
+                Array.from(sp.children).forEach(child => {
+                    if (child.tagName !== "p:spPr") words.appendChild(child.cloneNode(true));
+                });
+                const spPr = doc.createElementNS(sp.namespaceURI, "p:spPr");
+                const box = doc.createElementNS(ns, "a:xfrm");
+                if (txXfrm.getAttribute("rot")) box.setAttribute("rot", txXfrm.getAttribute("rot"));
+                Array.from(txXfrm.children).forEach(child => box.appendChild(child.cloneNode(true)));
+                const geom = doc.createElementNS(ns, "a:prstGeom");
+                geom.setAttribute("prst", "rect");
+                const line = doc.createElementNS(ns, "a:ln");
+                [box, geom, doc.createElementNS(ns, "a:noFill"), line].forEach(child => spPr.appendChild(child));
+                line.appendChild(doc.createElementNS(ns, "a:noFill"));
+                words.insertBefore(spPr, words.firstChild);
+                txBody.remove();
+                sp.after(words);
+            });
+            // Its extent: the drawing's group box, or the union of its shapes.
+            const group = _pptxXfrm(tree);
+            let bounds = group && group.w && group.h ? { x: group.x, y: group.y, w: group.w, h: group.h } : null;
+            if (!bounds) {
+                const boxes = Array.from(tree.children).map(_pptxXfrm).filter(Boolean);
+                if (boxes.length) {
+                    const x = Math.min(...boxes.map(b => b.x));
+                    const y = Math.min(...boxes.map(b => b.y));
+                    bounds = { x, y, w: Math.max(...boxes.map(b => b.x + b.w)) - x, h: Math.max(...boxes.map(b => b.y + b.h)) - y };
+                }
+            }
+            pkg.smartArt.set(path, { tree, rels: await pkg.rels(path), bounds: bounds || { x: 0, y: 0, w: 0, h: 0 } });
+        }
+    }
+    return pkg.smartArt.get(path);
+}
+
 async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
     const doc = await pkg.xml(slidePath);
     const rels = await pkg.rels(slidePath);
     const links = await pkg.links(slidePath);
     const layoutXfrm = await _pptxLayoutPlaceholders(pkg, slidePath);
     const elements = [];
+    // The part being walked: the slide, or its master or layout (their artwork, behind the slide's own objects).
+    let part = { rels, links, inherited: false };
     // Which elements each PowerPoint shape id became (a group's id stands for everything in it): builds target ids.
     const byShapeId = new Map();
     const owners = [];
     const register = (node, ...made) => {
+        // The builds are the slide's; a layout's or a SmartArt drawing's shape ids can repeat the slide's.
+        if (part.inherited || part.quiet) return;
         const id = _pptxFirst(node, "p:cNvPr")?.getAttribute("id");
         [id, ...owners].filter(Boolean).forEach(key => {
             if (!byShapeId.has(key)) byShapeId.set(key, []);
@@ -1492,6 +1815,10 @@ async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
     const walk = async (container, t) => {
         for (const node of Array.from(container.children)) {
             const zIndex = elements.length + 1;
+            // Hidden in PowerPoint (the selection pane's eye): not shown there, so not brought in.
+            if (node.tagName !== "mc:AlternateContent" && _pptxFirst(node, "p:cNvPr")?.getAttribute("hidden") === "1") continue;
+            // A master's or layout's placeholders are templates ("Click to edit Master title style"), not artwork.
+            if (part.inherited && ["p:sp", "p:pic", "p:graphicFrame"].includes(node.tagName) && _pptxFirst(_pptxChild(node, node.tagName === "p:sp" ? "p:nvSpPr" : node.tagName === "p:pic" ? "p:nvPicPr" : "p:nvGraphicFramePr"), "p:ph")) continue;
             if (node.tagName === "mc:AlternateContent") {
                 // Content for newer PowerPoint (an equation, an ink drawing) and the picture of it older readers show.
                 const fallback = _pptxChild(node, "mc:Fallback");
@@ -1505,7 +1832,7 @@ async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
                 const turns = g.rot ? [{ deg: g.rot, cx: frame.x + frame.w / 2, cy: frame.y + frame.h / 2 }, ...(t.turns || [])] : t.turns || [];
                 const id = _pptxFirst(node, "p:cNvPr")?.getAttribute("id");
                 if (id) owners.push(id);
-                await walk(node, { sx, sy, cx: g.chX, cy: g.chY, ox: t.ox + (g.x - t.cx) * t.sx, oy: t.oy + (g.y - t.cy) * t.sy, turns });
+                await walk(node, { sx, sy, cx: g.chX, cy: g.chY, ox: t.ox + (g.x - t.cx) * t.sx, oy: t.oy + (g.y - t.cy) * t.sy, turns, fs: t.fs });
                 if (id) owners.pop();
             } else if (node.tagName === "p:cxnSp" || (node.tagName === "p:sp" && _pptxIsLine(node) && !_pptxFirst(node, "a:t"))) {
                 const xfrm = _pptxXfrm(node);
@@ -1523,12 +1850,12 @@ async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
                 const xfrm = _pptxXfrm(node) || layoutXfrm(placeholder);
                 if (!xfrm) continue;
                 const box = toBox(xfrm, t);
-                const text = _pptxTextElement(node, box, { fontScale: scale, placeholder, zIndex, links, design });
+                const text = _pptxTextElement(node, box, { fontScale: scale * (t.fs || 1), placeholder, zIndex, links: part.links, design });
                 const spPr = _pptxChild(node, "p:spPr");
                 // Pictures can be stored as shape fills rather than p:pic (slide 34 of PreSynopsis).
                 const pictureFill = _pptxChild(spPr, "a:blipFill");
                 if (pictureFill) {
-                    const picture = await _pptxPictureElement(pkg, node, rels, box, zIndex, pictureFill);
+                    const picture = await _pptxPictureElement(pkg, node, part.rels, box, zIndex, pictureFill);
                     if (picture) {
                         const made = [picture, text].filter(Boolean);
                         if (text) text.styles.zIndex = zIndex + 1;
@@ -1600,7 +1927,14 @@ async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
                 }
             } else if (node.tagName === "p:pic") {
                 const xfrm = _pptxXfrm(node);
-                const picture = xfrm && (await _pptxPictureElement(pkg, node, rels, toBox(xfrm, t), zIndex));
+                // A movie stored in the file plays here; a linked one (outside the file) keeps its poster picture.
+                const video = xfrm && (await _pptxVideoElement(pkg, node, part.rels, toBox(xfrm, t), zIndex));
+                if (video) {
+                    elements.push(video);
+                    register(node, video);
+                    continue;
+                }
+                const picture = xfrm && (await _pptxPictureElement(pkg, node, part.rels, toBox(xfrm, t), zIndex));
                 if (picture) {
                     elements.push(picture);
                     register(node, picture);
@@ -1608,9 +1942,28 @@ async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
             } else if (node.tagName === "p:graphicFrame") {
                 const xfrm = _pptxXfrm(node);
                 if (!xfrm) continue;
+                const smartArt = _pptxFirst(node, "dgm:relIds") && (await _pptxSmartArtDrawing(pkg, node, part.rels));
+                if (smartArt) {
+                    // SmartArt: the shapes PowerPoint last drew it with, fitted into its frame (a stale drawing can
+                    // be larger than the frame it was resized into), as one build target.
+                    const { tree, rels: drawingRels, bounds } = smartArt;
+                    const k = bounds.w && bounds.h ? Math.min(1, xfrm.w / bounds.w, xfrm.h / bounds.h) : 1;
+                    const cx = k < 1 ? bounds.x : 0;
+                    const cy = k < 1 ? bounds.y : 0;
+                    const dx = k < 1 ? (xfrm.w - bounds.w * k) / 2 : 0;
+                    const dy = k < 1 ? (xfrm.h - bounds.h * k) / 2 : 0;
+                    const turns = xfrm.rot ? [{ deg: xfrm.rot, ...(f => ({ cx: f.x + f.w / 2, cy: f.y + f.h / 2 }))(rawBox(xfrm, t)) }, ...(t.turns || [])] : t.turns || [];
+                    const saved = part;
+                    const before = elements.length;
+                    part = { ...saved, rels: drawingRels, quiet: true };
+                    await walk(tree, { sx: t.sx * k, sy: t.sy * k, cx, cy, ox: t.ox + (xfrm.x + dx - t.cx) * t.sx, oy: t.oy + (xfrm.y + dy - t.cy) * t.sy, turns, fs: (t.fs || 1) * k });
+                    part = saved;
+                    if (elements.length > before) register(node, ...elements.slice(before));
+                    continue;
+                }
                 const box = toBox(xfrm, t);
                 const tbl = _pptxFirst(node, "a:tbl");
-                const made = tbl ? _pptxTableElement(tbl, box, scale, scale, zIndex, await pkg.xml("ppt/tableStyles.xml"), design?.theme?.colors || _pptxCurrentThemeColors) : await _pptxChartElement(pkg, node, rels, box, zIndex);
+                const made = tbl ? _pptxTableElement(tbl, box, scale, scale, zIndex, await pkg.xml("ppt/tableStyles.xml"), design?.theme?.colors || _pptxCurrentThemeColors) : await _pptxChartElement(pkg, node, part.rels, box, zIndex);
                 // Table text without a font of its own in the theme's body font (it came in as Manrope).
                 const bodyFont = tbl && design?.theme?.fonts?.minor;
                 if (made && bodyFont && /Manrope/.test(made.tableData.fontFamily)) {
@@ -1625,11 +1978,51 @@ async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
             }
         }
     };
+    // The master's and the layout's own artwork (logos, bars, rules, footer text), behind the slide's objects: none
+    // of it came in. "Hide background graphics" (showMasterSp="0") on the slide hides both; on the layout, the
+    // master's. Locked, as on a PowerPoint slide, where it cannot be selected.
+    // Read once per master or layout for the whole import, then copied onto each slide that uses it; runs of drawn
+    // shapes become one picture (a template's doodles were 350 objects on every slide, 21,000 in a deck, and the
+    // editor ran out of memory drawing them). Not clickable, like a PowerPoint slide's background graphics.
+    if (design) {
+        const showLayout = doc?.documentElement?.getAttribute("showMasterSp") !== "0";
+        const showMaster = showLayout && design.layout?.documentElement?.getAttribute("showMasterSp") !== "0";
+        if (!pkg.inheritedArt) pkg.inheritedArt = new Map();
+        for (const [show, partPath, partDoc, from] of [
+            [showMaster, design.masterPath, design.master, "master"],
+            [showLayout, design.layoutPath, design.layout, "layout"],
+        ]) {
+            const partTree = show && partDoc && _pptxFirst(partDoc, "p:spTree");
+            if (!partTree) continue;
+            const key = `${partPath}@${scale}`;
+            if (!pkg.inheritedArt.has(key)) {
+                part = { rels: await pkg.rels(partPath), links: await pkg.links(partPath), inherited: true };
+                const before = elements.length;
+                await walk(partTree, { sx: 1, sy: 1, cx: 0, cy: 0, ox: 0, oy: 0 });
+                part = { rels, links, inherited: false };
+                const made = elements.splice(before);
+                pkg.inheritedArt.set(key, await _pptxFlattenDrawings(made, await _pptxPageSize(pkg, scale)));
+            }
+            pkg.inheritedArt.get(key).forEach(template => {
+                const element = JSON.parse(JSON.stringify(template));
+                element.id = generateId("el");
+                element.locked = true;
+                element.backgroundRole = "preset";
+                element.importedFrom = from;
+                element.styles = { ...(element.styles || {}), zIndex: elements.length + 1 };
+                elements.push(element);
+            });
+        }
+        part = { rels, links, inherited: false };
+    }
     const tree = _pptxFirst(doc, "p:spTree");
     if (tree) await walk(tree, { sx: 1, sy: 1, cx: 0, cy: 0, ox: 0, oy: 0 });
     _pptxApplyBuilds(doc, byShapeId);
+    // A vector figure pasted as freeforms (a plot of thousands of segments) becomes one picture: 5,886 objects on one
+    // slide, ~20,000 in a deck, and the editor ran out of memory drawing them. Runs under 25 stay editable drawings.
+    const kept = await _pptxFlattenDrawings(elements, await _pptxPageSize(pkg, scale), { minRun: 25, region: "bounds" });
     return {
-        elements,
+        elements: kept,
         notes: await _pptxSlideNotes(pkg, rels),
         background: design ? _pptxDesignBackground(design, doc) : _pptxFillBackground(_pptxFirst(_pptxFirst(doc, "p:bg"), "p:bgPr"), slidePath, _pptxCurrentThemeColors),
     };
@@ -1710,13 +2103,14 @@ async function importPptx(file) {
                 });
             }
             // Hidden in PowerPoint (<p:sld show="0">): hidden when presenting here too.
-            const hidden = (await pkg.xml(slidePath))?.documentElement?.getAttribute("show") === "0";
+            const slideDoc = await pkg.xml(slidePath);
+            const hidden = slideDoc?.documentElement?.getAttribute("show") === "0";
             slides.push({
                 id: generateId("slide"),
                 layoutId: "blank",
                 masterId: "none",
                 notes,
-                presentationTransition: "none",
+                presentationTransition: _pptxTransition(slideDoc),
                 ...(slideBackground ? { background: slideBackground } : {}),
                 ...(hidden ? { hidden: true } : {}),
                 elements,
