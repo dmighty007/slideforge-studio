@@ -2,32 +2,40 @@
 
 # SlideForge
 
-**Slides for people who present science.**
+**Scientific figures. Presentation ready.**
 
-Charts you can edit, equations that look right, molecules you can turn, and plots that fit their own curves,
-all on one canvas, then out to PowerPoint or PDF.
+The free desktop presentation app for researchers, teachers and students.
+Build charts, equations and molecular views directly on your slides, then present or export to PowerPoint and PDF.
 
-[Install](#install) · [What you can make](#what-you-can-make) · [Bring your decks](#bring-your-decks) · [Desktop app](docs/DESKTOP.md) · [Plugins](docs/PLUGINS.md) · [Develop](docs/DEVELOPMENT.md)
+[**Install SlideForge**](#install) · [See what you can make](#what-you-can-make) · [Desktop guide](docs/DESKTOP.md)
 
-![A deck made in SlideForge: a plasmid map, a heatmap of MICs, an enzyme-kinetics fit with its equation, and a mechanism diagram](docs/images/gallery.jpg)
+Free & open source · Local deck storage · Linux, macOS & Windows
+
+![The SlideForge editor showing an editable Kaplan–Meier survival plot, under the headline "Scientific figures. Presentation ready."](docs/images/readme-hero.webp)
 
 </div>
 
 ## Why SlideForge
 
-Most slide tools treat a figure as a picture you paste in. SlideForge treats it as something you build: paste a
-table and get a chart, type a SMILES string and get a structure, drop in a PDB file and get a molecule you can
-rotate during your talk. Change a number and the figure follows.
+Your next lab meeting, lecture or conference talk starts with your data. Paste a table to build a chart,
+type LaTeX for an equation, or open a structure file for a molecule you can rotate during your talk.
+Keep the figure and the story together as your slides take shape.
 
-- **Free and on your computer.** Your decks stay in a folder on your machine. No account, no upload.
-- **Made for figures.** 26 built-in science tools, from survival curves to gels, so the figure is born on the slide
-  instead of being pasted in from a screenshot.
-- **Fits the rest of your world.** Open PowerPoint and Keynote files, export editable PowerPoint (charts stay
-  charts), searchable PDF, or a web page that plays offline.
+| Build the figure | Tell the story | Take it with you |
+|---|---|---|
+| Editable charts, curve fits, equations and science tools on the canvas. | Reveal a mechanism step by step, rotate a molecule, and present with notes. | Import PowerPoint or Keynote. Export PowerPoint, searchable PDF or an offline web presentation. |
 
-![The editor: a Kaplan–Meier survival plot on a slide, with the slide rail on the left and the toolbar above](docs/images/editor.jpg)
+**Your decks stay on your computer.** The desktop app needs no account to get started.
 
 ## What you can make
+
+![Four slides from one research story, all made in SlideForge: a plasmid map, an MIC heatmap, an enzyme-kinetics curve fit with its equation, and a mechanism diagram](docs/images/readme-gallery.webp)
+
+**Start with your data.** Paste spreadsheet values for a chart, enter an equation, or load a molecular structure.
+Then arrange your slide and present it.
+
+<details>
+<summary><strong>Explore the built-in science and presentation tools</strong></summary>
 
 | | |
 |---|---|
@@ -41,10 +49,9 @@ rotate during your talk. Change a number and the figure follows.
 | **Media** | Pictures you can crop, looping videos, sounds that play on a click or when the slide opens, PDF pages, web embeds. |
 | **References** | A citation from a DOI, a QR code to the paper, a scale bar for a micrograph. |
 
-<p align="center">
-  <img src="docs/images/molecule.jpg" width="49%" alt="A protein structure (NDM-1) with its bound drug and zinc ions on a slide">
-  <img src="docs/images/diagram.jpg" width="49%" alt="A mechanism diagram: boxes joined by arrows, built step by step">
-</p>
+</details>
+
+![Two slides side by side: the NDM-1 protein structure with meropenem and its zinc ions, which can be rotated while presenting, and a mechanism diagram revealed one step at a time](docs/images/readme-features.webp)
 
 ## Present it
 
@@ -55,14 +62,16 @@ rotate during your talk. Change a number and the figure follows.
 - A laser pointer, spotlight and chalkboard for the questions afterwards.
 - A view-only link to share the deck, which follows your later edits and can be switched off.
 
-![The plugin menu: chemistry, biology and statistics tools, searchable](docs/images/plugins.jpg)
-
 ## Bring your decks
 
 Open a PowerPoint (.pptx) or Keynote (.key) file and keep working on it. Text keeps its fonts, sizes, spacing and
 bullets; pictures keep their crops; and the template's logos and bars, shapes, transitions, builds, videos and
 sounds come along, with PowerPoint's SmartArt diagrams, tables and charts too. When a deck uses a font this
 computer doesn't have, SlideForge offers to download it from Google Fonts, so lines break where the author's did.
+
+Import results depend on the source deck. Check layout, fonts, media and builds before a talk, especially for
+complex templates. Exported PowerPoint keeps supported text, shapes, tables and charts editable; specialized
+scientific visuals may export as images. Keep the SlideForge deck to continue editing those visuals.
 
 ## Install
 
@@ -100,6 +109,8 @@ To run it from this repository instead, or to help build it, see [docs/DEVELOPME
   and reloading keeps the deck you were working on.
 
 ## Extend it
+
+![The searchable plugin menu open in the editor, listing chemistry, biology and statistics tools](docs/images/readme-plugins.webp)
 
 New kinds of slide objects are plugins: a small JavaScript file that draws from a few settings. Install one from a
 .zip in the Plugins dialog, or write your own with [docs/PLUGINS.md](docs/PLUGINS.md).

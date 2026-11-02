@@ -1631,6 +1631,19 @@ function playConfiguredSlideAnimations(slideIndex = 0, options = {}) {
     if (!slide) return null;
 
     const engine = getAnimationEngine();
+    // A new click replaces this shared timeline. Settle the previous build before
+    // discarding it so rapid clicks cannot strand objects between states.
+    window.clearTimeout(engine._autoStopTimeout);
+    if (engine.isPlaying) {
+        engine.pause();
+        let endTime = 0;
+        for (const timeline of engine.timelines.values()) {
+            for (const animation of timeline.animations) {
+                endTime = Math.max(endTime, (Number(animation.startTime) || 0) + Math.max(1, Number(animation.duration) || 1));
+            }
+        }
+        engine.seek(endTime + 1);
+    }
     if (options.restoreBeforePlay !== false) {
         engine.restoreElements();
     }
@@ -1663,11 +1676,14 @@ function playConfiguredSlideAnimations(slideIndex = 0, options = {}) {
         engine.play();
         window.clearTimeout(engine._autoStopTimeout);
         engine._autoStopTimeout = window.setTimeout(() => {
-            if (engine.isPlaying) engine.pause();
+            engine.pause();
+            // Timers and rendering frames run independently (especially in a
+            // background tab). Always commit the final state before stopping.
+            engine.seek(totalDuration + 1);
             if (options.restoreOnComplete) {
                 engine.restoreElements();
             }
-        }, totalDuration + 80);
+        }, totalDuration / engine.speed + 80);
     }
 
     return engine;
