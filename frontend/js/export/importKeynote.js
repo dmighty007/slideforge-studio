@@ -471,6 +471,8 @@ async function importKeynote(file) {
         setProjectSaveHint?.(`Imported ${summary}${_keynoteSkippedSummary(deck.skipped)}`, "success");
         busy.update({ detail: `Imported ${summary}`, progress: 1 });
         schedulePresentationAutosave?.();
+        // Fonts the deck uses that this computer lacks: offered for download from Google Fonts (js/ui/fonts.js).
+        setTimeout(() => window.sfOfferMissingFonts?.({ auto: true }), 800);
     } catch (err) {
         console.error("Keynote import error:", err);
         busy.done(); // gone before the alert, which blocks the page

@@ -74,18 +74,16 @@ function fitTextContentToBox(dom, data, contentHost) {
 
     // Rounded down: rounded up, a size found to fit could no longer leave the room to spare.
     contentHost.style.setProperty("font-size", `${Math.floor(best * 10) / 10}px`, "important");
-    while (
-        best > minSize &&
-        (contentHost.scrollHeight > contentHost.clientHeight + 1 ||
-            contentHost.scrollWidth > contentHost.clientWidth + 1)
-    ) {
+    // Letters reach a little past lines set tighter than single spacing (a title's 0.98): the box always measured as
+    // overflowing by a pixel or two, and the text was shrunk to the smallest size. That much is not overflow.
+    const overflows = () =>
+        contentHost.scrollHeight > contentHost.clientHeight + Math.max(2, best * 0.2) ||
+        contentHost.scrollWidth > contentHost.clientWidth + 1;
+    while (best > minSize && overflows()) {
         best = Math.max(minSize, best - 0.5);
         contentHost.style.setProperty("font-size", `${Math.round(best * 10) / 10}px`, "important");
     }
-    if (
-        contentHost.scrollHeight > contentHost.clientHeight + 1 ||
-        contentHost.scrollWidth > contentHost.clientWidth + 1
-    ) {
+    if (overflows()) {
         best = minSize;
         contentHost.style.setProperty("font-size", `${minSize}px`, "important");
     }

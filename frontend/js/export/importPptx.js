@@ -279,7 +279,10 @@ function _pptxParagraph(p, fontScale, links = {}) {
     const glyph = buChar ? _pptxBulletGlyph(buChar.getAttribute("char"), _pptxChild(pPr, "a:buFont")?.getAttribute("typeface")) : numbered ? "1." : "•";
     // Line spacing: a percentage of single spacing (PowerPoint's single line is about 1.2 times the font size).
     const lnPct = Number(_pptxChild(_pptxChild(pPr, "a:lnSpc"), "a:spcPct")?.getAttribute("val"));
-    const lineHeight = lnPct > 0 ? Math.round(1.2 * (lnPct / 100000) * 100) / 100 : null;
+    let lineHeight = lnPct > 0 ? Math.round(1.2 * (lnPct / 100000) * 100) / 100 : null;
+    // Or exactly so many points from line to line (spcPts): a title's 78.4 pt lines for 80 pt text came in 1.2 apart,
+    // and the second line sat a quarter of a line too low. As a multiple of the paragraph's largest text, below.
+    const lnPts = Number(_pptxChild(_pptxChild(pPr, "a:lnSpc"), "a:spcPts")?.getAttribute("val"));
     // The size an empty paragraph (a blank line) has: its end mark's, not the box's.
     const endSize = Number(_pptxChild(p, "a:endParaRPr")?.getAttribute("sz"));
     // Space before and after the paragraph, in points (spcPts is in hundredths of a point).
@@ -311,12 +314,18 @@ function _pptxParagraph(p, fontScale, links = {}) {
             caps: rPr?.getAttribute("cap") === "all",
             color: _pptxColor(rPr),
             font: _pptxChild(rPr, "a:latin")?.getAttribute("typeface") || null,
+            // Letter spacing (spc, in hundredths of a point; negative tightens): titles set tight came in loose.
+            spacing: rPr?.hasAttribute("spc") ? Math.round((Number(rPr.getAttribute("spc")) / 100) * (96 / 72) * fontScale * 100) / 100 : null,
             // A linked run (a:hlinkClick) keeps its web address; it came in as plain text.
             link: links[_pptxChild(rPr, "a:hlinkClick")?.getAttribute("r:id")] || null,
         });
     });
     const text = runs.filter(run => !run.br);
     const length = text.reduce((sum, run) => sum + run.text.length, 0);
+    if (!lineHeight && lnPts > 0) {
+        const largest = Math.max(0, ...text.map(run => run.size || 0), endSize ? _pptxPx((endSize / 100) * (96 / 72) * fontScale) : 0);
+        if (largest > 0) lineHeight = Math.round(((lnPts / 100) * (96 / 72) * fontScale / largest) * 100) / 100;
+    }
     // The value most of the text has becomes the box's own style; runs that differ get a span.
     const dominant = key => {
         const weight = new Map();
@@ -423,6 +432,7 @@ function _pptxTextElement(sp, box, { fontScale, placeholder, zIndex, links, desi
         bold: pick("bold") === true || (pick("bold") == null && inherited.bold === true),
         font: _pptxFontName(pick("font"), design?.theme) || inherited.font || null,
         caps: pick("caps") === true,
+        spacing: pick("spacing"),
     };
     const align = paragraphs.find(p => p.align)?.align || (placeholder?.type === "ctrTitle" || placeholder?.type === "subTitle" ? "center" : "left");
 
@@ -468,16 +478,26 @@ function _pptxTextElement(sp, box, { fontScale, placeholder, zIndex, links, desi
 
     const shadow = pick("shadow");
     const fill = _pptxColor(_pptxChild(sp, "p:spPr"));
+    // A box smaller than the editor's smallest (40 x 24) grows about where its words are anchored: centred words
+    // stay centred on the box, right-aligned ones on its right edge. It grew to the right and down only, and the
+    // letters of a row of 33 px residue boxes each sat on the next box's border.
+    const width = Math.max(40, box.w);
+    const height = Math.max(24, box.h);
+    const anchor = bodyPr?.getAttribute("anchor");
+    const x = align === "center" ? box.x - (width - box.w) / 2 : align === "right" ? box.x - (width - box.w) : box.x;
+    const y = anchor === "ctr" ? box.y - (height - box.h) / 2 : anchor === "b" ? box.y - (height - box.h) : box.y;
     const element = {
         id: generateId("el"),
         type: "text",
-        x: box.x,
-        y: box.y,
-        width: `${Math.max(40, box.w)}px`,
-        height: `${Math.max(24, box.h)}px`,
+        x: Math.round(x),
+        y: Math.round(y),
+        width: `${width}px`,
+        height: `${height}px`,
         content,
         autoHeight: false,
-        textFitMode: "fixed",
+        // "Shrink text on overflow" (normAutofit): shrunk to fit its box, as PowerPoint, WPS and LibreOffice draw it.
+        // Without a stored scale, titles too long for their box came in wrapped onto two lines.
+        textFitMode: autofit ? "autofit" : "fixed",
         ...(isList && !preciseParagraphs ? { bulletStyle: "default" } : {}),
         ...(box.rot ? { rotation: box.rot } : {}),
         styles: {
@@ -494,6 +514,7 @@ function _pptxTextElement(sp, box, { fontScale, placeholder, zIndex, links, desi
             textAlign: align,
             zIndex,
             ...(style.caps ? { textTransform: "uppercase" } : {}),
+            ...(style.spacing ? { letterSpacing: `${style.spacing}px` } : {}),
             ...(lineHeight ? { lineHeight: String(lineHeight) } : {}),
             ...(listGap !== null ? { "--bullet-gap": `${listGap}em` } : {}),
             ...(fill ? { backgroundColor: fill } : {}),
@@ -1167,6 +1188,24 @@ async function _pptxPictureElement(pkg, pic, rels, box, zIndex, pictureFill = nu
     const blip = _pptxFirst(pictureFill || pic, "a:blip");
     const embed = blip?.getAttribute("r:embed");
     const crop = _pptxCrop(pictureFill || _pptxChild(pic, "p:blipFill"));
+    // A picture fitted inside its box with room around it (negative crop values: PptxGenJS's "contain") covers only
+    // part of the box. The editor's crops only zoom in (the picture at least fills its box), and these came in
+    // stretched over the whole box. The box becomes the part the picture covers, uncropped on that side.
+    if (crop) {
+        box = { ...box };
+        if (crop.widthPercent < 100) {
+            box.x = Math.round(box.x + (box.w * crop.leftPercent) / 100);
+            box.w = Math.max(1, Math.round((box.w * crop.widthPercent) / 100));
+            crop.widthPercent = 100;
+            crop.leftPercent = 0;
+        }
+        if (crop.heightPercent < 100) {
+            box.y = Math.round(box.y + (box.h * crop.topPercent) / 100);
+            box.h = Math.max(1, Math.round((box.h * crop.heightPercent) / 100));
+            crop.heightPercent = 100;
+            crop.topPercent = 0;
+        }
+    }
     const opacity = Math.max(0, Math.min(1, (Number(_pptxChild(blip, "a:alphaModFix")?.getAttribute("amt")) || 100000) / 100000));
     const path = rels[embed]?.path;
     const file = path && pkg.zip.file(path);
@@ -1454,6 +1493,18 @@ async function _pptxSlideDesign(pkg, slidePath) {
 
 // A font name as a CSS font list, with the generic family it belongs to behind it: a serif such as Georgia fell back
 // to a sans-serif where it is not installed.
+// Fonts with the same letter widths, for a deck's font that is not installed: its lines then break where the
+// author's did. "Adobe Times" fell back to the browser's serif (Noto Serif here: wider, and every line wrapped
+// differently); Times New Roman or one of its metric clones is what it looks like.
+const PPTX_FONT_SUBSTITUTES = [
+    [/^(adobe )?times( new roman)?( ps)?( mt)?$|^nimbus roman|^tinos$|^liberation serif$|^tex gyre termes$/i, ["Times New Roman", "Tinos", "Liberation Serif", "Nimbus Roman", "Times"]],
+    [/^(arial|helvetica)( neue)?( mt)?$|^nimbus sans|^arimo$|^liberation sans$/i, ["Arial", "Arimo", "Liberation Sans", "Helvetica", "Nimbus Sans"]],
+    [/^calibri$/i, ["Calibri", "Carlito"]],
+    [/^cambria$/i, ["Cambria", "Caladea"]],
+    [/^courier( new)?$|^cousine$|^liberation mono$/i, ["Courier New", "Cousine", "Liberation Mono", "Courier"]],
+    [/^georgia$/i, ["Georgia", "Gelasio"]],
+];
+
 function _pptxFontStack(name) {
     // Only characters font names use: the stack goes into style attributes, where ";" or "}" would end the declaration.
     const font = String(name || "").replace(/["';{}<>\\]/g, "").trim();
@@ -1462,7 +1513,8 @@ function _pptxFontStack(name) {
         : /georgia|times|cambria|garamond|palatino|baskerville|book antiqua|constantia|didot|bodoni|serif$|minion|charter|merriweather|playfair|lora|libre baskerville/i.test(font) && !/sans/i.test(font)
           ? "serif"
           : "sans-serif";
-    return `"${font}", ${generic}`;
+    const substitutes = (PPTX_FONT_SUBSTITUTES.find(([pattern]) => pattern.test(font))?.[1] || []).filter(other => other.toLowerCase() !== font.toLowerCase());
+    return [font, ...substitutes].map(family => `"${family}"`).join(", ") + `, ${generic}`;
 }
 
 // "+mj-lt" / "+mn-lt" (the theme's heading / body font) as the font's name.
@@ -1569,7 +1621,13 @@ function _pptxFillBackground(fillHolder, part, colors, phColor = null) {
     const gradient = fillHolder.tagName === "a:gradFill" ? fillHolder : _pptxChild(fillHolder, "a:gradFill");
     if (gradient) {
         const stops = _pptxChildren(_pptxChild(gradient, "a:gsLst"), "a:gs")
-            .map(gs => ({ pos: (Number(gs.getAttribute("pos")) || 0) / 1000, color: _pptxColorValue(gs, palette) }))
+            // Each stop's own transparency too: a magnifier's glass (white at 12% to 3%) came in solid white and hid
+            // the figures under it.
+            .map(gs => {
+                const color = _pptxColorValue(gs, palette);
+                const alpha = _pptxFillAlpha(gs);
+                return { pos: (Number(gs.getAttribute("pos")) || 0) / 1000, color: color && alpha < 1 && /^#[0-9a-f]{6}$/i.test(color) ? _pptxRgba(color, alpha) : color };
+            })
             .filter(stop => stop.color)
             .sort((a, b) => a.pos - b.pos);
         if (!stops.length) return null;
@@ -2223,6 +2281,8 @@ async function importPptx(file) {
         setProjectSaveHint?.(`Imported ${summary}`, "success");
         busy.update({ detail: `Imported ${summary}`, progress: 1 });
         schedulePresentationAutosave?.();
+        // Fonts the deck uses that this computer lacks: offered for download from Google Fonts (js/ui/fonts.js).
+        setTimeout(() => window.sfOfferMissingFonts?.({ auto: true }), 800);
     } catch (err) {
         console.error("PPTX Import Error:", err);
         busy.done(); // gone before the alert, which blocks the page

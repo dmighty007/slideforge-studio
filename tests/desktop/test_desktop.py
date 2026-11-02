@@ -535,3 +535,183 @@ class QtFullscreenTests(TestCase):
                 page.fullScreenRequested.handler(Request(True))
                 page.fullScreenRequested.handler(Request(False))
             self.assertEqual(window.calls, ["fullscreen", expected, "fullscreen", expected])
+
+
+class UpdateTests(TestCase):
+    """Updating the app (slideforge/desktop/updates.py): where the latest version is read, how it is installed."""
+
+    def test_versions_compare_as_numbers(self):
+        from slideforge.desktop.updates import is_newer, version_key
+
+        self.assertTrue(is_newer("0.10.0", "0.9.9"))
+        self.assertTrue(is_newer("0.4.1", "0.4.0"))
+        self.assertFalse(is_newer("0.4.0", "0.4"))
+        self.assertFalse(is_newer("0.4.0rc1", "0.4.0"))
+        self.assertTrue(version_key("1.0.0") > version_key("1.0.0rc2"))
+        self.assertFalse(is_newer("", "0.4.0"))
+
+    def _receipt(self, prefix, line):
+        from pathlib import Path
+
+        Path(prefix, "uv-receipt.toml").write_text(f'[tool]\nrequirements = [{line}]\npython = "3.12"\n', encoding="utf-8")
+
+    def test_installer_copies_update_with_the_installers_command(self):
+        import tempfile
+        from unittest import mock
+
+        from slideforge.desktop import updates
+
+        zip_url = "https://github.com/dmighty007/slideforge-studio/archive/refs/heads/main.zip"
+        with tempfile.TemporaryDirectory() as prefix, mock.patch.object(updates, "_direct_url", return_value={"url": zip_url, "archive_info": {}}), mock.patch.object(updates, "_uv", return_value="/usr/bin/uv"):
+            self._receipt(prefix, f'{{ name = "slideforge-studio", extras = ["qt"], url = "{zip_url}" }}')
+            origin = updates.detect_origin(prefix)
+            self.assertEqual((origin.kind, origin.method, origin.extras, origin.python), ("github", "uv-tool", ["qt"], "3.12"))
+            command = updates.update_command(origin)
+            self.assertEqual(command[:3], ["/usr/bin/uv", "tool", "install"])
+            self.assertIn("--refresh-package", command)
+            self.assertEqual(command[-1], f"slideforge-studio[qt] @ {zip_url}")
+            # From PyPI through the installer: the release, no URL.
+            self._receipt(prefix, '{ name = "slideforge-studio", extras = ["qt"] }')
+            origin = updates.detect_origin(prefix)
+            self.assertEqual((origin.kind, origin.method), ("pypi", "uv-tool"))
+            self.assertEqual(updates.update_command(origin)[-1], "slideforge-studio[qt]")
+
+    def test_a_copy_installed_from_a_folder_updates_from_that_folder(self):
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+
+        from slideforge.desktop import updates
+
+        with tempfile.TemporaryDirectory() as prefix, tempfile.TemporaryDirectory() as clone, mock.patch.object(updates, "_direct_url", return_value={"url": f"file://{clone}"}), mock.patch.object(updates, "_uv", return_value="/usr/bin/uv"):
+            (Path(clone) / "backend" / "slideforge").mkdir(parents=True)
+            (Path(clone) / "backend" / "slideforge" / "__init__.py").write_text('__version__ = "9.1.0"\n', encoding="utf-8")
+            # uv records a folder as "directory".
+            self._receipt(prefix, f'{{ name = "slideforge-studio", extras = ["qt"], directory = "{clone}" }}')
+            origin = updates.detect_origin(prefix)
+            self.assertEqual((origin.kind, origin.method), ("local", "uv-tool"))
+            self.assertEqual(updates.latest_version(origin), "9.1.0")
+            self.assertEqual(updates.update_command(origin)[-1], f"slideforge-studio[qt] @ {Path(clone).as_uri()}")
+
+    def test_pip_and_editable_copies(self):
+        import sys
+        import tempfile
+        from unittest import mock
+
+        from slideforge.desktop import updates
+
+        with tempfile.TemporaryDirectory() as prefix:
+            with mock.patch.object(updates, "_direct_url", return_value=None), mock.patch.object(updates, "_installed_extras", return_value=[]):
+                origin = updates.detect_origin(prefix)
+                self.assertEqual((origin.kind, origin.method), ("pypi", "pip"))
+                self.assertEqual(updates.update_command(origin), [sys.executable, "-m", "pip", "install", "--upgrade", "--disable-pip-version-check", "slideforge-studio"])
+            with mock.patch.object(updates, "_direct_url", return_value={"dir_info": {"editable": True}, "url": "file:///src"}):
+                origin = updates.detect_origin(prefix)
+                self.assertEqual(origin.kind, "editable")
+                self.assertIsNone(updates.update_command(origin))
+                self.assertIn("git pull", updates._manual_hint(origin))
+
+    def test_checks_are_daily_remembered_and_skippable(self):
+        import tempfile
+        from unittest import mock
+
+        from slideforge.desktop import updates
+
+        with tempfile.TemporaryDirectory() as data, mock.patch.object(updates, "detect_origin", return_value=updates.Origin("pypi", "pip")):
+            updater = updates.Updater(data)
+            with mock.patch.object(updates, "latest_version", return_value="99.0.0") as latest:
+                updater.check(automatic=True)
+                updater.check(automatic=True)  # within the day: not asked again
+                self.assertEqual(latest.call_count, 1)
+                status = updater.status()
+                self.assertTrue(status["available"] and status["canUpdate"])
+                self.assertEqual((status["latest"], status["skipped"]), ("99.0.0", False))
+                updater.skip("99.0.0")
+                self.assertTrue(updates.Updater(data).status()["skipped"])  # remembered
+                updater.set_auto_check(False)
+                again = updates.Updater(data)
+                again.checked_at = 0
+                again.check(automatic=True)
+                self.assertEqual(latest.call_count, 1)  # automatic checks off
+                again.check()  # asked for: always
+                self.assertEqual(latest.call_count, 2)
+            with mock.patch.object(updates, "latest_version", side_effect=OSError("offline")):
+                updater.check()
+                self.assertIn("internet", updater.status()["checkError"])
+
+    def test_the_update_runs_its_command_and_reports_the_new_version(self):
+        import sys
+        import tempfile
+        import time
+        from unittest import mock
+
+        from slideforge.desktop import updates
+
+        with tempfile.TemporaryDirectory() as data, mock.patch.object(updates, "detect_origin", return_value=updates.Origin("pypi", "pip")):
+            updater = updates.Updater(data)
+            updater.latest = "99.0.0"
+            ok = [sys.executable, "-c", "print('Installed slideforge-studio-99.0.0')"]
+            with mock.patch.object(updates, "update_command", return_value=ok), mock.patch.object(updates.Updater, "_new_version", return_value="99.0.0"):
+                self.assertTrue(updater.start_update())
+                for _ in range(100):
+                    if updater.state != "updating":
+                        break
+                    time.sleep(0.05)
+            self.assertEqual((updater.state, updater.installed_version), ("updated", "99.0.0"))
+            self.assertIn("Installed slideforge-studio-99.0.0", updater.output)
+            failing = [sys.executable, "-c", "import sys; print('no space'); sys.exit(3)"]
+            with mock.patch.object(updates, "update_command", return_value=failing):
+                updater.start_update()
+                for _ in range(100):
+                    if updater.state != "updating":
+                        break
+                    time.sleep(0.05)
+            self.assertEqual(updater.state, "failed")
+            self.assertIn("no space", updater.output)
+
+    def test_the_update_endpoint(self):
+        import tempfile
+        from unittest import mock
+
+        from slideforge.desktop import updates
+
+        client = Client()
+        with tempfile.TemporaryDirectory() as data, mock.patch.object(updates, "detect_origin", return_value=updates.Origin("editable", "none")):
+            updater = updates.Updater(data)
+            with mock.patch.object(updates, "get_updater", return_value=updater), mock.patch.object(updates, "latest_version", return_value="99.0.0"):
+                status = client.post("/api/desktop/update/", data=json.dumps({"action": "check"}), content_type="application/json").json()
+                self.assertEqual((status["latest"], status["available"], status["canUpdate"]), ("99.0.0", True, False))
+                self.assertIn("git pull", status["manualHint"])
+                refused = client.post("/api/desktop/update/", data=json.dumps({"action": "install"}), content_type="application/json")
+                self.assertEqual(refused.status_code, 409)
+                self.assertEqual(client.post("/api/desktop/update/", data=json.dumps({"action": "restart"}), content_type="application/json").status_code, 409)
+                self.assertEqual(client.post("/api/desktop/update/", data=json.dumps({"action": "nonsense"}), content_type="application/json").status_code, 400)
+                client.post("/api/desktop/update/", data=json.dumps({"action": "autoCheck", "enabled": False}), content_type="application/json")
+                self.assertFalse(client.get("/api/desktop/update/").json()["autoCheck"])
+
+    def test_the_restart_helper_waits_for_the_old_instance_to_quit(self):
+        import os
+        import subprocess
+        import sys
+        import tempfile
+        import time
+
+        from filelock import FileLock
+
+        from slideforge.desktop import updates
+
+        with tempfile.TemporaryDirectory() as data:
+            lock = FileLock(os.path.join(data, "instance.lock"))
+            lock.acquire()
+            marker = os.path.join(data, "started")
+            command = [sys.executable, "-c", f"open({marker!r}, 'w').write('new version')"]
+            helper = subprocess.Popen([sys.executable, "-c", updates._RESTART_HELPER, os.path.join(data, "instance.lock"), *command])
+            time.sleep(1.5)
+            self.assertFalse(os.path.exists(marker))  # the old instance still runs: nothing started
+            lock.release()
+            helper.wait(timeout=30)
+            for _ in range(50):
+                if os.path.exists(marker):
+                    break
+                time.sleep(0.1)
+            self.assertTrue(os.path.exists(marker))

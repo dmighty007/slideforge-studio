@@ -790,6 +790,33 @@ def asset_video_webm(request):
     return JsonResponse({"webmUrl": f"{settings.MEDIA_URL.rstrip('/')}/assets/{copy.name}"})
 
 
+@require_http_methods(["GET", "POST"])
+def fonts_view(request):
+    """Fonts downloaded from Google Fonts for imported decks (google_fonts.py).
+
+    GET: {"fonts": {family: {"css", "faces"}}}, the stylesheets the page loads. POST {"families": [...]} (at most 12):
+    downloads each one Google Fonts has; {"results": [{"family", "status"}], "fonts": ...}."""
+    from . import google_fonts
+
+    auth_error = _auth_required(request)
+    if auth_error:
+        return auth_error
+    if request.method == "GET":
+        return JsonResponse({"fonts": google_fonts.installed()})
+    try:
+        payload = _request_json(request)
+    except ValueError:
+        return _json_error("Invalid JSON")
+    families = payload.get("families")
+    if not isinstance(families, list) or not families or len(families) > 12:
+        return _json_error("Send 1 to 12 font names")
+    names = [str(name).strip() for name in families if isinstance(name, str)]
+    if not names or not all(google_fonts.valid_family(name) for name in names):
+        return _json_error("Not a font name")
+    results = [google_fonts.install(name) for name in dict.fromkeys(names)]
+    return JsonResponse({"results": results, "fonts": google_fonts.installed()})
+
+
 @require_GET
 def asset_pdf_page(request):
     """One page of an uploaded PDF as a PNG (query: url=<the asset's URL>, page=1.., width in pixels).

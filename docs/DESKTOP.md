@@ -34,6 +34,28 @@ line again to update. For the latest release on PyPI instead, set `SLIDEFORGE_SO
 there installs from it. To remove SlideForge: `curl -fsSL .../install.sh | sh -s -- --uninstall` (on Windows, set
 `$env:SLIDEFORGE_UNINSTALL = "1"` first). Your presentations are kept.
 
+### Updates
+
+SlideForge looks for a newer version a few seconds after it opens, at most once a day. When there is one, a card
+offers to **Update**: the new version installs in the background while you keep working, the way this copy was
+installed (the installers' `uv tool install` again, or `pip install --upgrade` for a pip install; Qt and other extras
+are kept). **Restart now** saves your work, closes the window and opens the new version. **Skip this version** stops
+offering that one. **Check for Updates…** in the command palette (Ctrl+K) asks at any time.
+
+A copy installed from GitHub compares itself with the version on the `main` branch; one from PyPI with the latest
+release there. The check only downloads that version number. Turn automatic checks off with the box in the update
+card, or set `SLIDEFORGE_NO_UPDATE_CHECK=1`. A development copy (an editable install of a clone) is not updated
+from the app: `git pull` updates it.
+
+### Fonts in imported presentations
+
+A PowerPoint or Keynote file names its fonts. When one is not on this computer, a similar font is drawn instead, and
+lines can break differently. After an import, SlideForge lists the fonts it could not find and offers **Download from
+Google Fonts**: each one Google Fonts has is downloaded (regular, bold and italic) and kept, so it is there for every
+later session. Commercial fonts, which Google Fonts does not have, keep their closest installed match. Fonts are only
+requested from Google when you click; **Download Fonts for This Presentation…** in the command palette (Ctrl+K) checks
+the open presentation at any time.
+
 Or with pip, the latest release from PyPI:
 
 ```bash

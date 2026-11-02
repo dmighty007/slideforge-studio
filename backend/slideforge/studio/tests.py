@@ -1620,3 +1620,72 @@ class BugReviewRegressionTests(TestCase):
         prs = Presentation(PPTXExporter(state).export())
         texts = [shape.text_frame.text.strip() for shape in prs.slides[0].shapes if shape.has_text_frame]
         self.assertIn("Survived", texts)
+
+
+class GoogleFontsTests(TestCase):
+    """Downloading fonts from Google Fonts for imported decks (google_fonts.py); Google's answers are made up here."""
+
+    def setUp(self):
+        import tempfile
+
+        self.client = Client()
+        self.user = get_user_model().objects.create_user(username="font-user", password="strong-password-123")
+        self.media = tempfile.mkdtemp()
+        self.override = override_settings(MEDIA_ROOT=self.media, MEDIA_URL="/media/")
+        self.override.enable()
+
+    def tearDown(self):
+        import shutil
+
+        self.override.disable()
+        shutil.rmtree(self.media, ignore_errors=True)
+
+    def _post(self, families):
+        return self.client.post("/api/fonts/", data=json.dumps({"families": families}), content_type="application/json")
+
+    def test_a_family_google_has_is_stored_with_a_stylesheet_pointing_at_the_files(self):
+        import urllib.error
+        from pathlib import Path
+        from unittest import mock
+
+        from slideforge.studio import google_fonts
+
+        css = "@font-face { font-family: 'Roboto Slab'; src: url(https://fonts.gstatic.com/s/robotoslab/v1/a.woff2) format('woff2'); }\n"
+        answers = {"fonts.gstatic.com": b"wOF2-font-bytes"}
+
+        def fake_get(url, limit=0):
+            if "fonts.googleapis.com" in url:
+                if "Unknown+Font" in url:
+                    raise urllib.error.HTTPError(url, 400, "Bad Request", {}, None)
+                return css.encode()
+            return answers["fonts.gstatic.com"]
+
+        self.client.force_login(self.user)
+        with mock.patch.object(google_fonts, "_get", side_effect=fake_get):
+            reply = self._post(["Roboto Slab", "Unknown Font"]).json()
+        statuses = {r["family"]: r["status"] for r in reply["results"]}
+        self.assertEqual(statuses, {"Roboto Slab": "installed", "Unknown Font": "not-found"})
+        self.assertEqual(reply["fonts"]["Roboto Slab"]["css"], "/media/fonts/roboto-slab/font.css")
+        folder = Path(self.media) / "fonts" / "roboto-slab"
+        self.assertEqual((folder / "roboto-slab-0.woff2").read_bytes(), b"wOF2-font-bytes")
+        self.assertIn("url(roboto-slab-0.woff2)", (folder / "font.css").read_text())
+        self.assertIn("Roboto Slab", self.client.get("/api/fonts/").json()["fonts"])
+        with mock.patch.object(google_fonts, "_get") as again:
+            self.assertEqual(self._post(["Roboto Slab"]).json()["results"][0]["status"], "already")
+            again.assert_not_called()
+
+    def test_names_files_and_hosts_are_checked(self):
+        from unittest import mock
+
+        from slideforge.studio import google_fonts
+
+        self.assertEqual(self.client.get("/api/fonts/").status_code, 401)
+        self.client.force_login(self.user)
+        self.assertEqual(self._post(["../../etc"]).status_code, 400)
+        self.assertEqual(self._post([]).status_code, 400)
+        self.assertEqual(self._post([f"Font {n}" for n in range(13)]).status_code, 400)
+        evil = "@font-face { src: url(https://example.com/x.woff2); }"
+        with mock.patch.object(google_fonts, "_get", return_value=evil.encode()):
+            result = self._post(["Some Font"]).json()["results"][0]
+        self.assertEqual(result["status"], "failed")
+        self.assertNotIn("Some Font", self.client.get("/api/fonts/").json()["fonts"])

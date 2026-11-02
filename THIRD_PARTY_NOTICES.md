@@ -18,6 +18,7 @@ The Excalidraw build bundles further open-source modules; their notices are in `
 | @fontsource/dm-sans | 5.2.8 | OFL-1.1 | https://fontsource.org/fonts/dm-sans |
 | @fontsource/fraunces | 5.2.9 | OFL-1.1 | https://fontsource.org/fonts/fraunces |
 | @fontsource/fredoka | 5.2.10 | OFL-1.1 | https://fontsource.org/fonts/fredoka |
+| @fontsource/instrument-serif | 5.3.0 | OFL-1.1 | https://fontsource.org/fonts/instrument-serif |
 | @fontsource/inter | 5.2.8 | OFL-1.1 | https://fontsource.org/fonts/inter |
 | @fontsource/lora | 5.2.8 | OFL-1.1 | https://fontsource.org/fonts/lora |
 | @fontsource/manrope | 5.2.8 | OFL-1.1 | https://fontsource.org/fonts/manrope |

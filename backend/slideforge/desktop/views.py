@@ -1,4 +1,5 @@
-"""Desktop-only API: the public tunnel that makes shared presentations reachable from anywhere (share_tunnel.py)."""
+"""Desktop-only API: the public tunnel that makes shared presentations reachable from anywhere (share_tunnel.py),
+and updating the app to a new version (updates.py)."""
 
 import json
 import threading
@@ -39,3 +40,55 @@ def _install_and_start(tunnel) -> None:
         tunnel.error = f"Could not download cloudflared: {exc}"
         return
     tunnel.start()
+
+
+@require_http_methods(["GET", "POST"])
+def app_update(request):
+    """GET: the update status (?auto=1 first checks, at most once a day, when automatic checks are on).
+    POST {"action": "check" | "install" | "restart" | "skip" | "autoCheck", "version", "enabled"}."""
+    from .updates import get_updater, spawn_restart
+
+    updater = get_updater()
+    if request.method == "GET":
+        if request.GET.get("auto") == "1":
+            updater.check(automatic=True)
+        return JsonResponse(updater.status())
+    try:
+        payload = json.loads(request.body or b"{}")
+    except ValueError:
+        payload = {}
+    action = payload.get("action") if isinstance(payload, dict) else None
+    if action == "check":
+        updater.check()
+    elif action == "install":
+        if not updater.start_update():
+            return JsonResponse({**updater.status(), "error": "This copy of SlideForge cannot update itself"}, status=409)
+    elif action == "skip":
+        updater.skip(str(payload.get("version") or ""))
+    elif action == "autoCheck":
+        updater.set_auto_check(bool(payload.get("enabled")))
+    elif action == "restart":
+        # The page has saved: start the new version once this one has quit, then close the window.
+        if updater.state != "updated":
+            return JsonResponse({"error": "Nothing to restart into"}, status=409)
+        spawn_restart(updater.data_dir)
+        threading.Thread(target=_close_window, name="slideforge-restart", daemon=True).start()
+    else:
+        return JsonResponse({"error": "Unknown action"}, status=400)
+    return JsonResponse(updater.status())
+
+
+def _close_window() -> None:
+    """Closes the app's window (the app then quits, and the restart helper starts the new version)."""
+    import time
+
+    time.sleep(0.4)  # let the response reach the page first
+    try:
+        import webview
+
+        for window in list(webview.windows):
+            window.destroy()
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).exception("Could not close the window to restart")
