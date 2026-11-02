@@ -181,6 +181,33 @@ class FrontendCachingTests(TestCase):
             self.assertEqual(response.status_code, 200, path)
             self.assertEqual(response["Cache-Control"], "no-cache", path)
 
+    def test_a_changed_file_is_sent_again_even_when_its_date_went_back(self):
+        import os
+        import tempfile
+        from django.test import RequestFactory
+        from slideforge.studio.frontend_files import serve_frontend_file
+
+        root = tempfile.mkdtemp()
+        script = os.path.join(root, "engine.js")
+        with open(script, "w") as handle:
+            handle.write("old();")
+        os.utime(script, (2_000_000_000, 2_000_000_000))
+        first = serve_frontend_file(RequestFactory().get("/engine.js"), "engine.js", document_root=root)
+        tag, date = first["ETag"], first["Last-Modified"]
+        # The browser asks again with what it has: unchanged, it gets a 304.
+        again = serve_frontend_file(RequestFactory().get("/engine.js", HTTP_IF_NONE_MATCH=tag, HTTP_IF_MODIFIED_SINCE=date), "engine.js", document_root=root)
+        self.assertEqual(again.status_code, 304)
+        # Replaced by a newer version whose file date is older (restored from git): sent again.
+        with open(script, "w") as handle:
+            handle.write("fixed_engine();")
+        os.utime(script, (1_900_000_000, 1_900_000_000))
+        changed = serve_frontend_file(RequestFactory().get("/engine.js", HTTP_IF_NONE_MATCH=tag, HTTP_IF_MODIFIED_SINCE=date), "engine.js", document_root=root)
+        self.assertEqual(changed.status_code, 200)
+        self.assertEqual(b"".join(changed.streaming_content), b"fixed_engine();")
+        # A copy cached before files had tags (date only) is sent again too.
+        dated_only = serve_frontend_file(RequestFactory().get("/engine.js", HTTP_IF_MODIFIED_SINCE=date), "engine.js", document_root=root)
+        self.assertEqual(dated_only.status_code, 200)
+
 
 class ShareTunnelTests(TestCase):
     """The public tunnel reaches shared presentations (/s/...) and nothing else."""
