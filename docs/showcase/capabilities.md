@@ -10,12 +10,14 @@ One kind of figure on each slide, every one of them editable in SlideForge. Clic
 <kbd>→</kbd> and <kbd>←</kbd> to step through. On the protein slide, drag the structure to turn it.
 
 <div class="sf-deck">
-  <iframe src="../decks/capabilities/index.html" title="SlideForge capabilities deck" loading="lazy" allowfullscreen></iframe>
+  <iframe src="../decks/capabilities/index.html" title="SlideForge capabilities deck" loading="lazy" tabindex="0" allowfullscreen></iframe>
 </div>
 <div class="sf-deck-actions">
-  <a href="../decks/capabilities/index.html" target="_blank" rel="noopener">Open full screen ↗</a>
+  <a href="../decks/capabilities/index.html" target="_blank" rel="noopener">Open presentation in a new tab ↗</a>
   <span><kbd>→</kbd> next · <kbd>←</kbd> back · <kbd>F</kbd> full screen</span>
 </div>
+
+On a phone or tablet, open the presentation in a new tab for more space. Use the presentation menu (☰, top right) for **Next**, **Previous**, and **Fullscreen**.
 
 ## Slide by slide
 

@@ -9,12 +9,14 @@ title: Animation deck
 Builds bring a slide on one idea at a time. Click the slide, then press <kbd>→</kbd> to play each effect.
 
 <div class="sf-deck">
-  <iframe src="../decks/animations/index.html" title="SlideForge animation showcase" loading="lazy" allowfullscreen></iframe>
+  <iframe src="../decks/animations/index.html" title="SlideForge animation showcase" loading="lazy" tabindex="0" allowfullscreen></iframe>
 </div>
 <div class="sf-deck-actions">
-  <a href="../decks/animations/index.html" target="_blank" rel="noopener">Open full screen ↗</a>
+  <a href="../decks/animations/index.html" target="_blank" rel="noopener">Open presentation in a new tab ↗</a>
   <span><kbd>→</kbd> next step · <kbd>←</kbd> back · <kbd>F</kbd> full screen</span>
 </div>
+
+On a phone or tablet, open the presentation in a new tab for more space. Use the presentation menu (☰, top right) for **Next**, **Previous**, and **Fullscreen**.
 
 ## What is in it
 

@@ -217,3 +217,54 @@
   border-radius: 18px;
   margin: 1rem 0 1.6rem;
 }
+
+/* Keep the first action and a readable preview together on large screens. */
+.sf-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: 2rem;
+  padding: 2.2rem 1.8rem;
+  border-radius: 16px;
+}
+.sf-hero-copy { min-width: 0; }
+.md-typeset .sf-hero h1 {
+  font-size: clamp(1.8rem, 3.2vw, 2.7rem);
+  line-height: 1.15;
+}
+.sf-lead { font-size: 0.9rem; line-height: 1.65; }
+.md-typeset .sf-platforms {
+  margin: 1rem 0 0;
+  color: #c3d8df;
+  font-size: 0.7rem;
+  line-height: 1.7;
+}
+.sf-window { margin-top: 0; min-width: 0; }
+.md-typeset .md-button { border-radius: 6px; }
+.md-typeset .sf-hero .md-button { font-size: 0.75rem; padding: 0.6em 1em; }
+.md-typeset .grid.cards > ul { gap: 0.8rem; }
+.md-typeset .grid.cards > ul > li { padding: 1rem; }
+.md-typeset .sf-wide { max-height: 34rem; object-fit: contain; }
+.md-typeset a:focus-visible,
+.md-typeset iframe:focus-visible {
+  outline: 3px solid var(--md-accent-fg-color);
+  outline-offset: 4px;
+}
+.sf-deck-actions { font-size: 0.8rem; line-height: 1.7; }
+.sf-slides { grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); }
+@media (max-width: 60em) {
+  .sf-hero { grid-template-columns: 1fr; gap: 1.2rem; }
+  .md-typeset .sf-hero h1 { max-width: 22ch; }
+}
+@media (max-width: 40em) {
+  .sf-hero { padding: 1.3rem 1rem; margin-bottom: 1.4rem; border-radius: 12px; }
+  .md-typeset .sf-hero h1 { font-size: 1.8rem; }
+  .sf-kicker { font-size: 0.65rem; letter-spacing: 0.15em; }
+  .sf-deck { padding: 4px; border-radius: 8px; }
+  .sf-deck iframe { border-radius: 4px; }
+  .md-typeset .sf-wide { border-radius: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sf-slide { transition: none; }
+  .sf-slide:hover { transform: none; }
+}

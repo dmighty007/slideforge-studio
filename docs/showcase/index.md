@@ -25,8 +25,10 @@ These presentations were made in SlideForge and exported with its own **web expo
 
 </div>
 
-!!! tip "Made by a script, with the real editor"
-    Both decks are rebuilt for every version of this site by
-    [`tools/build-showcase.cjs`](https://github.com/dmighty007/slideforge-studio/blob/main/tools/build-showcase.cjs),
-    which drives SlideForge the way a user would (inserting charts, plugins, an equation and a PDB file) and then runs
-    its web export. What you see is what the app makes today.
+Ready to make your own? [Install SlideForge](../install.md), then follow the
+[first-presentation walkthrough](../getting-started.md).
+
+??? info "How these examples are made"
+    Both decks are rebuilt with the real editor for each site deployment using
+    [`tools/build-showcase.cjs`](https://github.com/dmighty007/slideforge-studio/blob/main/tools/build-showcase.cjs)
+    and exported through **Export → Web (ZIP)**.

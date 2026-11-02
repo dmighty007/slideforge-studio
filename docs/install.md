@@ -4,9 +4,19 @@ title: Install
 
 # Install SlideForge
 
+Choose your operating system below. The installer sets up Python and the app for your
+user, then adds an applications-menu entry and desktop shortcut. You need an internet
+connection for installation; no administrator rights or existing Python setup are required.
+
+## Recommended: use the installer
+
+These commands download and run the installer from this project's GitHub repository.
+You can inspect the [Linux/macOS script](https://github.com/dmighty007/slideforge-studio/blob/main/install.sh)
+or [Windows script](https://github.com/dmighty007/slideforge-studio/blob/main/install.ps1) first.
+
 === "Linux and macOS"
 
-    Paste this into a terminal:
+    Open **Terminal**, paste this command, and press Enter:
 
     ```bash
     curl -fsSL https://raw.githubusercontent.com/dmighty007/slideforge-studio/main/install.sh | sh
@@ -14,25 +24,69 @@ title: Install
 
 === "Windows"
 
-    Paste this into PowerShell:
+    Open **PowerShell**, paste this command, and press Enter:
 
     ```powershell
     irm https://raw.githubusercontent.com/dmighty007/slideforge-studio/main/install.ps1 | iex
     ```
 
-=== "pip"
+Wait for the installer to finish, then launch **SlideForge** from your applications menu.
+The installer uses the latest source from GitHub's `main` branch. For a published PyPI
+release instead, see the [desktop guide](DESKTOP.md#install).
+
+[Make your first presentation →](getting-started.md){ .md-button .md-button--primary }
+
+## Alternative: install with pip
+
+Use this if you already have a working Python environment. It installs the latest
+published release from PyPI.
+
+=== "Linux and macOS"
 
     ```bash
-    pip install "slideforge-studio[qt]"   # drop [qt] on Windows
-    slideforge                            # start it
-    slideforge --install-shortcut         # add the menu and desktop icons
+    python -m pip install "slideforge-studio[qt]"
     ```
 
-That's all: SlideForge appears in your applications menu and as an icon on your desktop. No administrator rights,
-and no Python to set up first. When a newer version comes out, SlideForge says so and updates itself (or run the
-same line again).
+=== "Windows"
 
-To remove it, add `--uninstall` (`... | sh -s -- --uninstall`). Your presentations stay on your computer either way.
+    ```powershell
+    python -m pip install slideforge-studio
+    ```
 
-More in the [desktop guide](DESKTOP.md). To run SlideForge from its repository, or to help build it, see
-[Development](DEVELOPMENT.md).
+Then start the app, or add shortcuts:
+
+```bash
+slideforge
+slideforge --install-shortcut
+```
+
+## Update or remove
+
+The app offers an update when a newer version is available. You can also run the
+installer again. See [update options](DESKTOP.md#updates) for details.
+
+To uninstall an installer-managed copy:
+
+=== "Linux and macOS"
+
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/dmighty007/slideforge-studio/main/install.sh | sh -s -- --uninstall
+    ```
+
+=== "Windows"
+
+    ```powershell
+    $env:SLIDEFORGE_UNINSTALL = "1"
+    irm https://raw.githubusercontent.com/dmighty007/slideforge-studio/main/install.ps1 | iex
+    Remove-Item Env:SLIDEFORGE_UNINSTALL
+    ```
+
+Your saved presentations are kept. For a pip installation, use
+`python -m pip uninstall slideforge-studio`.
+
+## Need help?
+
+If the app opens in a browser instead of a native window, check the
+[GUI backend instructions](DESKTOP.md#install). For storage locations and logs, see
+[the desktop guide](DESKTOP.md). To run from source, use the
+[development guide](DEVELOPMENT.md).
