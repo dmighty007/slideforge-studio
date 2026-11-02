@@ -87,11 +87,14 @@ function _caretOf(editing) {
 function _restoreKeptCaret() {
   const pending = _caretToRestore;
   if (!pending) return;
-  const apply = () => {
+  // exact: put it back even when the selection is still in the box (the move can leave it at the box's start, and
+  // the next letters went in front: "trongS"). Only right after the redraw, before anything else is typed; the
+  // retry a frame later only steps in when the caret has left the box.
+  const apply = (exact) => {
     const host = pending.node.querySelector(".text-element-content");
     const selection = window.getSelection?.();
     if (!host?.isContentEditable || !document.contains(host) || !selection) return;
-    if (selection.rangeCount && host.contains(selection.anchorNode)) return;
+    if (!exact && selection.rangeCount && host.contains(selection.anchorNode)) return;
     if (document.activeElement !== host) host.focus({ preventScroll: true });
     const range = document.createRange();
     range.setStart(..._pointAtTextOffset(host, pending.caret.start));
@@ -100,8 +103,8 @@ function _restoreKeptCaret() {
     selection.addRange(range);
   };
   _caretToRestore = null;
-  apply();
-  requestAnimationFrame(apply);
+  apply(true);
+  requestAnimationFrame(() => apply(false));
 }
 
 function _collectReusableSlideNodes(container, { mode }) {

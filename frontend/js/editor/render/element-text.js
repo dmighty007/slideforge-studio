@@ -255,7 +255,17 @@ function _applyTextTypeContent(el, elData, options) {
     el.classList.add("cursor-text", "editing-text");
     interact(el).draggable(false);
     interact(el).resizable(false);
+    // The caret goes where the click was, a frame from now. Keys typed before then are already in the box with the
+    // caret after them: placing it then put it back in front of them, and the next letters went first ("Sg" was
+    // saved as "gS"). So it is placed only when nothing was typed in between.
+    const textAtStart = contentHost.textContent;
     requestAnimationFrame(() => {
+      if (contentHost.textContent !== textAtStart && contentHost.contains(window.getSelection?.()?.anchorNode)) {
+        if (!isStructured) captureInlineSelection();
+        updateFloatingToolbars?.();
+        buildPropertiesPanel?.();
+        return;
+      }
       if (isStructured && targetRowIndex !== -1) {
         const items = contentHost.querySelectorAll(".ppt-bullet-edit-item");
         const targetItem = items[targetRowIndex];

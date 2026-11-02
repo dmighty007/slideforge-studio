@@ -1950,7 +1950,7 @@ body.whiteboard-mode-active #insert-toolbar-row .toolbar-secondary-bar {
 }
 
 .new-slide-btn i {
-    color: #ffffff;
+    color: inherit; /* the button's text colour (white made the + vanish on the light button) */
     font-size: 12px;
 }
 

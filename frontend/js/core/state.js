@@ -689,12 +689,31 @@ function setProjectSaveHint(message, tone = "muted") {
     if (/generating .*svg|exported\./i.test(String(message))) _projectHintLockUntil = Date.now() + 5000;
 }
 
+// Leaving the page (reload, close, another address): the browser cancels requests still in flight. An autosave
+// cancelled that way failed like a missing server, which forgot the open project, and the reload opened a blank
+// one (the saved deck was still on the server). Set on beforeunload (when the page may still stay, so it lapses
+// after a few seconds) and on pagehide.
+let _pageLeavingAt = 0;
+window.addEventListener("beforeunload", () => {
+    _pageLeavingAt = Date.now();
+});
+window.addEventListener("pagehide", () => {
+    _pageLeavingAt = Infinity;
+});
+window.addEventListener("pageshow", () => {
+    _pageLeavingAt = 0; // back from the back/forward cache
+});
+function _requestCancelledByLeaving(err) {
+    return err?.name === "AbortError" || Date.now() - _pageLeavingAt < 5000;
+}
+
 function markBackendUnavailable(reason = "Backend API unavailable") {
     _backendApiAvailable = false;
     _presentationPersistenceEnabled = false;
     _presentationPersistenceReady = true;
     setAuthState(null);
-    localStorage.removeItem(PRESENTATION_STORAGE_KEY);
+    // The open project's id stays: a request that fails once (a dropped connection) must not lose which project
+    // this is. Starting up with an id that cannot be loaded already falls back to the start screen.
     setProjectSaveHint("Local autosave on", "success");
     console.warn(reason);
 }
@@ -1019,8 +1038,10 @@ const SAFE_ELEMENT_STYLE_PROPS = new Set([
     // Titles with a shadow (PowerPoint import).
     "textShadow",
 ]);
-const MAX_PRESENTATION_SLIDES = 250;
-const MAX_ELEMENTS_PER_SLIDE = 300;
+// The server's limits (studio/state_validation.py). They were 250 and 300 here, and saving cut a larger deck down to
+// them, in the open editor too, without a word.
+const MAX_PRESENTATION_SLIDES = 2000;
+const MAX_ELEMENTS_PER_SLIDE = 5000;
 const MAX_TEXT_HTML_LENGTH = 20000;
 const MAX_EMBED_HTML_LENGTH = 100000;
 const MAX_MERMAID_SOURCE_LENGTH = 50000;
@@ -1318,7 +1339,17 @@ function _normalizedInPlace(original, next) {
     return Object.assign(original, next);
 }
 
-function normalizeStateIds() {
+// Over the limits: what is too much, for the save message ("2,140 slides (the limit is 2,000)"), or null.
+function presentationOverLimits(slides = state.slides) {
+    const list = Array.isArray(slides) ? slides : [];
+    if (list.length > MAX_PRESENTATION_SLIDES) return `${list.length.toLocaleString()} slides (the limit is ${MAX_PRESENTATION_SLIDES.toLocaleString()})`;
+    const index = list.findIndex(slide => Array.isArray(slide?.elements) && slide.elements.length > MAX_ELEMENTS_PER_SLIDE);
+    return index >= 0 ? `${list[index].elements.length.toLocaleString()} objects on slide ${index + 1} (the limit is ${MAX_ELEMENTS_PER_SLIDE.toLocaleString()})` : null;
+}
+
+// truncate: false keeps every slide and object (saving: the server refuses an oversized deck, and says so, rather
+// than the editor quietly dropping content). Loading a file trims to the limits.
+function normalizeStateIds({ truncate = true } = {}) {
     _normalizedObjects = new WeakSet();
     // Older imported decks did not carry a schema marker. They remain readable, but every
     // normalized state is written back in the current format for future migrations.
@@ -1340,13 +1371,13 @@ function normalizeStateIds() {
     const usedElementIds = new Set();
 
     const legacyDeckTransition = state.presentationTransition;
-    state.slides = (state.slides || []).slice(0, MAX_PRESENTATION_SLIDES).map(slide => {
+    state.slides = (truncate ? (state.slides || []).slice(0, MAX_PRESENTATION_SLIDES) : state.slides || []).map(slide => {
         const safeSlide = slide || { elements: [] };
         const nextSlideId = _isSafeStateId(safeSlide.id) && !usedSlideIds.has(safeSlide.id) ? safeSlide.id : generateId("slide");
         usedSlideIds.add(nextSlideId);
 
         const nextElements = Array.isArray(safeSlide.elements)
-            ? safeSlide.elements.slice(0, MAX_ELEMENTS_PER_SLIDE)
+            ? truncate ? safeSlide.elements.slice(0, MAX_ELEMENTS_PER_SLIDE) : safeSlide.elements
             : [];
         const normalizedElements = nextElements.map(el => _normalizedInPlace(el, (() => {
             const safeEl = el || {};
@@ -1877,7 +1908,9 @@ function _textSourceKey(content) {
 }
 
 function getPersistableState() {
-    normalizeStateIds();
+    normalizeStateIds({ truncate: false });
+    const overLimit = presentationOverLimits();
+    if (overLimit) setProjectSaveHint?.(`Not saved: this deck has ${overLimit}. Remove some to save it.`, "danger");
     state.slides?.forEach(slide => slide.elements?.forEach(el => syncElementSurface(el, slide)));
     return {
         presentationTheme: state.presentationTheme,
@@ -1981,6 +2014,7 @@ async function _presentationRequest(path, options = {}) {
     try {
         response = await _apiFetch(path, options);
     } catch (err) {
+        if (_requestCancelledByLeaving(err)) throw err; // not a missing server: the page is going away
         markBackendUnavailable(`Presentation API request failed: ${err.message || err}`);
         throw err;
     }
@@ -2011,6 +2045,7 @@ async function _authRequest(path, options = {}) {
     try {
         response = await _apiFetch(path, options);
     } catch (err) {
+        if (_requestCancelledByLeaving(err)) throw err;
         markBackendUnavailable(`Auth API request failed: ${err.message || err}`);
         throw err;
     }

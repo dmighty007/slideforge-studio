@@ -95,9 +95,15 @@ function sfPrompt({ title = "", label = "", value = "", placeholder = "", okLabe
         document.addEventListener("keydown", onKey, true);
         document.body.appendChild(overlay);
         _sfPromptOpen = { finish };
+        // At once, so the first keys typed land in the field (focusing a frame later lost them once the editor got
+        // faster); again a frame later in case the overlay was not laid out yet.
+        field.focus();
+        field.select?.();
         requestAnimationFrame(() => {
-            field.focus();
-            field.select?.();
+            if (document.activeElement !== field && overlay.isConnected) {
+                field.focus();
+                field.select?.();
+            }
         });
     });
 }

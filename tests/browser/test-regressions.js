@@ -3343,7 +3343,7 @@ async function test(name, fn) {
         await page.locator("#slide-previews > *").nth(0).click({ button: "right" });
         await page.locator("#slide-preview-menu").waitFor({ state: "visible", timeout: 3000 });
         const labels = await page.locator("#slide-preview-menu button").allInnerTexts();
-        assert(JSON.stringify(labels.map(l => l.trim())) === JSON.stringify(["New slide after", "Duplicate", "Move up", "Move down", "Move to slide…", "Delete"]), `menu: ${JSON.stringify(labels)}`);
+        assert(JSON.stringify(labels.map(l => l.trim())) === JSON.stringify(["New slide after", "Duplicate", "Move up", "Move down", "Move to slide…", "Hide slide when presenting", "Delete"]), `menu: ${JSON.stringify(labels)}`);
         await page.locator("#slide-preview-menu button", { hasText: "Move down" }).click();
         const after = await page.evaluate(() => state.slides.map(s => s.id));
         assert(after[0] === before[1] && after[1] === before[0] && !(await page.locator("#slide-preview-menu").count()), `after Move down: ${JSON.stringify({ before, after })}`);

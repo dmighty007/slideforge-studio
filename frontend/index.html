@@ -34,59 +34,6 @@
             if (localStorage.getItem("slideforge.appTheme") === "dark") document.documentElement.dataset.theme = "dark";
         } catch (_error) {}
     </script>
-    <script>
-        window.tailwind = window.tailwind || {};
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        surface: "#F5F6F8",
-                        canvas: "#FFFFFF",
-                        primary: "#4F46E5",
-                        "primary-hover": "#4338CA",
-                        accent: "#0F766E",
-                        "text-main": "#0F172A",
-                        "text-sub": "#475569",
-                        border: "#CBD5E1",
-                        sidebar: "#F8FAFC",
-                        panel: "#F1F5F9",
-                        "pastel-blue": "#A5D8FF",
-                        "pastel-cyan": "#D0EBFF",
-                        "pastel-green": "#B7E4C7",
-                        "pastel-mint": "#B7E4C7",
-                        "pastel-yellow": "#FFE8A3",
-                        "pastel-orange": "#FFD6A5",
-                        "pastel-lavender": "#C7C9F4",
-                    },
-                    fontFamily: {
-                        sans: ['"Plus Jakarta Sans"', "Inter", "system-ui", "-apple-system", "sans-serif"],
-                        display: ['"Outfit"', "Manrope", "Inter", "sans-serif"],
-                    },
-                    boxShadow: {
-                        slide: "0 12px 30px rgba(0,0,0,0.08)",
-                        panel: "0 2px 8px rgba(0,0,0,0.04)",
-                        toolbar: "0 1px 4px rgba(0,0,0,0.03)",
-                        soft: "0 2px 6px rgba(0,0,0,0.05)",
-                    },
-                },
-            },
-        };
-    </script>
-    <script>
-        window.__slideforgeConsoleWarn = console.warn;
-        console.warn = function (...args) {
-            const message = String(args[0] || "");
-            if (message.includes("should not be used in production")) return;
-            return window.__slideforgeConsoleWarn.apply(console, args);
-        };
-    </script>
-    <script src="vendor/tailwind/tailwind.cdn.js"></script>
-    <script>
-        if (window.__slideforgeConsoleWarn) {
-            console.warn = window.__slideforgeConsoleWarn;
-            delete window.__slideforgeConsoleWarn;
-        }
-    </script>
 
     <!-- Fonts -->
     <link rel="stylesheet" href="vendor/fonts/fonts.css" />
@@ -103,12 +50,15 @@
 
     <!-- App Styles -->
     <link rel="stylesheet" href="css/base.css?v=20260520" />
-    <link rel="stylesheet" href="css/layout.css?v=20261101-hidden-slides" />
+    <link rel="stylesheet" href="css/layout.css?v=20261102-icons" />
     <link rel="stylesheet" href="css/components.css?v=20261101-busy" />
     <link rel="stylesheet" href="css/properties.css?v=20260614-properties-panel-stable" />
     <link rel="stylesheet" href="css/start-screen.css?v=20260929" />
     <link rel="stylesheet" href="css/dark-mode.css?v=20261001-dark" />
     <link rel="stylesheet" href="css/editor-chrome.css?v=20261018" />
+    <!-- Tailwind's utilities, built ahead by tools/build-tailwind.cjs (last, where its in-page compiler put them). The
+         compiler rescanned the page on every change: over a second per edit on a 200-slide deck. -->
+    <link rel="stylesheet" href="css/tailwind.css?v=20261102" />
 </head>
 <body class="entry-gate-pending font-sans bg-surface text-text-main flex flex-col h-screen overflow-hidden select-none">
     <section id="entry-hero" class="entry-hero" aria-label="SlideForge sign in">
@@ -1166,6 +1116,12 @@
     <script src="vendor/interactjs/interact.min.js"></script>
     <link rel="stylesheet" href="vendor/reveal.js-plugins/chalkboard/style.css" />
     <script src="vendor/reveal.js-plugins/chalkboard/plugin.js"></script>
+    <script>
+        // Icons are drawn by the icon font (all.min.css). The script stays for its icon data (the icon picker, and
+        // icons exported to PowerPoint as pictures), but no longer swaps each icon for an SVG or watches the page
+        // for new ones: it searched the whole document after every change, a second per edit on large decks.
+        window.FontAwesomeConfig = { autoReplaceSvg: false, observeMutations: false };
+    </script>
     <script src="vendor/fontawesome/js/all.min.js"></script>
     <script src="vendor/jszip/jszip.min.js"></script>
 
@@ -1178,7 +1134,7 @@
     <script src="vendor/dompurify/purify.min.js"></script>
 
     <!-- ══════════════════════════════════════════ APP SCRIPTS -->
-    <script src="js/ui/prompt-dialog.js"></script>
+    <script src="js/ui/prompt-dialog.js?v=20261102-focus"></script>
     <script src="js/ui/busy-overlay.js"></script>
     <script src="js/ui/select-menu.js"></script>
     <script src="js/core/pageSetup.js"></script>
@@ -1212,10 +1168,10 @@
     <script src="js/editor/render/shape-catalog.js"></script>
     <script src="js/editor/render/chart-config.js"></script>
     <script src="js/editor/render/whiteboard-layer.js?v=20260929-split"></script>
-    <script src="js/editor/render/slides.js?v=20260929-split"></script>
+    <script src="js/editor/render/slides.js?v=20261102-caret"></script>
     <script src="js/editor/render/tables.js?v=20260929-split"></script>
     <script src="js/editor/render/elements.js?v=20260929-split"></script>
-    <script src="js/editor/render/element-text.js?v=20260929-split"></script>
+    <script src="js/editor/render/element-text.js?v=20261102-caret"></script>
     <script src="js/editor/render/element-media.js?v=20260929-split"></script>
     <script src="js/editor/render/pdf.js?v=20260929-split"></script>
     <script src="js/editor/render/init.js?v=20260929-split"></script>
