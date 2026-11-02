@@ -40,6 +40,10 @@ logger = logging.getLogger(__name__)
 
 ALLOWED_IMAGE_EXTENSIONS = {".gif", ".jpeg", ".jpg", ".png", ".webp"}
 ALLOWED_VIDEO_EXTENSIONS = {".mov", ".mp4", ".m4v", ".webm"}
+# Sounds browsers play (Ogg/Opus, WebM audio, WAV, FLAC, MP3 and AAC; the desktop app gets an Opus copy of AAC).
+ALLOWED_AUDIO_EXTENSIONS = {".mp3", ".m4a", ".aac", ".wav", ".ogg", ".oga", ".opus", ".flac", ".weba"}
+# Audio the desktop app's engine cannot decode (it has no AAC decoder): an Opus copy is made beside it.
+AUDIO_NEEDING_COPY = {".m4a", ".aac"}
 ALLOWED_PDF_EXTENSIONS = {".pdf"}
 ALLOWED_MOLECULE_EXTENSIONS = {".pdb", ".ent", ".gro", ".mol2", ".xyz", ".sdf", ".cif", ".mmcif"}
 # Binary MD trajectories, played over a structure already on the slide (GROMACS, CHARMM/NAMD, AMBER).
@@ -465,11 +469,26 @@ def _validate_trajectory_upload(uploaded_file, ext):
     return None
 
 
+def _validate_audio_upload(uploaded_file) -> Optional[str]:
+    """None when the file starts like a sound file (ID3/MPEG, MP4/M4A, RIFF/WAVE, Ogg, FLAC, WebM, ADTS AAC)."""
+    head = uploaded_file.read(16)
+    uploaded_file.seek(0)
+    if not head:
+        return "Uploaded sound file is empty"
+    known = (
+        head.startswith((b"ID3", b"OggS", b"fLaC", b"\x1a\x45\xdf\xa3"))
+        or (head[:4] == b"RIFF" and head[8:12] == b"WAVE")
+        or head[4:8] == b"ftyp"
+        or (head[0] == 0xFF and (head[1] & 0xE0) == 0xE0)  # MPEG audio or ADTS AAC frame
+    )
+    return None if known else "Uploaded file is not a sound file this app can play"
+
+
 def _webm_copy_path(video_path: Path) -> Path:
     return video_path.with_suffix(".webm")
 
 
-def _make_webm_copy(video_path: Path) -> Optional[Path]:
+def _make_webm_copy(video_path: Path, *, audio_only: bool = False) -> Optional[Path]:
     """A VP9/Opus WebM beside an uploaded MP4, for the desktop app.
 
     Uploads are stored as H.264 MP4 (web browsers and PowerPoint play it), but the desktop app's Qt WebEngine is built
@@ -485,12 +504,9 @@ def _make_webm_copy(video_path: Path) -> Optional[Path]:
     out_fd, out_path = tempfile.mkstemp(suffix=".webm", dir=str(video_path.parent))
     os.close(out_fd)
     try:
-        cmd = [
-            ffmpeg, "-y", "-i", str(video_path),
-            "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "34", "-deadline", "realtime", "-cpu-used", "8", "-row-mt", "1",
-            "-c:a", "libopus", "-b:a", "96k",
-            out_path,
-        ]
+        # A sound gets an Opus-only WebM (its cover picture, if any, is left out).
+        video_args = ["-vn"] if audio_only else ["-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "34", "-deadline", "realtime", "-cpu-used", "8", "-row-mt", "1"]
+        cmd = [ffmpeg, "-y", "-i", str(video_path), *video_args, "-c:a", "libopus", "-b:a", "128k" if audio_only else "96k", out_path]
         result = subprocess.run(
             cmd,
             capture_output=True,
@@ -519,6 +535,10 @@ def _classify_asset_upload(uploaded_file):
         return "image", _validate_image_upload(uploaded_file)
     if content_type.startswith("video/") and ext in ALLOWED_VIDEO_EXTENSIONS:
         return "video", None
+    # Browsers name some sounds oddly (an .m4a as video/mp4 or application/octet-stream): the extension decides,
+    # and the first bytes must look like a sound file.
+    if ext in ALLOWED_AUDIO_EXTENSIONS and (content_type.startswith(("audio/", "video/")) or content_type in ("", "application/octet-stream")):
+        return "audio", _validate_audio_upload(uploaded_file)
     if content_type == "application/pdf" and ext in ALLOWED_PDF_EXTENSIONS:
         return "pdf", _validate_pdf_upload(uploaded_file)
     if ext in ALLOWED_MOLECULE_EXTENSIONS:
@@ -653,6 +673,10 @@ def _playable_copy(asset) -> Dict[str, str]:
         copy = _make_webm_copy(Path(asset.file.path))
         if copy:
             return {"webmUrl": asset.file.url.rsplit("/", 1)[0] + "/" + copy.name}
+    if asset.asset_type == "audio" and getattr(settings, "SLIDEFORGE_VIDEO_WEBM_COPY", False) and Path(asset.file.name).suffix.lower() in AUDIO_NEEDING_COPY:
+        copy = _make_webm_copy(Path(asset.file.path), audio_only=True)
+        if copy:
+            return {"webmUrl": asset.file.url.rsplit("/", 1)[0] + "/" + copy.name}
     return {}
 
 
@@ -747,7 +771,9 @@ def asset_video_webm(request):
     except ValueError:
         return _json_error("Invalid JSON")
     name = os.path.basename(str(payload.get("url") or "").split("?")[0].split("#")[0])
-    if not name.lower().endswith((".mp4", ".m4v", ".mov")):
+    # Sounds too (an AAC .m4a the desktop app cannot play gets an Opus copy).
+    audio_only = Path(name).suffix.lower() in ALLOWED_AUDIO_EXTENSIONS
+    if not name.lower().endswith((".mp4", ".m4v", ".mov")) and not audio_only:
         return _json_error("Not an MP4 video asset", status=400)
     asset = Asset.objects.filter(owner=request.user, file=f"assets/{name}").first()
     video_path = Path(asset.file.path) if asset else None
@@ -758,9 +784,9 @@ def asset_video_webm(request):
         video_path = candidate if candidate.is_file() else None
     if video_path is None:
         return _json_error("Video not found", status=404)
-    copy = _make_webm_copy(video_path)
+    copy = _make_webm_copy(video_path, audio_only=audio_only)
     if copy is None:
-        return _json_error("This video could not be converted (ffmpeg is needed)", status=422)
+        return _json_error("This file could not be converted (ffmpeg is needed)", status=422)
     return JsonResponse({"webmUrl": f"{settings.MEDIA_URL.rstrip('/')}/assets/{copy.name}"})
 
 

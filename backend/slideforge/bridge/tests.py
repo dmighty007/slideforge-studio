@@ -1,4 +1,6 @@
+import io
 import os
+from pathlib import Path
 from django.test import TestCase
 from unittest import mock
 
@@ -384,6 +386,42 @@ class PPTXExportMediaTests(TestCase):
         buffer = _io.BytesIO()
         Image.new("RGB", (40, 30), (220, 38, 38)).save(buffer, fmt)
         return f"data:{mime};base64," + base64.b64encode(buffer.getvalue()).decode()
+
+    def test_audio_exports_as_a_powerpoint_sound_with_its_file(self):
+        import shutil
+        import subprocess
+        import tempfile
+        import zipfile
+        from django.test import override_settings
+        from pptx import Presentation
+        from slideforge.bridge.pptx_exporter import PPTXExporter
+
+        if not shutil.which("ffmpeg"):
+            self.skipTest("ffmpeg is needed to make the test sound")
+        media = tempfile.mkdtemp()
+        try:
+            (Path(media) / "assets").mkdir()
+            sound = Path(media) / "assets" / ("a" * 32 + ".mp3")
+            subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=1", str(sound)], check=True)
+            with override_settings(MEDIA_ROOT=media, MEDIA_URL="/media/"):
+                state = {"slides": [{"masterId": "none", "elements": [{
+                    "type": "audio", "content": f"/media/assets/{sound.name}", "audioName": "Theme tune",
+                    "x": 100, "y": 100, "width": "320px", "height": "64px",
+                }]}]}
+                data = PPTXExporter(state).export()
+            slide = Presentation(io.BytesIO(data) if isinstance(data, bytes) else data).slides[0]
+            pictures = [shape for shape in slide.shapes if shape.shape_type is not None and shape.name == "Theme tune"]
+            self.assertEqual(len(pictures), 1)
+            xml = pictures[0]._element.xml
+            self.assertIn("a:audioFile", xml)
+            self.assertNotIn("a:videoFile", xml)
+            rels = {rel.reltype.rsplit("/", 1)[-1] for rel in slide.part.rels.values()}
+            self.assertIn("audio", rels)
+            buffer = data if isinstance(data, (bytes, bytearray)) else data.getvalue()
+            with zipfile.ZipFile(io.BytesIO(buffer)) as package:
+                self.assertTrue(any(name.startswith("ppt/media/") and name.endswith(".mp3") for name in package.namelist()))
+        finally:
+            shutil.rmtree(media, ignore_errors=True)
 
     def test_bar_chart_exports_as_a_native_chart_with_its_data(self):
         slide = self._export([{

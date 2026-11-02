@@ -692,6 +692,8 @@ async function captureSlideCanvas(slide, page, scale) {
       height: page.height,
       windowWidth: page.width,
       windowHeight: page.height,
+      // As presented: a sound hidden while presenting is not on the page, nor the editor's badges on a sound.
+      ignoreElements: (node) => node.classList?.contains("sf-audio-hidden-in-show") || node.classList?.contains("sf-audio__flags"),
     });
   } finally {
     style.remove();
@@ -1232,8 +1234,9 @@ async function exportPPTX() {
 // A file extension the server recognises: "image/svg+xml" gave "asset_3.svg+xml", which was served as unknown
 // binary and refused by the browser (shared diagrams showed a broken picture).
 function _assetExtension(mime) {
+  if (/^audio\/(mpeg|mp3)\b/i.test(String(mime || ""))) return "mp3"; // not "mpeg": a sound file
   const subtype = String(mime || "").split("/")[1]?.split(";")[0].trim().toLowerCase() || "";
-  return { "svg+xml": "svg", jpeg: "jpg", quicktime: "mov", "x-matroska": "mkv" }[subtype] || subtype.replace(/[^a-z0-9]/g, "");
+  return { "svg+xml": "svg", jpeg: "jpg", quicktime: "mov", "x-matroska": "mkv", "x-m4a": "m4a", "x-wav": "wav", wave: "wav", "x-flac": "flac" }[subtype] || subtype.replace(/[^a-z0-9]/g, "");
 }
 
 // The type and base64 bytes of a data: URL. Not every data URL is base64 (SVG pictures are often written as
@@ -1334,20 +1337,22 @@ async function processStateAssets(originalState) {
         }
       }
       // Extract local media/molecule content if it's a data URL or app asset URL.
+      // A sound's copy for the desktop app is the server's: the exported file plays the original.
+      if (el.type === "audio") delete el.audioWebm;
       if (
-        (el.type === "image" || el.type === "video" || el.type === "pdf") &&
+        (el.type === "image" || el.type === "video" || el.type === "audio" || el.type === "pdf") &&
         el.content?.startsWith("data:")
       ) {
         const payload = _dataUrlPayload(
           el.content,
-          el.type === "image" ? "image/png" : el.type === "pdf" ? "application/pdf" : "video/mp4",
+          el.type === "image" ? "image/png" : el.type === "pdf" ? "application/pdf" : el.type === "audio" ? "audio/mpeg" : "video/mp4",
         );
         if (!payload) continue;
         const { mime, base64: base64Data } = payload;
         const ext =
           mime === "application/pdf"
             ? "pdf"
-            : _assetExtension(mime) || (el.type === "image" ? "png" : "mp4");
+            : _assetExtension(mime) || (el.type === "image" ? "png" : el.type === "audio" ? "mp3" : "mp4");
 
         const fileName = `asset_${assetCounter++}.${ext}`;
         assets[fileName] = base64Data;
@@ -1355,6 +1360,7 @@ async function processStateAssets(originalState) {
       } else if (
         (el.type === "image" ||
           el.type === "video" ||
+          el.type === "audio" ||
           el.type === "pdf" ||
           el.type === "molecule") &&
         (isBundlableLocalAsset(el.content) ||
@@ -1379,11 +1385,13 @@ async function processStateAssets(originalState) {
               ? "application/pdf"
               : el.type === "molecule"
                 ? "chemical/x-pdb"
-                : "video/mp4");
+                : el.type === "audio"
+                  ? "audio/mpeg"
+                  : "video/mp4");
         const ext =
           mime === "application/pdf"
             ? "pdf"
-            : _assetExtension(mime) || (el.type === "image" ? "png" : "mp4");
+            : _assetExtension(mime) || (el.type === "image" ? "png" : el.type === "audio" ? "mp3" : "mp4");
         const fileName = `asset_${assetCounter++}.${ext}`;
         assets[fileName] = await toBase64(blob);
         el.content = `assets/${fileName}`;
@@ -2219,6 +2227,8 @@ body {
 function generateViewerJs(moleculeScriptUrl = null) {
   return `
 ${sanitizeHtml.toString()}
+${typeof _audioCardNode === "function" ? _audioCardNode.toString() : ""}
+${typeof _audioTimeLabel === "function" ? _audioTimeLabel.toString() : ""}
 
 const animationEffects = ['fade-in', 'slide-up', 'slide-down', 'slide-left', 'slide-right', 'zoom-in', 'pop-in', 'wipe-in', 'pulse', 'glow'];
 const MOLECULE_EMBED_NGL_SRC = ${JSON.stringify(moleculeScriptUrl || (typeof MOLECULE_EMBED_NGL_SRC === "string" ? MOLECULE_EMBED_NGL_SRC : "vendor/ngl/ngl.js"))};
@@ -2849,6 +2859,19 @@ function initViewer(data) {
         const pageActive = document.visibilityState !== 'hidden' && document.hasFocus();
         Array.from(container.children).forEach((slideDom, slideIndex) => {
             const isActive = pageActive && slideIndex === activeSlideIndex;
+            // Sounds: one set to play by itself starts when its slide opens; leaving the slide stops and rewinds it.
+            slideDom.querySelectorAll('audio.sf-audio__media').forEach(audio => {
+                if (!isActive) {
+                    if (!audio.paused) audio.pause();
+                    if (audio.currentTime) audio.currentTime = 0;
+                    audio.dataset.started = '';
+                    return;
+                }
+                if (audio.dataset.sfAutoplay === 'true' && !audio.dataset.started) {
+                    audio.dataset.started = 'true';
+                    audio.play().catch(() => {});
+                }
+            });
             slideDom.querySelectorAll('video').forEach(video => {
                 if (!isActive) {
                     if (!video.paused) video.pause();
@@ -3375,6 +3398,39 @@ function createViewerElement(elData, mediaOptions = {}) {
             });
         }
         el.appendChild(videoNode);
+    } else if (elData.type === 'audio' && typeof _audioCardNode === 'function') {
+        // A sound: its card plays and pauses it; one hidden while presenting plays without showing.
+        if (elData.hideWhilePresenting) el.style.visibility = 'hidden';
+        const card = _audioCardNode(elData);
+        card.querySelector('.sf-audio__flags')?.remove();
+        const button = card.querySelector('.sf-audio__play');
+        button.style.pointerEvents = 'auto';
+        const audio = document.createElement('audio');
+        audio.className = 'sf-audio__media';
+        audio.preload = 'metadata';
+        audio.loop = !!elData.loop;
+        audio.dataset.sfAutoplay = elData.autoplay ? 'true' : 'false';
+        if (elData.content) audio.src = elData.content;
+        const bar = card.querySelector('.sf-audio__bar');
+        const time = card.querySelector('.sf-audio__time');
+        const refresh = () => {
+            const playing = !audio.paused && !audio.ended;
+            card.classList.toggle('is-playing', playing);
+            button.innerHTML = '<i class="fa-solid fa-' + (playing ? 'pause' : 'play') + '"></i>';
+            const total = audio.duration;
+            bar.style.width = Number.isFinite(total) && total > 0 ? (audio.currentTime / total) * 100 + '%' : '0%';
+            time.textContent = Number.isFinite(total) && total > 0 && (playing || audio.currentTime > 0)
+                ? _audioTimeLabel(audio.currentTime) + ' / ' + _audioTimeLabel(total)
+                : _audioTimeLabel(total);
+        };
+        ['play', 'pause', 'ended', 'timeupdate', 'loadedmetadata'].forEach(name => audio.addEventListener(name, refresh));
+        button.addEventListener('click', event => {
+            event.stopPropagation();
+            if (audio.paused) audio.play().catch(() => {});
+            else audio.pause();
+        });
+        el.appendChild(card);
+        el.appendChild(audio);
     } else if (elData.type === 'shape') {
         applyShapeStyles(el, elData);
     } else if (elData.type === 'connector') {

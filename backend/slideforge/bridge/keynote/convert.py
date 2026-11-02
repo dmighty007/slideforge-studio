@@ -20,6 +20,8 @@ from .iwa import KeynoteError, KeynotePackage, open_keynote
 
 PICTURE_MIME = {"png": "image/png", "jpg": "image/jpeg", "gif": "image/gif", "webp": "image/webp"}
 MOVIE_MIME = {".mov": "video/quicktime", ".mp4": "video/mp4", ".m4v": "video/x-m4v"}
+# Sounds browsers play (AIFF and Apple Lossless do not: those are left out and counted).
+AUDIO_MIME = {".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".aac": "audio/aac", ".wav": "audio/wav", ".ogg": "audio/ogg", ".flac": "audio/flac"}
 ALIGNMENTS = {0: "left", 1: "right", 2: "center", 3: "justify"}  # 4 is "natural": left for the scripts we expect
 PLACEHOLDER_KINDS = {1: "slideNumber", 2: "title", 3: "body", 4: "object"}
 MAX_STYLE_DEPTH = 32
@@ -233,7 +235,10 @@ class _Converter:
         if obj.name == "KN.PlaceholderArchive":
             kind = PLACEHOLDER_KINDS.get(message.kind)
             element = self._text(message.super, offset, placeholder=kind)
-            return [element] if element else []
+            if element is None:
+                return []  # an empty placeholder is not shown, its fill neither
+            # Its fill and outline under the words (a white caption box on a photo came in as bare text).
+            return [made for made in (self._shape(message.super.super, offset), element) if made]
         if obj.name == "TSWP.ShapeInfoArchive":
             # The shape (its outline and fill: a bar, a rule, a box behind a caption), then its words on top. Text
             # boxes are usually neither filled nor outlined, and come in as text only.
@@ -267,9 +272,16 @@ class _Converter:
         frame = self._geometry(group.super, offset)
         children = [self.pkg.get(reference) for reference in group.children]
         children = [child for child in children if child is not None and child.message is not None]
-        # Children's positions are inside the group when they all fit in its size; otherwise they are on the slide.
-        boxes = [self._child_box(child) for child in children]
-        relative = all(box and box[0] >= -1 and box[1] >= -1 and box[2] <= frame["width"] + 1 and box[3] <= frame["height"] + 1 for box in boxes)
+        # Children's positions are inside the group (from its corner) or on the slide: whichever puts the box around
+        # them closer to the group's frame. A fit-inside test with a 1 pt margin failed on a tape picture sticking out
+        # by 1.4 pt, and note cards came in at the slide's top-left corner.
+        boxes = [box for box in (self._child_box(child) for child in children) if box]
+        relative = True
+        if boxes:
+            union = (min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes))
+            inside = sum(abs(u - f) for u, f in zip(union, (0, 0, frame["width"], frame["height"])))
+            on_slide = sum(abs(u - f) for u, f in zip(union, (frame["x"] - offset[0], frame["y"] - offset[1], frame["x"] - offset[0] + frame["width"], frame["y"] - offset[1] + frame["height"])))
+            relative = inside <= on_slide
         inner = (frame["x"], frame["y"]) if relative else offset
         elements = []
         for child in children:
@@ -358,9 +370,19 @@ class _Converter:
         char_starts = sorted({entry.character_index for entry in storage.table_char_style.entries})
         default_chain = self._style_chain(default_style) if default_style is not None else []
         paragraphs = []
+        previous_chain: list[Any] = []
         for start, end in zip(starts, ends, strict=True):
             para_entry = self._at(storage.table_para_style, start)
-            para_chain = self._style_chain(para_entry.object) if para_entry is not None and _has(para_entry, "object") else []
+            if para_entry is not None and _has(para_entry, "object"):
+                para_chain = self._style_chain(para_entry.object)
+            elif para_entry is not None:
+                # An entry without a style keeps the paragraph before's: the last paragraph of a box often has one,
+                # and Keynote draws it like the one above. It took the box's default (often the heading's style),
+                # and body text came in as a big bold heading.
+                para_chain = list(previous_chain)
+            else:
+                para_chain = []
+            previous_chain = list(para_chain)
             para_chain += [style for style in default_chain if style not in para_chain]  # what the paragraph leaves unset
             level_entry = self._at(storage.table_para_data, start)
             level = int(level_entry.first) if level_entry is not None and level_entry.character_index == start else 0
@@ -374,14 +396,16 @@ class _Converter:
                 char_entry = self._at(storage.table_char_style, run_start)
                 char_chain = self._style_chain(char_entry.object) if char_entry is not None and _has(char_entry, "object") else []
                 runs.append({"text": piece, **self._run_style(char_chain + para_chain)})
-            paragraphs.append(
-                {
-                    "align": self._alignment(para_chain),
-                    "level": max(0, min(8, level)),
-                    "bullet": self._bullet(storage, start, level, para_chain),
-                    "runs": runs,
-                }
-            )
+            paragraph = {
+                "align": self._alignment(para_chain),
+                "level": max(0, min(8, level)),
+                "bullet": self._bullet(storage, start, level, para_chain),
+                "runs": runs,
+                **self._spacing(para_chain),
+            }
+            if paragraph["bullet"] != "none":
+                paragraph.update(self._label(storage, start, level, para_chain))
+            paragraphs.append(paragraph)
         while paragraphs and not paragraphs[-1]["runs"]:
             paragraphs.pop()
         return paragraphs
@@ -408,6 +432,12 @@ class _Converter:
             style["font"] = family
             bold = bold if bold is not None else font_bold or None
             italic = italic if italic is not None else font_italic or None
+            # Weights between regular and bold ("HelveticaNeue-Medium" titles came in regular) and light ones.
+            face = font.partition("-")[2].lower()
+            if not bold and ("medium" in face or "demi" in face):
+                style["weight"] = 600
+            elif not bold and any(word in face for word in ("light", "thin", "ultralight")):
+                style["weight"] = 300
         size = self._char_property(chain, "font_size")
         color = self._char_property(chain, "font_color")
         underline = self._char_property(chain, "underline")
@@ -434,6 +464,63 @@ class _Converter:
             if _has(style, "para_properties") and _has(style.para_properties, "alignment"):
                 return ALIGNMENTS.get(style.para_properties.alignment, "left")
         return "left"
+
+    @staticmethod
+    def _para_property(chain, name: str):
+        for style in chain:
+            props = style.para_properties if _has(style, "para_properties") else None
+            if props is not None and _has(props, name):
+                return getattr(props, name)
+        return None
+
+    def _spacing(self, para_chain) -> dict[str, Any]:
+        """Space before and after (points) and relative line spacing: lists came in packed together."""
+        result: dict[str, Any] = {}
+        for name, key in (("space_before", "spaceBefore"), ("space_after", "spaceAfter")):
+            value = self._para_property(para_chain, name)
+            if value:
+                result[key] = round(float(value), 2)
+        line = self._para_property(para_chain, "line_spacing")
+        if line is not None and (not _has(line, "mode") or line.mode == 0) and _has(line, "amount") and line.amount > 0:
+            result["lineSpacing"] = round(float(line.amount), 3)
+        return result
+
+    def _list_style(self, storage, start: int, para_chain):
+        entry = self._at(storage.table_list_style, start)
+        if entry is not None and _has(entry, "object") and entry.object.identifier:
+            return entry.object
+        for style in para_chain:
+            if _has(style, "para_properties") and _has(style.para_properties, "list_style"):
+                return style.para_properties.list_style
+        return None
+
+    def _label(self, storage, start: int, level: int, para_chain) -> dict[str, Any]:
+        """A bulleted paragraph's label: its character and colour, where it sits (points from the box's edge) and
+        where the text starts after it (in the text's size). Each comes from the nearest list style that sets it."""
+        chain = self._style_chain(self._list_style(storage, start, para_chain))
+
+        def pick(name):
+            for style in chain:
+                values = list(getattr(style, name, []))
+                if values:
+                    return values[min(level, len(values) - 1)]
+            return None
+
+        result: dict[str, Any] = {}
+        glyph = pick("strings")
+        if glyph and pick("label_types") == 2:
+            result["glyph"] = glyph[:4]
+        for style in chain:
+            if _has(style, "font_color"):
+                result["glyphColor"] = _rgba(style.font_color)
+                break
+        indent = pick("indents")
+        if indent is not None:
+            result["labelIndent"] = round(float(indent), 2)
+        text_indent = pick("text_indents")
+        if text_indent is not None:
+            result["textIndent"] = round(float(text_indent), 4)
+        return result
 
     def _bullet(self, storage, start: int, level: int, para_chain) -> str:
         list_style = None
@@ -490,13 +577,40 @@ class _Converter:
                 self.skip("pictures that could not be found" if found is None else "pictures in formats SlideForge cannot show")
                 return None
             self.media[key] = converted
+        # Flipped in Keynote (the geometry's flags: 4 across, 8 up and down). SlideForge pictures do not flip, so a
+        # mirrored copy is stored: a raspberry cup flipped and cropped to the left half came in unflipped, cropped
+        # from the wrong side, and covered the text panel beside it.
+        flags = image.super.geometry.flags if _has(image.super.geometry, "flags") else 0
+        flip = (bool(flags & 4), bool(flags & 8))
+        if any(flip):
+            flipped_key = f"{key}-flip{'h' if flip[0] else ''}{'v' if flip[1] else ''}"
+            if flipped_key not in self.media:
+                mirrored = _flipped_picture(self.media[key], *flip)
+                if mirrored is not None:
+                    self.media[flipped_key] = mirrored
+            if flipped_key in self.media:
+                key = flipped_key
+            else:
+                flip = (False, False)
         element = {"kind": "image", **self._geometry(image.super, offset), "media": key}
+        opacity = self._media_opacity(image)
+        if opacity is not None:
+            element["opacity"] = opacity
         mask = self.pkg.message(image.mask, "TSD.MaskArchive") if _has(image, "mask") else None
         if mask is not None:
-            self._crop(element, mask)
+            self._crop(element, mask, flip)
         return element
 
-    def _crop(self, element: dict[str, Any], mask) -> None:
+    def _media_opacity(self, media) -> Optional[float]:
+        """A picture's or movie's opacity from its media style, when below 1 (a map's states faded to a tint came in
+        solid white)."""
+        for style in self._style_chain(media.style if _has(media, "style") else None):
+            props = style.media_properties if _has(style, "media_properties") else None
+            if props is not None and _has(props, "opacity"):
+                return round(float(props.opacity), 3) if 0 <= props.opacity < 0.999 else None
+        return None
+
+    def _crop(self, element: dict[str, Any], mask, flip: tuple[bool, bool] = (False, False)) -> None:
         """A masked (cropped) picture: the element becomes the visible part, the whole picture placed inside it.
 
         The mask's position is inside the picture's frame (a Keynote file showed three photos cropped to columns
@@ -506,13 +620,16 @@ class _Converter:
         width, height = geometry.size.width, geometry.size.height
         if width <= 0 or height <= 0:
             return
+        # The mask is placed in the unflipped picture: a flipped one shows the part mirrored across it.
+        left = element["width"] - geometry.position.x - width if flip[0] else geometry.position.x
+        top = element["height"] - geometry.position.y - height if flip[1] else geometry.position.y
         element["crop"] = {
             "widthPercent": round(element["width"] / width * 100, 4),
             "heightPercent": round(element["height"] / height * 100, 4),
-            "leftPercent": round(-geometry.position.x / width * 100, 4),
-            "topPercent": round(-geometry.position.y / height * 100, 4),
+            "leftPercent": round(-left / width * 100, 4),
+            "topPercent": round(-top / height * 100, 4),
         }
-        element.update(x=element["x"] + geometry.position.x, y=element["y"] + geometry.position.y, width=width, height=height)
+        element.update(x=element["x"] + left, y=element["y"] + top, width=width, height=height)
         if not _is_rectangle(mask):
             self.skip("pictures cropped to a shape (cropped to its box)")
 
@@ -522,7 +639,9 @@ class _Converter:
         found = self._data_file(identifier) if identifier else None
         stored = found[1].rsplit("/", 1)[-1] if found else ""
         extension = ("." + stored.rsplit(".", 1)[-1].lower()) if "." in stored else ""
-        if found is None or extension not in MOVIE_MIME or movie.audioOnly:
+        if found is not None and movie.audioOnly:
+            return self._sound(movie, found, extension, offset)
+        if found is None or extension not in MOVIE_MIME:
             self.skip("sounds and movies in other formats" if found else "movies that could not be found")
             return None
         key = f"data-{identifier}"
@@ -532,6 +651,25 @@ class _Converter:
             "kind": "video",
             **self._geometry(movie.super, offset),
             "media": key,
+            "loop": bool(_has(movie, "loop_option") and movie.loop_option) or bool(movie.loopOptionAsInteger),
+            "autoplay": bool(movie.autoPlay),
+        }
+
+    def _sound(self, movie, found, extension: str, offset) -> Optional[dict[str, Any]]:
+        """A sound (an audio-only movie): an audio element. Keynote hides a sound's icon while presenting; one that
+        plays by itself stays hidden, one started by a click keeps its player so it can be clicked (see _builds)."""
+        identifier = movie.movieData.identifier
+        if extension not in AUDIO_MIME:
+            self.skip("sounds in formats browsers cannot play")
+            return None
+        key = f"data-{identifier}"
+        stem = found[0].rsplit("/", 1)[-1].rsplit(".", 1)[0] or "sound"
+        self.media.setdefault(key, Media(stem + extension, AUDIO_MIME[extension], found[2]))
+        return {
+            "kind": "audio",
+            **self._geometry(movie.super, offset),
+            "media": key,
+            "name": stem,
             "loop": bool(_has(movie, "loop_option") and movie.loop_option) or bool(movie.loopOptionAsInteger),
             "autoplay": bool(movie.autoPlay),
         }
@@ -620,6 +758,16 @@ class _Converter:
             animation = build.attributes.animationAttributes if _has(build, "attributes") else None
             effect = animation.effect if animation is not None else ""
             if effect in ("apple:movie-start", "apple:movie-stop", "apple:audio-start", "apple:audio-stop"):
+                # Starting a sound: when the slide opens (an automatic first chunk) it plays by itself; on a click
+                # it is the sound's own button that starts it while presenting.
+                if effect in ("apple:audio-start", "apple:movie-start") and chunk.automatic and click == 0:
+                    for element in elements:
+                        if element.get("source") == build.drawable.identifier and element.get("kind") in ("audio", "video"):
+                            element["autoplay"] = True
+                elif effect in ("apple:audio-start", "apple:movie-start"):
+                    for element in elements:
+                        if element.get("source") == build.drawable.identifier and element.get("kind") == "audio":
+                            element["clickToPlay"] = True
                 continue
             targets = [element for element in elements if element.get("source") == build.drawable.identifier]
             if not targets:
@@ -850,6 +998,29 @@ def _web_picture(name: str, data: bytes) -> Optional[Media]:
         except Exception:
             png = None
     return Media(f"{base}.png", PICTURE_MIME["png"], png) if png else None
+
+
+def _flipped_picture(media: Media, across: bool, up_down: bool) -> Optional[Media]:
+    """A mirrored copy of a picture (PNG or JPEG kept as such; GIF and WebP become PNG); None if it cannot be read."""
+    try:
+        from PIL import Image, ImageOps
+
+        with Image.open(io.BytesIO(media.data)) as picture:
+            picture.load()
+            out = picture
+            if across:
+                out = ImageOps.mirror(out)
+            if up_down:
+                out = ImageOps.flip(out)
+            buffer = io.BytesIO()
+            stem = media.name.rsplit(".", 1)[0]
+            if media.mime == PICTURE_MIME["jpg"]:
+                out.convert("RGB").save(buffer, "JPEG", quality=92)
+                return Media(f"{stem}-flipped.jpg", media.mime, buffer.getvalue())
+            out.convert("RGBA").save(buffer, "PNG")
+            return Media(f"{stem}-flipped.png", PICTURE_MIME["png"], buffer.getvalue())
+    except Exception:
+        return None
 
 
 def _render_vector(data: bytes, filetype: str) -> Optional[bytes]:

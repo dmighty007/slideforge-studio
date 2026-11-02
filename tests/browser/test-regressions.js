@@ -3030,6 +3030,67 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("audio: a sound shows its card, stays quiet while editing, and plays by itself (hidden) when presenting", async () => {
+        const { page } = await openFreshEditor(context);
+        const id = await page.evaluate(() => {
+            // One second of silence as a WAV file.
+            const rate = 8000;
+            const bytes = new Uint8Array(44 + rate);
+            const view = new DataView(bytes.buffer);
+            [..."RIFF"].forEach((c, i) => (bytes[i] = c.charCodeAt(0)));
+            view.setUint32(4, 36 + rate, true);
+            [..."WAVEfmt "].forEach((c, i) => (bytes[8 + i] = c.charCodeAt(0)));
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true);
+            view.setUint32(24, rate, true);
+            view.setUint32(28, rate, true);
+            view.setUint16(32, 1, true);
+            view.setUint16(34, 8, true);
+            [..."data"].forEach((c, i) => (bytes[36 + i] = c.charCodeAt(0)));
+            view.setUint32(40, rate, true);
+            bytes.fill(128, 44);
+            let binary = "";
+            bytes.forEach(byte => (binary += String.fromCharCode(byte)));
+            addSlide();
+            const element = { id: generateId("el"), type: "audio", content: `data:audio/wav;base64,${btoa(binary)}`, audioName: "Theme", x: 80, y: 80, width: "320px", height: "64px", autoplay: true, hideWhilePresenting: true, styles: { zIndex: 5 } };
+            state.slides[currentSlideIndex].elements.push(element);
+            addSlide();
+            setCurrentSlideIndex(state.slides.length - 2);
+            renderSlidesFromState();
+            return element.id;
+        });
+        await page.waitForTimeout(600);
+        const editing = await page.evaluate(id => {
+            const node = document.getElementById(id);
+            return { name: node?.querySelector(".sf-audio__name")?.textContent, paused: node?.querySelector("audio")?.paused, visible: getComputedStyle(node).visibility };
+        }, id);
+        assert(editing.name === "Theme" && editing.paused === true && editing.visible === "visible", `editing: ${JSON.stringify(editing)}`);
+        // Saved and loaded back with its settings.
+        const saved = await page.evaluate(id => getPersistableState().slides.flatMap(slide => slide.elements).find(el => el.id === id), id);
+        assert(saved?.type === "audio" && saved.autoplay === true && saved.hideWhilePresenting === true, `saved: ${JSON.stringify(saved && { type: saved.type, autoplay: saved.autoplay })}`);
+        await page.evaluate(() => togglePlayMode());
+        await page.waitForTimeout(1500);
+        await page.evaluate(() => syncActiveSlideMedia());
+        await page.waitForTimeout(300);
+        const presenting = await page.evaluate(id => {
+            const node = document.getElementById(id);
+            const audio = node?.querySelector("audio");
+            return { visible: node && getComputedStyle(node).visibility, started: audio?.dataset.started, playedOrPlaying: audio && (!audio.paused || audio.currentTime > 0) };
+        }, id);
+        assert(presenting.visible === "hidden" && presenting.started === "true" && presenting.playedOrPlaying, `presenting: ${JSON.stringify(presenting)}`);
+        await page.evaluate(() => Reveal.next());
+        await page.waitForTimeout(500);
+        await page.evaluate(() => syncActiveSlideMedia());
+        const left = await page.evaluate(id => {
+            const audio = document.getElementById(id)?.querySelector("audio");
+            return { paused: audio?.paused, time: audio?.currentTime };
+        }, id);
+        assert(left.paused === true && left.time === 0, `after leaving the slide: ${JSON.stringify(left)}`);
+        await page.keyboard.press("Escape");
+        await page.close();
+    });
+
     await test("missing: Video URL asks in the app's own dialog, not the browser's prompt box", async () => {
         const { page } = await openFreshEditor(context);
         let nativeDialogs = 0;

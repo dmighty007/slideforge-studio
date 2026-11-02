@@ -105,6 +105,8 @@ function getElementIcon(type) {
       return "fa-regular fa-square";
     case "video":
       return "fa-solid fa-video";
+    case "audio":
+      return "fa-solid fa-music";
     case "connector":
       return "fa-solid fa-arrow-right-long";
     case "table":
@@ -150,6 +152,7 @@ function getElementDisplayName(el) {
   if (el.type === "whiteboard") return "Whiteboard";
   if (el.type === "sketch") return "Sketch";
   if (el.type === "video") return "Video";
+  if (el.type === "audio") return el.audioName ? `Audio: ${el.audioName}` : "Audio";
   if (el.type === "table") return "Table";
   if (el.type === "molecule") return "Molecule";
   if (el.type === "plugin") return getSlidePlugin?.(el.pluginId)?.name || "Plugin object";

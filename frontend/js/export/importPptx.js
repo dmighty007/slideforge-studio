@@ -939,6 +939,80 @@ async function _pptxVideoElement(pkg, pic, rels, box, zIndex) {
     };
 }
 
+// A sound on the slide (a picture whose nvPr holds an a:audioFile, its file embedded through p14:media) as an
+// audio element: it was left out. Formats browsers cannot play (WMA, MIDI) stay out. PowerPoint's "Hide during
+// show" (showWhenStopped="0") hides it while presenting; started with or after the slide's opening (not on a click)
+// it plays by itself.
+const PPTX_AUDIO_TYPES = { mp3: "audio/mpeg", m4a: "audio/mp4", aac: "audio/aac", wav: "audio/wav", ogg: "audio/ogg", oga: "audio/ogg", flac: "audio/flac" };
+async function _pptxAudioElement(pkg, pic, rels, box, zIndex, slideDoc) {
+    const nvPr = _pptxFirst(_pptxChild(pic, "p:nvPicPr"), "p:nvPr");
+    const audioFile = _pptxFirst(nvPr, "a:audioFile");
+    if (!audioFile) return null;
+    const refs = [_pptxFirst(nvPr, "p14:media"), audioFile].filter(Boolean);
+    const path = refs.map(ref => rels[ref.getAttribute("r:embed") || ref.getAttribute("r:link")]?.path).find(Boolean);
+    const file = path && pkg.zip.file(path);
+    const mime = path && PPTX_AUDIO_TYPES[path.split(".").pop().toLowerCase()];
+    if (!file || !mime) return null;
+    if (!pkg.pictureUrls) pkg.pictureUrls = new Map();
+    if (!pkg.pictureUrls.has(path)) {
+        pkg.pictureUrls.set(
+            path,
+            (async () => {
+                const blob = new Blob([await file.async("arraybuffer")], { type: mime });
+                if (!blob.size) return null;
+                try {
+                    const stored = typeof _uploadAssetFile === "function" ? await _uploadAssetFile(new File([blob], path.split("/").pop(), { type: mime })) : null;
+                    if (stored?.url) return { url: stored.url, webm: stored.webmUrl || "" };
+                } catch (_error) {}
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve({ url: String(reader.result), webm: "" });
+                    reader.onerror = () => reject(reader.error);
+                    reader.readAsDataURL(blob);
+                });
+            })(),
+        );
+    }
+    const stored = await pkg.pictureUrls.get(path);
+    if (!stored?.url) return null;
+    // How the slide's timing plays it: its media node (hidden when stopped?) and the effect that starts it.
+    const id = _pptxFirst(pic, "p:cNvPr")?.getAttribute("id");
+    const aimsHere = node => Array.from(node.getElementsByTagName("p:spTgt")).some(target => target.getAttribute("spid") === id);
+    const mediaNode = Array.from(slideDoc?.getElementsByTagName("p:cMediaNode") || []).find(aimsHere);
+    const hidden = mediaNode?.getAttribute("showWhenStopped") === "0";
+    // Plays by itself when the effect that starts it comes with or after the previous one, and no click comes before
+    // it on the slide (PowerPoint's "Start: Automatically").
+    let autoplay = false;
+    let clicked = false;
+    for (const effect of Array.from(slideDoc?.getElementsByTagName("p:cTn") || []).filter(node => node.getAttribute("presetClass"))) {
+        const nodeType = effect.getAttribute("nodeType");
+        const starts = Array.from(effect.getElementsByTagName("p:cmd")).some(command => /^playFrom/.test(command.getAttribute("cmd") || "") && aimsHere(command));
+        if (starts) {
+            autoplay = !clicked && (nodeType === "afterEffect" || nodeType === "withEffect");
+            break;
+        }
+        if (nodeType === "clickEffect") clicked = true;
+    }
+    return {
+        id: generateId("el"),
+        type: "audio",
+        content: stored.url,
+        ...(stored.webm ? { audioWebm: stored.webm } : {}),
+        audioName: _pptxFirst(pic, "p:cNvPr")?.getAttribute("name") || path.split("/").pop().replace(/\.[^.]+$/, ""),
+        localMimeType: mime,
+        x: box.x,
+        y: box.y,
+        width: `${Math.max(44, box.w)}px`,
+        height: `${Math.max(44, box.h)}px`,
+        autoplay,
+        loop: _pptxChild(mediaNode, "p:cTn")?.getAttribute("repeatCount") === "indefinite",
+        hideWhilePresenting: hidden && autoplay,
+        ...(box.rot ? { rotation: box.rot } : {}),
+        styles: { zIndex, borderRadius: "999px" },
+        animation: null,
+    };
+}
+
 // The slide's size in editor pixels at the import's scale.
 async function _pptxPageSize(pkg, scale) {
     const size = _pptxFirst(await pkg.xml("ppt/presentation.xml"), "p:sldSz");
@@ -1927,6 +2001,13 @@ async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
                 }
             } else if (node.tagName === "p:pic") {
                 const xfrm = _pptxXfrm(node);
+                // A sound stored in the file plays here (an audio element); others keep their speaker picture.
+                const audio = xfrm && (await _pptxAudioElement(pkg, node, part.rels, toBox(xfrm, t), zIndex, doc));
+                if (audio) {
+                    elements.push(audio);
+                    register(node, audio);
+                    continue;
+                }
                 // A movie stored in the file plays here; a linked one (outside the file) keeps its poster picture.
                 const video = xfrm && (await _pptxVideoElement(pkg, node, part.rels, toBox(xfrm, t), zIndex));
                 if (video) {

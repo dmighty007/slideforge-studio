@@ -230,6 +230,137 @@ function _applyVideoTypeContent(el, elData, options) {
   }
 }
 
+// A sound on the slide: a small card (play button, name, time and progress) over an <audio>. While presenting the
+// button plays and pauses it; one set to play by itself starts when its slide opens (see syncActiveSlideMedia),
+// and one hidden while presenting plays without showing. In the editor the card is dragged like any object.
+function _audioTimeLabel(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s < 10 ? "0" : ""}${s}`;
+}
+
+function _audioCardNode(elData) {
+  const card = document.createElement("div");
+  card.className = "sf-audio";
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "sf-audio__play play-mode-events-auto";
+  button.setAttribute("aria-label", "Play");
+  button.innerHTML = '<i class="fa-solid fa-play"></i>';
+  const body = document.createElement("div");
+  body.className = "sf-audio__body";
+  const name = document.createElement("div");
+  name.className = "sf-audio__name";
+  name.textContent = elData.audioName || "Audio";
+  const track = document.createElement("div");
+  track.className = "sf-audio__track";
+  const bar = document.createElement("div");
+  bar.className = "sf-audio__bar";
+  track.appendChild(bar);
+  const time = document.createElement("div");
+  time.className = "sf-audio__time";
+  time.textContent = "0:00";
+  const flags = document.createElement("div");
+  flags.className = "sf-audio__flags play-mode-hidden";
+  flags.innerHTML = [
+    elData.autoplay ? '<span title="Plays when the slide opens"><i class="fa-solid fa-bolt"></i></span>' : "",
+    elData.loop ? '<span title="Loops"><i class="fa-solid fa-repeat"></i></span>' : "",
+    elData.hideWhilePresenting ? '<span title="Hidden while presenting"><i class="fa-solid fa-eye-slash"></i></span>' : "",
+  ].join("");
+  body.append(name, track);
+  card.append(button, body, time, flags);
+  return card;
+}
+
+function _applyAudioTypeContent(el, elData) {
+  el.classList.toggle("sf-audio-hidden-in-show", !!elData.hideWhilePresenting);
+  const card = _audioCardNode(elData);
+  el.appendChild(card);
+  const audio = document.createElement("audio");
+  audio.preload = "metadata";
+  audio.loop = !!elData.loop;
+  // Not data-autoplay: Reveal.js starts any audio with that attribute (whatever its value) when its slide shows.
+  audio.dataset.sfAutoplay = elData.autoplay ? "true" : "false";
+  audio.className = "sf-audio__media";
+  // The copy the desktop app can play first (its engine has no AAC decoder), the uploaded file after it.
+  const setSources = copy => {
+    audio.removeAttribute("src");
+    audio.querySelectorAll("source").forEach(node => node.remove());
+    [copy, elData.content].filter(Boolean).forEach((url, index, list) => {
+      const source = document.createElement("source");
+      source.src = url;
+      if (url === copy) source.type = "audio/webm";
+      if (index === list.length - 1) source.addEventListener("error", () => handleError());
+      audio.appendChild(source);
+    });
+  };
+  // A file this engine cannot decode (AAC in the desktop app): ask the server once for a copy it can play.
+  let copyRequested = Boolean(elData.audioWebm);
+  const handleError = () => {
+    const url = String(elData.content || "");
+    if (copyRequested || !/\/media\/assets\/[0-9a-f]{32}\.\w{2,4}(\?|$)/i.test(url)) {
+      card.classList.add("sf-audio--error");
+      card.querySelector(".sf-audio__time").textContent = "Cannot play";
+      return;
+    }
+    copyRequested = true;
+    card.querySelector(".sf-audio__time").textContent = "Converting…";
+    const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+    fetch("/api/assets/video-webm/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(csrf ? { "X-CSRFToken": csrf } : {}) },
+      body: JSON.stringify({ url }),
+    })
+      .then(response => (response.ok ? response.json() : Promise.reject(new Error(String(response.status)))))
+      .then(result => {
+        const live = state.slides?.flatMap(slide => slide.elements || []).find(item => item.id === elData.id);
+        if (live) live.audioWebm = result.webmUrl;
+        elData.audioWebm = result.webmUrl;
+        setSources(result.webmUrl);
+        audio.load();
+        card.querySelector(".sf-audio__time").textContent = "0:00";
+        schedulePresentationAutosave?.(300);
+      })
+      .catch(() => {
+        card.classList.add("sf-audio--error");
+        card.querySelector(".sf-audio__time").textContent = "Cannot play";
+      });
+  };
+  if (elData.content) setSources(elData.audioWebm || "");
+  el.appendChild(audio);
+
+  const button = card.querySelector(".sf-audio__play");
+  const bar = card.querySelector(".sf-audio__bar");
+  const time = card.querySelector(".sf-audio__time");
+  const refresh = () => {
+    const playing = !audio.paused && !audio.ended;
+    card.classList.toggle("is-playing", playing);
+    button.innerHTML = `<i class="fa-solid fa-${playing ? "pause" : "play"}"></i>`;
+    button.setAttribute("aria-label", playing ? "Pause" : "Play");
+    const total = audio.duration;
+    bar.style.width = Number.isFinite(total) && total > 0 ? `${(audio.currentTime / total) * 100}%` : "0%";
+    if (!card.classList.contains("sf-audio--error")) {
+      time.textContent = Number.isFinite(total) && total > 0 && (playing || audio.currentTime > 0)
+        ? `${_audioTimeLabel(audio.currentTime)} / ${_audioTimeLabel(total)}`
+        : _audioTimeLabel(total);
+    }
+  };
+  ["play", "pause", "ended", "timeupdate", "loadedmetadata", "durationchange"].forEach(name => audio.addEventListener(name, refresh));
+  button.addEventListener("pointerdown", event => event.stopPropagation());
+  button.addEventListener("click", event => {
+    event.stopPropagation();
+    if (audio.paused) audio.play().catch(() => {});
+    else audio.pause();
+  });
+
+  if (elData.uploading) {
+    card.classList.add("sf-audio--uploading");
+    time.textContent = `Uploading… ${Math.round(elData.uploadProgress || 0)}%`;
+    time.classList.add("upload-progress-badge");
+  }
+}
+
 function _applyHtmlTypeContent(el, elData) {
   el.classList.toggle("html-interactive", Boolean(elData.htmlInteractive));
   el.setAttribute("data-html-mode", normalizeHtmlMode(elData));

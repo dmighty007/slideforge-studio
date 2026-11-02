@@ -34,6 +34,22 @@ function syncActiveSlideMedia() {
       if (shouldAutoPlay) video.play().catch(() => {});
     });
 
+    // Sounds: one set to play by itself starts when its slide opens while presenting (never while editing: a
+    // slide picked in the editor would start talking), and every sound stops and rewinds when its slide is left.
+    const presenting = document.body.classList.contains("play-mode-active");
+    section.querySelectorAll("audio.sf-audio__media").forEach((audio) => {
+      if (!isActive) {
+        if (!audio.paused) audio.pause();
+        if (audio.currentTime) audio.currentTime = 0;
+        audio.dataset.started = "";
+        return;
+      }
+      if (presenting && audio.dataset.sfAutoplay === "true" && !audio.dataset.started) {
+        audio.dataset.started = "true";
+        audio.play().catch(() => {});
+      }
+    });
+
     section.querySelectorAll("iframe").forEach((iframe) => {
       const src = String(iframe.getAttribute("src") || "");
       const isMolecule = iframe.classList.contains("molecule-embed-frame");

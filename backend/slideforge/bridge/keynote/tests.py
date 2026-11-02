@@ -307,6 +307,18 @@ class KeynoteReaderTests(SimpleTestCase):
         self.assertEqual((media.name, media.mime), ("photo.png", "image/png"))
         self.assertTrue(media.data.startswith(b"\x89PNG"))
 
+    def test_sounds_come_in_as_audio(self):
+        d = Deck()
+        sound_id = d.movie(d.k.add_data("theme.mp3", b"ID3\x03\x00audio"), 30, 40, 45, 45)
+        d.k.objects[sound_id][1].audioOnly = True
+        aiff_id = d.movie(d.k.add_data("old.aiff", b"FORM"), 0, 0, 45, 45)
+        d.k.objects[aiff_id][1].audioOnly = True
+        deck = read_keynote(d.build([d.node(d.slide([sound_id, aiff_id]))]))
+        (sound,) = deck.slides[0]["elements"]
+        self.assertEqual((sound["kind"], sound["x"], sound["name"], sound["autoplay"]), ("audio", 30, "theme", False))
+        self.assertEqual((deck.media[sound["media"]].name, deck.media[sound["media"]].mime), ("theme.mp3", "audio/mpeg"))
+        self.assertEqual(deck.skipped, {"sounds in formats browsers cannot play": 1})
+
     def test_zipped_package_folder_and_old_index_zip_layout(self):
         for kwargs in ({"prefix": "Talk.key/"}, {"index_zip": True}, {"prefix": "Talk.key/", "index_zip": True}):
             with self.subTest(**kwargs):
@@ -392,6 +404,105 @@ class KeynoteReaderTests(SimpleTestCase):
         self.assertEqual(line["stroke"]["dash"], [4.0, 2.0])  # in line widths
         self.assertEqual(line["headEnd"], "open-circle")
         self.assertEqual(deck.skipped, {})
+
+    def test_a_paragraph_style_entry_without_a_style_keeps_the_one_before(self):
+        d = Deck()
+        heading = d.para_style(font_size=80.0, bold=True)
+        body = d.para_style(font_size=48.0)
+        text = "Meet Alberto.\nHe moved.\nHe loved soccer."
+        storage = d.storage(text, para_styles=[(0, heading), (14, body)])
+        d.k.objects[storage][1].table_para_style.entries.add(character_index=25)  # no style: as body
+        box = d.text_box(storage, 0, 0, 400, 300)
+        shape = d.k.objects[box][1].super
+        style_id, style = d.k.new("TSWP.ShapeStyleArchive")
+        style.shape_properties.paragraph_style.identifier = heading  # the box's default: the heading's
+        shape.style.identifier = style_id
+        deck = read_keynote(d.build([d.node(d.slide([box]))]))
+        sizes = [p["runs"][0]["size"] for p in deck.slides[0]["elements"][0]["paragraphs"]]
+        self.assertEqual(sizes, [80.0, 48.0, 48.0])
+
+    def test_group_children_sticking_out_a_little_stay_inside_the_group(self):
+        d = Deck()
+        card = d.picture(d.k.add_data("card.png", _png()), 0, 7, 464, 526)
+        tape = d.picture(d.k.add_data("tape.png", _png()), 95, -1.4, 255, 96)
+        group_id, group = d.k.new("TSD.GroupArchive")
+        _geometry(group.super, 1424, 517, 464, 533)
+        group.children.add(identifier=card)
+        group.children.add(identifier=tape)
+        deck = read_keynote(d.build([d.node(d.slide([group_id]))]))
+        self.assertEqual([(round(e["x"]), round(e["y"])) for e in deck.slides[0]["elements"]], [(1424, 524), (1519, 516)])
+
+    def test_a_flipped_cropped_picture_is_stored_mirrored_and_cropped_from_the_other_side(self):
+        from PIL import Image
+
+        d = Deck()
+        picture = d.picture(d.k.add_data("cup.png", _png(size=(8, 4))), -77, 0, 867, 488)
+        image = d.k.objects[picture][1]
+        image.super.geometry.flags = 7  # 4: flipped across
+        mask_id, mask = d.k.new("TSD.MaskArchive")
+        _geometry(mask.super, 430, 0, 360, 405)
+        image.mask.identifier = mask_id
+        deck = read_keynote(d.build([d.node(d.slide([picture]))]))
+        (element,) = deck.slides[0]["elements"]
+        self.assertEqual((round(element["x"]), round(element["width"])), (0, 360))
+        self.assertTrue(element["media"].endswith("-fliph"))
+        with Image.open(io.BytesIO(deck.media[element["media"]].data)) as flipped:
+            self.assertEqual(flipped.size, (8, 4))
+
+    def test_a_placeholder_with_a_fill_gets_its_box(self):
+        d = Deck()
+        caption = d.placeholder(3, d.storage("Malibu sunset"), 20, 300, 300, 40)
+        style_id, style = d.k.new("TSWP.ShapeStyleArchive")
+        _color(style.super.shape_properties.fill.color, "#ffffff")
+        shape = d.k.objects[caption][1].super.super
+        shape.style.identifier = style_id
+        bezier = shape.pathsource.bezier_path_source
+        bezier.naturalSize.width, bezier.naturalSize.height = 300, 40
+        for kind, points in [(1, [(0, 0)]), (2, [(300, 0)]), (2, [(300, 40)]), (2, [(0, 40)]), (5, [])]:
+            element = bezier.path.elements.add(type=kind)
+            for px, py in points:
+                element.points.add(x=px, y=py)
+        empty = d.placeholder(2, d.storage(""), 0, 0, 100, 40)
+        d.k.objects[empty][1].super.super.style.identifier = style_id
+        deck = read_keynote(d.build([d.node(d.slide([caption, empty]))]))
+        kinds = [(e["kind"], e.get("fill")) for e in deck.slides[0]["elements"]]
+        self.assertEqual(kinds, [("shape", {"color": "#ffffff"}), ("text", None)])
+
+    def test_medium_and_light_faces_keep_their_weight(self):
+        d = Deck()
+        medium = d.char_style(font_name="HelveticaNeue-Medium")
+        light = d.char_style(font_name="HelveticaNeue-Light")
+        box = d.text_box(d.storage("Title body", char_styles=[(0, medium), (6, light)]), 0, 0, 400, 100)
+        deck = read_keynote(d.build([d.node(d.slide([box]))]))
+        runs = deck.slides[0]["elements"][0]["paragraphs"][0]["runs"]
+        self.assertEqual([(r["text"], r.get("weight")) for r in runs], [("Title ", 600), ("body", 300)])
+
+    def test_picture_opacity_is_kept(self):
+        d = Deck()
+        picture = d.picture(d.k.add_data("map.png", _png()), 0, 0, 100, 100)
+        style_id, style = d.k.new("TSD.MediaStyleArchive")
+        style.media_properties.opacity = 0.54
+        d.k.objects[picture][1].style.identifier = style_id
+        deck = read_keynote(d.build([d.node(d.slide([picture]))]))
+        self.assertAlmostEqual(deck.slides[0]["elements"][0]["opacity"], 0.54)
+
+    def test_bulleted_paragraphs_carry_their_label_and_spacing(self):
+        d = Deck()
+        list_id, list_style = d.k.new("TSWP.ListStyleArchive")
+        list_style.super.name = "arrows"
+        list_style.label_types.extend([2])
+        list_style.strings.extend(["➔"])
+        list_style.indents.extend([11.0])
+        list_style.text_indents.extend([1.8])
+        _color(list_style.font_color, "#f46524")
+        para = d.para_style(list_style=list_id)
+        d.k.objects[para][1].para_properties.space_before = 26.0
+        storage = d.storage("Intro\nUnexpected", para_styles=[(6, para)], list_styles=[(6, list_id)])
+        box = d.text_box(storage, 0, 0, 400, 300)
+        deck = read_keynote(d.build([d.node(d.slide([box]))]))
+        intro, item = deck.slides[0]["elements"][0]["paragraphs"]
+        self.assertEqual(intro["bullet"], "none")
+        self.assertEqual({k: item[k] for k in ("bullet", "glyph", "glyphColor", "labelIndent", "textIndent", "spaceBefore")}, {"bullet": "bullet", "glyph": "➔", "glyphColor": "#f46524", "labelIndent": 11.0, "textIndent": 1.8, "spaceBefore": 26.0})
 
     def test_transitions_and_builds_are_read(self):
         d = Deck()

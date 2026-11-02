@@ -35,7 +35,8 @@ function _keynoteRunsHtml(runs, box, scale) {
             const color = _keynoteColor(run);
             if (size && size !== box.size) styles.push(`font-size: ${size}px`);
             if (color && color !== box.color) styles.push(`color: ${color}`);
-            if (!!run.bold !== box.bold) styles.push(`font-weight: ${run.bold ? 700 : 400}`);
+            const weight = run.bold ? 700 : run.weight || 400;
+            if (weight !== box.weight) styles.push(`font-weight: ${weight}`);
             if (run.font && run.font !== box.font) styles.push(`font-family: ${_pptxFontStack(run.font).replace(/"/g, "'")}`);
             if (run.italic) styles.push("font-style: italic");
             const lines = [run.underline && "underline", run.strike && "line-through"].filter(Boolean);
@@ -66,18 +67,80 @@ function _keynoteTextElement(el, scale, zIndex) {
         size: sizePt ? Math.round(sizePt * scale) : Math.round((isTitle ? 64 : 36) * scale),
         color: _keynoteDominant(runs, _keynoteColor) || "#172033",
         bold: _keynoteDominant(runs, run => !!run.bold) === true,
+        // The weight most of the text has: 700 for bold, 600 for medium faces, 300 for light ones.
+        weight: _keynoteDominant(runs, run => (run.bold ? 700 : run.weight || 400)) || 400,
         font: _keynoteDominant(runs, run => run.font || null),
     };
     const filled = paragraphs.filter(p => p.runs.length);
-    const isList = filled.length > 0 && filled.every(p => p.bullet !== "none");
+    const bulleted = filled.filter(p => p.bullet !== "none");
+    // Laid out paragraph by paragraph when the box needs what a SlideForge list cannot hold: space between
+    // paragraphs, a bullet of its own (an orange arrow), or a heading line above bullets (all lost: the list came in
+    // packed together, with no bullets at all).
+    // Keynote leaves out space before a box's first paragraph and after its last: only space between paragraphs
+    // counts (a one-line name with space after it overflowed its box, and "shrink to fit" made it tiny).
+    const lastIndex = paragraphs.length - 1;
+    const precise =
+        paragraphs.some((p, i) => (i > 0 && p.spaceBefore) || (i < lastIndex && p.spaceAfter)) ||
+        bulleted.some(p => (p.glyph && p.glyph !== "•") || p.glyphColor) ||
+        (bulleted.length > 0 && bulleted.length < filled.length);
+    const isList = !precise && filled.length > 0 && bulleted.length === filled.length;
     const numbered = isList && filled.every(p => p.bullet === "number");
-    const content = isList
-        ? filled.map(p => ({ html: _keynoteRunsHtml(p.runs, box, scale), level: Math.min(4, p.level || 0) }))
-        : paragraphs.map(p => _keynoteRunsHtml(p.runs, box, scale)).join("<br>");
+    // Keynote's relative line spacing, when it opens lines up. Tighter than 1 is left out: the letters then reach
+    // past their lines, the box always measured as overflowing, and "shrink to fit" took a title down to 30 px.
+    const lineHeight = (p) => (p.lineSpacing > 1 ? Math.round(p.lineSpacing * 1.2 * 100) / 100 : 1.2);
+    let ordinal = 0;
+    const content = precise
+        ? paragraphs
+              .map((p, index) => {
+                  const size = (_keynoteDominant(p.runs, run => run.size) || sizePt || 24) * scale;
+                  const css = [`margin:0`, `line-height:${lineHeight(p)}`, `text-align:${p.align || "left"}`];
+                  // Space before the box's first paragraph is not drawn in Keynote (it pushed a title down and out).
+                  if (p.spaceBefore && index > 0) css.push(`margin-top:${Math.round(p.spaceBefore * scale * 10) / 10}px`);
+                  if (p.spaceAfter && index < lastIndex) css.push(`margin-bottom:${Math.round(p.spaceAfter * scale * 10) / 10}px`);
+                  let marker = "";
+                  if (p.bullet !== "none" && p.runs.length) {
+                      // The label at its indent, the text (and its wrapped lines) at the text indent after it.
+                      const label = (p.labelIndent ?? 0) * scale;
+                      const gap = Math.max(size * 0.6, (p.textIndent ?? 0.8) * size);
+                      // A hanging indent, as PowerPoint lists come in: the paragraph starts at the text indent, its
+                      // first line pulled back to the label (the editor keeps margins, not inline-block widths).
+                      css.push(`margin-left:${Math.round((label + gap) * 10) / 10}px`, `text-indent:${-Math.round(gap * 10) / 10}px`);
+                      const glyph = p.bullet === "number" ? `${++ordinal}.` : p.glyph || "•";
+                      marker = `${p.glyphColor ? `<span style="color:${p.glyphColor};">` : ""}${_pptxEscape(glyph)}${p.glyphColor ? "</span>" : ""}\u00a0\u00a0`;
+                  }
+                  // Line breaks inside the paragraph become paragraphs of their own here: the editor splits them so,
+                  // copying the first line's style (the bullet's pulled-back indent, its space before), and the
+                  // line under a list heading came in pulled left with a gap above it. Space before goes above the
+                  // first line, space after below the last; the pulled-back indent is the first line's alone.
+                  const lines = [[]];
+                  p.runs.forEach(run => {
+                      String(run.text)
+                          .split("\n")
+                          .forEach((piece, i) => {
+                              if (i) lines.push([]);
+                              if (piece) lines[lines.length - 1].push({ ...run, text: piece });
+                          });
+                  });
+                  const last = lines.length - 1;
+                  return lines
+                      .map((line, i) => {
+                          const own = css.filter(
+                              rule =>
+                                  !(i > 0 && (rule.startsWith("margin-top") || rule.startsWith("text-indent"))) &&
+                                  !(i < last && rule.startsWith("margin-bottom")),
+                          );
+                          return `<p style="${own.join(";")}">${i === 0 ? marker : ""}${_keynoteRunsHtml(line, box, scale) || "<br>"}</p>`;
+                      })
+                      .join("");
+              })
+              .join("")
+        : isList
+          ? filled.map(p => ({ html: _keynoteRunsHtml(p.runs, box, scale), level: Math.min(4, p.level || 0) }))
+          : paragraphs.map(p => _keynoteRunsHtml(p.runs, box, scale)).join("<br>");
     const b = _keynoteBox(el, scale);
     // A box shorter than its words grows the way its alignment points: a bottom-aligned title in a 1 pt box sits
     // on that box's bottom edge in Keynote, and came in hanging down over the text below it.
-    const needed = Math.round(paragraphs.reduce((sum, p) => sum + Math.max(...p.runs.map(run => Number(run.size) || 0), sizePt || 24) * 1.2, 0) * scale);
+    const needed = Math.round(paragraphs.reduce((sum, p, i) => sum + Math.max(...p.runs.map(run => Number(run.size) || 0), sizePt || 24) * lineHeight(p) + (i ? p.spaceBefore || 0 : 0) + (i < lastIndex ? p.spaceAfter || 0 : 0), 0) * scale);
     if (needed > b.h && (el.verticalAlign === "bottom" || el.verticalAlign === "middle")) {
         b.y -= el.verticalAlign === "bottom" ? needed - b.h : Math.round((needed - b.h) / 2);
         b.h = needed;
@@ -100,8 +163,9 @@ function _keynoteTextElement(el, scale, zIndex) {
             color: box.color,
             fontSize: `${box.size}px`,
             fontFamily: box.font ? _pptxFontStack(box.font) : KEYNOTE_DEFAULT_FONT,
-            fontWeight: box.bold ? "700" : "400",
+            fontWeight: String(box.weight),
             textAlign: filled[0]?.align || "left",
+            ...(!precise && filled[0]?.lineSpacing > 1 ? { lineHeight: String(lineHeight(filled[0])) } : {}),
             // Keynote's vertical alignment (titles are often at the bottom of their box): it started at the top.
             ...(el.verticalAlign === "middle" || el.verticalAlign === "bottom" ? { "--pptx-text-anchor": el.verticalAlign === "middle" ? "center" : "end" } : {}),
             zIndex,
@@ -127,7 +191,8 @@ function _keynotePictureElement(el, scale, zIndex) {
         cropTransform: el.crop ? { ...el.crop } : { widthPercent: 100, heightPercent: 100, leftPercent: 0, topPercent: 0 },
         heightSetManually: true,
         ...(b.rot ? { rotation: b.rot } : {}),
-        styles: { zIndex, borderRadius: "0px" },
+        // Keynote's picture opacity (a map's states faded to a tint came in solid white).
+        styles: { zIndex, borderRadius: "0px", ...(el.opacity != null && el.opacity < 1 ? { opacity: String(el.opacity) } : {}) },
     };
 }
 
@@ -216,6 +281,30 @@ function _keynoteEntrance(build) {
         durationMs: /appear/.test(effect) ? 100 : Math.max(100, Math.round((Number(build.duration) || 1) * 1000)),
         delayMs: Math.max(0, Math.round((Number(build.delay) || 0) * 1000)),
         easing: "ease-out",
+    };
+}
+
+// A Keynote sound: hidden while presenting when it plays by itself (Keynote never shows a sound's icon in a show);
+// one started by a click keeps its player, so it can be clicked.
+function _keynoteAudioElement(el, scale, zIndex) {
+    const b = _keynoteBox(el, scale);
+    return {
+        id: generateId("el"),
+        type: "audio",
+        content: el.src,
+        audioName: el.name || "Audio",
+        localMimeType: el.contentType || "",
+        ...(el.webmUrl ? { audioWebm: el.webmUrl } : {}),
+        x: b.x,
+        y: b.y,
+        width: `${Math.max(44, b.w)}px`,
+        height: `${Math.max(44, b.h)}px`,
+        autoplay: !!el.autoplay,
+        loop: !!el.loop,
+        hideWhilePresenting: !!el.autoplay && !el.clickToPlay,
+        ...(b.rot ? { rotation: b.rot } : {}),
+        styles: { zIndex, borderRadius: "999px" },
+        animation: null,
     };
 }
 
@@ -319,7 +408,7 @@ async function importKeynote(file) {
 
         busy.update({ detail: `Drawing ${deck.slides.length} slides…`, progress: 0.95 });
         await sfBusyPaint();
-        const makers = { text: _keynoteTextElement, image: _keynotePictureElement, video: _keynoteVideoElement, shape: _keynoteShapeElement };
+        const makers = { text: _keynoteTextElement, image: _keynotePictureElement, video: _keynoteVideoElement, audio: _keynoteAudioElement, shape: _keynoteShapeElement };
         const slides = deck.slides.map(source => {
             const elements = (source.elements || [])
                 .map((el, index) => {
@@ -374,6 +463,7 @@ async function importKeynote(file) {
             `${slides.length} slides`,
             count("image") && `${count("image")} pictures`,
             count("video") && `${count("video")} movies`,
+            count("audio") && `${count("audio")} sounds`,
             skippedSlides && `${skippedSlides} hidden when presenting`,
         ]
             .filter(Boolean)

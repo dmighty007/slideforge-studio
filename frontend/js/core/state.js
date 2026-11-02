@@ -936,6 +936,7 @@ const SAFE_ELEMENT_TYPES = new Set([
     "table",
     "connector",
     "video",
+    "audio",
     "html",
     "pdf",
     "molecule",
@@ -1063,7 +1064,7 @@ function _isSafeAssetUrl(value, { allowData = false } = {}) {
     ) {
         return true;
     }
-    if (allowData && /^data:(image|video|application\/pdf)\//i.test(url)) {
+    if (allowData && /^data:(image|video|audio|application\/pdf)\//i.test(url)) {
         return true;
     }
     try {
@@ -1173,7 +1174,7 @@ function sanitizeElementContent(safeEl, fallbackType) {
     if (fallbackType === "html") {
         return _truncateStateString(safeEl.content || "", MAX_EMBED_HTML_LENGTH);
     }
-    if (fallbackType === "image" || fallbackType === "video" || fallbackType === "pdf") {
+    if (fallbackType === "image" || fallbackType === "video" || fallbackType === "audio" || fallbackType === "pdf") {
         const content = String(safeEl.content || "");
         return _isSafeAssetUrl(content, { allowData: true }) ? content : "";
     }
@@ -1444,6 +1445,18 @@ function normalizeStateIds({ truncate = true } = {}) {
                           muted: safeEl.muted ?? safeEl.mute ?? true,
                           autoplay: safeEl.autoplay ?? false,
                           loop: safeEl.loop ?? false,
+                      }
+                    : {}),
+                ...(fallbackType === "audio"
+                    ? {
+                          // A sound on the slide: its file's name, a copy the desktop app can play, and when it
+                          // plays (on its own when the slide opens while presenting, or when clicked).
+                          audioName: typeof safeEl.audioName === "string" ? _truncateStateString(safeEl.audioName, 240) : "Audio",
+                          audioWebm: _isSafeAssetUrl(safeEl.audioWebm) ? String(safeEl.audioWebm) : undefined,
+                          localMimeType: typeof safeEl.localMimeType === "string" ? _truncateStateString(safeEl.localMimeType, 80) : "",
+                          autoplay: safeEl.autoplay === true,
+                          loop: safeEl.loop === true,
+                          hideWhilePresenting: safeEl.hideWhilePresenting === true,
                       }
                     : {}),
                 ...(fallbackType === "html"

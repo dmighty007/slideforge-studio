@@ -32,7 +32,9 @@ async function exportJSON() {
 async function inlineUploadedVideosForExport(deck) {
     const elements = (deck.slides || []).flatMap(slide => slide.elements || []);
     for (const el of elements) {
-        if (el?.type !== "video" || typeof el.content !== "string" || !/^\/media\/assets\//.test(el.content)) continue;
+        // Sounds too, the same way.
+        if ((el?.type !== "video" && el?.type !== "audio") || typeof el.content !== "string" || !/^\/media\/assets\//.test(el.content)) continue;
+        const kind = el.type === "audio" ? "audio" : "video";
         try {
             const response = await fetch(el.content);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -41,9 +43,10 @@ async function inlineUploadedVideosForExport(deck) {
                 const reader = new FileReader();
                 reader.onload = () => resolve(reader.result);
                 reader.onerror = () => reject(reader.error);
-                reader.readAsDataURL(blob.type.startsWith("video/") ? blob : blob.slice(0, blob.size, el.localMimeType || "video/mp4"));
+                reader.readAsDataURL(blob.type.startsWith(`${kind}/`) ? blob : blob.slice(0, blob.size, el.localMimeType || (kind === "audio" ? "audio/mpeg" : "video/mp4")));
             });
             delete el.videoWebm; // a copy on this computer only; the importing app makes its own
+            delete el.audioWebm;
         } catch (error) {
             console.warn("Video kept as a link in the JSON export:", el.content, error);
         }

@@ -107,6 +107,97 @@ function handleVideoFileInsert(event) {
     });
 }
 
+// A sound file chosen in "Audio" (or "Replace" in its panel): uploaded as the project's asset, shown as an audio
+// card while it goes up.
+const AUDIO_FILE_PATTERN = /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac|weba)$/i;
+function handleAudioFileInsert(event) {
+    const file = event.target.files?.[0];
+    const targetAudioId = event.target.dataset?.targetAudioId || "";
+    if (event.target.dataset) delete event.target.dataset.targetAudioId;
+    event.target.value = "";
+    if (!file) return;
+    if (!String(file.type || "").startsWith("audio/") && !AUDIO_FILE_PATTERN.test(file.name || "")) {
+        setProjectSaveHint?.("Please choose a sound file (MP3, M4A, WAV, OGG or FLAC)", "danger");
+        return;
+    }
+    _insertUploadedAudio(file, { targetId: targetAudioId }).catch(err => {
+        console.error("Audio insert error:", err);
+        setProjectSaveHint?.(err?.message || "Failed to add the sound", "danger");
+    });
+}
+
+async function _insertUploadedAudio(file, { targetId = "" } = {}) {
+    const activeIndex = ensureActiveSlideSync();
+    const slide = state.slides[activeIndex];
+    if (!slide) return;
+    const existing = targetId ? slide.elements.find(el => el.id === targetId && el.type === "audio") : null;
+    saveStateToUndo();
+    const id = existing?.id || generateId("el");
+    const name = String(file.name || "Audio").replace(/\.[^.]+$/, "") || "Audio";
+    const next = {
+        id,
+        type: "audio",
+        x: existing?.x ?? 100,
+        y: existing?.y ?? 100,
+        width: existing?.width ?? "320px",
+        height: existing?.height ?? "64px",
+        content: "",
+        audioName: name,
+        localMimeType: file.type || "",
+        autoplay: existing?.autoplay ?? false,
+        loop: existing?.loop ?? false,
+        hideWhilePresenting: existing?.hideWhilePresenting ?? false,
+        uploading: true,
+        uploadProgress: 0,
+        styles: { ...(existing?.styles || {}), zIndex: existing?.styles?.zIndex ?? getNextZIndex(), borderRadius: existing?.styles?.borderRadius ?? "14px" },
+        animation: existing?.animation ?? null,
+    };
+    if (existing) Object.assign(existing, next);
+    else slide.elements.push(next);
+    renderSlidesFromState();
+    selectElement(id);
+    setProjectSaveHint?.("Uploading the sound…", "warn");
+
+    const find = () => state.slides[activeIndex]?.elements.find(e => e.id === id);
+    try {
+        const upload = await _uploadAssetFileWithProgress(file, progress => {
+            const elData = find();
+            if (!elData) return;
+            elData.uploadProgress = progress;
+            const badge = document.querySelector(`#${id} .upload-progress-badge`);
+            if (badge) badge.textContent = `Uploading… ${Math.round(progress)}%`;
+        });
+        const elData = find();
+        if (!elData) return;
+        elData.content = upload.url;
+        elData.localMimeType = upload.contentType || elData.localMimeType;
+        // The copy the desktop app can play (no AAC decoder there); absent in the web app.
+        if (upload.webmUrl) elData.audioWebm = upload.webmUrl;
+        else delete elData.audioWebm;
+        delete elData.uploading;
+        delete elData.uploadProgress;
+        renderSlidesFromState();
+        selectElement(id);
+        schedulePresentationAutosave?.(150);
+        setProjectSaveHint?.("Sound added", "success");
+    } catch (err) {
+        console.error("Audio upload failed:", err);
+        const elData = find();
+        if (elData) {
+            delete elData.uploading;
+            delete elData.uploadProgress;
+            if (_isSessionOnlyAssetFallbackError(err)) elData.content = _createSessionObjectUrl(file);
+            renderSlidesFromState();
+            schedulePresentationAutosave?.(150);
+        }
+        const tooLarge = String(err?.message || err).toLowerCase().includes("too large");
+        setProjectSaveHint?.(
+            _isSessionOnlyAssetFallbackError(err) ? "Sound stored for this session only" : tooLarge ? "The sound file is too large" : "The sound could not be uploaded",
+            _isSessionOnlyAssetFallbackError(err) ? "warn" : "error",
+        );
+    }
+}
+
 async function handlePdfFileInsert(event) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -380,6 +471,10 @@ async function migrateInlineVideoAssets() {
                 if (el?.type === "video" && typeof el.content === "string" && el.content.startsWith("data:video/")) {
                     candidates.push({ slideIndex, elementIndex, el });
                 }
+                // Sounds carried in a deck's JSON file are stored as uploads again, like videos.
+                if (el?.type === "audio" && typeof el.content === "string" && el.content.startsWith("data:audio/")) {
+                    candidates.push({ slideIndex, elementIndex, el });
+                }
             });
         });
 
@@ -391,12 +486,23 @@ async function migrateInlineVideoAssets() {
 
         let changed = false;
         for (const candidate of candidates) {
-            const filename = `${candidate.el.id || "video"}${candidate.el.content.includes("data:video/webm") ? ".webm" : ".mp4"}`;
+            const isAudio = candidate.el.type === "audio";
+            const audioType = isAudio ? candidate.el.content.slice(11).split(/[;,]/)[0].toLowerCase() : "";
+            const audioExt = { mpeg: "mp3", mp3: "mp3", mp4: "m4a", "x-m4a": "m4a", aac: "aac", wav: "wav", "x-wav": "wav", ogg: "ogg", flac: "flac", webm: "weba" }[audioType] || "mp3";
+            const filename = isAudio
+                ? `${candidate.el.id || "audio"}.${audioExt}`
+                : `${candidate.el.id || "video"}${candidate.el.content.includes("data:video/webm") ? ".webm" : ".mp4"}`;
             const file = _dataUrlToFile(candidate.el.content, filename);
             const upload = await _uploadAssetFile(file);
             const target = state.slides[candidate.slideIndex]?.elements?.[candidate.elementIndex];
             if (!target) continue;
             target.content = upload.url;
+            if (isAudio) {
+                if (upload.webmUrl) target.audioWebm = upload.webmUrl;
+                else delete target.audioWebm;
+                changed = true;
+                continue;
+            }
             target.videoType = "local";
             if (upload.webmUrl) target.videoWebm = upload.webmUrl;
             else delete target.videoWebm;
@@ -666,3 +772,5 @@ async function handleMoleculeFileInsert(event) {
         setProjectSaveHint?.(err?.message || "Could not import molecule file", "danger");
     }
 }
+
+window.handleAudioFileInsert = handleAudioFileInsert;

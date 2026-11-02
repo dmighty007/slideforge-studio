@@ -14,6 +14,7 @@ from pptx.chart.data import CategoryChartData
 from pptx.enum.chart import XL_CHART_TYPE, XL_LABEL_POSITION, XL_LEGEND_POSITION
 from pptx.enum.shapes import MSO_CONNECTOR, MSO_SHAPE
 from pptx.enum.text import MSO_ANCHOR, MSO_AUTO_SIZE, PP_ALIGN
+from pptx.oxml.ns import qn
 from pptx.oxml.xmlchemy import OxmlElement
 
 from slideforge.bridge.pptx_animations import apply_slide_animations
@@ -1002,6 +1003,8 @@ class PPTXExporter:
                 self._add_connector_element(slide, el, x, y, w, h)
             elif el_type == "video":
                 self._add_video_element(slide, el, x, y, w, h)
+            elif el_type == "audio":
+                self._add_audio_element(slide, el, x, y, w, h)
             elif el_type == "mermaid":
                 self._add_mermaid_element(slide, el, x, y, w, h)
             elif el_type == "chart":
@@ -1770,6 +1773,63 @@ class PPTXExporter:
                 if any(path == root or path.is_relative_to(root) for root in safe_roots):
                     return path
         return None
+
+    AUDIO_MIME = {
+        ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".aac": "audio/aac", ".wav": "audio/wav", ".ogg": "audio/ogg",
+        ".oga": "audio/ogg", ".opus": "audio/ogg", ".flac": "audio/flac", ".weba": "audio/webm",
+    }
+
+    @staticmethod
+    def _speaker_picture(size: int = 256) -> io.BytesIO:
+        """A speaker on a round indigo badge: the picture PowerPoint shows for a sound on the slide."""
+        from PIL import Image, ImageDraw
+
+        image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        draw.ellipse((0, 0, size - 1, size - 1), fill=(79, 70, 229, 255))
+        u = size / 16
+        draw.polygon([(4 * u, 6.5 * u), (6.5 * u, 6.5 * u), (9.5 * u, 4 * u), (9.5 * u, 12 * u), (6.5 * u, 9.5 * u), (4 * u, 9.5 * u)], fill="white")
+        for radius in (2.2, 3.6):
+            box = (9.2 * u - radius * u, 8 * u - radius * u, 9.2 * u + radius * u, 8 * u + radius * u)
+            draw.arc(box, -45, 45, fill="white", width=max(2, int(u * 0.7)))
+        out = io.BytesIO()
+        image.save(out, "PNG")
+        out.seek(0)
+        return out
+
+    def _add_audio_element(self, slide: Any, el: Dict[str, Any], x: Inches, y: Inches, w: Inches, h: Inches):
+        """A sound as a PowerPoint audio clip: the file embedded, shown as a speaker (square, in the card's height),
+        played by clicking it as in PowerPoint. python-pptx only makes movies, so the movie's videoFile becomes an
+        audioFile, with an audio relationship."""
+        path = self._resolve_local_video_path(el.get("content", ""))
+        if not path:
+            self._add_placeholder_element(slide, el, x, y, w, h)
+            return
+        try:
+            side = min(int(w), int(h))
+            frame = slide.shapes.add_movie(
+                str(path), x, y, width=side, height=side,
+                poster_frame_image=self._speaker_picture(),
+                mime_type=self.AUDIO_MIME.get(path.suffix.lower(), "audio/mpeg"),
+            )
+            name = str(el.get("audioName") or "Audio")[:120]
+            frame.name = name
+            nv_pr = frame._element.nvPicPr.nvPr
+            video_file = nv_pr.find(qn("a:videoFile"))
+            if video_file is not None:
+                video_file.tag = qn("a:audioFile")
+                # The same media file, related as audio instead of video (PowerPoint shows a sound clip).
+                old_id = video_file.get(qn("r:link"))
+                rel = slide.part.rels.get(old_id) if old_id else None
+                if rel is not None and not rel.is_external:
+                    new_id = slide.part.relate_to(rel.target_part, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/audio")
+                    video_file.set(qn("r:link"), new_id)
+                    slide.part.drop_rel(old_id)
+            c_nv_pr = frame._element.nvPicPr.cNvPr
+            c_nv_pr.set("descr", name)
+        except Exception as exc:
+            logger.warning("Could not embed audio file in PPTX: %s", exc)
+            self._add_placeholder_element(slide, el, x, y, w, h)
 
     def _add_video_element(self, slide: Any, el: Dict[str, Any], x: Inches, y: Inches, w: Inches, h: Inches):
         content = el.get("content", "")

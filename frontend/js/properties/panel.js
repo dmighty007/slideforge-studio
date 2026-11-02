@@ -586,6 +586,9 @@ function _buildPropertiesPanelNow() {
     if (data.type === "video") {
       buildVideoPanel(panel, data);
     }
+    if (data.type === "audio") {
+      buildAudioPanel(panel, data);
+    }
 
     if (data.type === "image") {
       buildImagePanel(panel, data);
@@ -866,6 +869,9 @@ function _buildPropertiesPanelNow() {
 
       if (data.type === "video") {
         bindVideoPanel(data, onCommit);
+      }
+      if (data.type === "audio") {
+        bindAudioPanel(data, onCommit);
       }
     }
   }, 0);

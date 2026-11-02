@@ -4782,3 +4782,117 @@ body.sf-moving-element iframe { pointer-events: none !important; }
         animation: none;
     }
 }
+
+/* ── Audio elements (js/editor/render/element-media.js) ── */
+.sf-audio {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px 8px 8px;
+    border-radius: inherit;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+    color: #0f172a;
+    font-family: "Inter", "Manrope", sans-serif;
+    overflow: hidden;
+    container-type: size;
+}
+.sf-audio__play {
+    flex: none;
+    width: min(44px, 70cqh);
+    height: min(44px, 70cqh);
+    aspect-ratio: 1;
+    border-radius: 999px;
+    border: none;
+    background: #4f46e5;
+    color: #ffffff;
+    display: grid;
+    place-items: center;
+    font-size: min(15px, 28cqh);
+    cursor: pointer;
+}
+.sf-audio__play i {
+    margin-left: 2px;
+}
+.sf-audio.is-playing .sf-audio__play i {
+    margin-left: 0;
+}
+.sf-audio__body {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.sf-audio__name {
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.sf-audio__track {
+    height: 4px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    overflow: hidden;
+}
+.sf-audio__bar {
+    height: 100%;
+    width: 0;
+    background: #4f46e5;
+}
+.sf-audio__time {
+    flex: none;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: #64748b;
+}
+.sf-audio__flags {
+    position: absolute;
+    top: 3px;
+    right: 6px;
+    display: flex;
+    gap: 5px;
+    font-size: 9px;
+    color: #94a3b8;
+}
+.sf-audio--error .sf-audio__play {
+    background: #94a3b8;
+}
+.sf-audio--error .sf-audio__time {
+    color: #e11d48;
+}
+.sf-audio--uploading .sf-audio__play {
+    opacity: 0.5;
+}
+.sf-audio__media {
+    display: none;
+}
+/* A small card: just the button. */
+@container (max-width: 150px) {
+    .sf-audio__body,
+    .sf-audio__time {
+        display: none;
+    }
+    .sf-audio {
+        justify-content: center;
+        padding: 4px;
+    }
+}
+/* Hidden while presenting (sounds that play by themselves, as in PowerPoint and Keynote); dashed in the editor. */
+.canvas-element.sf-audio-hidden-in-show .sf-audio {
+    border-style: dashed;
+    border-color: #94a3b8;
+}
+.play-mode-active .canvas-element.sf-audio-hidden-in-show {
+    visibility: hidden;
+}
+.play-mode-active .sf-audio__flags {
+    display: none;
+}

@@ -50,6 +50,7 @@ const COMMANDS = [
         },
     },
     { id: "add-video", title: "Add Video", icon: "fa-video", action: () => addElement("video") },
+    { id: "add-audio", title: "Add Audio", icon: "fa-music", action: () => document.getElementById("audio-file-upload")?.click() },
     { id: "ai-cleanup", title: "Tidy Slide Layout", icon: "fa-wand-magic-sparkles", keywords: "ai clean up polish align grid", action: aiCleanUpSlide },
     { id: "present", title: "Toggle Presentation Mode", icon: "fa-play", action: togglePlayMode },
     { id: "dark-mode", title: "Dark Mode / Light Mode (switch)", icon: "fa-moon", action: () => toggleAppTheme() },

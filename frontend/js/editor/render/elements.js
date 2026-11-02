@@ -64,7 +64,7 @@ function _applyStylesToElement(el, styles) {
     "lineHeight",
     "textShadow",
   ];
-  const mediaTypesWithoutPadding = new Set(["image", "video"]);
+  const mediaTypesWithoutPadding = new Set(["image", "video", "audio"]);
   const paddingProps = new Set([
     "padding",
     "paddingTop",
@@ -426,6 +426,8 @@ function _createStaticNode(elData, options = {}) {
       "width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0f172a;color:#94a3b8;gap:6px;border-radius:inherit;";
     placeholder.innerHTML = `<i class="fa-solid fa-film" style="font-size:24px;"></i><span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Video</span>`;
     el.appendChild(placeholder);
+  } else if (elData.type === "audio") {
+    el.appendChild(_audioCardNode(elData)); // a picture of the card: thumbnails do not play sound
   } else if (elData.type === "molecule") {
     // A picture of the molecule as drawn on its slide when there is one (see scheduleMoleculeThumbnail), on the
     // molecule's own background (none, if it is transparent).
@@ -676,6 +678,8 @@ function _applyTypeContent(el, elData, options = {}) {
     _applyImageTypeContent(el, elData);
   } else if (elData.type === "video") {
     _applyVideoTypeContent(el, elData, options);
+  } else if (elData.type === "audio") {
+    _applyAudioTypeContent(el, elData);
   } else if (elData.type === "html") {
     _applyHtmlTypeContent(el, elData);
   } else if (elData.type === "molecule") {

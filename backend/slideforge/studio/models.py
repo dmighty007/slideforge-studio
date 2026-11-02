@@ -45,6 +45,7 @@ class Asset(models.Model):
     ASSET_TYPES = [
         ("image", "Image"),
         ("video", "Video"),
+        ("audio", "Audio"),
         ("pdf", "PDF"),
         ("molecule", "Molecule"),
         ("export", "Export"),

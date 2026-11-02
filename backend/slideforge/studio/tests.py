@@ -1090,6 +1090,19 @@ class AssetUploadHardeningTests(TestCase):
         self.assertEqual(response.json()["assetType"], "image")
         self.assertEqual(Asset.objects.get().owner, self.user)
 
+    def test_asset_upload_accepts_sounds_and_refuses_files_that_are_not(self):
+        self.client.force_login(self.user)
+        mp3 = b"ID3\x03\x00\x00\x00\x00\x00\x00" + bytes(64)
+        m4a = b"\x00\x00\x00\x20ftypM4A " + bytes(64)
+        for name, data, mime in (("song.mp3", mp3, "audio/mpeg"), ("voice.m4a", m4a, "audio/x-m4a"), ("voice2.m4a", m4a, "video/mp4")):
+            with self.subTest(name=name):
+                response = self.client.post("/api/assets/upload/", {"file": SimpleUploadedFile(name, data, content_type=mime)})
+                self.assertEqual(response.status_code, 201, response.content)
+                self.assertEqual(response.json()["assetType"], "audio")
+        fake = SimpleUploadedFile("evil.mp3", b"<html><script>alert(1)</script>", content_type="audio/mpeg")
+        response = self.client.post("/api/assets/upload/", {"file": fake})
+        self.assertEqual(response.status_code, 400)
+
     def test_asset_upload_accepts_binary_trajectories_and_checks_their_format(self):
         import struct
 
