@@ -6099,39 +6099,43 @@ async function test(name, fn) {
         await page.close();
     });
 
-    await test("desktop video: a deck's JSON carries its uploaded videos, and opening it uploads them again", async () => {
-        const { execFileSync } = require("child_process");
-        const os = require("os");
-        const pathModule = require("path");
-        let mp4;
-        try {
-            const out = pathModule.join(fs.mkdtempSync(pathModule.join(os.tmpdir(), "sf-video-")), "clip.mp4");
-            execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=size=160x90:rate=10", "-t", "1", "-pix_fmt", "yuv420p", "-c:v", "libx264", out]);
-            mp4 = fs.readFileSync(out).toString("base64");
-        } catch (_error) {
-            console.log("  (skipped: ffmpeg is not available)");
-            return;
-        }
-        const { page } = await openFreshEditor(context);
-        const out = await pageAwait(page, async data => {
-            const bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
-            const upload = await _uploadAssetFile(new File([bytes], "clip.mp4", { type: "video/mp4" }));
-            addSlide();
-            state.slides[currentSlideIndex].elements.push({ id: generateId("el"), type: "video", videoType: "local", content: upload.url, x: 100, y: 160, width: "480px", height: "270px", styles: { zIndex: 5 } });
-            const deck = JSON.parse(JSON.stringify(state));
-            await inlineUploadedVideosForExport(deck);
-            const exported = deck.slides[currentSlideIndex].elements.find(e => e.type === "video").content;
-            // As after opening that file: the inline video is uploaded into this install again.
-            state.slides[currentSlideIndex].elements.find(e => e.type === "video").content = exported;
-            window.__inlineVideoMigrationPromise = null;
-            await migrateInlineVideoAssets();
-            return { uploaded: upload.url, exported: exported.slice(0, 22), reuploaded: state.slides[currentSlideIndex].elements.find(e => e.type === "video").content };
-        }, mp4);
-        // It was kept as "/media/assets/…", a file only on the computer that made it.
-        assert(out.exported.startsWith("data:video/mp4"), `JSON export: ${JSON.stringify(out)}`);
-        assert(/^\/media\/assets\/[0-9a-f]{32}\.mp4$/.test(out.reuploaded) && out.reuploaded !== out.uploaded, `opened again: ${JSON.stringify(out)}`);
-        await page.close();
-    });
+    // Uploads need the saving API (the desktop app's local user, or a signed-in session): the web server run with
+    // accounts off has no user, and refuses them (401) like any other anonymous upload.
+    if (!FRONTEND_ONLY) {
+        await test("desktop video: a deck's JSON carries its uploaded videos, and opening it uploads them again", async () => {
+            const { execFileSync } = require("child_process");
+            const os = require("os");
+            const pathModule = require("path");
+            let mp4;
+            try {
+                const out = pathModule.join(fs.mkdtempSync(pathModule.join(os.tmpdir(), "sf-video-")), "clip.mp4");
+                execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=size=160x90:rate=10", "-t", "1", "-pix_fmt", "yuv420p", "-c:v", "libx264", out]);
+                mp4 = fs.readFileSync(out).toString("base64");
+            } catch (_error) {
+                console.log("  (skipped: ffmpeg is not available)");
+                return;
+            }
+            const { page } = await openFreshEditor(context);
+            const out = await pageAwait(page, async data => {
+                const bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
+                const upload = await _uploadAssetFile(new File([bytes], "clip.mp4", { type: "video/mp4" }));
+                addSlide();
+                state.slides[currentSlideIndex].elements.push({ id: generateId("el"), type: "video", videoType: "local", content: upload.url, x: 100, y: 160, width: "480px", height: "270px", styles: { zIndex: 5 } });
+                const deck = JSON.parse(JSON.stringify(state));
+                await inlineUploadedVideosForExport(deck);
+                const exported = deck.slides[currentSlideIndex].elements.find(e => e.type === "video").content;
+                // As after opening that file: the inline video is uploaded into this install again.
+                state.slides[currentSlideIndex].elements.find(e => e.type === "video").content = exported;
+                window.__inlineVideoMigrationPromise = null;
+                await migrateInlineVideoAssets();
+                return { uploaded: upload.url, exported: exported.slice(0, 22), reuploaded: state.slides[currentSlideIndex].elements.find(e => e.type === "video").content };
+            }, mp4);
+            // It was kept as "/media/assets/…", a file only on the computer that made it.
+            assert(out.exported.startsWith("data:video/mp4"), `JSON export: ${JSON.stringify(out)}`);
+            assert(/^\/media\/assets\/[0-9a-f]{32}\.mp4$/.test(out.reuploaded) && out.reuploaded !== out.uploaded, `opened again: ${JSON.stringify(out)}`);
+            await page.close();
+        });
+    }
 
     await test("editor chrome: themes are collapsed, More keeps specialist tools accessible, and Focus restores the workspace", async () => {
         const { page } = await openFreshEditor(context);
@@ -7146,35 +7150,38 @@ async function test(name, fn) {
         await page.close();
     });
 
-    await test("launch: SlideForge reopens the deck the user was working in, and the start screen if they left it there", async () => {
-        const launchContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-        try {
-            const page = await launchContext.newPage();
-            const settle = async () => {
-                await page.waitForFunction(() => typeof isPresentationHydrating === "function" && !isPresentationHydrating() && document.querySelector(".presentation-slide"));
-                await page.waitForTimeout(800);
-                return page.evaluate(() => ({ start: Boolean(document.getElementById("start-screen") && !document.getElementById("start-screen").hidden), deck: currentPresentationId }));
-            };
-            await page.goto(TEST_URL, { waitUntil: "networkidle" });
-            if (page.url() !== TEST_URL) await page.goto(TEST_URL, { waitUntil: "networkidle" });
-            const first = await settle();
-            await page.locator("#sf-start-new").click();
-            await page.waitForTimeout(600);
-            await page.evaluate(async () => { addSlide(); await autosavePresentationNow(); });
-            await page.reload({ waitUntil: "networkidle" });
-            const resumed = await settle();
-            // One click from the start screen back to the deck, every launch.
-            assert(first.start && !resumed.start && resumed.deck, `launches: ${JSON.stringify({ first, resumed })}`);
-            await page.click("button[title^='Start screen']");
-            await page.waitForTimeout(400);
-            await page.reload({ waitUntil: "networkidle" });
-            const leftOnStart = await settle();
-            assert(leftOnStart.start, "left on the start screen, it did not come back");
-            await page.close();
-        } finally {
-            await launchContext.close();
-        }
-    });
+    // Saved decks and the start screen's projects need the saving API (a signed-in user or the desktop app's).
+    if (!FRONTEND_ONLY) {
+        await test("launch: SlideForge reopens the deck the user was working in, and the start screen if they left it there", async () => {
+            const launchContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+            try {
+                const page = await launchContext.newPage();
+                const settle = async () => {
+                    await page.waitForFunction(() => typeof isPresentationHydrating === "function" && !isPresentationHydrating() && document.querySelector(".presentation-slide"));
+                    await page.waitForTimeout(800);
+                    return page.evaluate(() => ({ start: Boolean(document.getElementById("start-screen") && !document.getElementById("start-screen").hidden), deck: currentPresentationId }));
+                };
+                await page.goto(TEST_URL, { waitUntil: "networkidle" });
+                if (page.url() !== TEST_URL) await page.goto(TEST_URL, { waitUntil: "networkidle" });
+                const first = await settle();
+                await page.locator("#sf-start-new").click();
+                await page.waitForTimeout(600);
+                await page.evaluate(async () => { addSlide(); await autosavePresentationNow(); });
+                await page.reload({ waitUntil: "networkidle" });
+                const resumed = await settle();
+                // One click from the start screen back to the deck, every launch.
+                assert(first.start && !resumed.start && resumed.deck, `launches: ${JSON.stringify({ first, resumed })}`);
+                await page.click("button[title^='Start screen']");
+                await page.waitForTimeout(400);
+                await page.reload({ waitUntil: "networkidle" });
+                const leftOnStart = await settle();
+                assert(leftOnStart.start, "left on the start screen, it did not come back");
+                await page.close();
+            } finally {
+                await launchContext.close();
+            }
+        });
+    }
 
     const deckElement = (page, id) => page.evaluate(id => {
         for (const [index, slide] of state.slides.entries()) {
@@ -7420,38 +7427,41 @@ async function test(name, fn) {
         await page.close();
     });
 
-    await test("overnight: two saves at once both land, and an unchanged deck counts as saved", async () => {
-        const { page } = await openFreshEditor(context);
-        const r = await pageAwait(page, async () => {
-            await autosavePresentationNow();
-            // The same deck twice in a row: identical snapshots (text documents kept their ids).
-            const stable = getPersistableFingerprint() === getPersistableFingerprint();
-            const savedAfterOpen = _persistedStateIsCurrent();
-            // Looked up for each edit: a save normalises the state, which replaces the element objects.
-            const title = () => state.slides[0].elements.find(e => e.placeholder === "Click to add title");
-            delete title().textDocument;
-            title().content = "first edit";
-            const first = autosavePresentationNow();
-            await new Promise(resolve => setTimeout(resolve, 5));
-            delete title().textDocument;
-            title().content = "second edit";
-            const second = autosavePresentationNow();
-            const results = await Promise.allSettled([first, second]);
-            const server = await _presentationRequest(`/api/presentations/${currentPresentationId}/`, { method: "GET" });
-            return {
-                stable,
-                savedAfterOpen,
-                results: results.map(x => x.status),
-                server: String(server.state.slides[0].elements.find(e => e.placeholder === "Click to add title").content),
-                current: _persistedStateIsCurrent(),
-                hint: document.querySelector("#project-save-hint")?.textContent || "",
-            };
+    // Saves to /api/presentations/ need the saving API (a signed-in user or the desktop app's).
+    if (!FRONTEND_ONLY) {
+        await test("overnight: two saves at once both land, and an unchanged deck counts as saved", async () => {
+            const { page } = await openFreshEditor(context);
+            const r = await pageAwait(page, async () => {
+                await autosavePresentationNow();
+                // The same deck twice in a row: identical snapshots (text documents kept their ids).
+                const stable = getPersistableFingerprint() === getPersistableFingerprint();
+                const savedAfterOpen = _persistedStateIsCurrent();
+                // Looked up for each edit: a save normalises the state, which replaces the element objects.
+                const title = () => state.slides[0].elements.find(e => e.placeholder === "Click to add title");
+                delete title().textDocument;
+                title().content = "first edit";
+                const first = autosavePresentationNow();
+                await new Promise(resolve => setTimeout(resolve, 5));
+                delete title().textDocument;
+                title().content = "second edit";
+                const second = autosavePresentationNow();
+                const results = await Promise.allSettled([first, second]);
+                const server = await _presentationRequest(`/api/presentations/${currentPresentationId}/`, { method: "GET" });
+                return {
+                    stable,
+                    savedAfterOpen,
+                    results: results.map(x => x.status),
+                    server: String(server.state.slides[0].elements.find(e => e.placeholder === "Click to add title").content),
+                    current: _persistedStateIsCurrent(),
+                    hint: document.querySelector("#project-save-hint")?.textContent || "",
+                };
+            });
+            assert(r.stable && r.savedAfterOpen, `snapshots of an unchanged deck differ: ${JSON.stringify(r)}`);
+            assert(r.results.every(x => x === "fulfilled") && r.server.includes("second edit"), `overlapping saves: ${JSON.stringify(r)}`);
+            assert(r.current && !/conflict/i.test(r.hint), `after both saves: ${JSON.stringify(r)}`);
+            await page.close();
         });
-        assert(r.stable && r.savedAfterOpen, `snapshots of an unchanged deck differ: ${JSON.stringify(r)}`);
-        assert(r.results.every(x => x === "fulfilled") && r.server.includes("second edit"), `overlapping saves: ${JSON.stringify(r)}`);
-        assert(r.current && !/conflict/i.test(r.hint), `after both saves: ${JSON.stringify(r)}`);
-        await page.close();
-    });
+    }
 
     await test("overnight: an equation inserted before KaTeX's fonts load is measured again and fits its box", async () => {
         const { page } = await openFreshEditor(context);
