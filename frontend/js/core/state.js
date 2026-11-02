@@ -2702,7 +2702,12 @@ async function saveProjectFromUi() {
 }
 
 async function createNewProject() {
-    if (!_backendApiAvailable) {
+    // Signed out on a server run without accounts there is nothing to sign in to: the open deck is the local one
+    // (initPresentationPersistence), and a new project replaces it, as without a server. Asking to sign in did
+    // nothing ("not ready yet"), so New kept the old deck. Before the session is known (the desktop app starting),
+    // it still waits.
+    const localOnly = !_backendApiAvailable || (accountsDisabled() && _authReady && !currentAuthUser);
+    if (localOnly) {
         saveStateToUndo();
         clearTimeout(_autosaveTimer);
         state = buildDefaultPresentationState();
