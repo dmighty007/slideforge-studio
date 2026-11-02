@@ -1,0 +1,5 @@
+PASS review: the exported HTML viewer shows a 16:9 deck whole, not cut to a 4:3 frame
+FAIL style: round 3: readable chart text, clear equation preview, true fill swatch, theme in the palette, chart toolbar, thumbnail menu
+  menu: ["New slide after","Duplicate","Move up","Move down","Move to slide…","Hide slide when presenting","Delete"]
+
+1 passed, 1 failed

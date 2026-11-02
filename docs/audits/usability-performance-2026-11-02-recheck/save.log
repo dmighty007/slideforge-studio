@@ -1,0 +1,89 @@
+[
+  {
+    slides: 1,
+    saveMs: 48.69999998807907,
+    saveResult: true,
+    id: '1666d1a1-a0c1-4a06-b35f-bf4f0527668b',
+    storedId: '1666d1a1-a0c1-4a06-b35f-bf4f0527668b',
+    stateCount: 1,
+    beforeReload: {
+      id: '1666d1a1-a0c1-4a06-b35f-bf4f0527668b',
+      storedId: '1666d1a1-a0c1-4a06-b35f-bf4f0527668b',
+      pending: 0,
+      hint: 'Unsaved changes'
+    },
+    reloadMs: 2651.2735050000006,
+    restored: {
+      count: 1,
+      first: 'durability-1-0',
+      last: 'durability-1-0',
+      elements: 10
+    },
+    consoleMessages: [],
+    serverRecord: {
+      status: 200,
+      id: '1666d1a1-a0c1-4a06-b35f-bf4f0527668b',
+      slides: 1,
+      first: 'durability-1-0',
+      last: 'durability-1-0'
+    }
+  },
+  {
+    slides: 50,
+    saveMs: 192.69999998807907,
+    saveResult: true,
+    id: '730b712e-09dd-4f34-bfb8-380ebbb453d2',
+    storedId: '730b712e-09dd-4f34-bfb8-380ebbb453d2',
+    stateCount: 50,
+    beforeReload: {
+      id: '730b712e-09dd-4f34-bfb8-380ebbb453d2',
+      storedId: '730b712e-09dd-4f34-bfb8-380ebbb453d2',
+      pending: 0,
+      hint: 'Unsaved changes'
+    },
+    reloadMs: 2751.8924690000003,
+    restored: {
+      count: 50,
+      first: 'durability-50-0',
+      last: 'durability-50-49',
+      elements: 500
+    },
+    consoleMessages: [],
+    serverRecord: {
+      status: 200,
+      id: '730b712e-09dd-4f34-bfb8-380ebbb453d2',
+      slides: 50,
+      first: 'durability-50-0',
+      last: 'durability-50-49'
+    }
+  },
+  {
+    slides: 200,
+    saveMs: 699.1999999880791,
+    saveResult: true,
+    id: '137e55f0-4989-461b-b5cc-1ea189c11b40',
+    storedId: '137e55f0-4989-461b-b5cc-1ea189c11b40',
+    stateCount: 200,
+    beforeReload: {
+      id: '137e55f0-4989-461b-b5cc-1ea189c11b40',
+      storedId: '137e55f0-4989-461b-b5cc-1ea189c11b40',
+      pending: 0,
+      hint: 'Unsaved changes'
+    },
+    reloadMs: 3492.675384,
+    restored: {
+      count: 200,
+      first: 'durability-200-0',
+      last: 'durability-200-199',
+      elements: 2000
+    },
+    consoleMessages: [],
+    serverRecord: {
+      status: 200,
+      id: '137e55f0-4989-461b-b5cc-1ea189c11b40',
+      slides: 200,
+      first: 'durability-200-0',
+      last: 'durability-200-199'
+    }
+  }
+]

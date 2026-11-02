@@ -1,0 +1,918 @@
+{
+  "environment": {
+    "url": "http://127.0.0.1:8085/",
+    "chromium": "148.0.7778.96",
+    "node": "v26.12.1",
+    "platform": "linux",
+    "arch": "x64",
+    "cpu": "12th Gen Intel(R) Core(TM) i7-12700F",
+    "logicalCpus": 20
+  },
+  "startup": [
+    {
+      "elapsedMs": 2784.048697,
+      "domContentLoadedMs": 1909.5,
+      "loadMs": 1935.4000000059605,
+      "resourceCount": 250,
+      "encodedBytes": 7944137,
+      "heapBytes": 22627965
+    },
+    {
+      "elapsedMs": 2780.320053,
+      "domContentLoadedMs": 1901.300000011921,
+      "loadMs": 1926,
+      "resourceCount": 250,
+      "encodedBytes": 7942676,
+      "heapBytes": 26217485
+    },
+    {
+      "elapsedMs": 2789.905125,
+      "domContentLoadedMs": 1900.9000000059605,
+      "loadMs": 1927.800000011921,
+      "resourceCount": 250,
+      "encodedBytes": 7946976,
+      "heapBytes": 26227213
+    },
+    {
+      "elapsedMs": 2771.0544800000007,
+      "domContentLoadedMs": 1900.4000000059605,
+      "loadMs": 1928.9000000059605,
+      "resourceCount": 250,
+      "encodedBytes": 7946976,
+      "heapBytes": 26066241
+    },
+    {
+      "elapsedMs": 2814.2314559999995,
+      "domContentLoadedMs": 1937.7999999821186,
+      "loadMs": 1965.5,
+      "resourceCount": 250,
+      "encodedBytes": 7946976,
+      "heapBytes": 25190177
+    }
+  ],
+  "layouts": [
+    {
+      "width": 1920,
+      "height": 1080,
+      "documentWidth": 1920,
+      "offscreenControls": [],
+      "unnamedButtons": [],
+      "smallTargets": [
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Collapse AI assistant",
+          "html": "<button type=\"button\" onclick=\"toggleAIDock()\" aria-label=\"Collapse AI assistant\">\n                                <svg class=\"svg-inline--fa fa-minus\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"minus\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M432 256c0 17.7-14.3 32-32 32L48 288c-17.7 0-32-14.3-32-32s14",
+          "width": 13.719970703125,
+          "height": 23.52001953125
+        },
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Zoom out",
+          "html": "<button type=\"button\" onclick=\"changeZoom(-0.1)\" class=\"zoom-icon-btn\" title=\"Zoom out\" aria-label=\"Zoom out\">\n                        <svg class=\"svg-inline--fa fa-minus\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"minus\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M432 256c0 17.7-14.3 32-32 32L48 288c-17.",
+          "width": 4.760009765625,
+          "height": 34
+        },
+        {
+          "id": "zoom-slider",
+          "tag": "INPUT",
+          "label": "Zoom level",
+          "html": "<input type=\"range\" id=\"zoom-slider\" min=\"0.25\" max=\"3\" step=\"0.05\" value=\"1\" oninput=\"handleZoomSlider(this.value)\" aria-label=\"Zoom level\">",
+          "width": 18.4801025390625,
+          "height": 18
+        },
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Zoom in",
+          "html": "<button type=\"button\" onclick=\"changeZoom(0.1)\" class=\"zoom-icon-btn\" title=\"Zoom in\" aria-label=\"Zoom in\">\n                        <svg class=\"svg-inline--fa fa-plus\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"plus\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32V22",
+          "width": 4.760009765625,
+          "height": 34
+        },
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Fit slide to view",
+          "html": "<button type=\"button\" onclick=\"resetZoom()\" class=\"zoom-fit-btn\" title=\"Fit slide to view\">\n                        <svg class=\"svg-inline--fa fa-expand\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"expand\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M32 32C14.3 32 0 46.3 0 64v96c0 17.7 14.3 32 32 32s32-14.3",
+          "width": 8.1199951171875,
+          "height": 34
+        }
+      ],
+      "canvas": {
+        "x": 282.21875,
+        "y": 109,
+        "width": 1587.5555419921875,
+        "height": 893,
+        "top": 109,
+        "right": 1869.7742919921875,
+        "bottom": 1002,
+        "left": 282.21875
+      }
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "documentWidth": 1440,
+      "offscreenControls": [],
+      "unnamedButtons": [],
+      "smallTargets": [
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Collapse AI assistant",
+          "html": "<button type=\"button\" onclick=\"toggleAIDock()\" aria-label=\"Collapse AI assistant\">\n                                <svg class=\"svg-inline--fa fa-minus\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"minus\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M432 256c0 17.7-14.3 32-32 32L48 288c-17.7 0-32-14.3-32-32s14",
+          "width": 13.719970703125,
+          "height": 23.52001953125
+        },
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Zoom out",
+          "html": "<button type=\"button\" onclick=\"changeZoom(-0.1)\" class=\"zoom-icon-btn\" title=\"Zoom out\" aria-label=\"Zoom out\">\n                        <svg class=\"svg-inline--fa fa-minus\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"minus\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M432 256c0 17.7-14.3 32-32 32L48 288c-17.",
+          "width": 4.760009765625,
+          "height": 34
+        },
+        {
+          "id": "zoom-slider",
+          "tag": "INPUT",
+          "label": "Zoom level",
+          "html": "<input type=\"range\" id=\"zoom-slider\" min=\"0.25\" max=\"3\" step=\"0.05\" value=\"1\" oninput=\"handleZoomSlider(this.value)\" aria-label=\"Zoom level\" style=\"\">",
+          "width": 18.4801025390625,
+          "height": 18
+        },
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Zoom in",
+          "html": "<button type=\"button\" onclick=\"changeZoom(0.1)\" class=\"zoom-icon-btn\" title=\"Zoom in\" aria-label=\"Zoom in\">\n                        <svg class=\"svg-inline--fa fa-plus\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"plus\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32V22",
+          "width": 4.760009765625,
+          "height": 34
+        },
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Fit slide to view",
+          "html": "<button type=\"button\" onclick=\"resetZoom()\" class=\"zoom-fit-btn\" title=\"Fit slide to view\">\n                        <svg class=\"svg-inline--fa fa-expand\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"expand\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M32 32C14.3 32 0 46.3 0 64v96c0 17.7 14.3 32 32 32s32-14.3",
+          "width": 8.1199951171875,
+          "height": 34
+        }
+      ],
+      "canvas": {
+        "x": 201,
+        "y": 122.375,
+        "width": 1220,
+        "height": 686.25,
+        "top": 122.375,
+        "right": 1421,
+        "bottom": 808.625,
+        "left": 201
+      }
+    },
+    {
+      "width": 1280,
+      "height": 720,
+      "documentWidth": 1280,
+      "offscreenControls": [],
+      "unnamedButtons": [],
+      "smallTargets": [
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Collapse AI assistant",
+          "html": "<button type=\"button\" onclick=\"toggleAIDock()\" aria-label=\"Collapse AI assistant\">\n                                <svg class=\"svg-inline--fa fa-minus\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"minus\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M432 256c0 17.7-14.3 32-32 32L48 288c-17.7 0-32-14.3-32-32s14",
+          "width": 13.719970703125,
+          "height": 23.519989013671875
+        },
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Zoom out",
+          "html": "<button type=\"button\" onclick=\"changeZoom(-0.1)\" class=\"zoom-icon-btn\" title=\"Zoom out\" aria-label=\"Zoom out\">\n                        <svg class=\"svg-inline--fa fa-minus\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"minus\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M432 256c0 17.7-14.3 32-32 32L48 288c-17.",
+          "width": 4.760009765625,
+          "height": 34
+        },
+        {
+          "id": "zoom-slider",
+          "tag": "INPUT",
+          "label": "Zoom level",
+          "html": "<input type=\"range\" id=\"zoom-slider\" min=\"0.25\" max=\"3\" step=\"0.05\" value=\"1\" oninput=\"handleZoomSlider(this.value)\" aria-label=\"Zoom level\" style=\"\">",
+          "width": 18.4801025390625,
+          "height": 18
+        },
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Zoom in",
+          "html": "<button type=\"button\" onclick=\"changeZoom(0.1)\" class=\"zoom-icon-btn\" title=\"Zoom in\" aria-label=\"Zoom in\">\n                        <svg class=\"svg-inline--fa fa-plus\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"plus\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32V22",
+          "width": 4.760009765625,
+          "height": 34
+        },
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Fit slide to view",
+          "html": "<button type=\"button\" onclick=\"resetZoom()\" class=\"zoom-fit-btn\" title=\"Fit slide to view\">\n                        <svg class=\"svg-inline--fa fa-expand\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"expand\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M32 32C14.3 32 0 46.3 0 64v96c0 17.7 14.3 32 32 32s32-14.3",
+          "width": 8.1199951171875,
+          "height": 34
+        }
+      ],
+      "canvas": {
+        "x": 258.21875,
+        "y": 109,
+        "width": 947.5555419921875,
+        "height": 533,
+        "top": 109,
+        "right": 1205.7742919921875,
+        "bottom": 642,
+        "left": 258.21875
+      }
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "documentWidth": 1024,
+      "offscreenControls": [],
+      "unnamedButtons": [],
+      "smallTargets": [
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Collapse AI assistant",
+          "html": "<button type=\"button\" onclick=\"toggleAIDock()\" aria-label=\"Collapse AI assistant\">\n                                <svg class=\"svg-inline--fa fa-minus\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"minus\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M432 256c0 17.7-14.3 32-32 32L48 288c-17.7 0-32-14.3-32-32s14",
+          "width": 13.719970703125,
+          "height": 23.519989013671875
+        },
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Zoom out",
+          "html": "<button type=\"button\" onclick=\"changeZoom(-0.1)\" class=\"zoom-icon-btn\" title=\"Zoom out\" aria-label=\"Zoom out\">\n                        <svg class=\"svg-inline--fa fa-minus\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"minus\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M432 256c0 17.7-14.3 32-32 32L48 288c-17.",
+          "width": 4.760009765625,
+          "height": 34
+        },
+        {
+          "id": "zoom-slider",
+          "tag": "INPUT",
+          "label": "Zoom level",
+          "html": "<input type=\"range\" id=\"zoom-slider\" min=\"0.25\" max=\"3\" step=\"0.05\" value=\"1\" oninput=\"handleZoomSlider(this.value)\" aria-label=\"Zoom level\" style=\"\">",
+          "width": 18.47998046875,
+          "height": 18
+        },
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Zoom in",
+          "html": "<button type=\"button\" onclick=\"changeZoom(0.1)\" class=\"zoom-icon-btn\" title=\"Zoom in\" aria-label=\"Zoom in\">\n                        <svg class=\"svg-inline--fa fa-plus\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"plus\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32V22",
+          "width": 4.760009765625,
+          "height": 34
+        },
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Fit slide to view",
+          "html": "<button type=\"button\" onclick=\"resetZoom()\" class=\"zoom-fit-btn\" title=\"Fit slide to view\">\n                        <svg class=\"svg-inline--fa fa-expand\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"expand\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M32 32C14.3 32 0 46.3 0 64v96c0 17.7 14.3 32 32 32s32-14.3",
+          "width": 8.1199951171875,
+          "height": 34
+        }
+      ],
+      "canvas": {
+        "x": 72,
+        "y": 137.3125,
+        "width": 934,
+        "height": 525.375,
+        "top": 137.3125,
+        "right": 1006,
+        "bottom": 662.6875,
+        "left": 72
+      }
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "documentWidth": 768,
+      "offscreenControls": [],
+      "unnamedButtons": [],
+      "smallTargets": [
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "New Slide",
+          "html": "<button onclick=\"addSlide()\" class=\"new-slide-btn\">\n                        <svg class=\"svg-inline--fa fa-plus\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"plus\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32V224H48c-17.7 0-32 14.3-32 32s14.3 32 32 32H192V432c0 17.7 ",
+          "width": 2,
+          "height": 41
+        },
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Collapse AI assistant",
+          "html": "<button type=\"button\" onclick=\"toggleAIDock()\" aria-label=\"Collapse AI assistant\">\n                                <svg class=\"svg-inline--fa fa-minus\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"minus\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M432 256c0 17.7-14.3 32-32 32L48 288c-17.7 0-32-14.3-32-32s14",
+          "width": 13.719970703125,
+          "height": 23.52001953125
+        },
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Zoom out",
+          "html": "<button type=\"button\" onclick=\"changeZoom(-0.1)\" class=\"zoom-icon-btn\" title=\"Zoom out\" aria-label=\"Zoom out\">\n                        <svg class=\"svg-inline--fa fa-minus\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"minus\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M432 256c0 17.7-14.3 32-32 32L48 288c-17.",
+          "width": 4.760009765625,
+          "height": 34
+        },
+        {
+          "id": "zoom-slider",
+          "tag": "INPUT",
+          "label": "Zoom level",
+          "html": "<input type=\"range\" id=\"zoom-slider\" min=\"0.25\" max=\"3\" step=\"0.05\" value=\"1\" oninput=\"handleZoomSlider(this.value)\" aria-label=\"Zoom level\" style=\"\">",
+          "width": 18.47998046875,
+          "height": 18
+        },
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Zoom in",
+          "html": "<button type=\"button\" onclick=\"changeZoom(0.1)\" class=\"zoom-icon-btn\" title=\"Zoom in\" aria-label=\"Zoom in\">\n                        <svg class=\"svg-inline--fa fa-plus\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"plus\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32V22",
+          "width": 4.760009765625,
+          "height": 34
+        },
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Fit slide to view",
+          "html": "<button type=\"button\" onclick=\"resetZoom()\" class=\"zoom-fit-btn\" title=\"Fit slide to view\">\n                        <svg class=\"svg-inline--fa fa-expand\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"expand\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M32 32C14.3 32 0 46.3 0 64v96c0 17.7 14.3 32 32 32s32-14.3",
+          "width": 8.1199951171875,
+          "height": 34
+        }
+      ],
+      "canvas": {
+        "x": 18,
+        "y": 345.625,
+        "width": 732,
+        "height": 411.75,
+        "top": 345.625,
+        "right": 750,
+        "bottom": 757.375,
+        "left": 18
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "documentWidth": 390,
+      "offscreenControls": [],
+      "unnamedButtons": [],
+      "smallTargets": [
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Collapse AI assistant",
+          "html": "<button type=\"button\" onclick=\"toggleAIDock()\" aria-label=\"Collapse AI assistant\">\n                                <svg class=\"svg-inline--fa fa-minus\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"minus\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M432 256c0 17.7-14.3 32-32 32L48 288c-17.7 0-32-14.3-32-32s14",
+          "width": 13.720001220703125,
+          "height": 23.52001953125
+        },
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Zoom out",
+          "html": "<button type=\"button\" onclick=\"changeZoom(-0.1)\" class=\"zoom-icon-btn\" title=\"Zoom out\" aria-label=\"Zoom out\">\n                        <svg class=\"svg-inline--fa fa-minus\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"minus\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M432 256c0 17.7-14.3 32-32 32L48 288c-17.",
+          "width": 4.759979248046875,
+          "height": 34
+        },
+        {
+          "id": "zoom-slider",
+          "tag": "INPUT",
+          "label": "Zoom level",
+          "html": "<input type=\"range\" id=\"zoom-slider\" min=\"0.25\" max=\"3\" step=\"0.05\" value=\"1\" oninput=\"handleZoomSlider(this.value)\" aria-label=\"Zoom level\" style=\"\">",
+          "width": 18.47998046875,
+          "height": 18
+        },
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Zoom in",
+          "html": "<button type=\"button\" onclick=\"changeZoom(0.1)\" class=\"zoom-icon-btn\" title=\"Zoom in\" aria-label=\"Zoom in\">\n                        <svg class=\"svg-inline--fa fa-plus\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"plus\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32V22",
+          "width": 4.760009765625,
+          "height": 34
+        },
+        {
+          "id": "",
+          "tag": "BUTTON",
+          "label": "Fit slide to view",
+          "html": "<button type=\"button\" onclick=\"resetZoom()\" class=\"zoom-fit-btn\" title=\"Fit slide to view\">\n                        <svg class=\"svg-inline--fa fa-expand\" aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"expand\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" data-fa-i2svg=\"\"><path fill=\"currentColor\" d=\"M32 32C14.3 32 0 46.3 0 64v96c0 17.7 14.3 32 32 32s32-14.3",
+          "width": 8.1199951171875,
+          "height": 34
+        }
+      ],
+      "canvas": {
+        "x": 18,
+        "y": 352.9375,
+        "width": 354,
+        "height": 199.125,
+        "top": 352.9375,
+        "right": 372,
+        "bottom": 552.0625,
+        "left": 18
+      }
+    }
+  ],
+  "scaling": [
+    {
+      "slides": 1,
+      "elementsPerSlide": 10,
+      "initialRenderMs": 27.900000005960464,
+      "switchMs": [
+        31.5,
+        33.30000001192093,
+        34.30000001192093,
+        32.29999998211861,
+        40.70000001788139
+      ],
+      "serializationMs": [
+        0,
+        0,
+        0,
+        0.09999999403953552,
+        0
+      ],
+      "insertionMs": [
+        140.09999999403954,
+        111.59999999403954,
+        93.5
+      ],
+      "undoMs": [
+        105.30000001192093,
+        41.79999998211861,
+        40.70000001788139
+      ],
+      "jsonBytes": 4716,
+      "domNodes": 1879,
+      "heapBytes": 36493192
+    },
+    {
+      "slides": 10,
+      "elementsPerSlide": 10,
+      "initialRenderMs": 80.40000000596046,
+      "switchMs": [
+        65.7999999821186,
+        51.400000005960464,
+        39,
+        46.30000001192093,
+        43.30000001192093
+      ],
+      "serializationMs": [
+        0.19999998807907104,
+        0.09999999403953552,
+        0,
+        0,
+        0.20000001788139343
+      ],
+      "insertionMs": [
+        111.39999997615814,
+        134.40000000596046,
+        169.5
+      ],
+      "undoMs": [
+        124,
+        64.7000000178814,
+        55.19999998807907
+      ],
+      "jsonBytes": 40806,
+      "domNodes": 3013,
+      "heapBytes": 57171919
+    },
+    {
+      "slides": 50,
+      "elementsPerSlide": 10,
+      "initialRenderMs": 452.59999999403954,
+      "switchMs": [
+        86.2000000178814,
+        60,
+        63.099999994039536,
+        66.5,
+        64
+      ],
+      "serializationMs": [
+        0.699999988079071,
+        0.5,
+        0.30000001192092896,
+        0.29999998211860657,
+        0.30000001192092896
+      ],
+      "insertionMs": [
+        233.19999998807907,
+        356.40000000596046,
+        299.59999999403954
+      ],
+      "undoMs": [
+        212.5,
+        137.90000000596046,
+        150.30000001192093
+      ],
+      "jsonBytes": 202526,
+      "domNodes": 8053,
+      "heapBytes": 28944500
+    },
+    {
+      "slides": 100,
+      "elementsPerSlide": 10,
+      "initialRenderMs": 1315.300000011921,
+      "switchMs": [
+        111.09999999403954,
+        109.59999999403954,
+        113.5,
+        106.5,
+        101.5
+      ],
+      "serializationMs": [
+        1.100000023841858,
+        0.699999988079071,
+        0.5999999940395355,
+        0.7000000178813934,
+        0.5999999940395355
+      ],
+      "insertionMs": [
+        427.69999998807907,
+        540.5999999940395,
+        548.7000000178814
+      ],
+      "undoMs": [
+        401.7999999821186,
+        291.80000001192093,
+        292.90000000596046
+      ],
+      "jsonBytes": 404676,
+      "domNodes": 14353,
+      "heapBytes": 67870894
+    },
+    {
+      "slides": 200,
+      "elementsPerSlide": 10,
+      "initialRenderMs": 4668.5,
+      "switchMs": [
+        217.19999998807907,
+        198.7000000178814,
+        192.59999999403954,
+        198.09999999403954,
+        208.2000000178814
+      ],
+      "serializationMs": [
+        2.399999976158142,
+        2.300000011920929,
+        2.5,
+        2.300000011920929,
+        2.5
+      ],
+      "insertionMs": [
+        1072,
+        1220.8999999761581,
+        1118.300000011921
+      ],
+      "undoMs": [
+        866.5999999940395,
+        735.5999999940395,
+        671.5
+      ],
+      "jsonBytes": 812276,
+      "domNodes": 26953,
+      "heapBytes": 53652927
+    },
+    {
+      "slides": 1,
+      "elementsPerSlide": 500,
+      "initialRenderMs": 821,
+      "switchMs": [
+        52,
+        44.5,
+        44,
+        42.29999998211861,
+        37.5
+      ],
+      "serializationMs": [
+        0.5,
+        0.30000001192092896,
+        0.30000001192092896,
+        0.29999998211860657,
+        0.30000001192092896
+      ],
+      "insertionMs": [
+        937.0999999940395,
+        1087.4000000059605,
+        1054.2999999821186
+      ],
+      "undoMs": [
+        880.2000000178814,
+        749.7999999821186,
+        792.2000000178814
+      ],
+      "jsonBytes": 208406,
+      "domNodes": 10863,
+      "heapBytes": 53815376
+    }
+  ],
+  "errors": [],
+  "longTasks": [
+    {
+      "start": 71.09999999403954,
+      "duration": 75
+    },
+    {
+      "start": 1823.5999999940395,
+      "duration": 53
+    },
+    {
+      "start": 4956.799999982119,
+      "duration": 88
+    },
+    {
+      "start": 5288.299999982119,
+      "duration": 52
+    },
+    {
+      "start": 5859.699999988079,
+      "duration": 56
+    },
+    {
+      "start": 5916,
+      "duration": 57
+    },
+    {
+      "start": 5976.299999982119,
+      "duration": 65
+    },
+    {
+      "start": 6041.5,
+      "duration": 66
+    },
+    {
+      "start": 6146.5,
+      "duration": 62
+    },
+    {
+      "start": 6209.5,
+      "duration": 59
+    },
+    {
+      "start": 6482.899999976158,
+      "duration": 210
+    },
+    {
+      "start": 6693.5,
+      "duration": 225
+    },
+    {
+      "start": 7275.699999988079,
+      "duration": 77
+    },
+    {
+      "start": 7353,
+      "duration": 110
+    },
+    {
+      "start": 7470.0999999940395,
+      "duration": 134
+    },
+    {
+      "start": 7636.5999999940395,
+      "duration": 149
+    },
+    {
+      "start": 7786.399999976158,
+      "duration": 173
+    },
+    {
+      "start": 7967.899999976158,
+      "duration": 129
+    },
+    {
+      "start": 8097.399999976158,
+      "duration": 151
+    },
+    {
+      "start": 8292.5,
+      "duration": 87
+    },
+    {
+      "start": 8379.5,
+      "duration": 69
+    },
+    {
+      "start": 8516.199999988079,
+      "duration": 67
+    },
+    {
+      "start": 8595.899999976158,
+      "duration": 61
+    },
+    {
+      "start": 8674,
+      "duration": 553
+    },
+    {
+      "start": 9227.199999988079,
+      "duration": 735
+    },
+    {
+      "start": 10045,
+      "duration": 55
+    },
+    {
+      "start": 10140.5,
+      "duration": 57
+    },
+    {
+      "start": 10251.299999982119,
+      "duration": 60
+    },
+    {
+      "start": 10373.799999982119,
+      "duration": 56
+    },
+    {
+      "start": 10468.199999988079,
+      "duration": 58
+    },
+    {
+      "start": 10531.299999982119,
+      "duration": 172
+    },
+    {
+      "start": 10703.5,
+      "duration": 184
+    },
+    {
+      "start": 10899,
+      "duration": 230
+    },
+    {
+      "start": 11170.899999976158,
+      "duration": 197
+    },
+    {
+      "start": 11368.399999976158,
+      "duration": 303
+    },
+    {
+      "start": 11693.59999999404,
+      "duration": 218
+    },
+    {
+      "start": 11912.399999976158,
+      "duration": 330
+    },
+    {
+      "start": 12257.5,
+      "duration": 174
+    },
+    {
+      "start": 12452.799999982119,
+      "duration": 155
+    },
+    {
+      "start": 12631.899999976158,
+      "duration": 94
+    },
+    {
+      "start": 12744.59999999404,
+      "duration": 152
+    },
+    {
+      "start": 12915.899999976158,
+      "duration": 99
+    },
+    {
+      "start": 13043.199999988079,
+      "duration": 2069
+    },
+    {
+      "start": 15113.199999988079,
+      "duration": 2551
+    },
+    {
+      "start": 17709.69999998808,
+      "duration": 53
+    },
+    {
+      "start": 17793.5,
+      "duration": 124
+    },
+    {
+      "start": 18002.29999998212,
+      "duration": 111
+    },
+    {
+      "start": 18194.69999998808,
+      "duration": 115
+    },
+    {
+      "start": 18389.59999999404,
+      "duration": 116
+    },
+    {
+      "start": 18591.5,
+      "duration": 122
+    },
+    {
+      "start": 18726,
+      "duration": 480
+    },
+    {
+      "start": 19206.79999998212,
+      "duration": 420
+    },
+    {
+      "start": 19655.399999976158,
+      "duration": 654
+    },
+    {
+      "start": 20309.59999999404,
+      "duration": 418
+    },
+    {
+      "start": 20753.69999998808,
+      "duration": 735
+    },
+    {
+      "start": 21500.59999999404,
+      "duration": 369
+    },
+    {
+      "start": 21894.69999998808,
+      "duration": 754
+    },
+    {
+      "start": 22673.899999976158,
+      "duration": 291
+    },
+    {
+      "start": 23015.19999998808,
+      "duration": 476
+    },
+    {
+      "start": 23524.79999998212,
+      "duration": 180
+    },
+    {
+      "start": 23749,
+      "duration": 443
+    },
+    {
+      "start": 24218.59999999404,
+      "duration": 168
+    },
+    {
+      "start": 24430.59999999404,
+      "duration": 302
+    },
+    {
+      "start": 24733,
+      "duration": 493
+    },
+    {
+      "start": 25472.29999998212,
+      "duration": 361
+    },
+    {
+      "start": 25833.5,
+      "duration": 490
+    },
+    {
+      "start": 26336,
+      "duration": 430
+    },
+    {
+      "start": 26766.79999998212,
+      "duration": 555
+    },
+    {
+      "start": 27337.5,
+      "duration": 559
+    },
+    {
+      "start": 27897.59999999404,
+      "duration": 517
+    },
+    {
+      "start": 28429.79999998212,
+      "duration": 489
+    },
+    {
+      "start": 28931.399999976158,
+      "duration": 447
+    },
+    {
+      "start": 29427.399999976158,
+      "duration": 338
+    },
+    {
+      "start": 29779.399999976158,
+      "duration": 380
+    },
+    {
+      "start": 30182.399999976158,
+      "duration": 331
+    },
+    {
+      "start": 30528,
+      "duration": 420
+    }
+  ]
+}

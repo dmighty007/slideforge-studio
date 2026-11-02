@@ -1,0 +1,90 @@
+PASS molecules: an XYZ small molecule is drawn, an unreadable file says so, and exports get a picture
+PASS molecule settings: transparent means no box at all, a layer restyles its atoms (no thick tube), depth cue and reset view work, nothing reloads
+PASS the 3D background does not reallocate its surface every frame, and sliders or edits do not rebuild it
+PASS Slide background: one button puts this slide's background on every slide, new ones included, in one undo step
+PASS review: align buttons line shapes up instead of sending them to 100,100
+PASS review: the thumbnail shows text typed into the first slide's title
+PASS review: the default subtitle takes the theme's muted colour (readable on Horizon)
+PASS review: a newly added slide is scrolled into view above the Deck panel
+PASS review: a molecule on a far-away (hidden) slide still exports as a full-size picture
+PASS review: the presenter view's slide preview has no animation badges
+PASS missing: the shape picker offers the full shape set, each drawn with its outline in the editor and SVG
+PASS missing: X, Y, W, H and rotation can be typed in, and Group is only offered for two or more objects
+PASS style: a drawing's black strokes turn light when the deck switches to a dark theme
+PASS style: pie slices start with distinct colours, Shrink Out is listed once, arrows are text symbols, editing tint is light
+PASS missing: Video URL asks in the app's own dialog, not the browser's prompt box
+PASS missing: hovering an animation in the picker previews it
+PASS missing: during a show, moving the pointer brings up the presentation menu button; it fades when still
+FAIL style: round 3: readable chart text, clear equation preview, true fill swatch, theme in the palette, chart toolbar, thumbnail menu
+  menu: ["New slide after","Duplicate","Move up","Move down","Move to slide…","Hide slide when presenting","Delete"]
+PASS review: a list with bullet-by-bullet reveal and a fade comes in with its first bullet, then a bullet per click
+PASS qa2: the Rotation field turns the object, and the turn survives a drag, a nudge and a redraw
+PASS qa: PDF export draws text where the editor shows it, on a page the size of the slide
+PASS review: in the shared/exported viewer a text box shows no hover frame, focus ring or text cursor
+PASS review: Properties dropdowns open an in-app list and keep focus after a choice (arrow keys keep working)
+PASS review: a preset table on a dark theme has no white box behind its see-through cells
+PASS review: a connector attached to a star or circle ends on its outline, not on the corner of its box
+PASS review: in a show, double-clicking a text box, shape text or table selects nothing and shows no text cursor
+PASS missing: charts take several series with their own colours, axis titles, and sit on the theme's card
+PASS Plugins: a structure follows the theme's text colour unless given its own
+PASS Plugins: table fields read CSV, TSV and quoted cells, and Load CSV fills one from a file
+PASS Plugins: significance brackets stack without overlapping, turn p-values into stars, and point at a bad row
+PASS Plugins: a phylogenetic tree reads Newick with support values and lines its tips up as a cladogram
+PASS Plugins: a forest plot draws squares by weight, a pooled diamond, and keeps a log axis inside the data
+PASS Plugins: a gel places bands by the log of their size between ladder bands, and keeps empty lanes
+PASS Plugins: a domain diagram draws domains to scale, names that do not fit outside, sites and a ruler
+PASS workflow: new media fills a content placeholder below the title
+PASS workflow: plot surfaces are opaque by default and explicit transparency survives export
+PASS Field study: nonnegative curve-fit data does not extrapolate before zero
+PASS Field study: recovery distinguishes an in-flight save from a conflicting edit
+PASS deck 2: a new table spans the content area, Tab in its last cell adds a row, and its handles sit on its borders
+PASS audit 2026-10-17: fitting a long table keeps it under the title and says to split it; the split repeats the header
+PASS audit 2026-10-17: fitted values carry units from the axis labels: per hour for a rate, y/x for a slope
+PASS deck 3: a pasted header names the chart's x axis; a pie shows its shares; an equation does not land on the title
+PASS deck 3: a structure's bound drug and metal ions are drawn (balls and sticks, spheres)
+PASS retest 2026-10-17: fitting a long table offers the split in its notice, and the split goes back to the table's own text size
+PASS editor chrome: themes are collapsed, More keeps specialist tools accessible, and Focus restores the workspace
+PASS properties: a table's rows, columns and split are on Content; Style shows the header and zebra switches with colours folded
+PASS panel audit 2026-10-19: keys in a panel dropdown stay there: arrows do not move the object, Tab moves on, Delete keeps it, Ctrl+Z still undoes
+PASS start screen: with many presentations it shows the most recent 60 and a Show all button; search still finds any of them
+PASS drag: a shape dragged near the middle of its two neighbours snaps to equal gaps and shows both gaps
+PASS gestures: the right-click menu has the clipboard and stacking order, Duplicate works, and on the empty slide it pastes where clicked
+PASS review 2026-10-20: at 700px the top bar takes two rows and the icon-only insert bar is as wide as its icons; the drawer says Done, can be widened, and shows the chart it would cover
+PASS presets: applied to a new slide they keep their own title and text (no lone bullet); typed text carries over as text, not [object Object]
+PASS workflow audit 2026-10-20 U1: with the expanded data editor open, Shift+Tab and Delete do not delete the plot behind it; Cancel leaves it
+PASS workflow audit 2026-10-20 U4: the placement notice never spreads a chart over a table; it fits it into free space or offers a new slide
+PASS user session 2026-10-21: a double-click on a word in a box not being edited selects the word
+PASS workflow retest 2026-10-21 R1: applying a layout keeps a locked table, a rectangle, a connector and an icon
+PASS workflow retest 2026-10-21 R4: at 700px the shape, icon and symbol pickers fit the window and close with their button
+PASS coverage 2026-10-21: a connector between two text boxes stays attached through a layout change, and follows them
+PASS overnight: an equation inserted before KaTeX's fonts load is measured again and fits its box
+PASS Field study: molecule drag releases over its iframe
+PASS Plugins: the function plot's parser follows precedence, reads 2x and 2sin(x), and points at errors
+PASS Plugins: Feynman diagrams draw fermion arrows, photon waves, gluon loops and dashed scalars, presets fill the text
+PASS Plugins: a volcano plot sorts points by both thresholds, counts them and labels the top hits without overlaps
+PASS Plugins: a paper badge reads arXiv ids, DOIs and links, and its QR code points at the paper
+PASS QA 2026-10-15: the Plugins menu groups plugins by field and finds them by typing
+PASS Audit 2026-10-15: the plugin manager's search takes words typed one key at a time
+PASS Audit recheck 2026-10-15: a not-installed plugin's row in the manager follows the search
+PASS Audit round 3: table fields say Applied after Ctrl+Enter, label example data with Clear, and summarise what they read
+PASS Plugins: an object whose plugin is missing shows its saved picture, and saved SVG is cleaned
+PASS research deck: footer and logo text changed on the master reach the slides that already exist, and SVG writes capitals
+PASS research deck: structures, at-risk tables and missing heatmap cells read clearly
+PASS research deck: a plot on a slide with only its title fills the content area; the Plugins menu opens its options
+PASS research deck: Save shows that the project was saved, and Delete removes an empty placeholder being typed in
+PASS research deck: a box plot draws its own comparison brackets and computes Welch or Mann–Whitney p-values
+PASS research deck: typing after one click on a table cell edits it, a second click edits too, and Escape keeps the table
+PASS research deck: the Web ZIP spaces bullets as the editor does
+PASS audit: the Export menu says what each format keeps
+PASS study 2026-10-16: a column width typed in the panel goes to the selected column only
+PASS study 2026-10-16: the Web ZIP draws a table in the font and size set in Style
+PASS study 2026-10-16: title master on the title slide, a reaction comes in at a useful size, diagrams in the theme font, SVG lines in one piece
+PASS study 2026-10-16b: a table's text settings say which cell they change and can go back to the whole table; Escape leaves a panel field
+PASS study 2026-10-16b: flowcharts in the theme's colours, their panel shows the theme font, Web ZIP tables have no scrollbar
+PASS study 2026-10-16: titles on slides not shown keep their size, after reopening too
+PASS Audit 2026-10-15: renaming a presentation alone is saved
+PASS importing a PowerPoint file makes a new project (the open one is untouched) with text, bullets and a table
+PASS missing: a PowerPoint chart comes in with every series, their colours, its title and axis titles
+PASS undo does not carry slides from one project into another
+
+86 passed, 1 failed

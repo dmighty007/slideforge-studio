@@ -1,0 +1,38 @@
+[
+  {
+    run: 1,
+    expectedId: '707970c5-a097-4b5e-9da6-e82fa4e6c59c',
+    expectedNotes: 'pending-reload-0',
+    after: {
+      id: '707970c5-a097-4b5e-9da6-e82fa4e6c59c',
+      storedId: '707970c5-a097-4b5e-9da6-e82fa4e6c59c',
+      notes: 'pending-reload-0',
+      backendAvailable: true
+    },
+    passed: true
+  },
+  {
+    run: 2,
+    expectedId: '55ab42af-2ef5-475d-b7c4-82f57b996013',
+    expectedNotes: 'pending-reload-1',
+    after: {
+      id: '55ab42af-2ef5-475d-b7c4-82f57b996013',
+      storedId: '55ab42af-2ef5-475d-b7c4-82f57b996013',
+      notes: 'pending-reload-1',
+      backendAvailable: true
+    },
+    passed: true
+  },
+  {
+    run: 3,
+    expectedId: '6b533866-5a82-4a2d-aa2b-f7bb37f89177',
+    expectedNotes: 'pending-reload-2',
+    after: {
+      id: '6b533866-5a82-4a2d-aa2b-f7bb37f89177',
+      storedId: '6b533866-5a82-4a2d-aa2b-f7bb37f89177',
+      notes: 'pending-reload-2',
+      backendAvailable: true
+    },
+    passed: true
+  }
+]

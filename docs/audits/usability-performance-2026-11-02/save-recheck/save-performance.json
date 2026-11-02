@@ -1,0 +1,36 @@
+[
+  {
+    "slides": 200,
+    "saveMs": 5045.300000011921,
+    "saveResult": true,
+    "id": "6d0125a3-f5b9-4b6d-87c2-b7cbd767fe30",
+    "storedId": "6d0125a3-f5b9-4b6d-87c2-b7cbd767fe30",
+    "stateCount": 200,
+    "reloadError": "page.waitForFunction: Timeout 30000ms exceeded.",
+    "reloadDiagnostics": {
+      "count": 1,
+      "id": "332b877f-490f-44ee-b24f-766840e26201",
+      "storedId": "332b877f-490f-44ee-b24f-766840e26201",
+      "hydrating": false,
+      "hint": "Project saved"
+    },
+    "reloadMs": 33138.290157,
+    "restored": {
+      "count": 1,
+      "first": "",
+      "last": "",
+      "elements": 2
+    },
+    "consoleMessages": [
+      "Presentation API request failed: Failed to fetch",
+      "Autosave failed: TypeError: Failed to fetch\n    at _apiFetch (http://127.0.0.1:8085/js/core/state.js?v=20260531-text-format:1971:12)\n    at _presentationRequest (http://127.0.0.1:8085/js/core/state.js?v=20260531-text-format:1982:26)\n    at _autosavePresentationOnce (http://127.0.0.1:8085/js/core/state.js?v=20260531-text-format:2315:23)"
+    ],
+    "serverRecord": {
+      "status": 200,
+      "id": "6d0125a3-f5b9-4b6d-87c2-b7cbd767fe30",
+      "slides": 200,
+      "first": "durability-200-0",
+      "last": "durability-200-199"
+    }
+  }
+]

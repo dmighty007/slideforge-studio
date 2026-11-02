@@ -1,0 +1,18 @@
+PASS the page number cannot be typed over
+PASS the floating toolbar turns bullets and numbering on and off, keeping formatting
+PASS after a panel button, Escape still ends the edit and the text box shows normally
+PASS Ctrl+Z while typing undoes the last word and stays in the text box; Ctrl+Y brings it back
+PASS after presenting, the editor zoom fits the slide again
+PASS leaving a presentation returns the editor exactly as it was, even when Escape comes while it is starting
+PASS flowchart code survives a save and reopen: hyphenated labels, every shape, every link style
+PASS style: a new deck is 16:9 (old decks without a size stay 4:3) and the fitted slide clears the zoom and AI buttons
+PASS style: round 3: readable chart text, clear equation preview, true fill swatch, theme in the palette, chart toolbar, thumbnail menu
+PASS review: a line chart is drawn full size again after presenting and pressing Escape
+PASS Audit 2026-10-15: renaming a presentation alone is saved
+PASS Share makes a view-only link that follows saved changes, fits a phone and can be stopped
+PASS a new deck is 'Untitled Presentation' until its title is typed, then takes that title
+PASS undo does not carry slides from one project into another
+PASS a slow autosave for project A cannot corrupt project B
+PASS edits made right before closing survive even if the final save is blocked
+
+16 passed, 0 failed

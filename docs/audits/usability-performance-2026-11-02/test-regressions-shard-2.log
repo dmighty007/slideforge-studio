@@ -1,0 +1,91 @@
+PASS opening Presenter View does not end the presentation, and it gets the slide's colours
+PASS overnight: a molecule saved with the empty stage's view (looking at the origin) is fitted again
+PASS molecules: a binary DCD trajectory plays over its structure; one for other atoms says so
+PASS Blank theme: new decks start plain white, with no accent rule, corner badge or footer line
+PASS PDF tools: Highlight and Note work as soon as they are chosen, without reloading the document
+PASS review: slide clean-up leaves the footer (logo, rule, slide number) where it is
+PASS review: thumbnails drawn while the slide rail is hidden are not blank once it is back
+PASS review: adding a table row or column grows the table instead of squashing it
+PASS review: changing the slide size keeps every object on the slide
+PASS review: HTML embeds export as a picture of themselves (PDF capture and PowerPoint, even on a hidden slide)
+PASS review: Escape closes the Share dialog
+PASS style: a new deck is 16:9 (old decks without a size stay 4:3) and the fitted slide clears the zoom and AI buttons
+PASS style: theme tags are not repeated, and an embedded picture is described instead of showing its data address
+PASS style: opening the timeline editor refits the slide above it
+PASS missing: the command palette acts on the selection ("dup" duplicates the selected object)
+PASS missing: a PDF note is written in the app's own dialog
+PASS missing: tidying a slide says what it did and how, and offers Undo
+PASS missing: shapes hold text: typed on double-click, styled in Properties, kept in SVG and PowerPoint export
+PASS themes: preset slides show the theme's own background and colours; no corner badge or hard-edged bands
+PASS qa: slide size 16:9 -> 4:3 -> 16:9 gives the same layout; an object moved in between keeps its move
+PASS qa: rough edges: the Layout tab stays open when slides are added; Ctrl+G groups; a JSON export carries the deck's name
+PASS qa: Create link makes a local link only; a public tunnel starts when the user asks for it
+PASS review: the HTML viewer waits for clicks: preset click animations and bullet-by-bullet reveal
+PASS review: round 4: every preset can be picked, previews show the layouts, themes have a gallery, labels read
+PASS review: changing the slide size rebuilds preset slides with their own text in place, without overlaps
+PASS review: a table's columns fill its box: a new table shows its last column whole, and resizing keeps it so
+PASS missing: connector ends dropped on shapes attach and follow the shapes when they move
+PASS Plugins: the SMILES plugin adds a toolbar button and command, and inserts a 2D structure drawing
+PASS Plugins: PowerPoint gets a picture, and the HTML export a readable SVG file
+PASS Plugins: a QR code holds the link (decoded), takes a caption, and says when the text is too long
+PASS Plugins: a compound name is looked up on PubChem once, captioned, and a failed lookup says why
+PASS Plugins: a sequence is read from FASTA, coloured by residue, highlighted, and a wrong letter is named
+PASS Plugins: RDKit draws a structure in its worker, highlights a SMARTS match, labels stereo and adds a property card
+PASS Plugins: a plasmid map draws features across the origin and keeps its labels apart
+PASS Plugins: a two-set Venn diagram is area-proportional, and three sets can be counted from lists
+PASS workflow: plots follow light-dark-light themes and preserve chosen colours
+PASS workflow: molecule backgrounds match the slide and retain explicit choices
+PASS Field study: exported titles keep the editor's fitted size
+PASS deck 2: plugin search puts the best match first; fit to content widens a table without stretching its rows; shape words contrast with the fill
+PASS deck 2: Tab through a plugin's settings keeps the focus after each change; a chart's toolbar does not cover the title
+PASS audit 2026-10-17: a new chart fills the content area at 18 px and long category names wrap
+PASS deck 3: the icon search covers all of Font Awesome and says when nothing matches; PowerPoint gets the icon as a picture
+PASS deck 3: plugin drawings: plasmid rings, gel labels, heatmap names, whole-day ticks, log ticks, Venn names, a shared y unit
+PASS deck 3: a plugin's "Example data" tag goes once its data is replaced
+PASS retest 2026-10-17: the PDF's text layer keeps em dashes, Greek letters and superscripts, as wide as the slide's words
+PASS ribbon: the insert bar folds into group menus when the canvas is narrow, and small screens keep the top bar clear
+PASS rigorous 2026-10-18: values on a chart clear its error bars, for bars, lines, negatives and horizontal bars
+PASS panel audit 2026-10-19: the text toolbar wraps inside a narrow canvas instead of running under the panel; the video preview's labels are readable
+PASS properties: below 1180px the panel is a drawer over the canvas (the slide keeps its width); choosing an object keeps it open, a click on empty canvas closes it
+PASS gestures: a trackpad pinch (many small Ctrl+wheel steps) zooms in proportion; a middle-button drag and a space-drag over an object pan
+PASS gestures: on a touch screen two fingers pinch and pan, a finger drags an object that was not selected, a held finger opens the menu, and a double tap edits text
+PASS review 2026-10-20: a box plot's comparisons fold into their own section, its data opens in a large editor, and a plot that came in small offers the content area or a slide of its own
+PASS dark mode: the text toolbar's colour swatches keep their colours and their size
+PASS workflow audit 2026-10-20 U2: applying a layout keeps a table and a chart it has no place for
+PASS workflow audit 2026-10-20 U5: at 700x800 the equation dialog fits the window and Insert works
+PASS user session 2026-10-21: a plot filling the content area lines up with the title
+PASS workflow retest 2026-10-21 R2: a table taken into a layout keeps every row and column and gets no sample rows
+PASS workflow retest 2026-10-21 R5: a turned table counts with its turned outline: no fit over it, and a fit beside a smaller one keeps clear
+PASS overnight: Ctrl+C on a shape and Ctrl+V on another slide pastes the shape, not a "[shape]" text box
+PASS Field study: typing survives closing before autosave without pagehide
+PASS Field study: exported molecule loads when index.html opens from disk
+PASS Plugins: a function plot draws one curve per line, breaks tan(x) and 1/x at their asymptotes, and names a bad line
+PASS Plugins: a circuit draws each part between its nodes with values, junction dots and ground, and names a missing node
+PASS Plugins: a heatmap z-scores rows and clusters similar rows next to each other
+PASS QA 2026-10-15: RDKit draws molecules its highlight pattern does not match, and starts with no highlight
+PASS Audit 2026-10-15: an edit made while a lookup runs is kept, and the typed DOI stays in place
+PASS Audit 2026-10-15: a forest plot whose values are all equal still draws, and a NaN drawing is refused
+PASS Audit round 3: a blank time, p-value or count is reported as missing, not read as 0
+PASS Audit round 3: a failed lookup is shown once, and Fill content area gives a plot the room under the title
+PASS research deck: a plugin drawing keeps its shape in PowerPoint and in the PDF capture
+PASS research deck: a title that fits leaves room to spare and is fitted again when its font changes
+PASS research deck: a flowchart label's <br/> is a line break, and overlapping kept positions are laid out again
+PASS research deck: Home and End go to the first and last slide in the show; brackets name **** in their option
+PASS research deck: the Properties panel opens each kind of object on its own tab; an equation's size is under Style
+PASS research deck: a bar chart takes error bars from a pasted ± column and keeps them in PowerPoint
+PASS research deck: a citation goes to PowerPoint as text, and the slide number is centred in its pill
+PASS research deck: plots draw in the theme's body font, carried inside the picture but not saved with it
+PASS presenter view: the slide arrives even when the first one is missed
+PASS study 2026-10-16: the panel's position and size follow an object placed after its drawing arrives
+PASS study 2026-10-16: the Kaplan–Meier legend keeps off the curves and bands even when every corner is crossed
+PASS study 2026-10-16: a slide thumbnail shows every row of a table that grew to hold them
+PASS study 2026-10-16b: a title shrunk below 28 pt says so and can keep its size by growing the box
+PASS study 2026-10-16b: a pasted table stays on the slide, and the SVG has the theme's top band and the fitted title
+PASS Plugin manager: switching a plugin off unloads it, keeps its objects' pictures, and lasts after reload
+PASS review: importing a SlideForge JSON adds one project, named apart from a deck with the same name
+PASS review: PowerPoint shape text comes in centred in its shape and in the shape's text colour
+FAIL Share makes a view-only link that follows saved changes, fits a phone and can be stopped
+  the API answered a link viewer with 200
+PASS a slow autosave for project A cannot corrupt project B
+
+87 passed, 1 failed

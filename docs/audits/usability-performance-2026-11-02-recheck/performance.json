@@ -1,0 +1,520 @@
+{
+  "environment": {
+    "url": "http://127.0.0.1:8088/?token=audit-recheck-token",
+    "chromium": "148.0.7778.96",
+    "node": "v26.12.1",
+    "platform": "linux",
+    "arch": "x64",
+    "cpu": "12th Gen Intel(R) Core(TM) i7-12700F",
+    "logicalCpus": 20
+  },
+  "startup": [
+    {
+      "elapsedMs": 2719.697225,
+      "domContentLoadedMs": 1863.7000000178814,
+      "loadMs": 1869.5999999940395,
+      "resourceCount": 250,
+      "encodedBytes": 7577081,
+      "heapBytes": 16606841
+    },
+    {
+      "elapsedMs": 2665.6269330000005,
+      "domContentLoadedMs": 1831.5999999940395,
+      "loadMs": 1836.9000000059605,
+      "resourceCount": 250,
+      "encodedBytes": 7577081,
+      "heapBytes": 16601525
+    },
+    {
+      "elapsedMs": 2715.891879999999,
+      "domContentLoadedMs": 1885.5,
+      "loadMs": 1890.7000000178814,
+      "resourceCount": 250,
+      "encodedBytes": 7577081,
+      "heapBytes": 17890480
+    },
+    {
+      "elapsedMs": 2661.8229120000015,
+      "domContentLoadedMs": 1837.199999988079,
+      "loadMs": 1842.5999999940395,
+      "resourceCount": 250,
+      "encodedBytes": 7577736,
+      "heapBytes": 17907848
+    },
+    {
+      "elapsedMs": 2677.776276999999,
+      "domContentLoadedMs": 1860.300000011921,
+      "loadMs": 1866.2000000178814,
+      "resourceCount": 250,
+      "encodedBytes": 7574242,
+      "heapBytes": 17850284
+    }
+  ],
+  "layouts": [
+    {
+      "width": 1920,
+      "height": 1080,
+      "documentWidth": 1920,
+      "offscreenControls": [],
+      "unnamedButtons": [],
+      "smallTargets": [],
+      "canvas": {
+        "x": 282.21875,
+        "y": 109,
+        "width": 1587.5555419921875,
+        "height": 893,
+        "top": 109,
+        "right": 1869.7742919921875,
+        "bottom": 1002,
+        "left": 282.21875
+      }
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "documentWidth": 1440,
+      "offscreenControls": [],
+      "unnamedButtons": [],
+      "smallTargets": [],
+      "canvas": {
+        "x": 201,
+        "y": 122.375,
+        "width": 1220,
+        "height": 686.25,
+        "top": 122.375,
+        "right": 1421,
+        "bottom": 808.625,
+        "left": 201
+      }
+    },
+    {
+      "width": 1280,
+      "height": 720,
+      "documentWidth": 1280,
+      "offscreenControls": [],
+      "unnamedButtons": [],
+      "smallTargets": [],
+      "canvas": {
+        "x": 258.21875,
+        "y": 109,
+        "width": 947.5555419921875,
+        "height": 533,
+        "top": 109,
+        "right": 1205.7742919921875,
+        "bottom": 642,
+        "left": 258.21875
+      }
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "documentWidth": 1024,
+      "offscreenControls": [],
+      "unnamedButtons": [],
+      "smallTargets": [],
+      "canvas": {
+        "x": 72,
+        "y": 137.3125,
+        "width": 934,
+        "height": 525.375,
+        "top": 137.3125,
+        "right": 1006,
+        "bottom": 662.6875,
+        "left": 72
+      }
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "documentWidth": 768,
+      "offscreenControls": [],
+      "unnamedButtons": [],
+      "smallTargets": [],
+      "canvas": {
+        "x": 18,
+        "y": 345.625,
+        "width": 732,
+        "height": 411.75,
+        "top": 345.625,
+        "right": 750,
+        "bottom": 757.375,
+        "left": 18
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "documentWidth": 390,
+      "offscreenControls": [],
+      "unnamedButtons": [],
+      "smallTargets": [],
+      "canvas": {
+        "x": 18,
+        "y": 352.9375,
+        "width": 354,
+        "height": 199.125,
+        "top": 352.9375,
+        "right": 372,
+        "bottom": 552.0625,
+        "left": 18
+      }
+    }
+  ],
+  "scaling": [
+    {
+      "slides": 1,
+      "elementsPerSlide": 10,
+      "initialRenderMs": 29.599999994039536,
+      "switchMs": [
+        28.599999994039536,
+        34.400000005960464,
+        40.599999994039536,
+        35.900000005960464,
+        37.599999994039536
+      ],
+      "serializationMs": [
+        0.09999999403953552,
+        0,
+        0,
+        0,
+        0
+      ],
+      "insertionMs": [
+        59.30000001192093,
+        98.09999999403954,
+        94.09999999403954
+      ],
+      "undoMs": [
+        66.2000000178814,
+        33.400000005960464,
+        33.39999997615814
+      ],
+      "jsonBytes": 4716,
+      "domNodes": 1684,
+      "heapBytes": 19480870,
+      "finalSlides": 1,
+      "finalElements": 10
+    },
+    {
+      "slides": 10,
+      "elementsPerSlide": 10,
+      "initialRenderMs": 33.599999994039536,
+      "switchMs": [
+        38.80000001192093,
+        30.5,
+        32.20000001788139,
+        31.099999994039536,
+        32.599999994039536
+      ],
+      "serializationMs": [
+        0.19999998807907104,
+        0,
+        0,
+        0.09999999403953552,
+        0.09999999403953552
+      ],
+      "insertionMs": [
+        44.599999994039536,
+        97,
+        103.09999999403954
+      ],
+      "undoMs": [
+        70.5,
+        50,
+        46.20000001788139
+      ],
+      "jsonBytes": 40806,
+      "domNodes": 2800,
+      "heapBytes": 22833840,
+      "finalSlides": 10,
+      "finalElements": 10
+    },
+    {
+      "slides": 50,
+      "elementsPerSlide": 10,
+      "initialRenderMs": 138.5,
+      "switchMs": [
+        38.80000001192093,
+        33.900000005960464,
+        24.19999998807907,
+        32.80000001192093,
+        33.19999998807907
+      ],
+      "serializationMs": [
+        0.5999999940395355,
+        0.4000000059604645,
+        0.30000001192092896,
+        0.29999998211860657,
+        0.4000000059604645
+      ],
+      "insertionMs": [
+        75.30000001192093,
+        110.40000000596046,
+        99.5
+      ],
+      "undoMs": [
+        70.19999998807907,
+        59.400000005960464,
+        58
+      ],
+      "jsonBytes": 202526,
+      "domNodes": 7760,
+      "heapBytes": 22166042,
+      "finalSlides": 50,
+      "finalElements": 10
+    },
+    {
+      "slides": 100,
+      "elementsPerSlide": 10,
+      "initialRenderMs": 263.59999999403954,
+      "switchMs": [
+        28.400000005960464,
+        47,
+        38.900000005960464,
+        38.599999994039536,
+        22.799999982118607
+      ],
+      "serializationMs": [
+        1.2000000178813934,
+        1.2999999821186066,
+        0.6000000238418579,
+        0.699999988079071,
+        0.699999988079071
+      ],
+      "insertionMs": [
+        93.2000000178814,
+        165,
+        148.5
+      ],
+      "undoMs": [
+        130.69999998807907,
+        91.30000001192093,
+        98.59999999403954
+      ],
+      "jsonBytes": 404676,
+      "domNodes": 13960,
+      "heapBytes": 27079166,
+      "finalSlides": 100,
+      "finalElements": 10
+    },
+    {
+      "slides": 200,
+      "elementsPerSlide": 10,
+      "initialRenderMs": 519.8000000119209,
+      "switchMs": [
+        42.5,
+        44.69999998807907,
+        25.200000017881393,
+        50.29999998211861,
+        43.400000005960464
+      ],
+      "serializationMs": [
+        1.9000000059604645,
+        1.699999988079071,
+        1.5,
+        1.5,
+        1.5
+      ],
+      "insertionMs": [
+        149,
+        242.30000001192093,
+        168.19999998807907
+      ],
+      "undoMs": [
+        210.40000000596046,
+        172.09999999403954,
+        182.7000000178814
+      ],
+      "jsonBytes": 812276,
+      "domNodes": 26360,
+      "heapBytes": 32149509,
+      "finalSlides": 200,
+      "finalElements": 10
+    },
+    {
+      "slides": 1,
+      "elementsPerSlide": 500,
+      "initialRenderMs": 386.30000001192093,
+      "switchMs": [
+        34.19999998807907,
+        20.5,
+        29.5,
+        34.10000002384186,
+        32.099999994039536
+      ],
+      "serializationMs": [
+        0.4000000059604645,
+        0.29999998211860657,
+        0.4000000059604645,
+        0.30000001192092896,
+        0.3999999761581421
+      ],
+      "insertionMs": [
+        400.7000000178814,
+        468,
+        474.19999998807907
+      ],
+      "undoMs": [
+        489.59999999403954,
+        479,
+        437.80000001192093
+      ],
+      "jsonBytes": 208406,
+      "domNodes": 9688,
+      "heapBytes": 25074059,
+      "finalSlides": 1,
+      "finalElements": 500
+    }
+  ],
+  "errors": [],
+  "longTasks": [
+    {
+      "start": 5919.9000000059605,
+      "duration": 82
+    },
+    {
+      "start": 6002.200000017881,
+      "duration": 54
+    },
+    {
+      "start": 6699.300000011921,
+      "duration": 129
+    },
+    {
+      "start": 6829,
+      "duration": 129
+    },
+    {
+      "start": 7138.0999999940395,
+      "duration": 58
+    },
+    {
+      "start": 7234.5999999940395,
+      "duration": 68
+    },
+    {
+      "start": 7400.5,
+      "duration": 60
+    },
+    {
+      "start": 7548.800000011921,
+      "duration": 73
+    },
+    {
+      "start": 7680.5,
+      "duration": 61
+    },
+    {
+      "start": 7770.800000011921,
+      "duration": 66
+    },
+    {
+      "start": 7872.9000000059605,
+      "duration": 268
+    },
+    {
+      "start": 8141.800000011921,
+      "duration": 246
+    },
+    {
+      "start": 8598.40000000596,
+      "duration": 95
+    },
+    {
+      "start": 8693.90000000596,
+      "duration": 59
+    },
+    {
+      "start": 8753.300000011921,
+      "duration": 108
+    },
+    {
+      "start": 8902.800000011921,
+      "duration": 69
+    },
+    {
+      "start": 8997.5,
+      "duration": 97
+    },
+    {
+      "start": 9098.59999999404,
+      "duration": 67
+    },
+    {
+      "start": 9165.800000011921,
+      "duration": 127
+    },
+    {
+      "start": 9324.200000017881,
+      "duration": 51
+    },
+    {
+      "start": 9376,
+      "duration": 120
+    },
+    {
+      "start": 9546.300000011921,
+      "duration": 126
+    },
+    {
+      "start": 9676.09999999404,
+      "duration": 55
+    },
+    {
+      "start": 9734.200000017881,
+      "duration": 94
+    },
+    {
+      "start": 9828.90000000596,
+      "duration": 290
+    },
+    {
+      "start": 10271.09999999404,
+      "duration": 101
+    },
+    {
+      "start": 10372.59999999404,
+      "duration": 299
+    },
+    {
+      "start": 10671.90000000596,
+      "duration": 108
+    },
+    {
+      "start": 10815.90000000596,
+      "duration": 322
+    },
+    {
+      "start": 11138.5,
+      "duration": 119
+    },
+    {
+      "start": 11288.700000017881,
+      "duration": 323
+    },
+    {
+      "start": 11612.800000011921,
+      "duration": 135
+    },
+    {
+      "start": 11796.800000011921,
+      "duration": 308
+    },
+    {
+      "start": 12105.5,
+      "duration": 126
+    },
+    {
+      "start": 12252,
+      "duration": 332
+    },
+    {
+      "start": 12584.300000011921,
+      "duration": 128
+    },
+    {
+      "start": 12713.800000011921,
+      "duration": 308
+    }
+  ]
+}

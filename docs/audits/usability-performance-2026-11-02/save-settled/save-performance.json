@@ -1,0 +1,31 @@
+[
+  {
+    "slides": 200,
+    "saveMs": 5156.299999982119,
+    "saveResult": true,
+    "id": "d7bc14ec-80da-47e6-89d3-983e02bf25cc",
+    "storedId": "d7bc14ec-80da-47e6-89d3-983e02bf25cc",
+    "stateCount": 200,
+    "beforeReload": {
+      "id": "d7bc14ec-80da-47e6-89d3-983e02bf25cc",
+      "storedId": "d7bc14ec-80da-47e6-89d3-983e02bf25cc",
+      "pending": 0,
+      "hint": "All changes saved"
+    },
+    "reloadMs": 8345.206542999998,
+    "restored": {
+      "count": 200,
+      "first": "durability-200-0",
+      "last": "durability-200-199",
+      "elements": 2000
+    },
+    "consoleMessages": [],
+    "serverRecord": {
+      "status": 200,
+      "id": "d7bc14ec-80da-47e6-89d3-983e02bf25cc",
+      "slides": 200,
+      "first": "durability-200-0",
+      "last": "durability-200-199"
+    }
+  }
+]

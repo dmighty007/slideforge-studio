@@ -1,0 +1,74 @@
+[
+  {
+    "before": {
+      "slides": 1,
+      "objects": 301,
+      "lastContent": "sentinel-0-300"
+    },
+    "after": {
+      "slides": 1,
+      "objects": 301,
+      "lastContent": "sentinel-0-300"
+    },
+    "persisted": {
+      "slides": 1,
+      "objects": 301
+    },
+    "hint": "Unsaved changes",
+    "alerts": []
+  },
+  {
+    "before": {
+      "slides": 251,
+      "objects": 1,
+      "lastContent": "sentinel-250-0"
+    },
+    "after": {
+      "slides": 251,
+      "objects": 1,
+      "lastContent": "sentinel-250-0"
+    },
+    "persisted": {
+      "slides": 251,
+      "objects": 1
+    },
+    "hint": "Unsaved changes",
+    "alerts": []
+  },
+  {
+    "before": {
+      "slides": 1,
+      "objects": 5001,
+      "lastContent": "sentinel-0-5000"
+    },
+    "after": {
+      "slides": 1,
+      "objects": 5001,
+      "lastContent": "sentinel-0-5000"
+    },
+    "persisted": {
+      "slides": 1,
+      "objects": 5001
+    },
+    "hint": "Not saved: this deck has 5,001 objects on slide 1 (the limit is 5,000). Remove some to save it.",
+    "alerts": []
+  },
+  {
+    "before": {
+      "slides": 2001,
+      "objects": 1,
+      "lastContent": "sentinel-2000-0"
+    },
+    "after": {
+      "slides": 2001,
+      "objects": 1,
+      "lastContent": "sentinel-2000-0"
+    },
+    "persisted": {
+      "slides": 2001,
+      "objects": 1
+    },
+    "hint": "Not saved: this deck has 2,001 slides (the limit is 2,000). Remove some to save it.",
+    "alerts": []
+  }
+]

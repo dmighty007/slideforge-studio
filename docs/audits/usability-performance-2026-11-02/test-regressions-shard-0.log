@@ -1,0 +1,94 @@
+PASS 3D background: readable on/off toggle, saturation 0 is grey, the scene still shows on light slides
+PASS molecules draw sharp in a scaled slide and are fitted to their drawn atoms, not far waters
+PASS a molecule viewer is not rebuilt when the slide is redrawn by other edits or undo
+PASS 3D backgrounds: eight styles with options, quieter behind text, only the slide on screen moves, and exports get them
+PASS PowerPoint export: text is left-aligned unless set otherwise, and is sent with its drawn height, line spacing and the theme gradient
+PASS review: filled shapes keep their fill while several are selected
+PASS review: table text stays readable on its cells through every theme change
+PASS review: the image Crop and Reset buttons have readable labels in light and dark mode
+PASS review: undoing a slide-size change puts the canvas back to that size
+PASS review: an animation added from the picker waits for a click and is listed by its name
+PASS review: SVG export draws the theme's slide background (gradient), not a card colour
+PASS style: flowchart edge labels sit on a small label background, not a text outline
+PASS style: a new slide after an imported slide has no SlideForge footer and uses that slide's fonts
+PASS style: the insert toolbar's buttons sit in captioned groups and the slide starts below the bar
+PASS missing: equations, icons and HTML embeds are placed where they cover the least, not at a fixed spot
+PASS missing: a list can reveal its bullets one click at a time while presenting
+PASS missing: the quick-actions panel names what each button does (none claims to generate)
+FAIL review: the exported HTML viewer shows a 16:9 deck whole, not cut to a 4:3 frame
+  Cannot find module 'jszip'
+Require stack:
+- /home/dm/Dibyendu/Projects/slideforge-studio/tests/browser/test-regressions.js
+- /tmp/sf-regression-shard.cjs
+PASS review: after a theme change, preset slides (also edited ones) take the new background and their text stays readable
+PASS qa2: timeline: a click opens an animation's settings, playback shows its time, Stop restores the slide, slides are followed
+PASS qa: a picture inserted after an equation is not placed on top of it
+PASS qa: undoing a theme change brings back the slide background too, not only the text colours
+PASS review: a bullet style set on a new slide's list survives going back into the box and changing the font
+PASS review: a line chart is drawn full size again after presenting and pressing Escape
+PASS review: opening the chart editor does not pull the caret back from a dialog opened right after it
+PASS review: an equation takes the new theme's text colour when the theme changes
+PASS missing: tables on a dark theme sit on its card with light text, and follow theme changes
+PASS Plugins: the Properties panel edits the SMILES; a bad string shows why, and undo brings the drawing back
+PASS Plugins: the toolbar's Plugins menu lists every plugin and Manage, and the insert bar fits with the panel open
+PASS Plugins: a scale bar spans its box, redraws when resized, and keeps its label size
+PASS Plugins: a citation comes from Crossref once, follows the chosen style, and its box takes the text's height
+PASS Plugins: box plots follow Tukey's rules (outliers beyond 1.5 × IQR) and violins draw a density
+PASS Plugins: an energy diagram draws a reaction profile with dashed connectors, and Jablonski levels with transitions
+PASS Plugins: a sequence logo stacks letters by information content, with the small-sample correction
+PASS workflow: alignment, distribution and fit respect geometry and locks
+PASS workflow: late plugin drawings cannot overwrite a newer theme
+PASS workflow: sidebar subscript formats selected formula characters
+PASS Field study: shorter pathways span the plot and domain labels stay in view
+PASS deck 2: a slide redraw while typing keeps the editor and the caret (letters were lost or put first)
+PASS deck 2: a crystal or small molecule (no chain) is drawn as balls and sticks, its lone atoms visible
+PASS audit 2026-10-17: a small molecule fills its view when loaded and after Reset view
+PASS deck 3: a flowchart box placed while its links were half typed moves to its column; a slide whose object was deleted gives the next one the area under the title
+PASS deck 3: typing on a selected shape writes in it; two selected objects are joined by a connector; a selection gets one animation each in the order picked
+PASS deck 3: Enter applies a crop started from the panel button; a slide never stays scrolled; a slide moves to a numbered place
+PASS desktop video: a deck's JSON carries its uploaded videos, and opening it uploads them again
+PASS properties: everyday settings first, the rest folded and remembered across edits; a slimmer panel on laptops keeps its tabs whole
+PASS rigorous 2026-10-18: a table's Header row and Zebra rows show their state and work from the keyboard
+PASS properties: a plugin's advanced settings fold under More options, settings for another mode stay hidden, and an icon has its own small panel
+PASS insert: on a title-and-content slide a text box lines up with the title, and a chart then fills the area below the text instead of covering it
+PASS gestures: a second click on a selected group selects the object clicked; Shift keeps proportions, Ctrl resizes about the centre
+PASS gestures: presenting, the wheel steps one slide per flick and a swipe goes forward or back; in the editor a swipe does not change slide
+PASS review 2026-10-20: the help lists gestures, and More tools can show names under the top bar's icons
+PASS dropdowns: a Properties list stays open when the panel scrolls a little after it opened, and follows its dropdown
+PASS workflow audit 2026-10-20 U3: after choosing a chart type from the list, the dropdown keeps the focus: ArrowDown and Delete do not move or delete the chart
+PASS user session 2026-10-21: Bold with only a caret keeps the caret where it was (typing went to the start of the box)
+PASS launch: SlideForge reopens the deck the user was working in, and the start screen if they left it there
+PASS workflow retest 2026-10-21 R3: objects kept through a layout change do not cover the new title
+PASS coverage 2026-10-21: a layout keeps a group of a rectangle and a text box together
+PASS overnight: two saves at once both land, and an unchanged deck counts as saved
+PASS Field study: typing backs up only its box, and stale typing is refused
+PASS Field study: wide equations fit and Blank subtitles follow dark themes
+PASS Plugins: a ray diagram puts the image where 1/f = 1/dₒ + 1/dᵢ says, real or virtual, for lenses and mirrors
+PASS Plugins: Kaplan–Meier curves match the 6-MP leukaemia reference (survival, log–log bands, medians, log-rank)
+PASS Plugins: a colour bar shows its range with round ticks, either way round
+PASS QA 2026-10-15: a pasted copy of an object at the bottom of a slide goes up, not onto the footer
+PASS Audit 2026-10-15: a slow insert stays on the slide it was started on, and undo during a lookup cancels it
+PASS Audit recheck 2026-10-15: redo after an undone lookup has finished brings the object back looked up
+PASS Audit round 3: the deterministic SVG export draws plugin objects, and says when something could not be kept
+PASS HTML export: a picture stored as a URL-encoded (not base64) data URL is written out intact
+PASS research deck: the PDF has a searchable text layer over each slide picture
+PASS research deck: plot labels and ticks are drawn at the chosen text size
+PASS research deck: cells pasted from a spreadsheet fill the table, and the box grows to show every row
+PASS research deck: a reaction's arrow text is in a sans-serif face, and the KM legend keeps off the curves and bands
+PASS research deck: a reaction scheme names its structures under each of them
+PASS research deck: a flowchart's unconnected boxes go on their own line instead of bending the chart
+PASS research deck: a QR code's caption is readable, and a long one still fits across
+PASS research deck: a native chart in PowerPoint keeps the value axis the editor draws
+PASS audit: a citation can be placed as a footnote, across the slide just above the footer
+PASS study 2026-10-16: a top-down flowchart edited into a left-to-right one is laid out left to right
+PASS study 2026-10-16: tables follow the theme, the insert box does not promise Enter redraws, Escape on a dropdown keeps the object
+PASS study 2026-10-16: the curve-fit plugin fits a dose-response curve as SciPy does and draws it on a log axis
+PASS study 2026-10-16b: loaded data names the axes of a curve fit and a survival curve while the labels are still the example's
+PASS study 2026-10-16b: objects come in under the title, not low by the footer; bullet build has its own card
+PASS Plugin manager: a plugin installed from a .zip works at once, and Remove deletes it after a second click
+PASS importing a PowerPoint deck keeps its own design: background, fonts and colours from its master and theme
+PASS qa2: PowerPoint import keeps style-filled shapes, lines with arrowheads and links
+PASS a new deck is 'Untitled Presentation' until its title is typed, then takes that title
+PASS edits made right before closing survive even if the final save is blocked
+
+87 passed, 1 failed

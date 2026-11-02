@@ -1,0 +1,1619 @@
+{
+  "expected": 322,
+  "executed": 322,
+  "passed": 321,
+  "failed": 1,
+  "notRun": [],
+  "cases": {
+    "whiteboard text: Escape cancels without an error or a committed text": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "PDF panel: a crafted PDF URL is not executed and javascript: URLs are rejected": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "color and slider drags add one undo step, not one per tick": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "reordering slides is its own undo step": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "re-rendering a molecule does not pile up window message listeners": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "Escape closes the equation dialog from its text field, and the start screen closes dialogs": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "new slides get title and content placeholders that never show when presenting or exporting": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "the first inserted object takes the content placeholder; images avoid existing content and the footer": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "a long title shrinks to fit instead of running off the slide or into the subtitle": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "the page number cannot be typed over": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "HTML export is named after the project and references only files it contains": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "Escape leaves a text box and keeps what was typed": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "lines typed with Enter become one bullet each": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "bullets on an empty box add no 'List item' text": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "numbering keeps indent levels, on the canvas and back to bullets": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "a new text box is empty, ready for typing, and clear of other content": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "Ctrl+A selects the slide's content but not its footer": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "the PowerPoint export sends the editor's own layout elements (no second footer)": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "a font size typed with words selected applies to those words only": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "the floating toolbar turns bullets and numbering on and off, keeping formatting": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "the floating toolbar does not cover the title while the body text is edited": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "after a panel button, Escape still ends the edit and the text box shows normally": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "a centred bulleted list keeps each bullet beside its text": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "a bullet sits beside a large first word, not above it (shown and while editing)": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "a centred bulleted list stays centred while it is edited": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "Ctrl+Z while typing undoes the last word and stays in the text box; Ctrl+Y brings it back": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "dragging a text box moves it without starting to edit its text": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "after presenting, the editor zoom fits the slide again": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "leaving a presentation returns the editor exactly as it was, even when Escape comes while it is starting": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "the text toolbar appears while editing, never on mere hover; toolbars step aside while dragging": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "the insert bar is centred on the canvas and never covers the slide": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "a drawing made in Excalidraw lands on the slide as a movable picture and reopens with its scene": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "a picture's corner handle resizes it, and its toolbar buttons work without deselecting it": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "drawings from the old whiteboard can still be moved": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "slide captures for PDF/PNG run at full size with list numbers as text, and the editor is restored": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "flowchart code survives a save and reopen: hyphenated labels, every shape, every link style": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "the Mermaid editor reports a broken line and reopens with plain code": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "flowchart layout never overlaps nodes, even with a loop": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "hand-drawn diagrams keep their boxes, and diagram SVGs draw arrowheads without id references": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "list controls are on the Content tab of a text box": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "a new slide's body is a bulleted list, and Tab never throws typing out of a text box": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "Tab moves through table cells even when typing straight on, and Escape keeps the cell": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "objects inserted on a busy slide land below the title, not on it": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "on a crowded slide, new objects shrink to fit beside the content instead of covering it": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "objects have a Motion tab to add animations, and the Transitions button shows the transition": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "a loop back in a flowchart goes around the boxes instead of through them": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "mermaid: dialog buttons act once however often it was opened; drags, double-clicks, handle drops and curved routing work": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "mermaid: themes recolour flowcharts, Draw and Sketch differ, and the controls follow the diagram type": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "mermaid: a loop keeps its first step first, and diagrams Mermaid draws get a box of their shape and readable text": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "mermaid: Branch Reveal shows a flowchart step by step in the show, and switches off again": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "mermaid: the PowerPoint export sends diagrams as pictures with Mermaid's colours": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "packaging: SVG pictures go to PowerPoint as PNGs drawn by the browser (no Cairo needed)": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "shared and exported viewers show charts, diagrams and equations as pictures": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "a new drawing on a dark theme starts with light ink on the slide's colour": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "Ctrl+D duplicates the selected object, or the slide when nothing is selected": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "Shift+click adds a text box to the selection without starting to edit it": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "the footer brand keeps its capitals through saving, and gets them back in decks that lost them": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "a chart's data can be edited: double-click, type down the rows with Tab, undo with Ctrl+Z": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "a table grows with added rows and columns instead of cutting them off": {
+      "passed": true,
+      "log": "test-regressions.log",
+      "detail": ""
+    },
+    "3D background: readable on/off toggle, saturation 0 is grey, the scene still shows on light slides": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "molecules draw sharp in a scaled slide and are fitted to their drawn atoms, not far waters": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "a molecule viewer is not rebuilt when the slide is redrawn by other edits or undo": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "3D backgrounds: eight styles with options, quieter behind text, only the slide on screen moves, and exports get them": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "PowerPoint export: text is left-aligned unless set otherwise, and is sent with its drawn height, line spacing and the theme gradient": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "review: filled shapes keep their fill while several are selected": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "review: table text stays readable on its cells through every theme change": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "review: the image Crop and Reset buttons have readable labels in light and dark mode": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "review: undoing a slide-size change puts the canvas back to that size": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "review: an animation added from the picker waits for a click and is listed by its name": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "review: SVG export draws the theme's slide background (gradient), not a card colour": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "style: flowchart edge labels sit on a small label background, not a text outline": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "style: a new slide after an imported slide has no SlideForge footer and uses that slide's fonts": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "style: the insert toolbar's buttons sit in captioned groups and the slide starts below the bar": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "missing: equations, icons and HTML embeds are placed where they cover the least, not at a fixed spot": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "missing: a list can reveal its bullets one click at a time while presenting": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "missing: the quick-actions panel names what each button does (none claims to generate)": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "review: the exported HTML viewer shows a 16:9 deck whole, not cut to a 4:3 frame": {
+      "passed": true,
+      "log": "test-regressions-rechecks.log",
+      "detail": ""
+    },
+    "review: after a theme change, preset slides (also edited ones) take the new background and their text stays readable": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "qa2: timeline: a click opens an animation's settings, playback shows its time, Stop restores the slide, slides are followed": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "qa: a picture inserted after an equation is not placed on top of it": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "qa: undoing a theme change brings back the slide background too, not only the text colours": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "review: a bullet style set on a new slide's list survives going back into the box and changing the font": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "review: a line chart is drawn full size again after presenting and pressing Escape": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "review: opening the chart editor does not pull the caret back from a dialog opened right after it": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "review: an equation takes the new theme's text colour when the theme changes": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "missing: tables on a dark theme sit on its card with light text, and follow theme changes": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "Plugins: the Properties panel edits the SMILES; a bad string shows why, and undo brings the drawing back": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "Plugins: the toolbar's Plugins menu lists every plugin and Manage, and the insert bar fits with the panel open": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "Plugins: a scale bar spans its box, redraws when resized, and keeps its label size": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "Plugins: a citation comes from Crossref once, follows the chosen style, and its box takes the text's height": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "Plugins: box plots follow Tukey's rules (outliers beyond 1.5 \u00d7 IQR) and violins draw a density": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "Plugins: an energy diagram draws a reaction profile with dashed connectors, and Jablonski levels with transitions": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "Plugins: a sequence logo stacks letters by information content, with the small-sample correction": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "workflow: alignment, distribution and fit respect geometry and locks": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "workflow: late plugin drawings cannot overwrite a newer theme": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "workflow: sidebar subscript formats selected formula characters": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "Field study: shorter pathways span the plot and domain labels stay in view": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "deck 2: a slide redraw while typing keeps the editor and the caret (letters were lost or put first)": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "deck 2: a crystal or small molecule (no chain) is drawn as balls and sticks, its lone atoms visible": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "audit 2026-10-17: a small molecule fills its view when loaded and after Reset view": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "deck 3: a flowchart box placed while its links were half typed moves to its column; a slide whose object was deleted gives the next one the area under the title": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "deck 3: typing on a selected shape writes in it; two selected objects are joined by a connector; a selection gets one animation each in the order picked": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "deck 3: Enter applies a crop started from the panel button; a slide never stays scrolled; a slide moves to a numbered place": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "desktop video: a deck's JSON carries its uploaded videos, and opening it uploads them again": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "properties: everyday settings first, the rest folded and remembered across edits; a slimmer panel on laptops keeps its tabs whole": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "rigorous 2026-10-18: a table's Header row and Zebra rows show their state and work from the keyboard": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "properties: a plugin's advanced settings fold under More options, settings for another mode stay hidden, and an icon has its own small panel": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "insert: on a title-and-content slide a text box lines up with the title, and a chart then fills the area below the text instead of covering it": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "gestures: a second click on a selected group selects the object clicked; Shift keeps proportions, Ctrl resizes about the centre": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "gestures: presenting, the wheel steps one slide per flick and a swipe goes forward or back; in the editor a swipe does not change slide": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "review 2026-10-20: the help lists gestures, and More tools can show names under the top bar's icons": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "dropdowns: a Properties list stays open when the panel scrolls a little after it opened, and follows its dropdown": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "workflow audit 2026-10-20 U3: after choosing a chart type from the list, the dropdown keeps the focus: ArrowDown and Delete do not move or delete the chart": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "user session 2026-10-21: Bold with only a caret keeps the caret where it was (typing went to the start of the box)": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "launch: SlideForge reopens the deck the user was working in, and the start screen if they left it there": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "workflow retest 2026-10-21 R3: objects kept through a layout change do not cover the new title": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "coverage 2026-10-21: a layout keeps a group of a rectangle and a text box together": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "overnight: two saves at once both land, and an unchanged deck counts as saved": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "Field study: typing backs up only its box, and stale typing is refused": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "Field study: wide equations fit and Blank subtitles follow dark themes": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "Plugins: a ray diagram puts the image where 1/f = 1/d\u2092 + 1/d\u1d62 says, real or virtual, for lenses and mirrors": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "Plugins: Kaplan\u2013Meier curves match the 6-MP leukaemia reference (survival, log\u2013log bands, medians, log-rank)": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "Plugins: a colour bar shows its range with round ticks, either way round": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "QA 2026-10-15: a pasted copy of an object at the bottom of a slide goes up, not onto the footer": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "Audit 2026-10-15: a slow insert stays on the slide it was started on, and undo during a lookup cancels it": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "Audit recheck 2026-10-15: redo after an undone lookup has finished brings the object back looked up": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "Audit round 3: the deterministic SVG export draws plugin objects, and says when something could not be kept": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "HTML export: a picture stored as a URL-encoded (not base64) data URL is written out intact": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "research deck: the PDF has a searchable text layer over each slide picture": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "research deck: plot labels and ticks are drawn at the chosen text size": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "research deck: cells pasted from a spreadsheet fill the table, and the box grows to show every row": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "research deck: a reaction's arrow text is in a sans-serif face, and the KM legend keeps off the curves and bands": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "research deck: a reaction scheme names its structures under each of them": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "research deck: a flowchart's unconnected boxes go on their own line instead of bending the chart": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "research deck: a QR code's caption is readable, and a long one still fits across": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "research deck: a native chart in PowerPoint keeps the value axis the editor draws": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "audit: a citation can be placed as a footnote, across the slide just above the footer": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "study 2026-10-16: a top-down flowchart edited into a left-to-right one is laid out left to right": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "study 2026-10-16: tables follow the theme, the insert box does not promise Enter redraws, Escape on a dropdown keeps the object": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "study 2026-10-16: the curve-fit plugin fits a dose-response curve as SciPy does and draws it on a log axis": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "study 2026-10-16b: loaded data names the axes of a curve fit and a survival curve while the labels are still the example's": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "study 2026-10-16b: objects come in under the title, not low by the footer; bullet build has its own card": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "Plugin manager: a plugin installed from a .zip works at once, and Remove deletes it after a second click": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "importing a PowerPoint deck keeps its own design: background, fonts and colours from its master and theme": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "qa2: PowerPoint import keeps style-filled shapes, lines with arrowheads and links": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "a new deck is 'Untitled Presentation' until its title is typed, then takes that title": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "edits made right before closing survive even if the final save is blocked": {
+      "passed": true,
+      "log": "test-regressions-shard-0.log",
+      "detail": ""
+    },
+    "molecules: an XYZ small molecule is drawn, an unreadable file says so, and exports get a picture": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "molecule settings: transparent means no box at all, a layer restyles its atoms (no thick tube), depth cue and reset view work, nothing reloads": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "the 3D background does not reallocate its surface every frame, and sliders or edits do not rebuild it": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "Slide background: one button puts this slide's background on every slide, new ones included, in one undo step": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "review: align buttons line shapes up instead of sending them to 100,100": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "review: the thumbnail shows text typed into the first slide's title": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "review: the default subtitle takes the theme's muted colour (readable on Horizon)": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "review: a newly added slide is scrolled into view above the Deck panel": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "review: a molecule on a far-away (hidden) slide still exports as a full-size picture": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "review: the presenter view's slide preview has no animation badges": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "missing: the shape picker offers the full shape set, each drawn with its outline in the editor and SVG": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "missing: X, Y, W, H and rotation can be typed in, and Group is only offered for two or more objects": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "style: a drawing's black strokes turn light when the deck switches to a dark theme": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "style: pie slices start with distinct colours, Shrink Out is listed once, arrows are text symbols, editing tint is light": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "missing: Video URL asks in the app's own dialog, not the browser's prompt box": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "missing: hovering an animation in the picker previews it": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "missing: during a show, moving the pointer brings up the presentation menu button; it fades when still": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "style: round 3: readable chart text, clear equation preview, true fill swatch, theme in the palette, chart toolbar, thumbnail menu": {
+      "passed": false,
+      "log": "test-regressions-rechecks.log",
+      "detail": "  menu: [\"New slide after\",\"Duplicate\",\"Move up\",\"Move down\",\"Move to slide\u2026\",\"Hide slide when presenting\",\"Delete\"]"
+    },
+    "review: a list with bullet-by-bullet reveal and a fade comes in with its first bullet, then a bullet per click": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "qa2: the Rotation field turns the object, and the turn survives a drag, a nudge and a redraw": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "qa: PDF export draws text where the editor shows it, on a page the size of the slide": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "review: in the shared/exported viewer a text box shows no hover frame, focus ring or text cursor": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "review: Properties dropdowns open an in-app list and keep focus after a choice (arrow keys keep working)": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "review: a preset table on a dark theme has no white box behind its see-through cells": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "review: a connector attached to a star or circle ends on its outline, not on the corner of its box": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "review: in a show, double-clicking a text box, shape text or table selects nothing and shows no text cursor": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "missing: charts take several series with their own colours, axis titles, and sit on the theme's card": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "Plugins: a structure follows the theme's text colour unless given its own": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "Plugins: table fields read CSV, TSV and quoted cells, and Load CSV fills one from a file": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "Plugins: significance brackets stack without overlapping, turn p-values into stars, and point at a bad row": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "Plugins: a phylogenetic tree reads Newick with support values and lines its tips up as a cladogram": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "Plugins: a forest plot draws squares by weight, a pooled diamond, and keeps a log axis inside the data": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "Plugins: a gel places bands by the log of their size between ladder bands, and keeps empty lanes": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "Plugins: a domain diagram draws domains to scale, names that do not fit outside, sites and a ruler": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "workflow: new media fills a content placeholder below the title": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "workflow: plot surfaces are opaque by default and explicit transparency survives export": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "Field study: nonnegative curve-fit data does not extrapolate before zero": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "Field study: recovery distinguishes an in-flight save from a conflicting edit": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "deck 2: a new table spans the content area, Tab in its last cell adds a row, and its handles sit on its borders": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "audit 2026-10-17: fitting a long table keeps it under the title and says to split it; the split repeats the header": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "audit 2026-10-17: fitted values carry units from the axis labels: per hour for a rate, y/x for a slope": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "deck 3: a pasted header names the chart's x axis; a pie shows its shares; an equation does not land on the title": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "deck 3: a structure's bound drug and metal ions are drawn (balls and sticks, spheres)": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "retest 2026-10-17: fitting a long table offers the split in its notice, and the split goes back to the table's own text size": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "editor chrome: themes are collapsed, More keeps specialist tools accessible, and Focus restores the workspace": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "properties: a table's rows, columns and split are on Content; Style shows the header and zebra switches with colours folded": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "panel audit 2026-10-19: keys in a panel dropdown stay there: arrows do not move the object, Tab moves on, Delete keeps it, Ctrl+Z still undoes": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "start screen: with many presentations it shows the most recent 60 and a Show all button; search still finds any of them": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "drag: a shape dragged near the middle of its two neighbours snaps to equal gaps and shows both gaps": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "gestures: the right-click menu has the clipboard and stacking order, Duplicate works, and on the empty slide it pastes where clicked": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "review 2026-10-20: at 700px the top bar takes two rows and the icon-only insert bar is as wide as its icons; the drawer says Done, can be widened, and shows the chart it would cover": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "presets: applied to a new slide they keep their own title and text (no lone bullet); typed text carries over as text, not [object Object]": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "workflow audit 2026-10-20 U1: with the expanded data editor open, Shift+Tab and Delete do not delete the plot behind it; Cancel leaves it": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "workflow audit 2026-10-20 U4: the placement notice never spreads a chart over a table; it fits it into free space or offers a new slide": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "user session 2026-10-21: a double-click on a word in a box not being edited selects the word": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "workflow retest 2026-10-21 R1: applying a layout keeps a locked table, a rectangle, a connector and an icon": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "workflow retest 2026-10-21 R4: at 700px the shape, icon and symbol pickers fit the window and close with their button": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "coverage 2026-10-21: a connector between two text boxes stays attached through a layout change, and follows them": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "overnight: an equation inserted before KaTeX's fonts load is measured again and fits its box": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "Field study: molecule drag releases over its iframe": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "Plugins: the function plot's parser follows precedence, reads 2x and 2sin(x), and points at errors": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "Plugins: Feynman diagrams draw fermion arrows, photon waves, gluon loops and dashed scalars, presets fill the text": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "Plugins: a volcano plot sorts points by both thresholds, counts them and labels the top hits without overlaps": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "Plugins: a paper badge reads arXiv ids, DOIs and links, and its QR code points at the paper": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "QA 2026-10-15: the Plugins menu groups plugins by field and finds them by typing": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "Audit 2026-10-15: the plugin manager's search takes words typed one key at a time": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "Audit recheck 2026-10-15: a not-installed plugin's row in the manager follows the search": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "Audit round 3: table fields say Applied after Ctrl+Enter, label example data with Clear, and summarise what they read": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "Plugins: an object whose plugin is missing shows its saved picture, and saved SVG is cleaned": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "research deck: footer and logo text changed on the master reach the slides that already exist, and SVG writes capitals": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "research deck: structures, at-risk tables and missing heatmap cells read clearly": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "research deck: a plot on a slide with only its title fills the content area; the Plugins menu opens its options": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "research deck: Save shows that the project was saved, and Delete removes an empty placeholder being typed in": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "research deck: a box plot draws its own comparison brackets and computes Welch or Mann\u2013Whitney p-values": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "research deck: typing after one click on a table cell edits it, a second click edits too, and Escape keeps the table": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "research deck: the Web ZIP spaces bullets as the editor does": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "audit: the Export menu says what each format keeps": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "study 2026-10-16: a column width typed in the panel goes to the selected column only": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "study 2026-10-16: the Web ZIP draws a table in the font and size set in Style": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "study 2026-10-16: title master on the title slide, a reaction comes in at a useful size, diagrams in the theme font, SVG lines in one piece": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "study 2026-10-16b: a table's text settings say which cell they change and can go back to the whole table; Escape leaves a panel field": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "study 2026-10-16b: flowcharts in the theme's colours, their panel shows the theme font, Web ZIP tables have no scrollbar": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "study 2026-10-16: titles on slides not shown keep their size, after reopening too": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "Audit 2026-10-15: renaming a presentation alone is saved": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "importing a PowerPoint file makes a new project (the open one is untouched) with text, bullets and a table": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "missing: a PowerPoint chart comes in with every series, their colours, its title and axis titles": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "undo does not carry slides from one project into another": {
+      "passed": true,
+      "log": "test-regressions-shard-1.log",
+      "detail": ""
+    },
+    "opening Presenter View does not end the presentation, and it gets the slide's colours": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "overnight: a molecule saved with the empty stage's view (looking at the origin) is fitted again": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "molecules: a binary DCD trajectory plays over its structure; one for other atoms says so": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "Blank theme: new decks start plain white, with no accent rule, corner badge or footer line": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "PDF tools: Highlight and Note work as soon as they are chosen, without reloading the document": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "review: slide clean-up leaves the footer (logo, rule, slide number) where it is": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "review: thumbnails drawn while the slide rail is hidden are not blank once it is back": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "review: adding a table row or column grows the table instead of squashing it": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "review: changing the slide size keeps every object on the slide": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "review: HTML embeds export as a picture of themselves (PDF capture and PowerPoint, even on a hidden slide)": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "review: Escape closes the Share dialog": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "style: a new deck is 16:9 (old decks without a size stay 4:3) and the fitted slide clears the zoom and AI buttons": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "style: theme tags are not repeated, and an embedded picture is described instead of showing its data address": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "style: opening the timeline editor refits the slide above it": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "missing: the command palette acts on the selection (\"dup\" duplicates the selected object)": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "missing: a PDF note is written in the app's own dialog": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "missing: tidying a slide says what it did and how, and offers Undo": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "missing: shapes hold text: typed on double-click, styled in Properties, kept in SVG and PowerPoint export": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "themes: preset slides show the theme's own background and colours; no corner badge or hard-edged bands": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "qa: slide size 16:9 -> 4:3 -> 16:9 gives the same layout; an object moved in between keeps its move": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "qa: rough edges: the Layout tab stays open when slides are added; Ctrl+G groups; a JSON export carries the deck's name": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "qa: Create link makes a local link only; a public tunnel starts when the user asks for it": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "review: the HTML viewer waits for clicks: preset click animations and bullet-by-bullet reveal": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "review: round 4: every preset can be picked, previews show the layouts, themes have a gallery, labels read": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "review: changing the slide size rebuilds preset slides with their own text in place, without overlaps": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "review: a table's columns fill its box: a new table shows its last column whole, and resizing keeps it so": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "missing: connector ends dropped on shapes attach and follow the shapes when they move": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "Plugins: the SMILES plugin adds a toolbar button and command, and inserts a 2D structure drawing": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "Plugins: PowerPoint gets a picture, and the HTML export a readable SVG file": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "Plugins: a QR code holds the link (decoded), takes a caption, and says when the text is too long": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "Plugins: a compound name is looked up on PubChem once, captioned, and a failed lookup says why": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "Plugins: a sequence is read from FASTA, coloured by residue, highlighted, and a wrong letter is named": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "Plugins: RDKit draws a structure in its worker, highlights a SMARTS match, labels stereo and adds a property card": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "Plugins: a plasmid map draws features across the origin and keeps its labels apart": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "Plugins: a two-set Venn diagram is area-proportional, and three sets can be counted from lists": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "workflow: plots follow light-dark-light themes and preserve chosen colours": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "workflow: molecule backgrounds match the slide and retain explicit choices": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "Field study: exported titles keep the editor's fitted size": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "deck 2: plugin search puts the best match first; fit to content widens a table without stretching its rows; shape words contrast with the fill": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "deck 2: Tab through a plugin's settings keeps the focus after each change; a chart's toolbar does not cover the title": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "audit 2026-10-17: a new chart fills the content area at 18 px and long category names wrap": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "deck 3: the icon search covers all of Font Awesome and says when nothing matches; PowerPoint gets the icon as a picture": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "deck 3: plugin drawings: plasmid rings, gel labels, heatmap names, whole-day ticks, log ticks, Venn names, a shared y unit": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "deck 3: a plugin's \"Example data\" tag goes once its data is replaced": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "retest 2026-10-17: the PDF's text layer keeps em dashes, Greek letters and superscripts, as wide as the slide's words": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "ribbon: the insert bar folds into group menus when the canvas is narrow, and small screens keep the top bar clear": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "rigorous 2026-10-18: values on a chart clear its error bars, for bars, lines, negatives and horizontal bars": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "panel audit 2026-10-19: the text toolbar wraps inside a narrow canvas instead of running under the panel; the video preview's labels are readable": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "properties: below 1180px the panel is a drawer over the canvas (the slide keeps its width); choosing an object keeps it open, a click on empty canvas closes it": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "gestures: a trackpad pinch (many small Ctrl+wheel steps) zooms in proportion; a middle-button drag and a space-drag over an object pan": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "gestures: on a touch screen two fingers pinch and pan, a finger drags an object that was not selected, a held finger opens the menu, and a double tap edits text": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "review 2026-10-20: a box plot's comparisons fold into their own section, its data opens in a large editor, and a plot that came in small offers the content area or a slide of its own": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "dark mode: the text toolbar's colour swatches keep their colours and their size": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "workflow audit 2026-10-20 U2: applying a layout keeps a table and a chart it has no place for": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "workflow audit 2026-10-20 U5: at 700x800 the equation dialog fits the window and Insert works": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "user session 2026-10-21: a plot filling the content area lines up with the title": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "workflow retest 2026-10-21 R2: a table taken into a layout keeps every row and column and gets no sample rows": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "workflow retest 2026-10-21 R5: a turned table counts with its turned outline: no fit over it, and a fit beside a smaller one keeps clear": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "overnight: Ctrl+C on a shape and Ctrl+V on another slide pastes the shape, not a \"[shape]\" text box": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "Field study: typing survives closing before autosave without pagehide": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "Field study: exported molecule loads when index.html opens from disk": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "Plugins: a function plot draws one curve per line, breaks tan(x) and 1/x at their asymptotes, and names a bad line": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "Plugins: a circuit draws each part between its nodes with values, junction dots and ground, and names a missing node": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "Plugins: a heatmap z-scores rows and clusters similar rows next to each other": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "QA 2026-10-15: RDKit draws molecules its highlight pattern does not match, and starts with no highlight": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "Audit 2026-10-15: an edit made while a lookup runs is kept, and the typed DOI stays in place": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "Audit 2026-10-15: a forest plot whose values are all equal still draws, and a NaN drawing is refused": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "Audit round 3: a blank time, p-value or count is reported as missing, not read as 0": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "Audit round 3: a failed lookup is shown once, and Fill content area gives a plot the room under the title": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "research deck: a plugin drawing keeps its shape in PowerPoint and in the PDF capture": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "research deck: a title that fits leaves room to spare and is fitted again when its font changes": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "research deck: a flowchart label's <br/> is a line break, and overlapping kept positions are laid out again": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "research deck: Home and End go to the first and last slide in the show; brackets name **** in their option": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "research deck: the Properties panel opens each kind of object on its own tab; an equation's size is under Style": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "research deck: a bar chart takes error bars from a pasted \u00b1 column and keeps them in PowerPoint": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "research deck: a citation goes to PowerPoint as text, and the slide number is centred in its pill": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "research deck: plots draw in the theme's body font, carried inside the picture but not saved with it": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "presenter view: the slide arrives even when the first one is missed": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "study 2026-10-16: the panel's position and size follow an object placed after its drawing arrives": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "study 2026-10-16: the Kaplan\u2013Meier legend keeps off the curves and bands even when every corner is crossed": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "study 2026-10-16: a slide thumbnail shows every row of a table that grew to hold them": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "study 2026-10-16b: a title shrunk below 28 pt says so and can keep its size by growing the box": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "study 2026-10-16b: a pasted table stays on the slide, and the SVG has the theme's top band and the fitted title": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "Plugin manager: switching a plugin off unloads it, keeps its objects' pictures, and lasts after reload": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "review: importing a SlideForge JSON adds one project, named apart from a deck with the same name": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "review: PowerPoint shape text comes in centred in its shape and in the shape's text colour": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    },
+    "Share makes a view-only link that follows saved changes, fits a phone and can be stopped": {
+      "passed": true,
+      "log": "test-regressions-share-recheck.log",
+      "detail": ""
+    },
+    "a slow autosave for project A cannot corrupt project B": {
+      "passed": true,
+      "log": "test-regressions-shard-2.log",
+      "detail": ""
+    }
+  }
+}

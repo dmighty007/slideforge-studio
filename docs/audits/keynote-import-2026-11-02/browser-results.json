@@ -1,0 +1,414 @@
+[
+  {
+    "file": "/home/dm/Downloads/36_Slides_Extra_Large_23_6_MB_1fb4b150fe.key",
+    "errors": [],
+    "slides": 36,
+    "types": {
+      "text": 32,
+      "image": 75
+    },
+    "notesSlides": [],
+    "findings": [
+      {
+        "slide": 1,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      },
+      {
+        "slide": 3,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 4,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      },
+      {
+        "slide": 5,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 12,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 15,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      },
+      {
+        "slide": 16,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 17,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 21,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 22,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 29,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 32,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      },
+      {
+        "slide": 33,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 34,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      }
+    ]
+  },
+  {
+    "file": "/home/dm/Downloads/Image_JPG_PNG_Audio_M4_A_Video_MP_4_12_Slides_38_3_MB_6fa7bda65d.key",
+    "errors": [],
+    "slides": 12,
+    "types": {
+      "text": 9,
+      "image": 21,
+      "video": 1
+    },
+    "notesSlides": [],
+    "findings": [
+      {
+        "slide": 1,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      },
+      {
+        "slide": 3,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 4,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      },
+      {
+        "slide": 5,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      }
+    ]
+  },
+  {
+    "file": "/home/dm/Downloads/Mathematical_Equations_11_Slides_1_3_MB_a1739e820c.key",
+    "errors": [],
+    "slides": 10,
+    "types": {
+      "text": 11,
+      "image": 9
+    },
+    "notesSlides": [],
+    "findings": [
+      {
+        "slide": 1,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      },
+      {
+        "slide": 2,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 3,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 4,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 5,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 6,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 7,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 8,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 9,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 10,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      }
+    ]
+  },
+  {
+    "file": "/home/dm/Downloads/Science_Project_Standard_4_by_3_10_Slides_2_5_MB_8d143248bd.key",
+    "errors": [],
+    "slides": 11,
+    "types": {
+      "text": 19,
+      "image": 5
+    },
+    "notesSlides": [],
+    "findings": [
+      {
+        "slide": 1,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      },
+      {
+        "slide": 2,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      },
+      {
+        "slide": 3,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 4,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      },
+      {
+        "slide": 5,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      },
+      {
+        "slide": 5,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 7,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      },
+      {
+        "slide": 8,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 10,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      }
+    ]
+  },
+  {
+    "file": "/home/dm/Downloads/Slide_Animations_Speaker_comments_8_Slides_3_2_MB_c321bb7102.key",
+    "errors": [],
+    "slides": 8,
+    "types": {
+      "text": 17,
+      "image": 6
+    },
+    "notesSlides": [
+      1,
+      2,
+      3
+    ],
+    "findings": [
+      {
+        "slide": 1,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 1,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      },
+      {
+        "slide": 3,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 4,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      },
+      {
+        "slide": 4,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 6,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 8,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      }
+    ]
+  },
+  {
+    "file": "/home/dm/Downloads/Your_Big_Idea_Wide_16_by_9_21_Slides_10_2_MB_61d3785f75.key",
+    "errors": [],
+    "slides": 22,
+    "types": {
+      "text": 58,
+      "image": 44
+    },
+    "notesSlides": [],
+    "findings": [
+      {
+        "slide": 1,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      },
+      {
+        "slide": 1,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      },
+      {
+        "slide": 2,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      },
+      {
+        "slide": 4,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      },
+      {
+        "slide": 7,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 8,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      },
+      {
+        "slide": 9,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 10,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 10,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 12,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 13,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 15,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      },
+      {
+        "slide": 16,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 17,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 17,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 18,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      },
+      {
+        "slide": 19,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 19,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 19,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 19,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 20,
+        "kind": "vertical-alignment-lost",
+        "value": "middle"
+      },
+      {
+        "slide": 22,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      },
+      {
+        "slide": 22,
+        "kind": "vertical-alignment-lost",
+        "value": "bottom"
+      }
+    ]
+  }
+]

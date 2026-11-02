@@ -1,0 +1,38 @@
+[
+  {
+    "before": {
+      "slides": 1,
+      "objects": 301,
+      "lastContent": "sentinel-0-300"
+    },
+    "after": {
+      "slides": 1,
+      "objects": 300,
+      "lastContent": "sentinel-0-299"
+    },
+    "persisted": {
+      "slides": 1,
+      "objects": 300
+    },
+    "hint": "Unsaved changes",
+    "alerts": []
+  },
+  {
+    "before": {
+      "slides": 251,
+      "objects": 1,
+      "lastContent": "sentinel-250-0"
+    },
+    "after": {
+      "slides": 250,
+      "objects": 1,
+      "lastContent": "sentinel-249-0"
+    },
+    "persisted": {
+      "slides": 250,
+      "objects": 1
+    },
+    "hint": "Unsaved changes",
+    "alerts": []
+  }
+]

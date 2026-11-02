@@ -1,0 +1,59 @@
+PASS whiteboard text: Escape cancels without an error or a committed text
+PASS PDF panel: a crafted PDF URL is not executed and javascript: URLs are rejected
+PASS color and slider drags add one undo step, not one per tick
+PASS reordering slides is its own undo step
+PASS re-rendering a molecule does not pile up window message listeners
+PASS Escape closes the equation dialog from its text field, and the start screen closes dialogs
+PASS new slides get title and content placeholders that never show when presenting or exporting
+PASS the first inserted object takes the content placeholder; images avoid existing content and the footer
+PASS a long title shrinks to fit instead of running off the slide or into the subtitle
+PASS the page number cannot be typed over
+PASS HTML export is named after the project and references only files it contains
+PASS Escape leaves a text box and keeps what was typed
+PASS lines typed with Enter become one bullet each
+PASS bullets on an empty box add no 'List item' text
+PASS numbering keeps indent levels, on the canvas and back to bullets
+PASS a new text box is empty, ready for typing, and clear of other content
+PASS Ctrl+A selects the slide's content but not its footer
+PASS the PowerPoint export sends the editor's own layout elements (no second footer)
+PASS a font size typed with words selected applies to those words only
+PASS the floating toolbar turns bullets and numbering on and off, keeping formatting
+PASS the floating toolbar does not cover the title while the body text is edited
+PASS after a panel button, Escape still ends the edit and the text box shows normally
+PASS a centred bulleted list keeps each bullet beside its text
+PASS a bullet sits beside a large first word, not above it (shown and while editing)
+PASS a centred bulleted list stays centred while it is edited
+PASS Ctrl+Z while typing undoes the last word and stays in the text box; Ctrl+Y brings it back
+PASS dragging a text box moves it without starting to edit its text
+PASS after presenting, the editor zoom fits the slide again
+PASS leaving a presentation returns the editor exactly as it was, even when Escape comes while it is starting
+PASS the text toolbar appears while editing, never on mere hover; toolbars step aside while dragging
+PASS the insert bar is centred on the canvas and never covers the slide
+PASS a drawing made in Excalidraw lands on the slide as a movable picture and reopens with its scene
+PASS a picture's corner handle resizes it, and its toolbar buttons work without deselecting it
+PASS drawings from the old whiteboard can still be moved
+PASS slide captures for PDF/PNG run at full size with list numbers as text, and the editor is restored
+PASS flowchart code survives a save and reopen: hyphenated labels, every shape, every link style
+PASS the Mermaid editor reports a broken line and reopens with plain code
+PASS flowchart layout never overlaps nodes, even with a loop
+PASS hand-drawn diagrams keep their boxes, and diagram SVGs draw arrowheads without id references
+PASS list controls are on the Content tab of a text box
+PASS a new slide's body is a bulleted list, and Tab never throws typing out of a text box
+PASS Tab moves through table cells even when typing straight on, and Escape keeps the cell
+PASS objects inserted on a busy slide land below the title, not on it
+PASS on a crowded slide, new objects shrink to fit beside the content instead of covering it
+PASS objects have a Motion tab to add animations, and the Transitions button shows the transition
+PASS a loop back in a flowchart goes around the boxes instead of through them
+PASS mermaid: dialog buttons act once however often it was opened; drags, double-clicks, handle drops and curved routing work
+PASS mermaid: themes recolour flowcharts, Draw and Sketch differ, and the controls follow the diagram type
+PASS mermaid: a loop keeps its first step first, and diagrams Mermaid draws get a box of their shape and readable text
+PASS mermaid: Branch Reveal shows a flowchart step by step in the show, and switches off again
+PASS mermaid: the PowerPoint export sends diagrams as pictures with Mermaid's colours
+PASS packaging: SVG pictures go to PowerPoint as PNGs drawn by the browser (no Cairo needed)
+PASS shared and exported viewers show charts, diagrams and equations as pictures
+PASS a new drawing on a dark theme starts with light ink on the slide's colour
+PASS Ctrl+D duplicates the selected object, or the slide when nothing is selected
+PASS Shift+click adds a text box to the selection without starting to edit it
+PASS the footer brand keeps its capitals through saving, and gets them back in decks that lost them
+PASS a chart's data can be edited: double-click, type down the rows with Tab, undo with Ctrl+Z
+PASS a table grows with added rows and columns instead of cutting them off

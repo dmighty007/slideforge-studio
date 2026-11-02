@@ -1,0 +1,41 @@
+URL http://127.0.0.1:8076/
+PASS app object exists
+PASS commands facade exists
+PASS add slide command exists
+PASS delete slide command exists
+PASS undo command exists
+PASS redo command exists
+PASS save command exists
+PASS 3D background command exists
+PASS event tracking exposed
+PASS DOMPurify loaded
+TEST 1 3D background slide churn
+PASS created 100 slides
+PASS 3D canvases rendered during churn
+PASS deleted churn slides
+PASS memory growth below 100MB
+PASS 3D canvases cleaned after delete
+TEST 1b 3D background renderer persistence
+PASS recent 3D renderer is retained across navigation
+PASS 3D renderer returns without animation jump
+PASS 3D renderer resumes after return
+PASS only the slide on screen animates its 3D background
+PASS 3D lifecycle setup created test slides
+TEST 2 XSS payload injection
+PASS XSS payloads did not execute
+PASS sanitized DOM has no event/javascript attributes
+PASS no alert dialogs during XSS test
+TEST 3 event listener cleanup
+PASS event listener count stable
+TEST 4 promise rejection handling
+PASS promise rejection handler observed rejection
+TEST 5 UI regression smoke
+PASS toolbar/header visible
+PASS canvas visible
+PASS slide panel visible
+PASS properties panel visible
+PASS buttons present
+PASS icons present
+PASS slide state valid
+WARNINGS []
+PHASE2_RESULT PASS

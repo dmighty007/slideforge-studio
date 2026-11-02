@@ -1,0 +1,34 @@
+[
+  {
+    "slides": 1,
+    "saveMs": 50.5,
+    "saveResult": true,
+    "id": "006bcb9a-57a2-4f25-bdb3-1b41bff48d1f",
+    "reloadMs": 2678.1648959999998,
+    "restored": {
+      "count": 1,
+      "first": "durability-1-0",
+      "last": "durability-1-0",
+      "elements": 10
+    }
+  },
+  {
+    "slides": 50,
+    "saveMs": 506.89999997615814,
+    "saveResult": true,
+    "id": "8348c6b2-f475-4073-9746-71230de72e80",
+    "reloadMs": 3235.020794,
+    "restored": {
+      "count": 50,
+      "first": "durability-50-0",
+      "last": "durability-50-49",
+      "elements": 500
+    }
+  },
+  {
+    "slides": 200,
+    "saveMs": 5241.699999988079,
+    "saveResult": true,
+    "id": "85080a70-2346-421e-b4a2-8cd5ca1495ef"
+  }
+]
