@@ -4,6 +4,8 @@ A plugin adds a new kind of object to slides without touching the editor's code.
 
 ## Built-in plugins
 
+**Landscape Explorer** adds heatmaps, contours and rotatable surfaces from `f(x, y)` or a CSV grid. Open **Plugins → Physics & maths → Landscape f(x, y)**. See [Landscape Explorer](#landscape-explorer) for inputs and presentation controls.
+
 | Plugin | What it makes |
 |---|---|
 | Chemical structure (`smiles`) | The 2D structure of a molecule from SMILES, or from a compound name looked up on PubChem (once; the result is kept). Reactions from reaction SMILES (`reactants>agents>products`) with text above and below the arrow and names under the structures. Optional caption: name, formula, molar mass (SmilesDrawer). |
@@ -77,6 +79,29 @@ C1 a g 100n
 W1 g0 g
 gnd g
 ```
+
+## Landscape Explorer
+
+Start with an equation such as `(x^2 - 1)^2 + y^2`, select axis ranges, then choose **Heatmap**, **Contours**, **Heatmap + contours** or **3D surface**. The safe mathematical parser accepts `x`, `y`, `pi`, `e`, arithmetic (`+ - * / ^`), implicit multiplication (`2xy`) and common functions (`sin`, `cos`, `exp`, `ln`, `log`, `sqrt`, `abs`, and others). `ln` is the natural logarithm; `log` and `log10` are base ten. It does not execute JavaScript. Sampling is bounded to 9–81 points per axis; undefined/nonfinite results are gaps.
+
+For CSV, select **CSV grid** and load or paste either a matrix:
+
+```csv
+y/x,-1,0,1
+-1,2,1,2
+0,1,0,1
+1,2,1,2
+```
+
+or three columns (`x,y,value`) describing points on a grid, with one optional header. Rows may be shuffled; coordinates can be nonuniform or descending. Duplicate coordinates are rejected. Missing combinations, empty values and `NA`/`NaN`/`null` stay missing. Cells touching a missing sample are masked. Contours and hover values use the same piecewise-linear triangulation. Heatmap colors show cell averages. Unstructured scattered-point interpolation is not included: these inputs must describe a grid with at least one complete cell. CSV is limited to 60 KB and 81 distinct coordinates per axis.
+
+Set axis/unit labels and the color-bar label explicitly. **Subtract minimum** changes displayed values relative to the sampled minimum without changing the equation or CSV. It does not convert probabilities into free energies. Fixed color limits let several landscapes share a scale; values outside those limits saturate the palette but remain available in inspection. Blank limits use the data range. **Height exaggeration** affects only surface geometry.
+
+In the editor, click **Explore**. Hover or tap for coordinates and interpolated values. For a surface, drag to rotate, use the wheel or ± buttons to zoom, and use **Reset view** to restore the saved camera. Arrow keys rotate a focused surface. **Use view for export** saves the camera with undo support and redraws the still image. Close the explorer to select/move the object normally.
+
+In the app's presentation mode the live view starts automatically on the active slide. Plot gestures do not advance slides. Camera changes during the show are transient. Escape still exits the show. Live views stop on slide changes, deletion or plugin disabling.
+
+PowerPoint, PDF, PNG, thumbnails, share links and standalone HTML use the saved still (including its saved camera), without controls/tooltips. Complex drawings use a bitmap inside the SVG preview to fit the saved-image budget; the source equation/CSV remains editable. Interactive standalone HTML/share playback is not included. A machine without the plugin can still show and export the saved image.
 
 ## Managing plugins
 
@@ -187,6 +212,7 @@ SlideForgePlugins.register({
   - `fetchJson(url)`: JSON from a web service, with a readable error when it cannot be reached (`error.status` holds the HTTP status). Only hosts the page's Content-Security-Policy allows can be reached: `connect-src` in the desktop and web settings lists PubChem and Crossref. A plugin that needs another service needs that host added there.
 - **`status(data)`** (optional): a short line shown in the Properties panel above the fields, for what the settings do not show themselves, such as what a lookup found ("Looked up on PubChem: “caffeine” is Caffeine · C₈H₁₀N₄O₂").
 - **`edit(data, context)`** (optional): a custom editor for double-click. Resolve to the changed settings, or `null` to cancel.
+- **`mount(host, data, context)`** (optional, may be async): an opt-in live view over the saved SVG in the main editor or app presentation. The editor offers **Explore**; presenting mounts the active slide automatically. Return a cleanup function. `context` includes the usual drawing helpers, `fontFamily`, `isPresenting`, an `AbortSignal` named `signal`, and `update(changes)` for explicit undoable editor changes (disabled during the show). Bind listeners with the signal and dispose any workers, observers or animation frames in cleanup. Async mounts must check `signal.aborted` after awaiting. The runtime aborts and disposes the view when its host disappears, settings change or the slide/mode changes. Other plugins, thumbnails and exports continue to use `render()` and the saved SVG. Pointer and wheel events inside the live host are isolated from slide/object gestures; Escape is reserved for closing the editor explorer or exiting presentation mode.
 
 The returned SVG is cleaned before it is kept: scripts, event handlers, `<foreignObject>`, animation elements and outside links are removed. Embedded pictures must be `data:image/…` URLs. Labels should use common fonts (Arial, Helvetica, sans-serif): the SVG is shown as a picture and cannot load web fonts.
 
@@ -204,7 +230,7 @@ The returned SVG is cleaned before it is kept: scripts, event handlers, `<foreig
 
 `pluginPreview` is the last drawing. The editor shows it at once and redraws when the settings, the plugin version or the theme colour change. A deck opened where the plugin is missing still shows, moves and exports that picture; the Properties panel says the plugin is not installed.
 
-Exports turn each plugin object into a picture of its box: PowerPoint gets a PNG, the HTML viewer and share links an SVG file. PDF and PNG exports capture the slide as shown.
+Exports turn each plugin object into a picture of its box: PowerPoint gets a PNG, the HTML viewer and share links an SVG file. PDF and PNG exports use the saved still for live plugins, hiding their transient controls and camera state while capturing.
 
 ## Scripting
 

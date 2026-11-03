@@ -28,6 +28,7 @@ tests/*
 !tests/browser/
 !tests/desktop/
 tests/browser/*
+!tests/browser/test-landscape.js
 !tests/browser/test-ui-smoke.js
 !tests/browser/test-phase2-functional.js
 !tests/browser/test-animations.js

@@ -111,6 +111,22 @@ jobs:
           npm run test:phase2
           npm run test:animations
           npm run test:regressions
+      # The landscape tests save to and reload from the server, which needs a signed-in user: the desktop app's
+      # server has one, the web server above (accounts off, nobody signed in) saves to browser storage instead.
+      # `--no-open` starts that server without a window, so Qt is not needed.
+      - name: Run landscape tests against the desktop app's server
+        run: |
+          pip install -e .
+          slideforge --no-open --port 8079 --data-dir /tmp/slideforge-desktop-data > /tmp/slideforge-desktop-server.log 2>&1 &
+          for attempt in {1..30}; do
+            if grep -q 'running at' /tmp/slideforge-desktop-server.log; then
+              break
+            fi
+            sleep 1
+          done
+          DESKTOP_URL=$(grep -o 'http://127.0.0.1:8079/?token=[^ ]*' /tmp/slideforge-desktop-server.log | head -1)
+          test -n "$DESKTOP_URL"
+          SLIDEFORGE_TEST_URL="$DESKTOP_URL" LANDSCAPE_TEST_OUTPUT=/tmp/slideforge-landscape-exports npm run test:landscape
       - name: Upload browser diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
@@ -118,5 +134,7 @@ jobs:
           name: browser-diagnostics
           path: |
             /tmp/slideforge-browser-server.log
+            /tmp/slideforge-desktop-server.log
+            /tmp/slideforge-landscape-exports/
             test-results/
           if-no-files-found: ignore
