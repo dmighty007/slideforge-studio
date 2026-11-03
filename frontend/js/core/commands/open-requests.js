@@ -45,9 +45,10 @@ async function sfOpenQueuedFiles() {
     }
 }
 
-// Called once the editor has started (main.js): only the desktop app has the queue.
+// Called once the editor has started (main.js): only the desktop app has the queue. Its page is marked
+// "desktop-app" (studio/views.py); the web app with sign-in switched off is not, and asking there was a 404.
 function sfStartOpenRequests() {
-    if (!document.body.classList.contains("accounts-disabled") || _sfOpenRequestsTimer) return;
+    if (!document.body.classList.contains("desktop-app") || _sfOpenRequestsTimer) return;
     sfOpenQueuedFiles();
     _sfOpenRequestsTimer = setInterval(sfOpenQueuedFiles, SF_OPEN_REQUESTS_EVERY_MS);
 }
