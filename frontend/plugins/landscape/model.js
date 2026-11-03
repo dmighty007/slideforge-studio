@@ -135,5 +135,28 @@
         // Same diagonal and piecewise-linear field as the contours and the surface picker.
         return v <= u ? z[0] * (1 - u) + z[1] * (u - v) + z[3] * v : z[0] * (1 - v) + z[3] * u + z[2] * (v - u);
     }
-    Object.assign(api, { expression, model, contours, sample });
+    function dataset(data, parseTable) {
+        if (data.input !== "equation" || data.view !== "surface" || !data.compare) return model(data, parseTable);
+        const rows = parseTable(data.comparison, { maxRows: 6, maxColumns: 3 });
+        if (rows[0]?.[0]?.toLowerCase() === "label" && /equation|expression|f\(x/i.test(rows[0][1] || "")) rows.shift();
+        if (rows.length < 2 || rows.length > 4 || rows.some(r => r.length !== 2 || !r[1])) throw Error("Compare 2–4 surfaces: one CSV row per label,equation.");
+        const surfaces = rows.map(([label, equation]) => ({ ...model({ ...data, equation, subtractMin: false, colorMin: "", colorMax: "" }, parseTable), label: label.slice(0, 60) || "Surface" }));
+        const rawLow = Math.min(...surfaces.map(s => s.low)), rawHigh = Math.max(...surfaces.map(s => s.high));
+        const offset = data.subtractMin ? rawLow : 0, low = rawLow - offset, high = rawHigh - offset;
+        for (const s of surfaces) {
+            s.values = s.values.map(row => row.map(z => z - offset));
+            s.cells = s.cells.map(c => ({ ...c, value: c.value - offset, vertices: c.vertices.map(p => ({ ...p, z: p.z - offset })) }));
+            s.low -= offset; s.high -= offset; s.offset = offset;
+        }
+        const colorMin = data.colorMin === "" ? low : numeric(data.colorMin, "Color minimum"), colorMax = data.colorMax === "" ? high : numeric(data.colorMax, "Color maximum");
+        if (colorMax < colorMin || (colorMax === colorMin && (data.colorMin !== "" || data.colorMax !== ""))) throw Error("Color maximum must exceed color minimum.");
+        return { ...surfaces[0], surfaces, low, high, colorMin, colorMax, offset };
+    }
+    function wignerPreset() {
+        // Algebraic form of the cat-state example linked in docs/PLUGINS.md (Mayavi, Gael Varoquaux/Enthought).
+        // All three use the same domain and height/color units; no per-surface normalization.
+        const f = a => `(exp(-x^2-(y-${a})^2)+exp(-x^2-(y+${a})^2)+2*exp(-x^2-y^2)*cos(${2 * a}x))/(4*(1+exp(-${a * a})))`;
+        return { input: "equation", equation: f(1), view: "surface", compare: true, comparison: [1, 2, 3].map(a => `${a} photon${a > 1 ? "s" : ""},${f(a)}`).join("\n"), xMin: -4, xMax: 4, yMin: -4, yMax: 4, resolution: 65, colorMin: "-0.5", colorMax: "0.5", palette: "rainbow", stage: "slate", subtractMin: false, title: "Cat-state Wigner functions", valueLabel: "W(x, y)", zeroPlane: true, lighting: true, axesBox: true, yaw: -25, pitch: 35, zoom: 1, panX: 0, panY: 0, zScale: 0.7 };
+    }
+    Object.assign(api, { expression, model, dataset, contours, sample, wignerPreset });
 })();

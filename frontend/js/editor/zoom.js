@@ -181,6 +181,8 @@ function initCanvasTouchGestures(wrapper) {
 
     wrapper.addEventListener("pointerdown", (e) => {
         if (e.pointerType !== "touch" || isPresentationPlaying()) return;
+        // A live plot owns both fingers. Capturing its second pointer here stole its pinch before it reached it.
+        if (e.target.closest?.(".plugin-live-view")) return;
         touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
         if (touches.size === 2) {
             // The second finger: whatever the first one started (a drag of an object) gives way to the pinch.
