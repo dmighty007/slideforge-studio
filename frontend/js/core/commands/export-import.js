@@ -85,6 +85,24 @@ async function uniqueImportTitle(title) {
     return base;
 }
 
+// Equations given as LaTeX only (latexSrc, no drawn content): drawn now with KaTeX, as the equation dialog draws
+// them. A deck written by a script or by hand (the slide-making skill's decks) can carry just the LaTeX; it showed
+// as raw "\frac{...}" text.
+function renderImportedEquations(deck) {
+    if (typeof katex === "undefined") return;
+    (deck?.slides || []).forEach(slide =>
+        (slide?.elements || []).forEach(el => {
+            if (!el || (el.type !== "equation" && el.type !== "latex") || typeof el.latexSrc !== "string" || !el.latexSrc.trim()) return;
+            if (typeof el.content === "string" && el.content.trim() && el.content.trim() !== el.latexSrc.trim()) return;
+            try {
+                el.content = katex.renderToString(el.latexSrc, { throwOnError: false, displayMode: el.displayMode !== false });
+            } catch (_error) {
+                // the LaTeX stays as text
+            }
+        }),
+    );
+}
+
 // A SlideForge .json export (or a deck from the PDF bridge), imported into a project of its own: from the file
 // picker, or a file given on the command line (open-requests.js).
 async function importPresentationJsonFile(file) {
@@ -107,6 +125,7 @@ async function importPresentationJsonFile(file) {
         await startNewProjectForImport();
         state = importedState;
         normalizeStateIds();
+        renderImportedEquations(state);
         currentSlideIndex = 0;
         if (typeof setCurrentPresentationTitle === "function") setCurrentPresentationTitle(title);
         if (typeof syncPresentationPageSetup === "function") syncPresentationPageSetup();

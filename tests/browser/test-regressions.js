@@ -10265,6 +10265,24 @@ async function test(name, fn) {
             await page.close();
         });
 
+        await test("Importing a SlideForge deck draws equations given as LaTeX only", async () => {
+            const { page, errors } = await openEditor(context);
+            const out = await page.evaluate(() => {
+                // As a script writes a deck (the research-slides skill): latexSrc, no drawn content.
+                const deck = { slides: [{ id: "s1", elements: [
+                    { id: "e1", type: "equation", latexSrc: "F(s) = -k_B T \\ln P(s)", content: "" },
+                    { id: "e2", type: "equation", latexSrc: "x^2", content: "<span>kept</span>" },
+                ] }] };
+                renderImportedEquations(deck);
+                const [drawn, kept] = deck.slides[0].elements;
+                return { drawn: /class="katex/.test(drawn.content), kept: kept.content };
+            });
+            assert(out.drawn, "a LaTeX-only equation is drawn with KaTeX");
+            assert(out.kept === "<span>kept</span>", `an equation already drawn is left as it is: ${out.kept}`);
+            assert(!errors.length, errors.join("\n"));
+            await page.close();
+        });
+
         await test("Fonts: CMU and a Cambria Math stand-in are bundled; a font file added and a font a PowerPoint file carries are used", async () => {
             const { page, errors } = await openEditor(context);
             const out = await pageAwait(page, async () => {
