@@ -1220,11 +1220,12 @@ class PPTXExporter:
         if scatter:
             # The table's label column is x (labels that are not numbers count 1, 2, 3…); each series is y.
             xs = [self._chart_number(label) for label in labels]
-            xs = [x if x is not None and str(label).strip() else float(i + 1) for i, (x, label) in enumerate(zip(xs, labels))]
+            xs = [x if x is not None and str(label).strip() else float(i + 1) for i, (x, label) in enumerate(zip(xs, labels, strict=True))]
             chart_data = XyChartData()
             for index, dataset in enumerate(datasets):
                 series_data = chart_data.add_series(str(dataset.get("label") or f"Series {index + 1}"))
-                for x, value in zip(xs, list(dataset.get("data") or [])):
+                # A series may have more or fewer values than there are labels: only the pairs are plotted.
+                for x, value in zip(xs, list(dataset.get("data") or []), strict=False):
                     y = self._chart_number(value)
                     if y is not None:
                         series_data.add_data_point(x, y)

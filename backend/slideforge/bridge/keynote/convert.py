@@ -1087,7 +1087,7 @@ def _table_merges(model, rows: int, cols: int) -> list[dict[str, int]]:
                 continue
             tract = node.AST_colon_tract
 
-            def span(name):
+            def span(tract, name):
                 ranges = getattr(tract, name)
                 if not len(ranges):
                     return None
@@ -1096,7 +1096,7 @@ def _table_merges(model, rows: int, cols: int) -> list[dict[str, int]]:
                 end = int(first.range_end) if _has(first, "range_end") else begin
                 return begin, max(begin, end)
 
-            columns, rows_span = span("absolute_column"), span("absolute_row")
+            columns, rows_span = span(tract, "absolute_column"), span(tract, "absolute_row")
             if columns is None or rows_span is None:
                 continue
             row, col = rows_span[0], columns[0]
