@@ -1126,9 +1126,14 @@ function _pptxGeometryPaths(spPr, boxW, boxH) {
         }
         return [];
     }
+    // A path that does not give its own size is in the shape's units (EMU, its <a:ext>), not pixels: SmartArt's
+    // curved arrows (an arcTo from x 2416201) were drawn a thousand times too large, far off the slide.
+    const extent = _pptxChild(_pptxChild(spPr, "a:xfrm"), "a:ext");
+    const extentW = num(extent?.getAttribute("cx"));
+    const extentH = num(extent?.getAttribute("cy"));
     return Array.from(custom.getElementsByTagName("a:path")).map(path => {
-        const pathW = num(path.getAttribute("w")) || boxW;
-        const pathH = num(path.getAttribute("h")) || boxH;
+        const pathW = num(path.getAttribute("w")) || extentW || boxW;
+        const pathH = num(path.getAttribute("h")) || extentH || boxH;
         const sx = boxW / Math.max(1, pathW);
         const sy = boxH / Math.max(1, pathH);
         const pt = node => [num(node.getAttribute("x")) * sx, num(node.getAttribute("y")) * sy];
@@ -3208,16 +3213,21 @@ async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
                     // SmartArt: the shapes PowerPoint last drew it with, fitted into its frame (a stale drawing can
                     // be larger than the frame it was resized into), as one build target.
                     const { tree, rels: drawingRels, bounds } = smartArt;
-                    const k = bounds.w && bounds.h ? Math.min(1, xfrm.w / bounds.w, xfrm.h / bounds.h) : 1;
+                    // PowerPoint keeps the drawing at the size the frame is shown at: inside a group it shrank (a
+                    // cycle diagram at half size), the drawing is already that small. It was shrunk again by the
+                    // group, and its 18 pt words wrapped a letter at a time in boxes half their size.
+                    const shownW = xfrm.w * t.sx;
+                    const shownH = xfrm.h * t.sy;
+                    const k = bounds.w && bounds.h ? Math.min(1, shownW / bounds.w, shownH / bounds.h) : 1;
                     const cx = k < 1 ? bounds.x : 0;
                     const cy = k < 1 ? bounds.y : 0;
-                    const dx = k < 1 ? (xfrm.w - bounds.w * k) / 2 : 0;
-                    const dy = k < 1 ? (xfrm.h - bounds.h * k) / 2 : 0;
+                    const dx = k < 1 ? (shownW - bounds.w * k) / 2 : 0;
+                    const dy = k < 1 ? (shownH - bounds.h * k) / 2 : 0;
                     const turns = xfrm.rot ? [{ deg: xfrm.rot, ...(f => ({ cx: f.x + f.w / 2, cy: f.y + f.h / 2 }))(rawBox(xfrm, t)) }, ...(t.turns || [])] : t.turns || [];
                     const saved = part;
                     const before = elements.length;
                     part = { ...saved, rels: drawingRels, quiet: true };
-                    await walk(tree, { sx: t.sx * k, sy: t.sy * k, cx, cy, ox: t.ox + (xfrm.x + dx - t.cx) * t.sx, oy: t.oy + (xfrm.y + dy - t.cy) * t.sy, turns, fs: (t.fs || 1) * k });
+                    await walk(tree, { sx: k, sy: k, cx, cy, ox: t.ox + (xfrm.x - t.cx) * t.sx + dx, oy: t.oy + (xfrm.y - t.cy) * t.sy + dy, turns, fs: (t.fs || 1) * k });
                     part = saved;
                     if (elements.length > before) register(node, ...elements.slice(before));
                     continue;

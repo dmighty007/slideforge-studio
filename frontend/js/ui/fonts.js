@@ -22,7 +22,10 @@ function _sfFontsRequest(body) {
 }
 
 // The stylesheets of the downloaded families, added to the page once each.
+// Resolves once the new stylesheets have loaded (or failed): a font checked or drawn before its @font-face rules
+// arrived counted as missing, and was listed as "still missing" right after it was added.
 function _sfAddFontSheets(fonts) {
+    const loading = [];
     Object.values(fonts || {}).forEach(font => {
         const href = String(font?.css || "");
         const allowed = /^\/media\/fonts\/[a-z0-9-]+\/font\.css$/.test(href) || /^\/api\/fonts\/own\/fonts\.css\?v=\d+$/.test(href);
@@ -32,8 +35,13 @@ function _sfAddFontSheets(fonts) {
         link.rel = "stylesheet";
         link.href = href;
         link.dataset.userFont = "true";
+        loading.push(new Promise(resolve => {
+            link.onload = link.onerror = () => resolve();
+            setTimeout(resolve, 5000);
+        }));
         document.head.appendChild(link);
     });
+    return Promise.all(loading);
 }
 
 async function sfLoadDownloadedFonts() {
@@ -221,7 +229,7 @@ async function _sfDownloadFonts(families) {
         card.onclick = event => event.target.closest?.("[data-fonts]") && card.remove();
         return;
     }
-    _sfAddFontSheets(reply.fonts);
+    await _sfAddFontSheets(reply.fonts);
     const got = (reply.results || []).filter(r => r.status === "installed" || r.status === "already").map(r => r.family);
     const absent = (reply.results || []).filter(r => r.status === "not-found").map(r => r.family);
     const failed = (reply.results || []).filter(r => r.status === "failed").map(r => r.family);
@@ -262,7 +270,7 @@ async function sfUploadFontFile(file, { family = "", style = "" } = {}) {
     const response = await fetch(`${SF_FONTS_URL}files/`, { method: "POST", credentials: "same-origin", headers: csrf ? { "X-CSRFToken": csrf } : {}, body: form });
     const reply = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(reply.error || `The font could not be added (${response.status})`);
-    _sfAddFontSheets(reply.fonts);
+    await _sfAddFontSheets(reply.fonts);
     return reply;
 }
 
