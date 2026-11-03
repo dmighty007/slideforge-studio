@@ -101,6 +101,18 @@ In the editor, click **Explore**. Hover or tap for coordinates and interpolated 
 
 In the app's presentation mode the live view starts automatically on the active slide. Plot gestures do not advance slides. Camera changes during the show are transient. Escape still exits the show. Live views stop on slide changes, deletion or plugin disabling.
 
+### Mayavi-style interactive surfaces
+
+Choose **Example → Wigner: compare three surfaces**, then **Explore**. This loads an editable three-surface comparison inspired by the [Mayavi Wigner example](https://docs.enthought.com/mayavi/mayavi/auto/example_wigner.html) by Gaël Varoquaux / Enthought. Its cat-state equations, common domain and fixed color limits follow that mathematical example; the renderer runs locally in the browser and does not require Mayavi or Python plotting services.
+
+The surface view uses **WebGL depth testing, interpolated colors and smooth lighting**. Drag to orbit, **Shift-drag or right-drag to pan**, and use the wheel or ± buttons to zoom. On touch screens, drag with one finger or pinch/pan with two. **Reset view** returns to the saved camera. **Use view for export** saves orbit, pan and zoom together. Arrow keys rotate a focused surface; Escape keeps its normal exit behavior.
+
+For your own comparison, select **3D surface**, enable **Compare surfaces**, and enter 2–4 CSV rows of `label,equation`. All surfaces use the same X/Y domain, height transform and color bar. They are not normalized independently. **Subtract minimum** uses the global minimum across the comparison. The hover readout identifies the surface and reports its original local X/Y coordinates. CSV grid input remains available for a single surface.
+
+**Show zero plane** retains signed heights around zero. **3D axes and outline** adds a bounding cage and numeric axis ranges. **Smooth lighting** can be turned off when exact unshaded palette colors are more useful. The Wigner preset uses the rainbow palette and a slate background; both can be changed.
+
+Saved 3D stills use the same WebGL scene, lighting and camera as the live view. When WebGL is unavailable, orbit/pan/inspection remain usable through the canvas compatibility renderer, with simpler surface shading. PowerPoint/PDF still use images; this is not an interactive PowerPoint object, and standalone HTML/share exports remain static.
+
 PowerPoint, PDF, PNG, thumbnails, share links and standalone HTML use the saved still (including its saved camera), without controls/tooltips. Complex drawings use a bitmap inside the SVG preview to fit the saved-image budget; the source equation/CSV remains editable. Interactive standalone HTML/share playback is not included. A machine without the plugin can still show and export the saved image.
 
 ## Managing plugins
