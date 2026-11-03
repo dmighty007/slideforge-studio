@@ -5585,14 +5585,70 @@ async function test(name, fn) {
             newer.slides[0].elements[0].content = "latest typing";
             const backup = { presentationId: "recovery-test", autosaveVersion: 10, state: newer,
                 pendingFingerprints: [_stateHash(JSON.stringify(oldState))] };
-            localStorage.setItem(UNSAVED_BACKUP_STORAGE_KEY, JSON.stringify(backup));
-            const recovered = _takeUnsavedBackup("recovery-test", 11, oldState);
-            localStorage.setItem(UNSAVED_BACKUP_STORAGE_KEY, JSON.stringify(backup));
+            const recovered = _takeUnsavedBackup(backup, "recovery-test", 11, oldState);
             const conflicting = { ...oldState, presentationTheme: "graphite" };
-            const rejected = _takeUnsavedBackup("recovery-test", 11, conflicting);
+            const rejected = _takeUnsavedBackup(backup, "recovery-test", 11, conflicting);
             return { recovered: recovered?.state.slides[0].elements[0].content, rejected };
         });
         assert(result.recovered === "latest typing" && result.rejected === null, JSON.stringify(result));
+        await page.close();
+    });
+
+    await test("A deck too big for localStorage keeps its unsaved backup in IndexedDB, never an older copy", async () => {
+        const { page } = await openFreshEditor(context);
+        const result = await page.evaluate(async () => {
+            const settle = () => _unsavedBackupDbRun("readonly", store => store.count());
+            const withContent = text => {
+                const copy = JSON.parse(JSON.stringify(getPersistableState()));
+                copy.slides[0].elements[0].content = text;
+                return copy;
+            };
+            currentPresentationId = "idb-backup-test";
+            // A small deck: localStorage.
+            _writeUnsavedBackup({ autosaveVersion: 4, state: withContent("small") });
+            await settle();
+            const small = { inLocal: Boolean(localStorage.getItem(UNSAVED_BACKUP_STORAGE_KEY)),
+                read: (await _readUnsavedBackup())?.state.slides[0].elements[0].content };
+            // Then it grows past the quota (simulated: localStorage refuses the backup), with typing kept meanwhile.
+            localStorage.setItem(UNSAVED_TYPING_STORAGE_KEY, JSON.stringify({ scope: "idb-backup-test", elements: {} }));
+            const setItem = Storage.prototype.setItem;
+            Storage.prototype.setItem = function (key, value) {
+                if (key === UNSAVED_BACKUP_STORAGE_KEY) throw new DOMException("full", "QuotaExceededError");
+                return setItem.call(this, key, value);
+            };
+            try {
+                _writeUnsavedBackup({ autosaveVersion: 5, state: withContent("grown") });
+            } finally {
+                Storage.prototype.setItem = setItem;
+            }
+            const staleLeftAtOnce = localStorage.getItem(UNSAVED_BACKUP_STORAGE_KEY);
+            await settle();
+            const big = await _readUnsavedBackup();
+            const typingLeft = localStorage.getItem(UNSAVED_TYPING_STORAGE_KEY);
+            const recovered = _takeUnsavedBackup(big, "idb-backup-test", 5, null);
+            await settle();
+            const afterTake = await _readUnsavedBackup();
+            // Clearing after a save removes it from IndexedDB too.
+            _writeUnsavedBackup({ autosaveVersion: 6, state: withContent("x".repeat(10)) });
+            Storage.prototype.setItem = function (key, value) {
+                if (key === UNSAVED_BACKUP_STORAGE_KEY) throw new DOMException("full", "QuotaExceededError");
+                return setItem.call(this, key, value);
+            };
+            try {
+                _writeUnsavedBackup({ autosaveVersion: 6, state: withContent("again") });
+            } finally {
+                Storage.prototype.setItem = setItem;
+            }
+            _clearUnsavedBackup("idb-backup-test");
+            await settle();
+            const afterClear = await _readUnsavedBackup();
+            return { small, staleLeftAtOnce, big: big?.state.slides[0].elements[0].content, bigVersion: big?.autosaveVersion,
+                typingLeft, recovered: recovered?.state.slides[0].elements[0].content, afterTake, afterClear };
+        });
+        assert(result.small.inLocal && result.small.read === "small", `small deck: ${JSON.stringify(result)}`);
+        assert(result.staleLeftAtOnce === null, `the older localStorage copy was left: ${JSON.stringify(result)}`);
+        assert(result.big === "grown" && result.bigVersion === 5 && result.typingLeft === null, `IndexedDB copy: ${JSON.stringify(result)}`);
+        assert(result.recovered === "grown" && result.afterTake === null && result.afterClear === null, `take/clear: ${JSON.stringify(result)}`);
         await page.close();
     });
 
