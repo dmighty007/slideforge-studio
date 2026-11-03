@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 import pymupdf as fitz
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
@@ -1721,3 +1722,169 @@ class GoogleFontsTests(TestCase):
             result = self._post(["Some Font"]).json()["results"][0]
         self.assertEqual(result["status"], "failed")
         self.assertNotIn("Some Font", self.client.get("/api/fonts/").json()["fonts"])
+
+
+class FontFilesTests(TestCase):
+    """Fonts added from files and fonts a PowerPoint file carries (font_files.py): kept per user, served only to them."""
+
+    FONT = settings.FRONTEND_DIR / "vendor" / "fonts" / "dejavu" / "DejaVuSans.ttf"
+
+    def setUp(self):
+        import tempfile
+
+        self.client = Client()
+        self.user = get_user_model().objects.create_user(username="font-owner", password="strong-password-123")
+        self.media = tempfile.mkdtemp()
+        self.override = override_settings(MEDIA_ROOT=self.media, MEDIA_URL="/media/")
+        self.override.enable()
+        self.client.force_login(self.user)
+
+    def tearDown(self):
+        import shutil
+
+        self.override.disable()
+        shutil.rmtree(self.media, ignore_errors=True)
+
+    def _upload(self, data, name="font.ttf", **fields):
+        return self.client.post("/api/fonts/files/", data={"file": SimpleUploadedFile(name, data), **fields})
+
+    @staticmethod
+    def _woff(sfnt):
+        import struct
+        import zlib
+
+        count = struct.unpack_from(">H", sfnt, 4)[0]
+        entries = [struct.unpack_from(">4sIII", sfnt, 12 + 16 * i) for i in range(count)]
+        header_size = 44 + 20 * count
+        directory, body, offset = [], b"", header_size
+        for tag, checksum, table_offset, length in entries:
+            packed = zlib.compress(sfnt[table_offset : table_offset + length])
+            stored = packed if len(packed) < length else sfnt[table_offset : table_offset + length]
+            directory.append(struct.pack(">4sIIII", tag, offset, len(stored), length, checksum))
+            body += stored + b"\0" * (-len(stored) % 4)
+            offset += len(stored) + (-len(stored) % 4)
+        header = struct.pack(">4s4sIHHI", b"wOFF", sfnt[:4], header_size + len(body), count, 0, len(sfnt)) + b"\0" * 24
+        return header + b"".join(directory) + body
+
+    @staticmethod
+    def _eot(sfnt, xor=False):
+        import struct
+
+        payload = bytes(b ^ 0x50 for b in sfnt) if xor else sfnt
+        names = b"".join(struct.pack("<HH", 0, 0) for _ in range(4))  # padding + empty family/style/version/full names
+        header = struct.pack("<IIII", 0, len(payload), 0x00020001, 0x10000000 if xor else 0) + bytes(10) + bytes([1, 0])
+        header += struct.pack("<IHH", 400, 0, 0x504C) + bytes(16 + 8 + 4 + 16) + names + struct.pack("<HH", 0, 0)
+        total = len(header) + len(payload)
+        return struct.pack("<I", total) + header[4:] + payload
+
+    def test_a_truetype_file_is_kept_for_its_owner_under_its_names_and_served_only_to_them(self):
+        data = self.FONT.read_bytes()
+        reply = self._upload(data)
+        self.assertEqual(reply.status_code, 200, reply.content)
+        faces = reply.json()["faces"]
+        self.assertEqual(faces[0]["family"], "DejaVu Sans")
+        fonts = self.client.get("/api/fonts/").json()["fonts"]
+        self.assertEqual(fonts["DejaVu Sans"]["source"], "file")
+        css_url = fonts["DejaVu Sans"]["css"]
+        self.assertTrue(css_url.startswith("/api/fonts/own/fonts.css?v="))
+        css = b"".join(self.client.get(css_url.split("?")[0]).streaming_content).decode()
+        self.assertIn('font-family: "DejaVu Sans"', css)
+        file_name = re.search(r'url\("files/([0-9a-f]{24}\.ttf)"\)', css).group(1)
+        served = self.client.get(f"/api/fonts/own/files/{file_name}")
+        self.assertEqual(served.status_code, 200)
+        self.assertEqual(b"".join(served.streaming_content), data)
+        self.assertEqual(served["Content-Type"], "font/ttf")
+        # Another user sees neither the font nor the file; signed out, nothing.
+        other = Client()
+        other.force_login(get_user_model().objects.create_user(username="someone-else", password="strong-password-123"))
+        self.assertNotIn("DejaVu Sans", other.get("/api/fonts/").json()["fonts"])
+        self.assertEqual(other.get(f"/api/fonts/own/files/{file_name}").status_code, 404)
+        self.assertEqual(Client().get(f"/api/fonts/own/files/{file_name}").status_code, 401)
+        for bad in ("../index.json", "files/../index.json", "index.json", "files/x.ttf"):
+            self.assertEqual(self.client.get(f"/api/fonts/own/{bad}").status_code, 404, bad)
+
+    def test_woff_collections_and_embedded_fonts_from_powerpoint_are_read(self):
+        import struct
+
+        from slideforge.studio import font_files
+
+        sfnt = self.FONT.read_bytes()
+        self.assertEqual(font_files.read_faces(self._woff(sfnt))[0]["data"][:4], sfnt[:4])
+        self.assertEqual(font_files.read_faces(self._woff(sfnt))[0]["family"], "DejaVu Sans")
+        # A collection of two copies: both come out as fonts of their own.
+        collection = struct.pack(">4sHHI", b"ttcf", 1, 0, 2) + struct.pack(">II", 20, 20) + b""
+        tables = font_files._sfnt_tables(sfnt)
+        shifted = bytearray(sfnt[:12 + 16 * len(tables)])
+        for index in range(len(tables)):
+            tag, checksum, offset, length = struct.unpack_from(">4sIII", sfnt, 12 + 16 * index)
+            struct.pack_into(">4sIII", shifted, 12 + 16 * index, tag, checksum, offset + 20, length)
+        collection += bytes(shifted) + sfnt[12 + 16 * len(tables):]
+        faces = font_files.read_faces(collection)
+        self.assertEqual([face["family"] for face in faces], ["DejaVu Sans", "DejaVu Sans"])
+        self.assertEqual(font_files._sfnt_tables(faces[0]["data"]).keys(), tables.keys())
+        # PowerPoint's .fntdata (EOT), scrambled: stored under the name the deck gives it, in its slot.
+        reply = self._upload(self._eot(sfnt, xor=True), name="font1.fntdata", family="Deck Sans", style="bold")
+        self.assertEqual(reply.status_code, 200, reply.content)
+        fonts = reply.json()["fonts"]
+        self.assertIn("Deck Sans", fonts)
+        css = (Path(self.media) / "fonts" / "users" / str(self.user.pk) / "fonts.css").read_text()
+        self.assertIn('font-family: "Deck Sans"; font-style: normal; font-weight: 700', css)
+
+    def test_files_that_are_not_fonts_are_refused(self):
+        for data, name in ((b"%PDF-1.4 not a font", "a.ttf"), (b"wOF2" + bytes(60), "a.woff2"), (bytes(8), "a.otf")):
+            reply = self._upload(data, name=name)
+            self.assertEqual(reply.status_code, 422, name)
+            self.assertIn("error", reply.json())
+        self.assertEqual(Client().post("/api/fonts/files/", data={"file": SimpleUploadedFile("a.ttf", b"x")}).status_code, 401)
+
+    def test_damaged_compressed_embedded_fonts_are_refused_cleanly(self):
+        """MicroType Express (font_mtx.py), PowerPoint's compressed form: damaged data is an error, never a hang."""
+        import random
+        import struct
+
+        from slideforge.studio import font_files
+        from slideforge.studio.font_mtx import MtxError, decompress_mtx
+
+        for payload in (b"", b"\x03", bytes(10), b"\x03" + bytes(3) + b"\x00\x00\x0a\x00\x00\x0a", b"\x02" + bytes(20)):
+            with self.assertRaises(MtxError):
+                decompress_mtx(payload)
+        noise = random.Random(7)
+        for size in (64, 4096):
+            data = b"\x03\x00\x10\x00" + struct.pack(">I", 10 + size // 3)[1:] + struct.pack(">I", 10 + 2 * size // 3)[1:] + bytes(noise.randrange(256) for _ in range(size))
+            with self.assertRaises(MtxError):
+                decompress_mtx(data)
+        # In an EOT (flag 0x4) the same damage is a font-file error the user is shown.
+        payload = b"\x03" + bytes(30)
+        header = struct.pack("<IIII", 0, len(payload), 0x00020002, 0x4) + bytes(10) + bytes([1, 0]) + struct.pack("<IHH", 400, 0, 0x504C) + bytes(80)
+        eot = struct.pack("<I", len(header) + len(payload)) + header[4:] + payload
+        with self.assertRaises(font_files.FontFileError):
+            font_files.read_faces(eot)
+
+    def test_a_zip_of_fonts_adds_every_font_in_it_and_skips_other_files(self):
+        import io
+        import zipfile
+
+        from slideforge.studio import font_files
+
+        sfnt = self.FONT.read_bytes()
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("Some Font/readme.html", "<p>About this font</p>")
+            archive.writestr("Some Font/DejaVuSans.ttf", sfnt)
+            archive.writestr("__MACOSX/Some Font/._DejaVuSans.ttf", b"resource fork")
+            archive.writestr("Some Font/broken.otf", b"not really a font")
+        reply = self._upload(buffer.getvalue(), name="some-font.zip")
+        self.assertEqual(reply.status_code, 200, reply.content)
+        self.assertEqual([face["family"] for face in reply.json()["faces"]], ["DejaVu Sans"])
+        self.assertIn("DejaVu Sans", reply.json()["fonts"])
+        # A zip with no fonts, and one whose font would unpack beyond the limit, are refused before unpacking.
+        empty = io.BytesIO()
+        with zipfile.ZipFile(empty, "w") as archive:
+            archive.writestr("readme.txt", "no fonts here")
+        self.assertEqual(self._upload(empty.getvalue(), name="empty.zip").status_code, 422)
+        bomb = io.BytesIO()
+        with zipfile.ZipFile(bomb, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("huge.ttf", bytes(font_files.MAX_FILE_BYTES + 1))
+        reply = self._upload(bomb.getvalue(), name="bomb.zip")
+        self.assertEqual(reply.status_code, 422)
+        self.assertIn("too large", reply.json()["error"])

@@ -830,3 +830,58 @@ class UpdateTests(TestCase):
                     break
                 time.sleep(0.1)
             self.assertTrue(os.path.exists(marker))
+
+
+class OpenRequestTests(TestCase):
+    """Files given on the command line, handed to the editor page once each (open_files.py)."""
+
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+
+        from slideforge.desktop import paths
+
+        self.data_dir = paths.data_dir()
+        shutil.rmtree(self.data_dir / "open-requests", ignore_errors=True)
+        self.folder = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.folder, ignore_errors=True)
+
+    def test_the_page_lists_and_fetches_each_file_once_by_name_only(self):
+        from slideforge.desktop import open_files
+
+        deck = self.folder / "Group meeting.pptx"
+        deck.write_bytes(b"PK\x03\x04 the deck's bytes")
+        open_files.add(self.data_dir, open_files.check(str(deck)))
+        client = Client()
+        listed = client.get("/api/desktop/open/").json()["files"]
+        self.assertEqual([(item["name"], item["kind"]) for item in listed], [("Group meeting.pptx", "pptx")])
+        self.assertNotIn(str(self.folder), json.dumps(listed))  # the page never learns where the file is
+        response = client.get(f"/api/desktop/open/{listed[0]['id']}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(b"".join(response.streaming_content), b"PK\x03\x04 the deck's bytes")
+        self.assertEqual(client.get(f"/api/desktop/open/{listed[0]['id']}/").status_code, 404)
+        self.assertEqual(client.get("/api/desktop/open/").json()["files"], [])
+
+    def test_stale_and_vanished_requests_are_dropped_and_ids_cannot_reach_other_files(self):
+        import time
+
+        from slideforge.desktop import open_files
+
+        old = self.folder / "Old.key"
+        old.write_bytes(b"PK")
+        gone = self.folder / "Gone.json"
+        gone.write_text("{}")
+        old_id = open_files.add(self.data_dir, open_files.check(str(old)))
+        open_files.add(self.data_dir, open_files.check(str(gone)))
+        entry = self.data_dir / "open-requests" / f"{old_id}.json"
+        data = json.loads(entry.read_text())
+        data["created"] = time.time() - open_files.MAX_AGE_SECONDS - 5
+        entry.write_text(json.dumps(data))
+        gone.unlink()
+        self.assertEqual(Client().get("/api/desktop/open/").json()["files"], [])
+        for bad in ("../instance", "..%2Finstance", "nope"):
+            self.assertEqual(Client().get(f"/api/desktop/open/{bad}/").status_code, 404, bad)
+
+    @override_settings(SLIDEFORGE_LAUNCH_TOKEN="launch-secret")
+    def test_the_queue_needs_the_launch_token(self):
+        self.assertEqual(Client().get("/api/desktop/open/").status_code, 403)

@@ -37,6 +37,8 @@
 
     <!-- Fonts -->
     <link rel="stylesheet" href="vendor/fonts/fonts.css" />
+    <link rel="stylesheet" href="vendor/fonts/science-fonts.css" />
+    <link rel="stylesheet" href="vendor/fonts/stand-in-fonts.css" />
 
     <!-- Reveal.js CSS -->
     <link rel="stylesheet" href="vendor/reveal.js/reveal.css" />
@@ -51,7 +53,7 @@
     <!-- App Styles -->
     <link rel="stylesheet" href="css/base.css?v=20260520" />
     <link rel="stylesheet" href="css/layout.css?v=20261102-icons" />
-    <link rel="stylesheet" href="css/components.css?v=20261102-timer" />
+    <link rel="stylesheet" href="css/components.css?v=20261103-fontcard" />
     <link rel="stylesheet" href="css/properties.css?v=20260614-properties-panel-stable" />
     <link rel="stylesheet" href="css/start-screen.css?v=20260929" />
     <link rel="stylesheet" href="css/dark-mode.css?v=20261001-dark" />
@@ -1169,11 +1171,11 @@
     <!-- ══════════════════════════════════════════ APP SCRIPTS -->
     <script src="js/ui/prompt-dialog.js?v=20261102-focus"></script>
     <script src="js/ui/updates.js?v=20261102"></script>
-    <script src="js/ui/fonts.js?v=20261102b"></script>
+    <script src="js/ui/fonts.js?v=20261103-fontcard"></script>
     <script src="js/ui/busy-overlay.js"></script>
     <script src="js/ui/select-menu.js"></script>
     <script src="js/core/pageSetup.js"></script>
-    <script src="js/core/state.js?v=20261102-timer"></script>
+    <script src="js/core/state.js?v=20261103-slidelinks"></script>
     <script src="js/plugins/plugins.js?v=20261014"></script>
     <script src="js/animations/animation-utils.js"></script>
     <script src="js/animations/animation-state.js?v=20260519-advanced-add-fix"></script>
@@ -1201,7 +1203,7 @@
     <script src="js/editor/render/connectors.js?v=20260929-split"></script>
     <script src="js/editor/render/shapes.js?v=20260929-split"></script>
     <script src="js/editor/render/shape-catalog.js"></script>
-    <script src="js/editor/render/chart-config.js"></script>
+    <script src="js/editor/render/chart-config.js?v=20261103-scatter"></script>
     <script src="js/editor/render/whiteboard-layer.js?v=20260929-split"></script>
     <script src="js/editor/render/slides.js?v=20261102-caret"></script>
     <script src="js/editor/render/tables.js?v=20260929-split"></script>
@@ -1234,16 +1236,18 @@
     <script src="js/properties/panels/molecule.js?v=20260929-split"></script>
     <script src="js/properties/panels/equation.js?v=20260929-split"></script>
     <script src="js/properties/panels/plugin.js?v=20261014"></script>
-    <script src="js/properties/panels/chart.js?v=20261001"></script>
+    <script src="js/properties/panels/chart.js?v=20261103-scatter"></script>
     <script src="js/properties/panels/sketch.js?v=20260929-split"></script>
     <script src="js/properties/style.js?v=20260929-split"></script>
     <script src="js/properties/layers.js?v=20261102-audio"></script>
     <script src="js/properties/init.js?v=20260929-split"></script>
-    <script src="js/editor/interact.js?v=20260531-selection-paint"></script>
+    <script src="js/editor/interact.js?v=20261103-slidelinks"></script>
     <script src="js/export/equation-image.js?v=20261001"></script>
-    <script src="js/export/export.js?v=20261102-audio"></script>
+    <script src="js/export/export.js?v=20261103-standins"></script>
     <script type="module" src="js/rendering/export/ExportController.js"></script>
-    <script src="js/export/importPptx.js?v=20261102-gfonts"></script>
+    <script src="js/export/importPictures.js?v=20261103-wmf"></script>
+    <script src="js/export/pptxPresetShapes.js?v=20261103-presets"></script>
+    <script src="js/export/importPptx.js?v=20261103-grpfill"></script>
     <script src="js/export/importKeynote.js?v=20261102-gfonts"></script>
     <script src="js/editor/components.js"></script>
     <!-- Commands (classic scripts; order matters, init.js last) -->
@@ -1267,8 +1271,9 @@
     <script src="js/core/commands/presenter-view.js?v=20261102-timer"></script>
     <script src="js/core/commands/show-recorder.js?v=20261102"></script>
     <script src="js/core/commands/play-mode.js?v=20261102-timer"></script>
-    <script src="js/core/commands/export-import.js?v=20261102-audio"></script>
-    <script src="js/core/commands/command-palette.js?v=20261102-timer"></script>
+    <script src="js/core/commands/export-import.js?v=20261103-open"></script>
+    <script src="js/core/commands/open-requests.js?v=20261103-open"></script>
+    <script src="js/core/commands/command-palette.js?v=20261103-fonts"></script>
     <script src="js/core/commands/init.js?v=20260929-split"></script>
     <script src="js/core/workspace.js?v=20260524-ai-native-layout"></script>
     <script src="js/core/keyboard.js?v=20260531-selection-paint"></script>
@@ -1279,7 +1284,7 @@
     <script src="js/ui/share.js?v=20261001"></script>
     <script src="js/ui/plugin-manager.js?v=20261014"></script>
     <script src="js/ui/app-theme.js?v=20261001"></script>
-    <script src="js/core/main.js?v=20261102-timer"></script>
+    <script src="js/core/main.js?v=20261103-open"></script>
     <script type="module" src="js/mermaid/mermaid-dialog.js"></script>
     <script type="module" src="js/drawing/loader.js"></script>
     <script src="js/sketch/sketchRenderer.js"></script>

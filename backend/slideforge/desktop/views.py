@@ -92,3 +92,29 @@ def _close_window() -> None:
         import logging
 
         logging.getLogger(__name__).exception("Could not close the window to restart")
+
+
+@require_http_methods(["GET"])
+def open_requests(request):
+    """Files given on the command line (`slideforge talk.pptx`) waiting for the editor to open them (open_files.py):
+    {"files": [{"id", "name", "kind"}]}."""
+    from . import open_files, paths
+
+    return JsonResponse({"files": open_files.pending(paths.data_dir())})
+
+
+@require_http_methods(["GET"])
+def open_request_file(request, request_id):
+    """One queued file's contents, once: fetching it takes it out of the queue."""
+    from django.http import FileResponse
+
+    from . import open_files, paths
+
+    found = open_files.take(paths.data_dir(), request_id)
+    if not found:
+        return JsonResponse({"error": "Not found"}, status=404)
+    path, _name = found
+    response = FileResponse(path.open("rb"), content_type="application/octet-stream")
+    response["Cache-Control"] = "no-store"
+    response["X-Content-Type-Options"] = "nosniff"
+    return response

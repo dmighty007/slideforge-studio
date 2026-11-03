@@ -268,3 +268,62 @@ class SaveBeforeCloseTests(SimpleTestCase):
             app._save_before_close(window)
             self.assertIs(window.events.closing.handlers[0](), False)
             self.assertTrue(window.destroyed.wait(2))
+
+
+class OpenFilesFromTheCommandLineTests(SimpleTestCase):
+    """`slideforge talk.pptx`: the file is queued for the editor (open_files.py), here or in the running instance."""
+
+    def setUp(self):
+        import tempfile
+
+        self.data_dir = Path(tempfile.mkdtemp())
+        self.folder = Path(tempfile.mkdtemp())
+        self.deck = self.folder / "Talk.pptx"
+        self.deck.write_bytes(b"PK\x03\x04 a deck")
+
+    def test_files_given_while_slideforge_runs_open_in_its_window_not_in_a_browser(self):
+        from slideforge.desktop import open_files
+
+        (self.data_dir / "instance.json").write_text(json.dumps({"url": "http://127.0.0.1:1234/?token=abc"}))
+        running = FileLock(str(self.data_dir / "instance.lock"))
+        running.acquire()
+        self.addCleanup(running.release)
+        keynote = self.folder / "Other.key"
+        keynote.write_bytes(b"PK\x03\x04")
+        with (
+            mock.patch.dict(os.environ),
+            mock.patch.object(app, "_prepare_django") as prepare,
+            mock.patch.object(app.webbrowser, "open") as browser,
+        ):
+            code = app.main(["--data-dir", str(self.data_dir), str(self.deck), str(keynote)])
+        self.assertEqual(code, 0)
+        prepare.assert_not_called()
+        browser.assert_not_called()
+        queued = open_files.pending(self.data_dir)
+        self.assertEqual([(item["name"], item["kind"]) for item in queued], [("Talk.pptx", "pptx"), ("Other.key", "keynote")])
+
+    def test_a_new_instance_queues_the_files_before_the_page_loads(self):
+        from slideforge.desktop import open_files
+
+        with (
+            mock.patch.dict(os.environ),
+            mock.patch.object(app, "_prepare_django", side_effect=app.StartupError("stop here")),
+            mock.patch.object(app, "_notify"),
+        ):
+            app.main(["--data-dir", str(self.data_dir), str(self.deck)])
+        self.assertEqual([item["name"] for item in open_files.pending(self.data_dir)], ["Talk.pptx"])
+
+    def test_missing_and_unsupported_files_are_refused_before_anything_starts(self):
+        notes = self.folder / "notes.txt"
+        notes.write_text("not a deck")
+        for argument, words in ((str(self.folder / "Missing.pptx"), "No such file"), (str(notes), "Cannot open notes.txt")):
+            with (
+                mock.patch.dict(os.environ),
+                mock.patch.object(app, "_prepare_django") as prepare,
+                mock.patch.object(app, "_notify") as notify,
+            ):
+                code = app.main(["--data-dir", str(self.data_dir), argument])
+            self.assertEqual(code, 2, argument)
+            prepare.assert_not_called()
+            self.assertIn(words, notify.call_args.args[0])
+        self.assertFalse((self.data_dir / "open-requests").exists())

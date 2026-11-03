@@ -53,6 +53,7 @@ const COMMANDS = [
     { id: "add-audio", title: "Add Audio", icon: "fa-music", action: () => document.getElementById("audio-file-upload")?.click() },
     { id: "check-updates", title: "Check for Updates…", icon: "fa-circle-arrow-up", action: () => window.checkForUpdates?.() },
     { id: "download-fonts", title: "Download Fonts for This Presentation…", icon: "fa-font", action: () => window.downloadPresentationFonts?.() },
+    { id: "add-font-files", title: "Add Font Files…", icon: "fa-file-arrow-up", keywords: "font ttf otf install cambria", action: () => window.sfAddFontFiles?.() },
     { id: "ai-cleanup", title: "Tidy Slide Layout", icon: "fa-wand-magic-sparkles", keywords: "ai clean up polish align grid", action: aiCleanUpSlide },
     { id: "present", title: "Toggle Presentation Mode", icon: "fa-play", action: togglePlayMode },
     { id: "record-show", title: "Record Slide Show…", icon: "fa-circle-dot", keywords: "video screen recording narration rehearse", action: () => openShowRecorder() },

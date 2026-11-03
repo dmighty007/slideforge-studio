@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
-from pptx.chart.data import CategoryChartData
+from pptx.chart.data import CategoryChartData, XyChartData
 from pptx.enum.chart import XL_CHART_TYPE, XL_LABEL_POSITION, XL_LEGEND_POSITION
 from pptx.enum.shapes import MSO_CONNECTOR, MSO_SHAPE
 from pptx.enum.text import MSO_ANCHOR, MSO_AUTO_SIZE, PP_ALIGN
@@ -1173,6 +1173,7 @@ class PPTXExporter:
         "pie": XL_CHART_TYPE.PIE,
         "doughnut": XL_CHART_TYPE.DOUGHNUT,
         "radar": XL_CHART_TYPE.RADAR_MARKERS,
+        "scatter": XL_CHART_TYPE.XY_SCATTER,
         "polararea": XL_CHART_TYPE.PIE,
     }
     LEGEND_POSITIONS = {
@@ -1203,18 +1204,37 @@ class PPTXExporter:
         options = el.get("chartOptions") if isinstance(el.get("chartOptions"), dict) else {}
         kind = str(el.get("chartType") or "bar").lower()
         chart_type = self.CHART_TYPES.get(kind, XL_CHART_TYPE.COLUMN_CLUSTERED)
-        if kind == "bar" and options.get("indexAxis") == "y":
-            chart_type = XL_CHART_TYPE.BAR_CLUSTERED
+        scales = options.get("scales") if isinstance(options.get("scales"), dict) else {}
+        horizontal = kind == "bar" and options.get("indexAxis") == "y"
+        stacked = any(isinstance(scales.get(key), dict) and scales[key].get("stacked") for key in ("x", "y"))
+        if kind == "bar":
+            if stacked:
+                chart_type = XL_CHART_TYPE.BAR_STACKED if horizontal else XL_CHART_TYPE.COLUMN_STACKED
+            elif horizontal:
+                chart_type = XL_CHART_TYPE.BAR_CLUSTERED
+        scatter = chart_type == XL_CHART_TYPE.XY_SCATTER
         single_series = chart_type in {XL_CHART_TYPE.PIE, XL_CHART_TYPE.DOUGHNUT}
         if single_series:
             datasets = datasets[:1]
 
-        chart_data = CategoryChartData()
-        chart_data.categories = labels
-        for index, dataset in enumerate(datasets):
-            values = list(dataset.get("data") or [])[: len(labels)]
-            values += [None] * (len(labels) - len(values))
-            chart_data.add_series(str(dataset.get("label") or f"Series {index + 1}"), [self._chart_number(v) for v in values])
+        if scatter:
+            # The table's label column is x (labels that are not numbers count 1, 2, 3…); each series is y.
+            xs = [self._chart_number(label) for label in labels]
+            xs = [x if x is not None and str(label).strip() else float(i + 1) for i, (x, label) in enumerate(zip(xs, labels))]
+            chart_data = XyChartData()
+            for index, dataset in enumerate(datasets):
+                series_data = chart_data.add_series(str(dataset.get("label") or f"Series {index + 1}"))
+                for x, value in zip(xs, list(dataset.get("data") or [])):
+                    y = self._chart_number(value)
+                    if y is not None:
+                        series_data.add_data_point(x, y)
+        else:
+            chart_data = CategoryChartData()
+            chart_data.categories = labels
+            for index, dataset in enumerate(datasets):
+                values = list(dataset.get("data") or [])[: len(labels)]
+                values += [None] * (len(labels) - len(values))
+                chart_data.add_series(str(dataset.get("label") or f"Series {index + 1}"), [self._chart_number(v) for v in values])
 
         # The editor draws the chart on its own card (background, padding); keep that look.
         styles = el.get("styles", {}) or {}
@@ -1269,7 +1289,9 @@ class PPTXExporter:
             chart.legend.include_in_layout = False
 
         if not single_series:
-            for axis, axis_title in ((chart.category_axis, style.get("xTitle")), (chart.value_axis, style.get("yTitle"))):
+            # A horizontal bar chart's categories run down the side (the editor's y), its values across (x).
+            titles = (style.get("yTitle"), style.get("xTitle")) if horizontal else (style.get("xTitle"), style.get("yTitle"))
+            for axis, axis_title in ((chart.category_axis, titles[0]), (chart.value_axis, titles[1])):
                 text = str(axis_title or "").strip()
                 if text:
                     axis.has_title = True
@@ -1286,6 +1308,23 @@ class PPTXExporter:
                 chart.value_axis.maximum_scale = high
                 if step and step > 0 and (high - low) / step <= 50:
                     chart.value_axis.major_unit = step
+            if scatter:
+                x_scale = scales.get("x") if isinstance(scales.get("x"), dict) else {}
+                x_low, x_high = self._chart_number(x_scale.get("min")), self._chart_number(x_scale.get("max"))
+                if x_low is not None:
+                    chart.category_axis.minimum_scale = x_low
+                if x_high is not None:
+                    chart.category_axis.maximum_scale = x_high
+            # Logarithmic axes (base 10), as the editor draws them.
+            for key, axis in (("x", chart.category_axis if scatter else None), ("y", chart.value_axis)):
+                scale = scales.get("y" if key == "y" and not horizontal else "x") if axis is not None else None
+                if isinstance(scale, dict) and scale.get("type") == "logarithmic":
+                    scaling = axis._element.find(qn("c:scaling"))
+                    if scaling is not None and scaling.find(qn("c:logBase")) is None:
+                        log_base = OxmlElement("c:logBase")
+                        log_base.set("val", "10")
+                        scaling.insert(0, log_base)
+                    axis.major_unit = None
             chart.value_axis.has_major_gridlines = style.get("grid") is not False
             if style.get("grid") is not False:
                 chart.value_axis.major_gridlines.format.line.color.rgb = RGBColor(0x94, 0xA3, 0xB8) if card_luminance > 0.5 else RGBColor(0x47, 0x55, 0x69)
@@ -1302,6 +1341,15 @@ class PPTXExporter:
                     point = series.points[point_index]
                     point.format.fill.solid()
                     point.format.fill.fore_color.rgb = self._parse_color(fills[point_index % len(fills)], self.theme["accent"])
+            elif scatter:
+                colour = self._parse_color((colours(dataset.get("borderColor")) or fills)[0], self.theme["accent"])
+                series.marker.format.fill.solid()
+                series.marker.format.fill.fore_color.rgb = colour
+                series.marker.format.line.color.rgb = colour
+                if dataset.get("showLine"):
+                    series.format.line.color.rgb = colour
+                else:
+                    series.format.line.fill.background()
             elif chart_type == XL_CHART_TYPE.LINE_MARKERS:
                 line_colour = self._parse_color((colours(dataset.get("borderColor")) or fills)[0], self.theme["accent"])
                 series.format.line.color.rgb = line_colour
@@ -1357,7 +1405,7 @@ class PPTXExporter:
                     data_labels.font.color.rgb = ink
 
         # Error bars (the editor's ± column): custom plus and minus values on each series, as PowerPoint writes them.
-        if style.get("errorBars") and not single_series:
+        if style.get("errorBars") and not single_series and not scatter:
             for series, dataset in zip(chart.plots[0].series, datasets, strict=False):
                 errors = [abs(self._chart_number(v) or 0.0) for v in list(dataset.get("errors") or [])[: len(labels)]]
                 if any(errors):

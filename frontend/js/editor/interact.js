@@ -932,6 +932,25 @@ function _drawGuide(x, y, isVertical) {
 
 // ─── Links in text ───────────────────────────────────────────────────────────
 
+// A link to a slide (#slide:<id>, or next / previous / first / last: from PowerPoint's links to slides) moves the
+// show there. Next and previous step over hidden slides; a slide named by its id is shown even when hidden, as
+// PowerPoint does.
+function goToLinkedSlide(target) {
+  const slides = state.slides || [];
+  const current = typeof currentSlideIndex === "number" ? currentSlideIndex : 0;
+  const shown = (from, step) => (typeof presentationShownSlideFrom === "function" ? presentationShownSlideFrom(from, step) : from + step);
+  let index = -1;
+  if (target === "next") index = shown(current, 1);
+  else if (target === "previous") index = shown(current, -1);
+  else if (target === "first") index = shown(-1, 1);
+  else if (target === "last") index = shown(slides.length, -1);
+  else index = slides.findIndex((slide) => slide?.id === target);
+  if (index < 0 || index >= slides.length) return;
+  if (typeof presentationGoToSlide === "function") presentationGoToSlide(index);
+  else if (typeof window.switchSlide === "function") window.switchSlide(index);
+  if (typeof _syncPresenterPayload === "function") _syncPresenterPayload();
+}
+
 // A link in a text box opens (in a new tab) only while presenting; in the editor a click on it is a click on the box.
 document.addEventListener(
   "click",
@@ -940,8 +959,9 @@ document.addEventListener(
     if (!link) return;
     event.preventDefault();
     if (!document.body.classList.contains("play-mode-active")) return;
-    const href = link.getAttribute("href") || "";
-    if (/^(https?:|mailto:)/i.test(href.trim())) window.open(href, "_blank", "noopener");
+    const href = (link.getAttribute("href") || "").trim();
+    if (/^(https?:|mailto:)/i.test(href)) window.open(href, "_blank", "noopener");
+    else if (href.startsWith("#slide:")) goToLinkedSlide(href.slice(7));
   },
   true,
 );

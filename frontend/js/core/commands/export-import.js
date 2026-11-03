@@ -85,58 +85,59 @@ async function uniqueImportTitle(title) {
     return base;
 }
 
+// A SlideForge .json export (or a deck from the PDF bridge), imported into a project of its own: from the file
+// picker, or a file given on the command line (open-requests.js).
+async function importPresentationJsonFile(file) {
+    try {
+        const imported = JSON.parse(await file.text());
+        let importedState = null;
+        if (_looksLikeBridgeExport(imported)) {
+            importedState = _convertBridgeExportToEditorState(imported);
+        } else if (imported.slides) {
+            const { title: _exportedTitle, ...deck } = imported; // the name is the project's, not part of the deck
+            importedState = {
+                ...deck,
+                presentationTheme: imported.presentationTheme || state.presentationTheme || "blank",
+            };
+        }
+        if (!importedState) {
+            throw new Error("Unsupported presentation JSON format.");
+        }
+        const title = await uniqueImportTitle(imported.title || file.name.replace(/\.json$/i, ""));
+        await startNewProjectForImport();
+        state = importedState;
+        normalizeStateIds();
+        currentSlideIndex = 0;
+        if (typeof setCurrentPresentationTitle === "function") setCurrentPresentationTitle(title);
+        if (typeof syncPresentationPageSetup === "function") syncPresentationPageSetup();
+        applyPresentationTheme(state.presentationTheme, { persist: false });
+        resetUndoHistory?.();
+        // Videos carried in the file are uploaded into this install (the last opened deck's run is done).
+        if (typeof migrateInlineVideoAssets === "function") {
+            window.__inlineVideoMigrationPromise = null;
+            await migrateInlineVideoAssets().catch(err => console.warn("Imported videos stay inline:", err));
+        }
+        renderSlidesFromState();
+        updateSlideCounter();
+        // Saved into the project just made for it. It used to be copied into a second new project, which
+        // left the first behind as an empty "Untitled Presentation".
+        if (typeof autosavePresentationNow === "function" && typeof currentPresentationId !== "undefined" && currentPresentationId) {
+            await autosavePresentationNow();
+        } else {
+            schedulePresentationAutosave?.(0);
+        }
+    } catch (err) {
+        setProjectSaveHint?.(`Invalid JSON file: ${err.message}`, "danger");
+    }
+}
+
 function importPresentationJson() {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = ".json";
-    input.onchange = async e => {
+    input.onchange = e => {
         const file = e.target.files?.[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = async event => {
-            try {
-                const imported = JSON.parse(event.target.result);
-                let importedState = null;
-                if (_looksLikeBridgeExport(imported)) {
-                    importedState = _convertBridgeExportToEditorState(imported);
-                } else if (imported.slides) {
-                    const { title: _exportedTitle, ...deck } = imported; // the name is the project's, not part of the deck
-                    importedState = {
-                        ...deck,
-                        presentationTheme: imported.presentationTheme || state.presentationTheme || "blank",
-                    };
-                }
-                if (!importedState) {
-                    throw new Error("Unsupported presentation JSON format.");
-                }
-                const title = await uniqueImportTitle(imported.title || file.name.replace(/\.json$/i, ""));
-                await startNewProjectForImport();
-                state = importedState;
-                normalizeStateIds();
-                currentSlideIndex = 0;
-                if (typeof setCurrentPresentationTitle === "function") setCurrentPresentationTitle(title);
-                if (typeof syncPresentationPageSetup === "function") syncPresentationPageSetup();
-                applyPresentationTheme(state.presentationTheme, { persist: false });
-                resetUndoHistory?.();
-                // Videos carried in the file are uploaded into this install (the last opened deck's run is done).
-                if (typeof migrateInlineVideoAssets === "function") {
-                    window.__inlineVideoMigrationPromise = null;
-                    await migrateInlineVideoAssets().catch(err => console.warn("Imported videos stay inline:", err));
-                }
-                renderSlidesFromState();
-                updateSlideCounter();
-                // Saved into the project just made for it. It used to be copied into a second new project, which
-                // left the first behind as an empty "Untitled Presentation".
-                if (typeof autosavePresentationNow === "function" && typeof currentPresentationId !== "undefined" && currentPresentationId) {
-                    await autosavePresentationNow();
-                } else {
-                    schedulePresentationAutosave?.(0);
-                }
-            } catch (err) {
-                setProjectSaveHint?.(`Invalid JSON file: ${err.message}`, "danger");
-            }
-        };
-        reader.readAsText(file);
+        if (file) importPresentationJsonFile(file);
     };
     input.click();
 }

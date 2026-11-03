@@ -18,7 +18,9 @@ function parseSlideforgeDimension(value) {
 
 function isPresetBackgroundElement(el) {
     if (!el || el.type !== "shape") return false;
-    if (el.presetBackground === true || el.backgroundRole === "preset") return true;
+    // A PowerPoint slide's colour or gradient background comes in as a slide-sized rectangle (slide backgrounds here
+    // are pictures, videos or 3D); it was selectable, so a click on an empty part of the slide picked it up and moved it.
+    if (el.presetBackground === true || el.backgroundRole === "preset" || el.importedBackground === true) return true;
 
     const styles = el.styles || {};
     if (styles.pointerEvents !== "none") return false;
@@ -995,6 +997,12 @@ const SAFE_TEXT_STYLE_PROPS = new Set([
     "padding-left",
     "line-height",
     "width",
+    // Letters filled with a gradient (PowerPoint WordArt): a gradient clipped to the text. Only gradients pass
+    // (url() is refused below), so text cannot load a picture.
+    "background-image",
+    "background-clip",
+    "-webkit-background-clip",
+    "-webkit-text-fill-color",
 ]);
 const SAFE_ELEMENT_STYLE_PROPS = new Set([
     // A gradient fill (imported PowerPoint shapes and backgrounds): it was dropped when the deck was saved and opened.
@@ -1082,6 +1090,9 @@ function _isSafeCssValue(value) {
     return !/(?:expression\s*\(|javascript:|data:text\/html|url\s*\()/i.test(str);
 }
 
+// A link to a slide of the deck: by its id, or the next, previous, first or last slide shown.
+const SLIDE_LINK_RE = /^#slide:(next|previous|first|last|[A-Za-z0-9_-]{1,80})$/;
+
 function sanitizeTextHtml(html) {
     const template = document.createElement("template");
     template.innerHTML = _truncateStateString(html, MAX_TEXT_HTML_LENGTH);
@@ -1106,12 +1117,15 @@ function sanitizeTextHtml(html) {
                 }
             }
             if (name.startsWith("data-bullet") || name.startsWith("data-level")) return;
-            // A link keeps a web or mail address only, and opens in a new tab.
-            if (node.tagName === "A" && name === "href" && /^(https?:|mailto:)/i.test(attr.value.trim())) return;
+            // A link keeps a web or mail address only, and opens in a new tab; or it goes to a slide of the deck
+            // (#slide:<id>, #slide:next / previous / first / last), as PowerPoint's links to slides do.
+            if (node.tagName === "A" && name === "href" && (/^(https?:|mailto:)/i.test(attr.value.trim()) || SLIDE_LINK_RE.test(attr.value.trim()))) return;
             node.removeAttribute(attr.name);
         });
         if (node.tagName === "A") {
-            if (node.hasAttribute("href")) {
+            if (node.hasAttribute("href") && SLIDE_LINK_RE.test(node.getAttribute("href").trim())) {
+                // stays in the presentation: no new tab
+            } else if (node.hasAttribute("href")) {
                 node.setAttribute("target", "_blank");
                 node.setAttribute("rel", "noopener noreferrer");
             } else {
@@ -1123,6 +1137,7 @@ function sanitizeTextHtml(html) {
             const kept = {};
             Array.from(node.style).forEach(prop => {
                 const value = node.style.getPropertyValue(prop);
+                if (prop === "background-image" && !/^\s*(?:repeating-)?(?:linear|radial|conic)-gradient\(/i.test(value)) return;
                 if (SAFE_TEXT_STYLE_PROPS.has(prop) && _isSafeCssValue(value)) {
                     kept[prop] = value;
                 }

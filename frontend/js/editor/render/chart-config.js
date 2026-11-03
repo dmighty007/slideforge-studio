@@ -106,6 +106,12 @@ function chartHasErrorBars(elData) {
     return (elData.chartData?.datasets || []).some(dataset => (dataset.errors || []).some(value => Number(value) > 0));
 }
 
+// A drawn point's value: a number, or a scatter point's y.
+function _chartPointValue(raw) {
+    const value = raw && typeof raw === "object" ? raw.y : raw;
+    return value === null || value === undefined || value === "" ? NaN : Number(value); // an empty cell is a gap
+}
+
 function _chartErrorBarsPlugin(ink) {
     return {
         id: "sfErrorBars",
@@ -118,7 +124,7 @@ function _chartErrorBarsPlugin(ink) {
                 const scale = chart.scales[horizontal ? meta.xAxisID : meta.yAxisID];
                 if (!scale) return;
                 meta.data.forEach((element, index) => {
-                    const value = Number(dataset.data?.[index]);
+                    const value = _chartPointValue(dataset.data?.[index]);
                     const error = Math.abs(Number(dataset.errors[index]));
                     if (!Number.isFinite(value) || !(error > 0)) return;
                     const from = scale.getPixelForValue(value - error);
@@ -189,7 +195,7 @@ function _chartValueLabelsPlugin(ink, font) {
                     const scale = valueScale(meta);
                     if (meta.hidden || !scale) return;
                     meta.data.forEach((element, index) => {
-                        const value = Number(dataset.data?.[index]);
+                        const value = _chartPointValue(dataset.data?.[index]);
                         const error = errorOf(dataset, index);
                         if (!Number.isFinite(value) || !(error > 0)) return;
                         const a = scale.getPixelForValue(value - error);
@@ -206,7 +212,7 @@ function _chartValueLabelsPlugin(ink, font) {
             chart.data.datasets.forEach((dataset, datasetIndex) => {
                 const meta = chart.getDatasetMeta(datasetIndex);
                 if (meta.hidden) return;
-                const values = (dataset.data || []).map(Number);
+                const values = (dataset.data || []).map(_chartPointValue);
                 const total = values.reduce((sum, value) => sum + (Number.isFinite(value) && value > 0 ? value : 0), 0);
                 meta.data.forEach((element, index) => {
                     const value = values[index];
@@ -318,7 +324,7 @@ function buildChartJsConfig(elData, { forExport = false, theme = getPresentation
                 grid: { ...(current.grid || {}), color: grid, display: style.grid === false ? false : current.grid?.display !== false },
                 title: title ? { display: true, text: title, color: ink, font: { ...font, weight: "600" } } : { ...(current.title || {}), display: false },
             };
-            if (key === "y" && current.beginAtZero === undefined) options.scales[key].beginAtZero = true;
+            if (key === "y" && current.beginAtZero === undefined && current.type !== "logarithmic") options.scales[key].beginAtZero = true;
         };
         axis("x", style.xTitle);
         axis("y", style.yTitle);
@@ -346,6 +352,22 @@ function buildChartJsConfig(elData, { forExport = false, theme = getPresentation
     // A series without colours (an imported or older deck, data set by hand) takes the theme palette rather than
     // Chart.js's grey-blue default, so it looks as it will after any edit or theme change.
     const data = JSON.parse(JSON.stringify(elData?.chartData || { labels: [], datasets: [] }));
+    // A scatter chart's table holds x in the label column and one y per series: Chart.js takes (x, y) points. Labels
+    // that are not numbers count 1, 2, 3… (as PowerPoint does), and an empty cell leaves a gap.
+    if (type === "scatter") {
+        const xs = (data.labels || []).map((label, index) => {
+            const value = Number(label);
+            return String(label ?? "").trim() !== "" && Number.isFinite(value) ? value : index + 1;
+        });
+        (data.datasets || []).forEach(dataset => {
+            dataset.data = xs.map((x, index) => {
+                const raw = dataset.data?.[index];
+                const y = raw === null || raw === undefined || raw === "" ? NaN : Number(raw);
+                return { x, y: Number.isFinite(y) ? y : null };
+            });
+        });
+        data.labels = [];
+    }
     // Long category names wrap onto lines that fit their share of the axis (Chart.js takes a label as a list of
     // lines). Left on one line, they were slanted or squeezed and took the plot's room. Only the drawing: the data
     // keeps its labels.

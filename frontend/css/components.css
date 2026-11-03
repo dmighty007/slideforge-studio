@@ -5251,3 +5251,8 @@ body.presentation-pointer-active .sf-show-hud button,
 audio.sf-rec-preview {
     background: transparent;
 }
+
+/* The fonts card (js/ui/fonts.js) is the editor's: not over a slide show. */
+.play-mode-active #sf-fonts-card {
+    display: none;
+}

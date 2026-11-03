@@ -21,14 +21,20 @@ from pathlib import Path
 from filelock import FileLock, Timeout
 
 from slideforge import __version__
-from slideforge.desktop import paths, qt_support, share_tunnel
+from slideforge.desktop import open_files, paths, qt_support, share_tunnel
 from slideforge.desktop.logformat import UTCFormatter
 
 log = logging.getLogger("slideforge")
 
 
 def _parse_args(argv):
-    parser = argparse.ArgumentParser(prog="slideforge", description="SlideForge presentation editor.")
+    parser = argparse.ArgumentParser(
+        prog="slideforge",
+        description="SlideForge presentation editor.",
+        epilog="Files given are opened in the editor, each as a new project (PowerPoint .pptx, Keynote .key or a "
+        "SlideForge .json export). If SlideForge is already running, they open in its window.",
+    )
+    parser.add_argument("files", nargs="*", metavar="FILE", help="a presentation to open (.pptx, .key or .json)")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--browser", action="store_true", help="open in the default web browser instead of a window")
     mode.add_argument("--no-open", action="store_true", help="only start the server and print its URL")
@@ -276,13 +282,22 @@ def _wait_forever(server):
         server.close()
 
 
-def _show_running_instance(data_dir, no_open, *, gui: bool) -> int:
-    """Another SlideForge already owns this data directory: point the user at it instead of starting a second one."""
+def _show_running_instance(data_dir, no_open, *, gui: bool, files=()) -> int:
+    """Another SlideForge already owns this data directory: point the user at it instead of starting a second one.
+    Files to open go to its queue; its window picks them up (open_files.py), so no browser tab is opened for them."""
+    for path in files:
+        open_files.add(data_dir, path)
     try:
         url = json.loads((data_dir / "instance.json").read_text(encoding="utf-8"))["url"]
     except (OSError, ValueError, KeyError):
+        if files:
+            print("SlideForge is starting; the files will open once it has.", flush=True)
+            return 0
         _notify("SlideForge is already running (it may still be starting up).", gui=gui)
         return 1
+    if files:
+        print("Opening " + ", ".join(path.name for path in files) + f" in the running SlideForge ({url})", flush=True)
+        return 0
     print(f"SlideForge is already running at {url}", flush=True)
     if not no_open:
         webbrowser.open(url)
@@ -325,7 +340,11 @@ def _run(args, *, gui: bool) -> int:
     try:
         lock.acquire(timeout=0)
     except Timeout:
-        return _show_running_instance(data_dir, args.no_open, gui=gui)
+        return _show_running_instance(data_dir, args.no_open, gui=gui, files=getattr(args, "open_paths", ()))
+
+    # Files given on the command line: queued before the page loads, which opens them (open_files.py).
+    for path in getattr(args, "open_paths", ()):
+        open_files.add(data_dir, path)
 
     instance_file = data_dir / "instance.json"
     # A plain "kill" (or logging out) should still clean up below, including a running share tunnel.
@@ -402,6 +421,12 @@ def main(argv=None, *, gui: bool = False) -> int:
         return 0
     if args.data_dir:
         os.environ["SLIDEFORGE_DATA_DIR"] = args.data_dir
+    # Files to open are checked before anything starts: a typo is reported, not a window without the deck.
+    try:
+        args.open_paths = [open_files.check(path) for path in args.files]
+    except (open_files.OpenFileError, OSError) as exc:
+        _notify(str(exc), gui=gui)
+        return 2
     try:
         return _run(args, gui=gui)
     except StartupError as exc:

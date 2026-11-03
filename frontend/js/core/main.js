@@ -209,6 +209,8 @@ window.onload = async () => {
     // Back where the user left off: their deck, or the start screen (start-screen.js).
     if (typeof openStartScreenOnLaunch === "function") openStartScreenOnLaunch();
     else openStartScreen?.();
+    // Presentations given on the command line (`slideforge talk.pptx`, desktop app): open-requests.js.
+    window.sfStartOpenRequests?.();
 };
 
 // Below 1180px the panel lies over the canvas, as a drawer, instead of taking its 320px from the slide (at 700px the

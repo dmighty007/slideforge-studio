@@ -463,8 +463,33 @@ async function addCssWithLocalDependenciesToZip(zip, path, seen = new Set()) {
   }
 }
 
+// The bundled open fonts (vendor/fonts/science-fonts.css: CMU, STIX Two Math; stand-in-fonts.css: free fonts in place
+// of Arial, Calibri, Garamond...), several MB together: an export carries only the rules and files of the families
+// its slides use. The stylesheets are always written (empty when nothing is used), so the viewer's links resolve.
+const EXPORT_FONT_STYLESHEETS = ["vendor/fonts/science-fonts.css", "vendor/fonts/stand-in-fonts.css"];
+
+async function addDeckFontStylesheetsToZip(zip) {
+  const used = typeof sfDeckFontFamilies === "function" ? new Set(sfDeckFontFamilies().map(family => family.toLowerCase())) : null;
+  for (const path of EXPORT_FONT_STYLESHEETS) {
+    const css = await fetchLocalAsset(path, true);
+    if (!css) continue;
+    const rules = (css.match(/@font-face\s*{[^}]*}/g) || []).filter(rule => {
+      const family = /font-family:\s*["']?([^"';]+)["']?/.exec(rule)?.[1]?.trim().toLowerCase();
+      return family && (!used || used.has(family));
+    });
+    zip.file(path, rules.join("\n") + "\n");
+    const base = new URL(path, window.location.href);
+    for (const url of new Set(rules.flatMap(rule => [...rule.matchAll(/url\("([^"]+)"\)/g)].map(match => match[1])))) {
+      const dependencyPath = zipPathFromUrl(new URL(url, base).toString());
+      const asset = await fetchLocalAsset(dependencyPath);
+      if (asset) zip.file(dependencyPath, asset);
+    }
+  }
+}
+
 async function addOfflineViewerVendorAssetsToZip(zip) {
   await addCssWithLocalDependenciesToZip(zip, "vendor/fonts/fonts.css");
+  await addDeckFontStylesheetsToZip(zip);
   await addCssWithLocalDependenciesToZip(zip, "vendor/fontawesome/css/all.min.css");
   const ngl = await fetchLocalAsset("vendor/ngl/ngl.js", true);
   if (ngl) zip.file("vendor/ngl/ngl.js", ngl);
@@ -1441,6 +1466,8 @@ function generateViewerHtml(stateJson, theme) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${viewerTitle}</title>
     <link rel="stylesheet" href="vendor/fonts/fonts.css" />
+    <link rel="stylesheet" href="vendor/fonts/science-fonts.css" />
+    <link rel="stylesheet" href="vendor/fonts/stand-in-fonts.css" />
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
     <link rel="stylesheet" href="css/viewer.css" />
     <script id="presentation-data" type="application/json">${safeStateJson}</script>
