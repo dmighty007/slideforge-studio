@@ -5,6 +5,7 @@ build .key files from the same schemas the reader uses: real .iwa framing, Snapp
 """
 
 import io
+import struct
 import json
 import shutil
 import tempfile
@@ -355,6 +356,101 @@ class KeynoteReaderTests(SimpleTestCase):
         deck = read_keynote(d.build([d.node(d.slide([chart_id, missing]))]))
         self.assertEqual(deck.slides[0]["elements"], [])
         self.assertEqual(deck.skipped, {"charts": 1, "pictures that could not be found": 1})
+
+    @staticmethod
+    def _cell(kind, *, string_id=None, decimal=None, cell_style=None, text_style=None) -> bytes:
+        """A version-5 cell record: version, type, six spare bytes, the flags word, then the values it flags."""
+        flags, values = 0, b""
+        if decimal is not None:  # Numbers' decimal128: the integer and its power of ten (exponent biased by 0x1820)
+            mantissa, exponent = decimal
+            flags |= 0x1
+            values += ((((exponent + 0x1820) & 0x3FFF) << 113) | mantissa).to_bytes(16, "little")
+        for flag, value in ((0x8, string_id), (0x20, cell_style), (0x40, text_style)):
+            if value is not None:
+                flags |= flag
+                values += struct.pack("<i", value)
+        return bytes([5, kind, 0, 0, 0, 0, 0, 0]) + struct.pack("<I", flags) + values
+
+    def _table(self, d, x, y, cells, *, widths, heights, rows=None, cols=None, wide_row=None):
+        """A table whose cells are [[record bytes or None]] (row by row), with string and style tables."""
+        model_id, model = d.k.new("TST.TableModelArchive", number_of_rows=rows or len(cells), number_of_columns=cols or len(cells[0]), default_column_width=100.0, default_row_height=20.0)
+        store = model.base_data_store
+        strings_id, strings = d.k.new("TST.TableDataList", listType=1, nextListID=10)
+        strings.entries.add(key=1, refcount=1, string="Year")
+        strings.entries.add(key=2, refcount=1, string="Total")
+        store.stringTable.identifier = strings_id
+        fill_id, fill_style = d.k.new("TST.CellStyleArchive")
+        _color(fill_style.cell_properties.cell_fill.color, "#27c7bd")
+        fill_style.cell_properties.vertical_alignment = 1
+        text_id, text_style = d.k.new("TSWP.ParagraphStyleArchive")
+        text_style.char_properties.font_size = 24.0
+        text_style.char_properties.bold = True
+        _color(text_style.char_properties.font_color, "#ffffff")
+        text_style.para_properties.alignment = 2
+        styles_id, styles = d.k.new("TST.TableDataList", listType=4, nextListID=10)
+        styles.entries.add(key=1, refcount=1).reference.identifier = fill_id
+        styles.entries.add(key=2, refcount=1).reference.identifier = text_id
+        store.styleTable.identifier = styles_id
+        columns_id, columns = d.k.new("TST.HeaderStorageBucket", bucketHashFunction=1)
+        for index, width in enumerate(widths):
+            columns.headers.add(index=index, numberOfCells=0, size=width, hidingState=0)
+        store.columnHeaders.identifier = columns_id
+        rows_id, row_bucket = d.k.new("TST.HeaderStorageBucket", bucketHashFunction=1)
+        for index, height in enumerate(heights):
+            row_bucket.headers.add(index=index, numberOfCells=0, size=height, hidingState=0)
+        store.rowHeaders.bucketHashFunction = 1
+        store.rowHeaders.buckets.add(identifier=rows_id)
+        tile_id, tile = d.k.new("TST.Tile", maxColumn=len(cells[0]), maxRow=len(cells), numCells=0, numrows=len(cells), storage_version=5)
+        for row, records in enumerate(cells):
+            wide = row == wide_row
+            buffer, offsets = b"", []
+            for record in records:
+                if record is None:
+                    offsets.append(-1)
+                    continue
+                offsets.append(len(buffer) // 4 if wide else len(buffer))
+                buffer += record + b"\0" * (-len(record) % 4)
+            offsets += [-1] * (255 - len(offsets))
+            info = tile.rowInfos.add(tile_row_index=row, cell_count=sum(1 for r in records if r is not None), cell_storage_buffer=buffer, cell_offsets=struct.pack(f"<{len(offsets)}h", *offsets), storage_version=5)
+            if wide:
+                info.has_wide_offsets = True
+            info.cell_storage_buffer_pre_bnc = b""
+            info.cell_offsets_pre_bnc = b""
+        store.tiles.tiles.add(tileid=0).tile.identifier = tile_id
+        store.tiles.should_use_wide_rows = False
+        info_id, table_info = d.k.new("TST.TableInfoArchive")
+        _geometry(table_info.super, x, y, sum(widths), sum(heights))
+        table_info.tableModel.identifier = model_id
+        return info_id
+
+    def test_tables_come_in_with_their_cells_sizes_and_styles(self):
+        d = Deck()
+        cell = self._cell
+        table = self._table(
+            d, 60, 500,
+            [
+                [cell(3, string_id=1, cell_style=1, text_style=2), None, cell(3, string_id=2)],
+                [cell(2, decimal=(20145, -1)), cell(0, cell_style=1), None],
+            ],
+            widths=[150, 80, 220], heights=[60, 40], wide_row=1,
+        )
+        deck = read_keynote(d.build([d.node(d.slide([table]))]))
+        [element] = deck.slides[0]["elements"]
+        self.assertEqual(element["kind"], "table")
+        self.assertEqual((element["x"], element["y"], element["columns"], element["rows"]), (60, 500, [150, 80, 220], [60, 40]))
+        cells = element["cells"]
+        self.assertEqual([[c["text"] for c in row] for row in cells], [["Year", "", "Total"], ["2014.5", "", ""]])
+        first = cells[0][0]
+        self.assertEqual((first["fill"], first["valign"], first["color"], first["size"], first.get("bold"), first["align"]), ("#27c7bd", "middle", "#ffffff", 24.0, True, "center"))
+        self.assertEqual(cells[1][1]["fill"], "#27c7bd")  # styled, empty, in a row with 4-byte offsets
+        self.assertNotIn("fill", cells[0][2])
+        self.assertEqual(deck.skipped, {})
+        # A table larger than a slide can show is still left out, and counted.
+        big = Deck()
+        huge = self._table(big, 0, 0, [[None]], widths=[10], heights=[10], rows=5000)
+        huge_deck = read_keynote(big.build([big.node(big.slide([huge]))]))
+        self.assertEqual(huge_deck.slides[0]["elements"], [])
+        self.assertEqual(huge_deck.skipped, {"tables": 1})
 
     def _shape(self, d, x, y, w, h, path, *, fill=None, stroke=None, dashes=None, empty_stroke=False, head=None, text=None):
         """A Keynote shape: a Bezier outline (path: [(type, [(x, y), ...]), ...] in its natural size) and a style."""

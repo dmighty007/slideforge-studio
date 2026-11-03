@@ -12,7 +12,7 @@ It runs for a single local user, so there is no account and no sign-in. Your pre
   - PDF and PNG;
   - a stand-alone HTML viewer;
   - view-only share links.
-- **Importing:** PowerPoint files, Keynote files (text, pictures, movies and notes for now) and SlideForge files. Slides can also be drafted from a PDF paper with a language model (your own API key, or a local Ollama).
+- **Importing:** PowerPoint files, Keynote files (text, pictures, shapes, tables, movies, sounds, transitions, builds and notes; merged table cells come in unmerged) and SlideForge files. Slides can also be drafted from a PDF paper with a language model (your own API key, or a local Ollama).
 
 ## Install
 

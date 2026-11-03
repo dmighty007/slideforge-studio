@@ -10195,6 +10195,31 @@ async function test(name, fn) {
             await page.close();
         });
 
+        await test("Keynote import: a table comes in with its columns, rows, fills, fonts and vertical alignment", async () => {
+            const { page, errors } = await openEditor(context);
+            const out = await page.evaluate(() => {
+                // As the server's Keynote reader returns it (points); scaled by half here.
+                const source = {
+                    kind: "table", x: 68, y: 502, width: 600, height: 150, columns: [150, 80, 370], rows: [100, 50], headerRows: 0,
+                    cells: [
+                        [{ text: "2014", fill: "#27c7bd", valign: "middle", align: "center", font: "Arial", size: 48, color: "#ffffff", padding: 7.2 }, { text: "", fill: "#27c7bd" }, { text: "2015", fill: "#f46524", valign: "middle", size: 48, color: "#ffffff" }],
+                        [{ text: "Note", bold: true, size: 18 }, { text: "" }, { text: "" }],
+                    ],
+                };
+                const element = _keynoteTableElement(source, 0.5, 3);
+                const table = normalizeTableData(element.tableData); // as it is after saving and loading
+                const first = table.cells[0][0].styles;
+                return { x: element.x, y: element.y, widths: table.colWidths, heights: table.rowHeights, texts: table.cells.map(row => row.map(cell => cell.text)), first, note: table.cells[1][0].styles, padding: table.cellPadding, base: element.tableData.fontSize };
+            });
+            assert(out.x === 34 && out.y === 251 && JSON.stringify(out.widths) === "[75,40,185]" && JSON.stringify(out.heights) === "[50,25]", `table box: ${JSON.stringify(out)}`);
+            assert(JSON.stringify(out.texts) === JSON.stringify([["2014", "", "2015"], ["Note", "", ""]]), `cell texts: ${JSON.stringify(out.texts)}`);
+            assert(out.first.backgroundColor === "#27c7bd" && out.first.verticalAlign === "middle" && out.first.textAlign === "center" && out.first.color === "#ffffff" && /Arial/.test(out.first.fontFamily || ""), `first cell: ${JSON.stringify(out.first)}`);
+            assert(out.note.fontWeight === "700" && out.note.backgroundColor === "transparent", `bold, unfilled cell: ${JSON.stringify(out.note)}`);
+            assert(out.padding === 4, `cell padding: ${out.padding}`);
+            assert(!errors.length, errors.join("\n"));
+            await page.close();
+        });
+
         await test("Fonts: CMU and a Cambria Math stand-in are bundled; a font file added and a font a PowerPoint file carries are used", async () => {
             const { page, errors } = await openEditor(context);
             const out = await pageAwait(page, async () => {

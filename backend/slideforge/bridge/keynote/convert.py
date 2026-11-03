@@ -13,6 +13,8 @@ import bisect
 import io
 import math
 import re
+import struct
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Optional
 
@@ -29,6 +31,9 @@ MAX_GROUP_DEPTH = 16
 VECTOR_PICTURE_SIDE = 2000  # PDF and SVG pictures are drawn this many pixels along their longer side
 MAX_PICTURE_PIXELS = 64_000_000  # larger TIFF/BMP/... pictures are left out (decoding them takes gigabytes)
 MAX_CONVERTED_SIDE = 4096  # converted pictures are scaled down to this
+MAX_TABLE_ROWS = 1000  # larger tables are left out (and counted): a slide shows a few dozen rows at most
+MAX_TABLE_COLUMNS = 256
+VERTICAL_ALIGNMENTS = {0: "top", 1: "middle", 2: "bottom"}
 
 
 @dataclass
@@ -254,6 +259,9 @@ class _Converter:
             return [element] if element else []
         if obj.name == "TSD.GroupArchive" and depth < MAX_GROUP_DEPTH:
             return self._group(message, offset, depth)
+        if obj.name == "TST.TableInfoArchive":
+            element = self._table(message, offset)  # counts a table it leaves out itself
+            return [element] if element else []
         self.skip(_SKIPPED_NAMES.get(obj.name, "other objects"))
         return []
 
@@ -714,6 +722,117 @@ class _Converter:
                 props.setdefault(descriptor.name, value)
         return props
 
+    # Tables (TST, shared with Numbers): a model with its row and column sizes, and tiles of cells packed in a binary
+    # record each (version 5: a type byte and a flags word saying which values and style keys follow). The text is
+    # in a string table, styles in a style table, both by key. Tables were left out of the slide.
+    def _table(self, info, offset) -> Optional[dict[str, Any]]:
+        model = self.pkg.message(info.tableModel, "TST.TableModelArchive") if _has(info, "tableModel") else None
+        if model is None:
+            self.skip("tables")
+            return None
+        rows, cols = int(model.number_of_rows), int(model.number_of_columns)
+        if not (0 < rows <= MAX_TABLE_ROWS and 0 < cols <= MAX_TABLE_COLUMNS):
+            self.skip("tables")
+            return None
+        store = model.base_data_store
+        box = self._geometry(info.super, offset)
+        widths = self._table_sizes(store.columnHeaders if _has(store, "columnHeaders") else None, cols, box["width"])
+        heights = self._table_sizes(store.rowHeaders if _has(store, "rowHeaders") else None, rows, box["height"])
+        strings = self._table_list(store, "stringTable")
+        styles = self._table_list(store, "styleTable")
+        rich = self._table_list(store, "rich_text_table")
+        header_rows = int(model.number_of_header_rows) if _has(model, "number_of_header_rows") else 0
+        header_cols = int(model.number_of_header_columns) if _has(model, "number_of_header_columns") else 0
+        cells = [[{"text": ""} for _ in range(cols)] for _ in range(rows)]
+        decoded = 0
+        for row, col, cell in _table_cells(self.pkg, store, rows, cols):
+            decoded += 1
+            header = row < header_rows or col < header_cols
+            cell_chain = self._style_chain(getattr(styles.get(cell.get("cell_style")), "reference", None)) + self._style_chain(model.header_row_style if header and _has(model, "header_row_style") else model.body_cell_style if _has(model, "body_cell_style") else None)
+            text_chain = self._style_chain(getattr(styles.get(cell.get("text_style")), "reference", None)) + self._style_chain(model.header_row_text_style if header and _has(model, "header_row_text_style") else model.body_text_style if _has(model, "body_text_style") else None)
+            cells[row][col] = {"text": self._cell_text(cell, strings, rich), **self._cell_style(cell_chain, text_chain)}
+        # Cells with no record of their own still take the table's body style (a filled table, its empty cells).
+        body_cell = self._style_chain(model.body_cell_style) if _has(model, "body_cell_style") else []
+        body_text = self._style_chain(model.body_text_style) if _has(model, "body_text_style") else []
+        empty_style = self._cell_style(body_cell, body_text)
+        for row_cells in cells:
+            for index, cell in enumerate(row_cells):
+                if len(cell) == 1:
+                    row_cells[index] = {**empty_style, **cell}
+        if not decoded and not any(cell["text"] for row_cells in cells for cell in row_cells):
+            self.skip("tables")
+            return None
+        return {"kind": "table", **box, "columns": widths, "rows": heights, "cells": cells, "headerRows": header_rows}
+
+    def _table_sizes(self, holder, count: int, total: float) -> list[float]:
+        """Column widths or row heights in points: the header buckets' sizes, the rest sharing what is left."""
+        sizes: dict[int, float] = {}
+        # Row sizes are in a HeaderStorage (a list of bucket references), column sizes in one bucket by reference.
+        buckets = getattr(holder, "buckets", None) if holder is not None and holder.DESCRIPTOR.full_name == "TST.HeaderStorage" else None
+        references = list(buckets) if buckets is not None else [holder] if holder is not None else []
+        for reference in references[:64]:
+            bucket = self.pkg.message(reference) if hasattr(reference, "identifier") else None
+            for header in list(getattr(bucket, "headers", []))[: count + 1]:
+                if 0 <= header.index < count and header.size > 0:
+                    sizes[header.index] = float(header.size)
+        missing = [index for index in range(count) if index not in sizes]
+        if missing:
+            share = max(1.0, (total - sum(sizes.values())) / len(missing))
+            for index in missing:
+                sizes[index] = share
+        return [round(sizes[index], 2) for index in range(count)]
+
+    def _table_list(self, store, name: str) -> dict[int, Any]:
+        reference = getattr(store, name) if _has(store, name) else None
+        table = self.pkg.message(reference, "TST.TableDataList") if reference is not None else None
+        return {entry.key: entry for entry in table.entries} if table is not None else {}
+
+    def _cell_text(self, cell: dict[str, Any], strings: dict[int, Any], rich: dict[int, Any]) -> str:
+        kind = cell.get("type")
+        if kind == 3 and cell.get("string_id") in strings:
+            return _clean_text(strings[cell["string_id"]].string)
+        if kind == 9 and cell.get("rich_id") in rich:
+            payload = self.pkg.message(rich[cell["rich_id"]].rich_text_payload) if _has(rich[cell["rich_id"]], "rich_text_payload") else None
+            storage = self.pkg.message(payload.storage, "TSWP.StorageArchive") if payload is not None and _has(payload, "storage") else None
+            return _clean_text("".join(storage.text)).strip() if storage is not None else ""
+        if kind in (2, 10) and cell.get("number") is not None:
+            return _number_text(cell["number"])
+        if kind == 5 and cell.get("seconds") is not None:
+            try:
+                return (datetime(2001, 1, 1, tzinfo=timezone.utc) + timedelta(seconds=cell["seconds"])).strftime("%Y-%m-%d")
+            except (OverflowError, ValueError):
+                return ""
+        if kind == 6 and cell.get("number") is not None:
+            return "TRUE" if cell["number"] else "FALSE"
+        if kind == 7 and cell.get("number") is not None:
+            return _number_text(cell["number"]) + " s"
+        return ""
+
+    def _cell_style(self, cell_chain, text_chain) -> dict[str, Any]:
+        style: dict[str, Any] = {}
+        for cell_style in cell_chain:
+            props = cell_style.cell_properties if _has(cell_style, "cell_properties") else None
+            if props is None:
+                continue
+            if "fill" not in style and _has(props, "cell_fill"):
+                fill = self._fill(props.cell_fill)
+                if fill and fill.get("color"):
+                    style["fill"] = fill["color"]
+                elif fill and fill.get("gradient"):
+                    style["fill"] = fill["gradient"]["stops"][0]["color"]
+            if "valign" not in style and _has(props, "vertical_alignment"):
+                style["valign"] = VERTICAL_ALIGNMENTS.get(props.vertical_alignment, "top")
+            if "padding" not in style and _has(props, "padding") and _has(props.padding, "left"):
+                style["padding"] = round(float(props.padding.left), 2)
+        run = self._run_style(text_chain)
+        for key in ("font", "size", "color", "bold", "italic", "weight"):
+            if key in run:
+                style[key] = run[key]
+        align = self._alignment(text_chain)
+        if align != "left":
+            style["align"] = align
+        return style
+
     def _fill(self, fill) -> Optional[dict[str, Any]]:
         if fill is None:
             return None
@@ -946,6 +1065,85 @@ def _is_rectangle(mask) -> bool:
     names = elements[0].DESCRIPTOR.fields_by_name["type"].enum_type.values_by_number
     kinds = [names[element.type].name if element.type in names else "" for element in elements]
     return all(kind in ("moveTo", "lineTo", "closeSubpath") for kind in kinds) and kinds.count("lineTo") <= 4
+
+
+# The values a version-5 cell record may carry, in order, by the flag that says it is there: (flag, name, bytes).
+_CELL_FIELDS = (
+    (0x1, "decimal", 16), (0x2, "double", 8), (0x4, "seconds", 8), (0x8, "string_id", 4), (0x10, "rich_id", 4),
+    (0x20, "cell_style", 4), (0x40, "text_style", 4),
+)
+
+
+def _number_text(value: float) -> str:
+    if not math.isfinite(value):
+        return ""
+    if value == int(value) and abs(value) < 1e15:
+        return str(int(value))
+    return f"{value:.10g}"
+
+
+def _decimal128(raw: bytes) -> Optional[float]:
+    """Numbers' decimal128 (as Numbers writes it: a 113-bit integer and a power of ten) as a float."""
+    whole = int.from_bytes(raw, "little")
+    exponent = ((whole >> 113) & 0x3FFF) - 0x1820
+    mantissa = whole & ((1 << 113) - 1)
+    if exponent < -6176 or exponent > 6111:
+        return None
+    try:
+        value = float(mantissa) * (10.0 ** exponent)
+    except OverflowError:
+        return None
+    return -value if whole >> 127 else value
+
+
+def _table_cells(pkg, store, rows: int, cols: int):
+    """(row, column, {"type", "number"/"seconds"/"string_id"/"rich_id"/"cell_style"/"text_style"}) for each cell
+    record in the table's tiles. Records other than version 5 (files last saved before Keynote 2021's format) are
+    passed over."""
+    tiles = store.tiles if _has(store, "tiles") else None
+    if tiles is None:
+        return
+    starts = {}
+    if _has(store, "rowTileTree"):
+        for node in store.rowTileTree.nodes:
+            starts[node.value] = node.key
+    for entry in list(tiles.tiles)[:64]:
+        tile = pkg.message(entry.tile, "TST.Tile")
+        if tile is None:
+            continue
+        first_row = starts.get(entry.tileid, entry.tileid * 256)
+        for info in list(tile.rowInfos)[:4096]:
+            row = first_row + info.tile_row_index
+            if not 0 <= row < rows:
+                continue
+            buffer, offsets = bytes(info.cell_storage_buffer), bytes(info.cell_offsets)
+            wide = bool(info.has_wide_offsets) if _has(info, "has_wide_offsets") else False
+            count = min(cols, len(offsets) // 2)
+            for col, offset in enumerate(struct.unpack_from(f"<{count}h", offsets, 0) if count else ()):
+                if offset < 0:
+                    continue
+                position = offset * 4 if wide else offset
+                if position + 12 > len(buffer) or buffer[position] != 5:
+                    continue
+                flags = int.from_bytes(buffer[position + 8 : position + 12], "little")
+                cell: dict[str, Any] = {"type": buffer[position + 1]}
+                cursor = position + 12
+                for flag, name, size in _CELL_FIELDS:
+                    if not flags & flag:
+                        continue
+                    if cursor + size > len(buffer):
+                        break
+                    raw = buffer[cursor : cursor + size]
+                    if name == "decimal":
+                        cell["number"] = _decimal128(raw)
+                    elif name == "double":
+                        cell.setdefault("number", struct.unpack("<d", raw)[0])
+                    elif name == "seconds":
+                        cell["seconds"] = struct.unpack("<d", raw)[0]
+                    else:
+                        cell[name] = int.from_bytes(raw, "little", signed=True)
+                    cursor += size
+                yield row, col, cell
 
 
 _SKIPPED_NAMES = {

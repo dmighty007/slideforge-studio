@@ -32,6 +32,8 @@ function _getTableCellDisplayStyles(
     fontWeight:
       cellStyles.fontWeight ||
       (isHeader ? "700" : tableData.fontWeight || "400"),
+    // A cell's own vertical alignment (from Keynote or PowerPoint tables: centred labels); top otherwise.
+    verticalAlign: ["top", "middle", "bottom"].includes(cellStyles.verticalAlign) ? cellStyles.verticalAlign : "top",
   };
 }
 
@@ -274,7 +276,7 @@ function _renderTableDom(container, elData, { interactive = true } = {}) {
       cell.style.fontStyle = cellStyles.fontStyle;
       cell.style.textAlign = cellStyles.textAlign;
       cell.style.fontWeight = cellStyles.fontWeight;
-      cell.style.verticalAlign = "top";
+      cell.style.verticalAlign = cellStyles.verticalAlign;
       cell.style.whiteSpace = "pre-wrap";
       // Set by the PowerPoint import (PowerPoint's 1.2); other tables keep the page's line height.
       if (Number(tableData.lineHeight) > 0) cell.style.lineHeight = String(tableData.lineHeight);
