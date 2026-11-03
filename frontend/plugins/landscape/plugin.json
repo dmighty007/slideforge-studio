@@ -1,7 +1,7 @@
 {
     "id": "landscape",
     "name": "Landscape Explorer",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "Interactive WebGL surfaces, Wigner-style comparisons, heatmaps and contours from CSV or equations, with saved export stills.",
     "icon": "fa-solid fa-mountain",
     "author": "SlideForge"

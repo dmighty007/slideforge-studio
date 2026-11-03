@@ -153,7 +153,70 @@ const assert = require("assert/strict");
         await root.locator("canvas").waitFor();
         await page.evaluate(id => { state.slides[0].elements = state.slides[0].elements.filter(e => e.id !== id); renderSlidesFromState(); }, id);
         await page.waitForFunction(() => _sfPluginLiveViews.size === 0);
+        console.log("PASS deletion disposes live views");
+
+        // Look: seamless heatmap and color bar, no instructions in stills, 3D axis labels that do not overlap.
+        const look = await page.evaluate(async () => {
+            const plugin = getSlidePlugin("landscape"), base = plugin.normalize(plugin.defaultData), api = SlideForgeLandscape;
+            const context = _pluginRenderContext(plugin, { width: "640px", height: "420px" });
+            const parse = svg => new DOMParser().parseFromString(cleanPluginSvg(svg), "image/svg+xml");
+            const heat = parse(await plugin.render(plugin.normalize({ ...base, view: "heatmap" }), context));
+            const cells = parse(await plugin.render(plugin.normalize({ ...base, view: "heatmap", shading: "cells" }), context));
+            const noBar = parse(await plugin.render(plugin.normalize({ ...base, view: "heatmap", colorBar: false }), context));
+            const plotWidth = doc => Number(doc.querySelector("image").getAttribute("width"));
+            const barless = { images: noBar.querySelectorAll("image").length, wider: plotWidth(noBar) > plotWidth(heat) + 40,
+                valueLabel: [...noBar.querySelectorAll("text")].some(t => t.textContent === base.valueLabel) };
+            const surfaceNoBar = api.scene(plugin.normalize({ ...base, view: "surface", colorBar: false }), api.dataset(plugin.normalize({ ...base, view: "surface" }), context.parseTable), context);
+            const surfaceData = plugin.normalize({ ...base, view: "surface" }), surface = api.scene(surfaceData, api.dataset(surfaceData, context.parseTable), context);
+            const wignerData = plugin.normalize({ ...base, ...api.wignerPreset() }), wigner = api.scene(wignerData, api.dataset(wignerData, context.parseTable), context);
+            const overlaps = scene => {
+                const boxes = scene.items.filter(i => i.kind === "text" && !i.rotate && i.y > scene.plot.y).map(i => {
+                    const w = context.measureText(i.value, { size: i.size }), left = i.anchor === "start" ? i.x : i.anchor === "end" ? i.x - w : i.x - w / 2;
+                    return { value: i.value, left, right: left + w, top: i.y - i.size * 0.8, bottom: i.y };
+                });
+                const hits = [];
+                boxes.forEach((a, i) => boxes.slice(i + 1).forEach(b => { if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) hits.push(`${a.value} / ${b.value}`); }));
+                return hits;
+            };
+            const texts = doc => [...doc.querySelectorAll("text")].map(t => t.textContent).join(" ");
+            const surfaceSvg = parse(api.svg(surface));
+            return {
+                heatImages: heat.querySelectorAll("image").length, heatRects: heat.querySelectorAll("rect").length,
+                cellsDiffer: heat.querySelector("image").getAttribute("href") !== cells.querySelector("image").getAttribute("href"),
+                instructions: /drag|wheel|orbit/i.test(texts(heat) + texts(surfaceSvg)),
+                barTicks: [...heat.querySelectorAll("text")].filter(t => /^(0|5|10)$/.test(t.textContent)).length,
+                surfaceOverlaps: overlaps(surface), wignerOverlaps: overlaps(wigner),
+                barless, surfaceBarless: { images: surfaceNoBar.items.filter(i => i.kind === "image").length, wider: surfaceNoBar.plot.w > surface.plot.w + 40 },
+            };
+        });
+        assert(look.heatImages === 2 && look.heatRects <= 3, `heatmap should be one image plus the color bar, not cell rectangles: ${JSON.stringify(look)}`);
+        assert(look.cellsDiffer && !look.instructions && look.barTicks >= 3, JSON.stringify(look));
+        assert(look.barless.images === 1 && look.barless.wider && !look.barless.valueLabel, `hidden color bar (2D): ${JSON.stringify(look.barless)}`);
+        assert(look.surfaceBarless.images === 0 && look.surfaceBarless.wider, `hidden color bar (3D): ${JSON.stringify(look.surfaceBarless)}`);
+        assert(!look.surfaceOverlaps.length && !look.wignerOverlaps.length, `overlapping 3D labels: ${JSON.stringify(look)}`);
+
+        // Crop to content: the box fits the surface as shown, in one undo step; cropping again changes nothing.
+        const cropId = await page.evaluate(() => insertPluginElement("landscape", { view: "surface", resolution: 25 }, { ask: false }));
+        await page.waitForFunction(id => Boolean(_findPluginElementInState(id)?.pluginPreview), cropId);
+        const cropRoot = () => page.locator(`.presentation-slide [id="${cropId}"]`).first();
+        const cropBox = () => page.evaluate(id => { const e = _findPluginElementInState(id); return { x: e.x, y: e.y, w: parseFloat(e.width), h: parseFloat(e.height), undo: undoStack.length }; }, cropId);
+        await cropRoot().locator(".plugin-live-toggle").click(); await cropRoot().locator("canvas").waitFor();
+        const uncropped = await cropBox();
+        await cropRoot().getByRole("button", { name: "Crop box to content" }).click();
+        await page.waitForFunction(([id, w]) => parseFloat(_findPluginElementInState(id).width) !== w, [cropId, uncropped.w]);
+        const cropped = await cropBox();
+        if (!(await cropRoot().locator("canvas").count())) await cropRoot().locator(".plugin-live-toggle").click();
+        await cropRoot().locator("canvas").waitFor();
+        await cropRoot().getByRole("button", { name: "Crop box to content" }).click();
+        await page.waitForTimeout(500);
+        const recropped = await cropBox();
+        assert(cropped.w < uncropped.w && cropped.undo === uncropped.undo + 1, `crop: ${JSON.stringify({ uncropped, cropped })}`);
+        assert(Math.abs(recropped.w - cropped.w) <= 1 && Math.abs(recropped.h - cropped.h) <= 1 && Math.abs(recropped.x - cropped.x) <= 1, `crop is not stable: ${JSON.stringify({ cropped, recropped })}`);
+        await page.evaluate(() => undo());
+        assert.equal((await cropBox()).w, cropped.w, "undo went past the second crop");
+        await page.evaluate(() => { undo(); });
+        assert.equal((await cropBox()).w, uncropped.w, "undo did not restore the box");
         assert.equal(errors.length, 0, errors.join("\n"));
-        console.log("PASS deletion disposes live views; no uncaught browser errors");
+        console.log("PASS seamless heatmap, clean stills, separate 3D labels, crop to content; no uncaught browser errors", { cropped: [uncropped.w, cropped.w] });
     } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

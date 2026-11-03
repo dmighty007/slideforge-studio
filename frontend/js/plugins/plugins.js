@@ -654,6 +654,8 @@ function _syncPluginLiveViews() {
         Promise.resolve().then(() => plugin.mount(viewport, data, {
             ..._pluginRenderContext(plugin, source), signal: controller.signal, isPresenting: presenting,
             update: updates => { if (!controller.signal.aborted && !document.body.classList.contains("play-mode-active")) return updatePluginElementData(entry.id, updates); },
+            // A new box for the object (moved by dx, dy and resized, in its own pixels), with data, as one undo step.
+            resize: (box, updates = {}) => { if (!controller.signal.aborted && !document.body.classList.contains("play-mode-active")) return updatePluginElementData(entry.id, updates, { box }); },
         })).then(cleanup => {
             if (controller.signal.aborted) { if (typeof cleanup === "function") cleanup(); return; }
             entry.cleanup = typeof cleanup === "function" ? cleanup : null;
@@ -1054,7 +1056,7 @@ async function insertPluginElement(pluginId, data = null, { ask = true } = {}) {
 
 // Changes some of an element's plugin settings, as one undo step. The change shows at once; a lookup the plugin
 // does for it (prepare) runs afterwards and fills in what it finds.
-async function updatePluginElementData(id, updates) {
+async function updatePluginElementData(id, updates, { box = null } = {}) {
     const el = _findPluginElementInState(id);
     const plugin = getSlidePlugin(el?.pluginId);
     if (!el || !plugin) return;
@@ -1075,6 +1077,12 @@ async function updatePluginElementData(id, updates) {
             });
     }
     saveStateToUndo();
+    if (box && [box.dx, box.dy, box.width, box.height].every(Number.isFinite) && box.width > 0 && box.height > 0) {
+        el.x = Math.round((Number(el.x) || 0) + box.dx);
+        el.y = Math.round((Number(el.y) || 0) + box.dy);
+        el.width = `${Math.round(box.width)}px`;
+        el.height = `${Math.round(box.height)}px`;
+    }
     el.pluginData = next;
     _sfPluginErrors.delete(id);
     renderSlidesFromState();

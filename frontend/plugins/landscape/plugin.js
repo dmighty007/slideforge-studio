@@ -3,7 +3,7 @@
         input: "equation", equation: "(x^2 - 1)^2 + y^2", csvFormat: "matrix",
         csv: "y/x,-2,-1,0,1,2\n-2,13,4,5,4,13\n-1,10,1,2,1,10\n0,9,0,1,0,9\n1,10,1,2,1,10\n2,13,4,5,4,13",
         xMin: -2, xMax: 2, yMin: -2, yMax: 2, resolution: 49,
-        view: "both", levels: 10, palette: "viridis", colorMin: "", colorMax: "", subtractMin: false,
+        view: "both", shading: "smooth", colorBar: true, levels: 10, palette: "viridis", colorMin: "", colorMax: "", subtractMin: false,
         title: "Double-well landscape", xLabel: "x", yLabel: "y", valueLabel: "f(x, y)", fontSize: 14,
         yaw: -35, pitch: 40, zoom: 1, zScale: 1, panX: 0, panY: 0,
         lighting: true, axesBox: true, zeroPlane: true, compare: false, example: "custom", stage: "theme",
@@ -17,7 +17,7 @@
     };
     const text = (v, fallback) => String(v ?? fallback).slice(0, 80);
     SlideForgePlugins.register({
-        id: "landscape", version: "2", name: "Landscape Explorer", icon: "fa-solid fa-mountain",
+        id: "landscape", version: "3", name: "Landscape Explorer", icon: "fa-solid fa-mountain",
         description: "Interactive WebGL surfaces, side-by-side comparisons, heatmaps and contours from CSV or equations. Includes a Wigner example; exports keep a still.",
         insert: { fill: true, category: "Physics & maths", label: "Landscape f(x, y)", keywords: "landscape free energy surface contours heatmap grid 2d 3d equation CSV wigner mayavi compare" },
         askOnInsert: false, sizeAware: true, defaultSize: { width: 640, height: 420 }, defaultData: defaults,
@@ -30,9 +30,11 @@
             ...["xMin", "xMax", "yMin", "yMax"].map(key => ({ key, label: ({ xMin: "X minimum", xMax: "X maximum", yMin: "Y minimum", yMax: "Y maximum" })[key], type: "number", step: "any", when: { input: "equation" } })),
             { key: "resolution", label: "Samples per axis", type: "number", min: 9, max: 81, step: 2, when: { input: "equation" }, advanced: true },
             { key: "view", label: "View", type: "select", options: [{ value: "heatmap", label: "Heatmap" }, { value: "contours", label: "Contours" }, { value: "both", label: "Heatmap + contours" }, { value: "surface", label: "3D surface" }] },
+            { key: "shading", label: "Heatmap shading", type: "select", when: { view: ["heatmap", "both"] }, options: [{ value: "smooth", label: "Smooth (interpolated, as the hover values)" }, { value: "cells", label: "Cells (one color per grid cell)" }] },
             { key: "compare", label: "Compare surfaces", type: "checkbox", when: { view: "surface", input: "equation" }, hint: "Place 2–4 equations in one scene, with one height scale and one color bar." },
             { key: "comparison", label: "Comparison equations", type: "table", columns: ["Label", "Equation"], rows: 4, when: { input: "equation", compare: true }, hint: "One CSV row per label,equation; at most four surfaces. Minimum subtraction uses one shared minimum." },
             { key: "palette", label: "Colors", type: "select", options: [{ value: "viridis", label: "Viridis" }, { value: "magma", label: "Magma" }, { value: "blue-red", label: "Blue–red (diverging)" }, { value: "rainbow", label: "Rainbow (Mayavi style)" }] },
+            { key: "colorBar", label: "Show color bar", type: "checkbox", hint: "Hide it when the colors need no scale, or another plot on the slide shows it. Hidden, its space goes to the plot." },
             { key: "lighting", label: "Smooth lighting", type: "checkbox", when: { view: "surface" }, hint: "Depth-tested WebGL shading; turn off to compare unshaded scalar colors." },
             { key: "stage", label: "Plot background", type: "select", options: [{ value: "theme", label: "Follow slide theme" }, { value: "slate", label: "Slate (scientific view)" }] },
             { key: "axesBox", label: "3D axes and outline", type: "checkbox", when: { view: "surface" } },
@@ -59,7 +61,7 @@
                 input: d.input === "csv" ? "csv" : "equation", equation: String(d.equation ?? defaults.equation).slice(0, 501),
                 csvFormat: d.csvFormat === "xyz" ? "xyz" : "matrix", csv: String(d.csv ?? "").slice(0, 60000),
                 xMin: number("xMin", -1e9, 1e9), xMax: number("xMax", -1e9, 1e9), yMin: number("yMin", -1e9, 1e9), yMax: number("yMax", -1e9, 1e9),
-                resolution: Math.round(number("resolution", 9, 81)), view: ["heatmap", "contours", "both", "surface"].includes(d.view) ? d.view : "both",
+                resolution: Math.round(number("resolution", 9, 81)), view: ["heatmap", "contours", "both", "surface"].includes(d.view) ? d.view : "both", shading: d.shading === "cells" ? "cells" : "smooth", colorBar: d.colorBar !== false,
                 levels: Math.round(number("levels", 2, 24)), palette: ["viridis", "magma", "blue-red", "rainbow"].includes(d.palette) ? d.palette : "viridis",
                 subtractMin: d.subtractMin === true, colorMin: String(d.colorMin ?? "").trim().slice(0, 40), colorMax: String(d.colorMax ?? "").trim().slice(0, 40),
                 title: text(d.title, defaults.title), xLabel: text(d.xLabel, "x"), yLabel: text(d.yLabel, "y"), valueLabel: text(d.valueLabel, "value"),
