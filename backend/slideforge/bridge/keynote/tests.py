@@ -371,7 +371,7 @@ class KeynoteReaderTests(SimpleTestCase):
                 values += struct.pack("<i", value)
         return bytes([5, kind, 0, 0, 0, 0, 0, 0]) + struct.pack("<I", flags) + values
 
-    def _table(self, d, x, y, cells, *, widths, heights, rows=None, cols=None, wide_row=None):
+    def _table(self, d, x, y, cells, *, widths, heights, rows=None, cols=None, wide_row=None, merges=None):
         """A table whose cells are [[record bytes or None]] (row by row), with string and style tables."""
         model_id, model = d.k.new("TST.TableModelArchive", number_of_rows=rows or len(cells), number_of_columns=cols or len(cells[0]), default_column_width=100.0, default_row_height=20.0)
         store = model.base_data_store
@@ -418,6 +418,10 @@ class KeynoteReaderTests(SimpleTestCase):
             info.cell_offsets_pre_bnc = b""
         store.tiles.tiles.add(tileid=0).tile.identifier = tile_id
         store.tiles.should_use_wide_rows = False
+        for merge in merges or ():  # (first row, last row, first column, last column), as Keynote's merge formulas
+            node = model.merge_owner.formula_store.formulas.add(formula_index=len(model.merge_owner.formula_store.formulas)).formula.AST_node_array.AST_node.add(AST_node_type=67)  # COLON_TRACT_NODE
+            node.AST_colon_tract.absolute_row.add(range_begin=merge[0], range_end=merge[1])
+            node.AST_colon_tract.absolute_column.add(range_begin=merge[2], range_end=merge[3])
         info_id, table_info = d.k.new("TST.TableInfoArchive")
         _geometry(table_info.super, x, y, sum(widths), sum(heights))
         table_info.tableModel.identifier = model_id
@@ -445,6 +449,12 @@ class KeynoteReaderTests(SimpleTestCase):
         self.assertEqual(cells[1][1]["fill"], "#27c7bd")  # styled, empty, in a row with 4-byte offsets
         self.assertNotIn("fill", cells[0][2])
         self.assertEqual(deck.skipped, {})
+        self.assertNotIn("merges", element)
+        # Merged cells: "Year" across the first two columns, the first column's two rows.
+        m = Deck()
+        merged = self._table(m, 0, 0, [[cell(3, string_id=1), None, cell(3, string_id=2)], [None, None, None]], widths=[50, 50, 50], heights=[20, 20], merges=[(0, 0, 0, 1), (0, 1, 2, 2)])
+        [table_element] = read_keynote(m.build([m.node(m.slide([merged]))])).slides[0]["elements"]
+        self.assertEqual(table_element["merges"], [{"row": 0, "col": 0, "rowSpan": 1, "colSpan": 2}, {"row": 0, "col": 2, "rowSpan": 2, "colSpan": 1}])
         # A table larger than a slide can show is still left out, and counted.
         big = Deck()
         huge = self._table(big, 0, 0, [[None]], widths=[10], heights=[10], rows=5000)

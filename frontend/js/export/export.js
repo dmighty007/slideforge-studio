@@ -3404,12 +3404,30 @@ function createViewerElement(elData, mediaOptions = {}) {
         });
         table.appendChild(colgroup);
         const tbody = document.createElement('tbody');
+        // Merged cells (as the editor draws them, see tableMergeLayout): the first spans the merge, the rest are not drawn.
+        const mergeAnchors = new Map();
+        const mergeCovered = new Set();
+        (Array.isArray(elData.tableData?.merges) ? elData.tableData.merges : []).slice(0, 500).forEach(merge => {
+            const row = Math.floor(Number(merge?.row)), col = Math.floor(Number(merge?.col));
+            const rowSpan = Math.min(Math.max(1, Math.floor(Number(merge?.rowSpan)) || 1), tableData.rows - row);
+            const colSpan = Math.min(Math.max(1, Math.floor(Number(merge?.colSpan)) || 1), tableData.cols - col);
+            if (!(row >= 0 && col >= 0 && row < tableData.rows && col < tableData.cols) || (rowSpan === 1 && colSpan === 1)) return;
+            if (mergeCovered.has(row + ',' + col) || mergeAnchors.has(row + ',' + col)) return;
+            mergeAnchors.set(row + ',' + col, { rowSpan, colSpan });
+            for (let r = row; r < row + rowSpan; r += 1) for (let c = col; c < col + colSpan; c += 1) if (r !== row || c !== col) mergeCovered.add(r + ',' + c);
+        });
         for (let rowIndex = 0; rowIndex < tableData.rows; rowIndex += 1) {
             const tr = document.createElement('tr');
             tr.style.height = Math.max(24, Number(tableData.rowHeights[rowIndex]) || 44) + 'px';
             for (let colIndex = 0; colIndex < tableData.cols; colIndex += 1) {
+                if (mergeCovered.has(rowIndex + ',' + colIndex)) continue;
                 const cellData = tableData.cells[rowIndex]?.[colIndex] || { text: '', styles: {} };
                 const cell = document.createElement(rowIndex === 0 && tableData.headerRow ? 'th' : 'td');
+                const merge = mergeAnchors.get(rowIndex + ',' + colIndex);
+                if (merge) {
+                    cell.colSpan = merge.colSpan;
+                    cell.rowSpan = merge.rowSpan;
+                }
                 const isHeader = tableData.headerRow && rowIndex === 0;
                 const zebraFill = tableData.zebra && !isHeader && rowIndex % 2 === 1 ? tableData.altFill : tableData.bodyFill;
                 const styles = cellData.styles || {};
@@ -3427,7 +3445,7 @@ function createViewerElement(elData, mediaOptions = {}) {
                 cell.style.fontFamily = styles.fontFamily || tableData.fontFamily;
                 cell.style.fontSize = styles.fontSize || tableData.fontSize;
                 cell.style.fontStyle = styles.fontStyle || tableData.fontStyle;
-                cell.style.verticalAlign = 'top';
+                cell.style.verticalAlign = ['top', 'middle', 'bottom'].includes(styles.verticalAlign) ? styles.verticalAlign : 'top';
                 cell.style.whiteSpace = 'pre-wrap';
                 cell.textContent = cellData.text || '';
                 tr.appendChild(cell);

@@ -233,10 +233,13 @@ function _renderTableDom(container, elData, { interactive = true } = {}) {
   table.appendChild(colgroup);
 
   const tbody = document.createElement("tbody");
+  // Merged cells: the first cell of a merge spans it; the cells under it are not drawn.
+  const mergeLayout = typeof tableMergeLayout === "function" ? tableMergeLayout(tableData.merges) : { anchors: new Map(), covered: new Set() };
   for (let rowIndex = 0; rowIndex < tableData.rows; rowIndex += 1) {
     const tr = document.createElement("tr");
     tr.style.height = `${Math.max(24, Number(tableData.rowHeights[rowIndex]) || 44)}px`;
     for (let colIndex = 0; colIndex < tableData.cols; colIndex += 1) {
+      if (mergeLayout.covered.has(`${rowIndex},${colIndex}`)) continue;
       const cellData = tableData.cells[rowIndex]?.[colIndex] || {
         text: "",
         styles: {},
@@ -244,6 +247,11 @@ function _renderTableDom(container, elData, { interactive = true } = {}) {
       const cell = document.createElement(
         rowIndex === 0 && tableData.headerRow ? "th" : "td",
       );
+      const merge = mergeLayout.anchors.get(`${rowIndex},${colIndex}`);
+      if (merge) {
+        cell.colSpan = merge.colSpan;
+        cell.rowSpan = merge.rowSpan;
+      }
       cell.className = "table-element-cell";
       cell.dataset.row = String(rowIndex);
       cell.dataset.col = String(colIndex);
@@ -374,7 +382,10 @@ function _renderTableDom(container, elData, { interactive = true } = {}) {
             e.preventDefault();
             const rows = tableData.cells.length;
             const cols = tableData.cells[0]?.length || 1;
-            const next = rowIndex * cols + colIndex + (e.shiftKey ? -1 : 1);
+            // Cells hidden under a merged cell are stepped over.
+            const hidden = typeof tableMergeLayout === "function" ? tableMergeLayout(normalizeTableData(tableData).merges).covered : new Set();
+            let next = rowIndex * cols + colIndex + (e.shiftKey ? -1 : 1);
+            while (next >= 0 && next < rows * cols && hidden.has(`${Math.floor(next / cols)},${next % cols}`)) next += e.shiftKey ? -1 : 1;
             commitTableCellEdit(cell, rowIndex, colIndex);
             if (next < 0) return;
             // Tab in the last cell adds a row and carries on in it, as in PowerPoint and Word (it stopped there,

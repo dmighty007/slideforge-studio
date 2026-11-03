@@ -762,7 +762,8 @@ class _Converter:
         if not decoded and not any(cell["text"] for row_cells in cells for cell in row_cells):
             self.skip("tables")
             return None
-        return {"kind": "table", **box, "columns": widths, "rows": heights, "cells": cells, "headerRows": header_rows}
+        merges = _table_merges(model, rows, cols)
+        return {"kind": "table", **box, "columns": widths, "rows": heights, "cells": cells, "headerRows": header_rows, **({"merges": merges} if merges else {})}
 
     def _table_sizes(self, holder, count: int, total: float) -> list[float]:
         """Column widths or row heights in points: the header buckets' sizes, the rest sharing what is left."""
@@ -1072,6 +1073,39 @@ _CELL_FIELDS = (
     (0x1, "decimal", 16), (0x2, "double", 8), (0x4, "seconds", 8), (0x8, "string_id", 4), (0x10, "rich_id", 4),
     (0x20, "cell_style", 4), (0x40, "text_style", 4),
 )
+
+
+def _table_merges(model, rows: int, cols: int) -> list[dict[str, int]]:
+    """A table's merged cells, [{row, col, rowSpan, colSpan}]: Keynote keeps each merge as a formula whose range node
+    (a "colon tract") holds its first and last row and column; a missing end is the same as its start."""
+    if not _has(model, "merge_owner") or not _has(model.merge_owner, "formula_store"):
+        return []
+    merges = []
+    for stored in list(model.merge_owner.formula_store.formulas)[:500]:
+        for node in list(stored.formula.AST_node_array.AST_node)[:8]:
+            if not _has(node, "AST_colon_tract"):
+                continue
+            tract = node.AST_colon_tract
+
+            def span(name):
+                ranges = getattr(tract, name)
+                if not len(ranges):
+                    return None
+                first = ranges[0]
+                begin = int(first.range_begin)
+                end = int(first.range_end) if _has(first, "range_end") else begin
+                return begin, max(begin, end)
+
+            columns, rows_span = span("absolute_column"), span("absolute_row")
+            if columns is None or rows_span is None:
+                continue
+            row, col = rows_span[0], columns[0]
+            row_span = min(rows_span[1], rows - 1) - row + 1
+            col_span = min(columns[1], cols - 1) - col + 1
+            if 0 <= row < rows and 0 <= col < cols and (row_span > 1 or col_span > 1):
+                merges.append({"row": row, "col": col, "rowSpan": row_span, "colSpan": col_span})
+            break
+    return merges
 
 
 def _number_text(value: float) -> str:

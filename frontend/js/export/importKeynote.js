@@ -260,8 +260,7 @@ function _keynoteShapeElement(el, scale, zIndex) {
 // Keynote's transitions as the nearest of SlideForge's (they all came in as none). By name, so newer effects find
 // their family; anything unrecognised fades.
 // A Keynote table (from the server's TST reader): its columns and rows at the deck's scale, each cell with its text,
-// fill, font, colour and alignment. Tables were left out of the slide. Merged cells are not kept: the text stays in
-// the first cell of the merge.
+// fill, font, colour and alignment, and its merged cells. Tables were left out of the slide.
 function _keynoteTableElement(el, scale, zIndex) {
     const rows = Array.isArray(el.rows) ? el.rows.length : 0;
     const cols = Array.isArray(el.columns) ? el.columns.length : 0;
@@ -308,6 +307,7 @@ function _keynoteTableElement(el, scale, zIndex) {
             colWidths,
             rowHeights,
             cells,
+            ...(Array.isArray(el.merges) && el.merges.length ? { merges: el.merges } : {}),
             headerRow: (Number(el.headerRows) || 0) > 0,
             zebra: false,
             lineHeight: 1.2,

@@ -1619,6 +1619,9 @@ class PPTXExporter:
                     fill_color = cell_styles.get("backgroundColor") or table_data.get("bodyFill") or "#ffffff"
                 cell.fill.solid()
                 cell.fill.fore_color.rgb = self._parse_color(fill_color, self.slide_bg_rgb)
+                anchor = {"middle": MSO_ANCHOR.MIDDLE, "bottom": MSO_ANCHOR.BOTTOM}.get(str(cell_styles.get("verticalAlign") or ""))
+                if anchor is not None:
+                    cell.vertical_anchor = anchor
                 for paragraph in cell.text_frame.paragraphs:
                     paragraph.alignment = self._paragraph_alignment({"textAlign": cell_styles.get("textAlign") or table_data.get("textAlign", "left")})
                     for run in paragraph.runs:
@@ -1632,6 +1635,21 @@ class PPTXExporter:
                                 "color": cell_styles.get("color") or table_data.get("headerTextColor" if row_idx == 0 and header_row else "textColor") or ("#ffffff" if row_idx == 0 and header_row else None),
                             },
                         )
+        # Merged cells ({row, col, rowSpan, colSpan}): PowerPoint's own merges, the first cell spanning the block.
+        taken: set[tuple[int, int]] = set()
+        for merge in (table_data.get("merges") or [])[:500]:
+            try:
+                row, col = int(merge.get("row")), int(merge.get("col"))
+                last_row = min(rows, row + max(1, int(merge.get("rowSpan") or 1))) - 1
+                last_col = min(cols, col + max(1, int(merge.get("colSpan") or 1))) - 1
+            except (AttributeError, TypeError, ValueError):
+                continue
+            block = {(r, c) for r in range(row, last_row + 1) for c in range(col, last_col + 1)}
+            if not (0 <= row <= last_row < rows and 0 <= col <= last_col < cols) or len(block) < 2 or block & taken:
+                continue
+            taken |= block
+            table.cell(row, col).merge(table.cell(last_row, last_col))
+
     # Editor arrowheads -> DrawingML line ends (PowerPoint has no square end; a dot is the nearest).
     CONNECTOR_HEADS = {"arrow": "triangle", "triangle": "triangle", "chevron": "arrow", "dot": "oval", "square": "oval", "diamond": "diamond"}
 

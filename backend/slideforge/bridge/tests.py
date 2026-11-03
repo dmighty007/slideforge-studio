@@ -356,6 +356,28 @@ class PPTXExportFidelityTests(TestCase):
         borders = table.cell(0, 0)._tc.tcPr.xpath("./a:lnL | ./a:lnR | ./a:lnT | ./a:lnB")
         self.assertEqual(len(borders), 4)
 
+    def test_merged_table_cells_and_vertical_alignment_are_kept(self):
+        from pptx.enum.text import MSO_ANCHOR
+
+        slide = self._slide([{
+            "type": "table", "x": 0, "y": 0, "width": "480px", "height": "240px", "styles": {},
+            "tableData": {
+                "rows": 3, "cols": 3, "colWidths": [100, 100, 100], "rowHeights": [44, 44, 44],
+                "cells": [[{"text": "Title"}, {"text": ""}, {"text": ""}], [{"text": "Side", "styles": {"verticalAlign": "middle"}}, {"text": "b"}, {"text": "c"}], [{"text": ""}, {"text": "e"}, {"text": "f"}]],
+                # The third merge overlaps the first and is left out; the fourth runs past the table and is trimmed.
+                "merges": [{"row": 0, "col": 0, "rowSpan": 1, "colSpan": 3}, {"row": 1, "col": 0, "rowSpan": 2, "colSpan": 1}, {"row": 0, "col": 1, "rowSpan": 2, "colSpan": 1}, {"row": 1, "col": 2, "rowSpan": 5, "colSpan": 1}],
+            },
+        }])
+        table = next(s for s in slide.shapes if s.has_table).table
+        title, side, last = table.cell(0, 0), table.cell(1, 0), table.cell(1, 2)
+        self.assertTrue(title.is_merge_origin)
+        self.assertEqual((title.span_width, title.span_height), (3, 1))
+        self.assertEqual((side.span_width, side.span_height), (1, 2))
+        self.assertEqual((last.span_width, last.span_height), (1, 2))
+        self.assertTrue(table.cell(0, 1).is_spanned)
+        self.assertFalse(table.cell(1, 1).is_spanned)
+        self.assertEqual(side.vertical_anchor, MSO_ANCHOR.MIDDLE)
+
     def test_chart_without_a_card_on_a_dark_theme_has_light_labels(self):
         chart = {
             "type": "chart", "chartType": "bar", "x": 0, "y": 0, "width": "400px", "height": "300px", "styles": {},

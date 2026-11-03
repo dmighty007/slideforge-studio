@@ -10220,6 +10220,48 @@ async function test(name, fn) {
             await page.close();
         });
 
+        await test("Tables: merged cells from PowerPoint and Keynote are drawn as one and kept on save", async () => {
+            const { page, errors } = await openEditor(context);
+            const out = await pageAwait(page, async () => {
+                const A = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
+                const ns = `${A} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"`;
+                const rels = list => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${list.map(([id, type, target]) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`).join("")}</Relationships>`;
+                // 3 x 3: "Title" across the first row's three columns; "Side" down the first column of rows 2-3,
+                // centred vertically.
+                const tc = (text, attrs = "", anchor = "") => `<a:tc${attrs}><a:txBody><a:bodyPr/><a:p><a:r><a:rPr lang="en-US"/><a:t>${text}</a:t></a:r></a:p></a:txBody><a:tcPr${anchor}/></a:tc>`;
+                const rows = [
+                    `<a:tr h="370840">${tc("Title", ' gridSpan="3"')}${tc("", ' hMerge="1"')}${tc("", ' hMerge="1"')}</a:tr>`,
+                    `<a:tr h="370840">${tc("Side", ' rowSpan="2"', ' anchor="ctr"')}${tc("b")}${tc("c")}</a:tr>`,
+                    `<a:tr h="370840">${tc("", ' vMerge="1"')}${tc("e")}${tc("f")}</a:tr>`,
+                ].join("");
+                const table = `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="2" name="Table 1"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x="457200" y="457200"/><a:ext cx="6096000" cy="1112520"/></p:xfrm><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblGrid><a:gridCol w="2032000"/><a:gridCol w="2032000"/><a:gridCol w="2032000"/></a:tblGrid>${rows}</a:tbl></a:graphicData></a:graphic></p:graphicFrame>`;
+                const zip = new JSZip();
+                zip.file("ppt/presentation.xml", `<p:presentation ${ns}><p:sldIdLst><p:sldId id="256" r:id="rId1"/><p:sldId id="257" r:id="rId2"/></p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/></p:presentation>`);
+                zip.file("ppt/_rels/presentation.xml.rels", rels([["rId1", "slide", "slides/slide1.xml"], ["rId2", "slide", "slides/slide2.xml"]]));
+                zip.file("ppt/slides/slide1.xml", `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>${table}</p:spTree></p:cSld></p:sld>`);
+                zip.file("ppt/slides/slide2.xml", `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/></p:spTree></p:cSld></p:sld>`);
+                await importPptx(new File([await zip.generateAsync({ type: "blob" })], "Merged.pptx"));
+                const element = state.slides[0].elements.find(e => e.type === "table");
+                setCurrentSlideIndex(0);
+                renderSlidesFromState();
+                await new Promise(resolve => setTimeout(resolve, 300));
+                const host = [...document.querySelectorAll(`[data-id="${element.id}"]`)].find(n => !n.closest("#slide-previews"));
+                const drawn = [...(host?.querySelectorAll(".table-element-cell") || [])].map(cell => `${cell.dataset.row},${cell.dataset.col}:${cell.colSpan}x${cell.rowSpan}:${cell.style.verticalAlign}`);
+                // Loading keeps sound merges and drops broken ones (outside, single-cell, overlapping).
+                const cleaned = normalizeTableMerges([{ row: 0, col: 0, rowSpan: 1, colSpan: 9 }, { row: 0, col: 1, rowSpan: 2, colSpan: 1 }, { row: 2, col: 2, rowSpan: 1, colSpan: 1 }, { row: 7, col: 0, rowSpan: 2, colSpan: 2 }], 3, 3);
+                // A Keynote table's merges (from the server's reader) come along too.
+                const keynote = _keynoteTableElement({ kind: "table", x: 0, y: 0, width: 400, height: 100, columns: [100, 100, 100, 100], rows: [100], cells: [[{ text: "2014" }, {}, { text: "2015" }, {}]], merges: [{ row: 0, col: 0, rowSpan: 1, colSpan: 2 }, { row: 0, col: 2, rowSpan: 1, colSpan: 2 }] }, 1, 1);
+                return { merges: element.tableData.merges, saved: normalizeTableData(element.tableData).merges, drawn, cleaned, keynote: normalizeTableData(keynote.tableData).merges };
+            });
+            assert(JSON.stringify(out.merges) === JSON.stringify([{ row: 0, col: 0, rowSpan: 1, colSpan: 3 }, { row: 1, col: 0, rowSpan: 2, colSpan: 1 }]), `PowerPoint merges: ${JSON.stringify(out.merges)}`);
+            assert(JSON.stringify(out.saved) === JSON.stringify(out.merges), `merges kept on save: ${JSON.stringify(out.saved)}`);
+            assert(JSON.stringify(out.drawn) === JSON.stringify(["0,0:3x1:top", "1,0:1x2:middle", "1,1:1x1:top", "1,2:1x1:top", "2,1:1x1:top", "2,2:1x1:top"]), `drawn cells: ${JSON.stringify(out.drawn)}`);
+            assert(JSON.stringify(out.cleaned) === JSON.stringify([{ row: 0, col: 0, rowSpan: 1, colSpan: 3 }]), `broken merges dropped: ${JSON.stringify(out.cleaned)}`);
+            assert(out.keynote?.length === 2 && out.keynote[1].col === 2 && out.keynote[1].colSpan === 2, `Keynote merges: ${JSON.stringify(out.keynote)}`);
+            assert(!errors.length, errors.join("\n"));
+            await page.close();
+        });
+
         await test("Fonts: CMU and a Cambria Math stand-in are bundled; a font file added and a font a PowerPoint file carries are used", async () => {
             const { page, errors } = await openEditor(context);
             const out = await pageAwait(page, async () => {

@@ -493,7 +493,14 @@ async function splitTableAcrossSlides(id = state.selectedIds[0]) {
     saveStateToUndo();
     el.tableData = live;
     const rowsOf = part => [...headerRows, ...part];
-    const tableFor = part => ({ ...data, rows: rowsOf(part).length, cells: rowsOf(part).map(r => data.cells[r]), rowHeights: rowsOf(part).map(r => data.rowHeights[r]), selection: null });
+    // A part keeps the merged cells whose rows are all in it, renumbered; a merge the split cuts through is undone.
+    const mergesFor = rowList => (data.merges || []).flatMap(merge => {
+        const first = rowList.indexOf(merge.row);
+        if (first < 0) return [];
+        for (let k = 1; k < merge.rowSpan; k += 1) if (rowList[first + k] !== merge.row + k) return [];
+        return [{ ...merge, row: first }];
+    });
+    const tableFor = part => ({ ...data, rows: rowsOf(part).length, cells: rowsOf(part).map(r => data.cells[r]), rowHeights: rowsOf(part).map(r => data.rowHeights[r]), merges: mergesFor(rowsOf(part)), selection: null });
     const heightFor = part => `${Math.round(_sumHeights(rowsOf(part).map(r => drawn[r])))}px`;
     const fitted = { tableHeightGrown: false, tableHeightBeforeGrowth: undefined, y: area.y };
     Object.assign(el, { tableData: tableFor(chunks[0]), height: heightFor(chunks[0]), ...fitted });

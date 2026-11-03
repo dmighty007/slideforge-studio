@@ -2096,6 +2096,16 @@ function _pptxTableElement(tbl, box, scale, fontScale, zIndex, tableStyles = nul
     let borderColor = null;
     let borderWidth = null;
     let padding = null;
+    // Merged cells: the first cell of a merge says how many columns (gridSpan) and rows (rowSpan) it covers; the
+    // cells under it (hMerge, vMerge) keep their place in the grid. Merged blocks came in as separate cells.
+    const merges = [];
+    rows.forEach((tr, r) =>
+        _pptxChildren(tr, "a:tc").forEach((tc, c) => {
+            const colSpan = Math.max(1, Number(tc.getAttribute("gridSpan")) || 1);
+            const rowSpan = Math.max(1, Number(tc.getAttribute("rowSpan")) || 1);
+            if ((colSpan > 1 || rowSpan > 1) && tc.getAttribute("hMerge") !== "1" && tc.getAttribute("vMerge") !== "1") merges.push({ row: r, col: c, rowSpan, colSpan });
+        }),
+    );
     const cells = rows.map((tr, r) =>
         colWidths.map((_, c) => {
             const tc = _pptxChildren(tr, "a:tc")[c];
@@ -2135,6 +2145,8 @@ function _pptxTableElement(tbl, box, scale, fontScale, zIndex, tableStyles = nul
             if (runColor) styles.color = runColor;
             const align = { ctr: "center", r: "right", just: "justify" }[_pptxFirst(tc, "a:pPr")?.getAttribute("algn")];
             if (align) styles.textAlign = align;
+            const anchor = { ctr: "middle", b: "bottom" }[tcPr?.getAttribute("anchor")];
+            if (anchor) styles.verticalAlign = anchor;
             if (!styles.fontWeight) styles.fontWeight = "400";
             if (!styles.backgroundColor) styles.backgroundColor = "transparent";
             if (!styles.color) styles.color = colors?.tx1 || "#000000";
@@ -2173,6 +2185,7 @@ function _pptxTableElement(tbl, box, scale, fontScale, zIndex, tableStyles = nul
             colWidths,
             rowHeights: rows.map(tr => Math.max(24, Math.round(((Number(tr.getAttribute("h")) || 0) / PPTX_EMU_PER_PX) * scale))),
             cells,
+            ...(merges.length ? { merges } : {}),
             headerRow: flag("firstRow"),
             zebra: false,
             // PowerPoint's line spacing in cells (the page's 1.5 made rows taller and the last one fell outside).

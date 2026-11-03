@@ -410,14 +410,30 @@ function renderTable(node = {}) {
     const table = node.tableData || {};
     const rows = Math.max(1, Number(table.rows) || table.cells?.length || 1);
     const cols = Math.max(1, Number(table.cols) || table.cells?.[0]?.length || 1);
-    const cellWidth = b.width / cols;
-    const cellHeight = b.height / rows;
+    // Columns and rows in their own proportions (equal shares when the table does not say), and merged cells drawn
+    // as one: the first cell spans the merge, the cells under it are not drawn.
+    const shares = (sizes, count, total) => {
+        const values = Array.from({ length: count }, (_, i) => Math.max(1, Number(sizes?.[i]) || 1));
+        const sum = values.reduce((a, v) => a + v, 0);
+        const starts = [0];
+        values.forEach(v => starts.push(starts[starts.length - 1] + (v / sum) * total));
+        return starts;
+    };
+    const xs = shares(table.colWidths, cols, b.width);
+    const ys = shares(table.rowHeights, rows, b.height);
+    const layout = typeof tableMergeLayout === "function" ? tableMergeLayout(table.merges) : { anchors: new Map(), covered: new Set() };
     const parts = [];
     for (let row = 0; row < rows; row += 1) {
         for (let col = 0; col < cols; col += 1) {
+            if (layout.covered.has(`${row},${col}`)) continue;
+            const merge = layout.anchors.get(`${row},${col}`);
+            const lastCol = Math.min(cols, col + (merge?.colSpan || 1));
+            const lastRow = Math.min(rows, row + (merge?.rowSpan || 1));
             const cell = table.cells?.[row]?.[col] || {};
-            const x = b.x + col * cellWidth;
-            const y = b.y + row * cellHeight;
+            const x = b.x + xs[col];
+            const y = b.y + ys[row];
+            const cellWidth = xs[lastCol] - xs[col];
+            const cellHeight = ys[lastRow] - ys[row];
             parts.push(`<rect ${attrsToString({
                 x,
                 y,

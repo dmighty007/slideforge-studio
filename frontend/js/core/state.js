@@ -443,6 +443,43 @@ function createDefaultTableData(rows = 3, cols = 4) {
     };
 }
 
+// Merged cells of a table ([{ row, col, rowSpan, colSpan }], from PowerPoint and Keynote tables): each inside the
+// table (a merge running past it is trimmed, as when rows or columns are taken off the end), at least two cells, and
+// none overlapping an earlier one. The merged block shows its first cell; the others are hidden under it.
+const MAX_TABLE_MERGES = 500;
+function normalizeTableMerges(raw, rows, cols) {
+    if (!Array.isArray(raw)) return [];
+    const taken = new Set();
+    const merges = [];
+    for (const merge of raw.slice(0, MAX_TABLE_MERGES)) {
+        const row = Math.floor(Number(merge?.row));
+        const col = Math.floor(Number(merge?.col));
+        if (!(row >= 0 && col >= 0 && row < rows && col < cols)) continue;
+        const rowSpan = Math.min(Math.max(1, Math.floor(Number(merge?.rowSpan)) || 1), rows - row);
+        const colSpan = Math.min(Math.max(1, Math.floor(Number(merge?.colSpan)) || 1), cols - col);
+        if (rowSpan === 1 && colSpan === 1) continue;
+        const keys = [];
+        for (let r = row; r < row + rowSpan; r += 1) for (let c = col; c < col + colSpan; c += 1) keys.push(`${r},${c}`);
+        if (keys.some(key => taken.has(key))) continue;
+        keys.forEach(key => taken.add(key));
+        merges.push({ row, col, rowSpan, colSpan });
+    }
+    return merges;
+}
+
+// Where a table's merges put its cells: the first cell of each merge with its spans, and the cells hidden under one.
+function tableMergeLayout(merges) {
+    const anchors = new Map();
+    const covered = new Set();
+    (Array.isArray(merges) ? merges : []).forEach(merge => {
+        anchors.set(`${merge.row},${merge.col}`, merge);
+        for (let r = merge.row; r < merge.row + merge.rowSpan; r += 1) {
+            for (let c = merge.col; c < merge.col + merge.colSpan; c += 1) if (r !== merge.row || c !== merge.col) covered.add(`${r},${c}`);
+        }
+    });
+    return { anchors, covered };
+}
+
 function normalizeTableData(tableData) {
     const fallback = createDefaultTableData();
     if (!tableData || typeof tableData !== "object") return fallback;
@@ -489,9 +526,11 @@ function normalizeTableData(tableData) {
             };
         }),
     );
+    const merges = normalizeTableMerges(tableData.merges, rows, cols);
     return {
         rows,
         cols,
+        ...(merges.length ? { merges } : {}),
         headerRow: tableData.headerRow !== false,
         zebra: Boolean(tableData.zebra),
         borderColor: typeof tableData.borderColor === "string" ? tableData.borderColor : fallback.borderColor,
