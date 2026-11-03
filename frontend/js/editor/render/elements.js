@@ -495,6 +495,9 @@ function createElementNode(elData, options = {}) {
   el.id = elData.id;
   el.className = "canvas-element";
   el.setAttribute("data-id", elData.id);
+  // A click on the whole element goes somewhere while presenting (from a PowerPoint shape's click action).
+  if (elData.clickLink && typeof isSafeClickLink === "function" && isSafeClickLink(elData.clickLink)) el.dataset.clickLink = elData.clickLink;
+  else delete el.dataset.clickLink;
   el.setAttribute("data-type", elData.type);
   if (elData.footerRole) el.setAttribute("data-footer-role", elData.footerRole);
   el.style.transform = canvasElementTransform(elData);

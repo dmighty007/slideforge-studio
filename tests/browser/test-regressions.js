@@ -10142,6 +10142,59 @@ async function test(name, fn) {
             await page.close();
         });
 
+        await test("PowerPoint import: links in table cells and click actions on shapes and groups go to their slides while presenting", async () => {
+            const { page, errors } = await openEditor(context);
+            const out = await pageAwait(page, async () => {
+                const A = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
+                const ns = `${A} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"`;
+                const rels = list => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${list.map(([id, type, target]) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`).join("")}</Relationships>`;
+                const xfrm = (x, y, w, h) => `<a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${w}" cy="${h}"/></a:xfrm>`;
+                // A contents table: its second cell goes to slide 3.
+                const cell = (text, link = "") => `<a:tc><a:txBody><a:bodyPr/><a:p><a:r><a:rPr lang="en-US">${link}</a:rPr><a:t>${text}</a:t></a:r></a:p></a:txBody><a:tcPr/></a:tc>`;
+                const table = `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="2" name="Table 1"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>${xfrm(457200, 457200, 6096000, 741680).replace("a:xfrm", "p:xfrm").replace("</a:xfrm>", "</p:xfrm>")}<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblGrid><a:gridCol w="3048000"/><a:gridCol w="3048000"/></a:tblGrid><a:tr h="370840">${cell("Contents")}${cell("Results", '<a:hlinkClick r:id="rId2" action="ppaction://hlinksldjump"/>')}</a:tr></a:tbl></a:graphicData></a:graphic></p:graphicFrame>`;
+                // A button whose whole shape goes to the next slide, and a group whose action goes to slide 3.
+                const button = `<p:sp><p:nvSpPr><p:cNvPr id="3" name="Next button"><a:hlinkClick r:id="" action="ppaction://hlinkshowjump?jump=nextslide"/></p:cNvPr><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(457200, 2286000, 1828800, 914400)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="2E75B6"/></a:solidFill></p:spPr></p:sp>`;
+                const inner = `<p:sp><p:nvSpPr><p:cNvPr id="6" name="Inner"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(3657600, 2286000, 914400, 914400)}<a:prstGeom prst="ellipse"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="C00000"/></a:solidFill></p:spPr></p:sp>`;
+                const group = `<p:grpSp><p:nvGrpSpPr><p:cNvPr id="5" name="Group 4"><a:hlinkClick r:id="rId2" action="ppaction://hlinksldjump"/></p:cNvPr><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr>${xfrm(3657600, 2286000, 914400, 914400).replace("</a:xfrm>", '<a:chOff x="3657600" y="2286000"/><a:chExt cx="914400" cy="914400"/></a:xfrm>')}</p:grpSpPr>${inner}</p:grpSp>`;
+                const empty = `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/></p:spTree></p:cSld></p:sld>`;
+                const zip = new JSZip();
+                zip.file("ppt/presentation.xml", `<p:presentation ${ns}><p:sldIdLst><p:sldId id="256" r:id="rId1"/><p:sldId id="257" r:id="rId2"/><p:sldId id="258" r:id="rId3"/></p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/></p:presentation>`);
+                zip.file("ppt/_rels/presentation.xml.rels", rels([["rId1", "slide", "slides/slide1.xml"], ["rId2", "slide", "slides/slide2.xml"], ["rId3", "slide", "slides/slide3.xml"]]));
+                zip.file("ppt/slides/slide1.xml", `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>${table}${button}${group}</p:spTree></p:cSld></p:sld>`);
+                zip.file("ppt/slides/_rels/slide1.xml.rels", rels([["rId2", "slide", "slide3.xml"]]));
+                zip.file("ppt/slides/slide2.xml", empty);
+                zip.file("ppt/slides/slide3.xml", empty);
+                await importPptx(new File([await zip.generateAsync({ type: "blob" })], "Contents.pptx"));
+                const [first, , third] = state.slides;
+                const tableEl = first.elements.find(e => e.type === "table");
+                const buttonEl = first.elements.find(e => e.type === "shape" && e.styles?.backgroundColor === "#2e75b6");
+                const innerEl = first.elements.find(e => e.type === "shape" && e.styles?.backgroundColor === "#c00000");
+                // Saved and loaded again, the links stay; anything else in their place is dropped.
+                const reloaded = normalizeStateIds ? JSON.parse(JSON.stringify(state)) : null;
+                const cellLinkKept = typeof normalizeTableData === "function" ? normalizeTableData(tableEl.tableData).cells[0][1].link : null;
+                const badCell = typeof normalizeTableData === "function" ? normalizeTableData({ ...tableEl.tableData, cells: [[{ text: "x", link: "javascript:alert(1)" }, { text: "y" }]] }).cells[0][0].link : "x";
+                setCurrentSlideIndex(0);
+                renderSlidesFromState();
+                await new Promise(resolve => setTimeout(resolve, 300));
+                const buttonNode = [...document.querySelectorAll(`[data-id="${buttonEl?.id}"]`)].find(n => !n.closest("#slide-previews"));
+                // Presenting: a click on the shape in the linked group jumps to slide 3 (a plain click would only
+                // advance to slide 2).
+                const innerNode = [...document.querySelectorAll(`[data-id="${innerEl?.id}"]`)].find(n => !n.closest("#slide-previews"));
+                document.body.classList.add("play-mode-active");
+                innerNode?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+                const afterClick = currentSlideIndex;
+                document.body.classList.remove("play-mode-active");
+                return { cell: tableEl?.tableData?.cells?.[0]?.[1]?.link, plainCell: tableEl?.tableData?.cells?.[0]?.[0]?.link || null, button: buttonEl?.clickLink, inner: innerEl?.clickLink, thirdId: third.id, cellLinkKept, badCell: badCell || null, buttonMarked: buttonNode?.dataset.clickLink || null, afterClick, reloaded: Boolean(reloaded) };
+            });
+            assert(out.cell === `#slide:${out.thirdId}` && !out.plainCell, `table cell link: ${JSON.stringify(out)}`);
+            assert(out.button === "#slide:next" && out.buttonMarked === "#slide:next", `shape click action: ${JSON.stringify(out)}`);
+            assert(out.inner === `#slide:${out.thirdId}`, `a group's click action is its contents': ${JSON.stringify(out)}`);
+            assert(out.cellLinkKept === out.cell && out.badCell === null, `cell links survive loading, unsafe ones do not: ${JSON.stringify(out)}`);
+            assert(out.afterClick === 2, `clicking the linked group's shape while presenting goes to slide 3: ${JSON.stringify(out)}`);
+            assert(!errors.length, errors.join("\n"));
+            await page.close();
+        });
+
         await test("Fonts: CMU and a Cambria Math stand-in are bundled; a font file added and a font a PowerPoint file carries are used", async () => {
             const { page, errors } = await openEditor(context);
             const out = await pageAwait(page, async () => {

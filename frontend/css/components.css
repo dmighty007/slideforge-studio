@@ -5256,3 +5256,8 @@ audio.sf-rec-preview {
 .play-mode-active #sf-fonts-card {
     display: none;
 }
+
+/* A shape, picture or table cell that links somewhere (js/editor/interact.js): clickable while presenting. */
+.play-mode-active .presentation-slide [data-click-link] {
+    cursor: pointer;
+}

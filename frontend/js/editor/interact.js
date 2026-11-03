@@ -955,11 +955,16 @@ function goToLinkedSlide(target) {
 document.addEventListener(
   "click",
   (event) => {
-    const link = event.target?.closest?.(".presentation-slide a[href]");
+    const textLink = event.target?.closest?.(".presentation-slide a[href]");
+    // A table cell or a whole element (a PowerPoint shape's click action) that links somewhere: only while
+    // presenting; in the editor a click on it selects it as usual.
+    const elementLink = !textLink && document.body.classList.contains("play-mode-active") ? event.target?.closest?.(".presentation-slide [data-click-link]") : null;
+    const link = textLink || elementLink;
     if (!link) return;
     event.preventDefault();
     if (!document.body.classList.contains("play-mode-active")) return;
-    const href = (link.getAttribute("href") || "").trim();
+    if (elementLink) event.stopPropagation(); // not also the show's click-to-advance
+    const href = (link.getAttribute("href") || link.dataset.clickLink || "").trim();
     if (/^(https?:|mailto:)/i.test(href)) window.open(href, "_blank", "noopener");
     else if (href.startsWith("#slide:")) goToLinkedSlide(href.slice(7));
   },

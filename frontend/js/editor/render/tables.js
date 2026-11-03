@@ -245,6 +245,8 @@ function _renderTableDom(container, elData, { interactive = true } = {}) {
       cell.className = "table-element-cell";
       cell.dataset.row = String(rowIndex);
       cell.dataset.col = String(colIndex);
+      // A cell that is a link (a contents table's entries going to their slides): followed while presenting.
+      if (cellData.link && typeof isSafeClickLink === "function" && isSafeClickLink(cellData.link)) cell.dataset.clickLink = cellData.link;
       const selection = tableData.selection;
       const isSelectedCell =
         selection?.type === "cell" &&

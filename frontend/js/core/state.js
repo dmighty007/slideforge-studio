@@ -480,6 +480,7 @@ function normalizeTableData(tableData) {
                 return {
                     text: typeof rawCell.text === "string" ? rawCell.text : "",
                     styles: rawCell.styles && typeof rawCell.styles === "object" ? { ...rawCell.styles } : {},
+                    ...(isSafeClickLink(rawCell.link) ? { link: rawCell.link.trim() } : {}),
                 };
             }
             return {
@@ -1093,6 +1094,13 @@ function _isSafeCssValue(value) {
 // A link to a slide of the deck: by its id, or the next, previous, first or last slide shown.
 const SLIDE_LINK_RE = /^#slide:(next|previous|first|last|[A-Za-z0-9_-]{1,80})$/;
 
+// Where a click on a whole element or a table cell may go (element.clickLink, cell.link): a web or mail address or
+// a slide of the deck, as in text links. Anything else is dropped.
+function isSafeClickLink(value) {
+    const href = typeof value === "string" ? value.trim() : "";
+    return href.length > 0 && href.length <= 2048 && (/^(https?:|mailto:)/i.test(href) || SLIDE_LINK_RE.test(href));
+}
+
 function sanitizeTextHtml(html) {
     const template = document.createElement("template");
     template.innerHTML = _truncateStateString(html, MAX_TEXT_HTML_LENGTH);
@@ -1451,6 +1459,7 @@ function normalizeStateIds({ truncate = true } = {}) {
                 animation: preservedAnimation,
                 animDuration: undefined,
                 animDelay: undefined,
+                clickLink: isSafeClickLink(safeEl.clickLink) ? safeEl.clickLink.trim() : undefined,
                 ...(fallbackType === "video"
                     ? {
                           videoType:

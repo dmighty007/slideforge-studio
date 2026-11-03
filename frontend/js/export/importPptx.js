@@ -2063,7 +2063,7 @@ function _pptxCellRunText(run) {
 // A table with its cells' fills, text colours, weights, sizes and alignment: from the cells themselves, else from
 // the table style it names (ppt/tableStyles.xml: whole table, banded rows and columns, first and last row and
 // column). Tables came in grey and white in Manrope whatever the deck had.
-function _pptxTableElement(tbl, box, scale, fontScale, zIndex, tableStyles = null, colors = _pptxCurrentThemeColors) {
+function _pptxTableElement(tbl, box, scale, fontScale, zIndex, tableStyles = null, colors = _pptxCurrentThemeColors, links = {}) {
     const colWidths = _pptxChildren(_pptxChild(tbl, "a:tblGrid"), "a:gridCol").map(col => Math.max(36, Math.round(((Number(col.getAttribute("w")) || 0) / PPTX_EMU_PER_PX) * scale)));
     const rows = _pptxChildren(tbl, "a:tr");
     if (!rows.length || !colWidths.length) return null;
@@ -2138,9 +2138,13 @@ function _pptxTableElement(tbl, box, scale, fontScale, zIndex, tableStyles = nul
             if (!styles.fontWeight) styles.fontWeight = "400";
             if (!styles.backgroundColor) styles.backgroundColor = "transparent";
             if (!styles.color) styles.color = colors?.tx1 || "#000000";
+            // A cell's link (a contents table whose entries go to their slides): the first linked words in it. Cells
+            // hold plain text, so the cell itself becomes the link. They came in unlinked.
+            const cellLink = Array.from(tc?.getElementsByTagName("a:hlinkClick") || []).map(node => _pptxClickLink(node, links)).find(Boolean);
             return {
                 text: paragraphs.map(p => Array.from(p.children).filter(n => n.tagName === "a:r" || n.tagName === "a:fld").map(_pptxCellRunText).join("")).join("\n"),
                 styles,
+                ...(cellLink ? { link: cellLink } : {}),
             };
         }),
     );
@@ -2908,6 +2912,7 @@ async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
     // Which elements each PowerPoint shape id became (a group's id stands for everything in it): builds target ids.
     const byShapeId = new Map();
     const owners = [];
+    const groupLinks = []; // the click actions of the groups being walked (a group's action is its contents')
     const register = (node, ...made) => {
         // A glow round a shape or picture (<a:effectLst><a:glow>): a soft halo in its colour. Labels framed in a
         // blue glow came in without it. Words with no box of their own keep none (PowerPoint lights their letters).
@@ -2916,6 +2921,11 @@ async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
             const target = made.find(el => el && (el.type !== "text" || (el.styles?.backgroundColor && el.styles.backgroundColor !== "transparent")));
             if (target) target.styles = { ...target.styles, boxShadow: glow };
         }
+        // A click action on the shape, picture or group itself (Insert > Action: "go to the next slide", a link
+        // to a slide or a web page): on everything made from it, followed while presenting. Only the links on its
+        // words came in.
+        const clickLink = _pptxClickLink(_pptxChild(_pptxFirst(node, "p:cNvPr"), "a:hlinkClick"), part.links) || groupLinks.at(-1) || null;
+        if (clickLink) made.forEach(el => el && !el.clickLink && (el.clickLink = clickLink));
         // The builds are the slide's; a layout's or a SmartArt drawing's shape ids can repeat the slide's.
         if (part.inherited || part.quiet) return;
         const id = _pptxFirst(node, "p:cNvPr")?.getAttribute("id");
@@ -2997,6 +3007,7 @@ async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
                 ];
                 const id = _pptxFirst(node, "p:cNvPr")?.getAttribute("id");
                 if (id) owners.push(id);
+                groupLinks.push(_pptxClickLink(_pptxChild(_pptxFirst(node, "p:cNvPr"), "a:hlinkClick"), part.links) || groupLinks.at(-1) || null);
                 // The group's own fill, for children that fill like their group (a group that does so itself passes on its own group's).
                 const groupSpPr = _pptxChild(node, "p:grpSpPr");
                 // A group filled with a picture (a texture tiled across the whole group) is left out: PowerPoint shows each
@@ -3005,6 +3016,7 @@ async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
                 const ownGroupFill = ["a:solidFill", "a:gradFill", "a:noFill", "a:pattFill", "a:blipFill"].map(tag => _pptxChild(groupSpPr, tag)).find(Boolean);
                 const groupFill = ownGroupFill ? (ownGroupFill.tagName === "a:blipFill" ? null : ownGroupFill) : t.groupFill || null;
                 await walk(node, { sx, sy, cx: g.chX, cy: g.chY, ox: t.ox + (g.x - t.cx) * t.sx, oy: t.oy + (g.y - t.cy) * t.sy, turns, fs: t.fs, groupFill });
+                groupLinks.pop();
                 if (id) owners.pop();
             } else if (node.tagName === "p:cxnSp" || (node.tagName === "p:sp" && _pptxIsLine(node) && !_pptxFirst(node, "a:t"))) {
                 const xfrm = _pptxXfrm(node);
@@ -3212,7 +3224,7 @@ async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
                 }
                 const box = toBox(xfrm, t);
                 const tbl = _pptxFirst(node, "a:tbl");
-                const made = tbl ? _pptxTableElement(tbl, box, scale, scale, zIndex, await pkg.xml("ppt/tableStyles.xml"), design?.theme?.colors || _pptxCurrentThemeColors) : await _pptxChartElement(pkg, node, part.rels, box, zIndex);
+                const made = tbl ? _pptxTableElement(tbl, box, scale, scale, zIndex, await pkg.xml("ppt/tableStyles.xml"), design?.theme?.colors || _pptxCurrentThemeColors, part.links) : await _pptxChartElement(pkg, node, part.rels, box, zIndex);
                 // Table text without a font of its own in the theme's body font (it came in as Manrope).
                 const bodyFont = tbl && design?.theme?.fonts?.minor;
                 if (made && bodyFont && /Manrope/.test(made.tableData.fontFamily)) {
