@@ -185,9 +185,12 @@ async function test(name, fn) {
             // Changing direction while a transition is in flight cancels its old animations.
             await viewer.keyboard.press('ArrowLeft');
             await viewer.keyboard.press('ArrowLeft');
-            await viewer.waitForTimeout(850);
-            assert(await viewer.evaluate(() => document.querySelectorAll('.presentation-slide.is-active').length === 1 &&
-                [...document.querySelectorAll('.presentation-slide')].every(el => el.getAnimations().length === 0)), 'rapid navigation left stale transitions');
+            // Waited for, not timed: the second 800 ms transition starts when its key press lands, which on a busy
+            // CI runner can be well after the first, and a fixed 850 ms left no room for that. Transitions that were
+            // never cancelled still fail it.
+            const settledAfterNavigation = await viewer.waitForFunction(() => document.querySelectorAll('.presentation-slide.is-active').length === 1 &&
+                [...document.querySelectorAll('.presentation-slide')].every(el => el.getAnimations().length === 0), null, { timeout: 3000 }).then(() => true, () => false);
+            assert(settledAfterNavigation, 'rapid navigation left stale transitions');
         } finally {
             await viewer.close();
             await page.close();
