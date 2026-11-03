@@ -582,6 +582,7 @@ function initPresentationTools() {
         if (!document.body.classList.contains("play-mode-active")) return;
         if (_presentationToolsState.chalkEnabled || event.button !== 0) return;
         if (Date.now() - swipedAt < 400) return; // the swipe's own click
+        if (event.target?.closest?.("[data-presentation-ui]")) return; // the timer, the recorder's dialogs
         const { menu, contextMenu, menuToggle: toggle } = _presentationToolsElements();
         if (menu?.contains(event.target) || contextMenu?.contains(event.target) || toggle?.contains(event.target))
             return;
@@ -597,6 +598,12 @@ function initPresentationTools() {
 
     document.addEventListener("keydown", event => {
         if (!document.body.classList.contains("play-mode-active")) return;
+        // The recorder's dialogs keep their keys (typing a talk length moved slides); R and T are the recorder's.
+        if (typeof showRecorderOwnsKey === "function" && showRecorderOwnsKey(event)) return;
+        if (typeof handleShowRecorderKey === "function" && handleShowRecorderKey(event)) {
+            event.preventDefault();
+            return;
+        }
         const key = String(event.key || "").toLowerCase();
         if (key === "escape") {
             event.preventDefault();

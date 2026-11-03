@@ -356,6 +356,28 @@ class PPTXExportFidelityTests(TestCase):
         borders = table.cell(0, 0)._tc.tcPr.xpath("./a:lnL | ./a:lnR | ./a:lnT | ./a:lnB")
         self.assertEqual(len(borders), 4)
 
+    def test_merged_table_cells_and_vertical_alignment_are_kept(self):
+        from pptx.enum.text import MSO_ANCHOR
+
+        slide = self._slide([{
+            "type": "table", "x": 0, "y": 0, "width": "480px", "height": "240px", "styles": {},
+            "tableData": {
+                "rows": 3, "cols": 3, "colWidths": [100, 100, 100], "rowHeights": [44, 44, 44],
+                "cells": [[{"text": "Title"}, {"text": ""}, {"text": ""}], [{"text": "Side", "styles": {"verticalAlign": "middle"}}, {"text": "b"}, {"text": "c"}], [{"text": ""}, {"text": "e"}, {"text": "f"}]],
+                # The third merge overlaps the first and is left out; the fourth runs past the table and is trimmed.
+                "merges": [{"row": 0, "col": 0, "rowSpan": 1, "colSpan": 3}, {"row": 1, "col": 0, "rowSpan": 2, "colSpan": 1}, {"row": 0, "col": 1, "rowSpan": 2, "colSpan": 1}, {"row": 1, "col": 2, "rowSpan": 5, "colSpan": 1}],
+            },
+        }])
+        table = next(s for s in slide.shapes if s.has_table).table
+        title, side, last = table.cell(0, 0), table.cell(1, 0), table.cell(1, 2)
+        self.assertTrue(title.is_merge_origin)
+        self.assertEqual((title.span_width, title.span_height), (3, 1))
+        self.assertEqual((side.span_width, side.span_height), (1, 2))
+        self.assertEqual((last.span_width, last.span_height), (1, 2))
+        self.assertTrue(table.cell(0, 1).is_spanned)
+        self.assertFalse(table.cell(1, 1).is_spanned)
+        self.assertEqual(side.vertical_anchor, MSO_ANCHOR.MIDDLE)
+
     def test_chart_without_a_card_on_a_dark_theme_has_light_labels(self):
         chart = {
             "type": "chart", "chartType": "bar", "x": 0, "y": 0, "width": "400px", "height": "300px", "styles": {},
@@ -538,6 +560,53 @@ class PPTXExportMediaTests(TestCase):
         self.assertEqual(labels_of("line", [4, 5]).position, XL_LABEL_POSITION.RIGHT)
         # Without errors, the usual places.
         self.assertEqual(labels_of("bar", [0, 0]).position, XL_LABEL_POSITION.OUTSIDE_END)
+
+    def test_scatter_and_stacked_horizontal_charts_export_as_native_charts(self):
+        from pptx.enum.chart import XL_CHART_TYPE
+
+        def chart_of(element):
+            slide = self._export([{"type": "chart", "x": 100, "y": 100, "width": "500px", "height": "300px", **element}])
+            return next(shape.chart for shape in slide.shapes if shape.has_chart)
+
+        # A scatter chart: x from the label column, one y per series, an empty cell left out; markers without lines.
+        scatter = chart_of({
+            "chartType": "scatter",
+            "chartData": {"labels": ["0", "2.5", "10"], "datasets": [
+                {"label": "round 1", "data": [0.1, None, 0.9], "showLine": False, "borderColor": "#214dcc"},
+                {"label": "round 2", "data": [0.2, 0.5, 0.8], "showLine": True, "borderColor": "#e0761b"},
+            ]},
+            "chartOptions": {"scales": {"x": {"min": 0, "max": 12}, "y": {"type": "logarithmic"}}},
+            "chartStyle": {"xTitle": "λ (molecules)", "yTitle": "P"},
+        })
+        self.assertEqual(scatter.chart_type, XL_CHART_TYPE.XY_SCATTER)
+        first, second = scatter.plots[0].series
+        self.assertEqual(list(first.iter_values()), [0.1, 0.9])
+        self.assertEqual(list(second.iter_values()), [0.2, 0.5, 0.8])
+        self.assertEqual(scatter.category_axis.maximum_scale, 12)
+        self.assertEqual(scatter.category_axis.axis_title.text_frame.text, "λ (molecules)")
+        ns = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main", "c": "http://schemas.openxmlformats.org/drawingml/2006/chart"}
+        self.assertTrue(first._element.findall("c:spPr/a:ln/a:noFill", ns))
+        self.assertFalse(second._element.findall("c:spPr/a:ln/a:noFill", ns))
+        # A logarithmic y axis stays logarithmic; x stays linear.
+        self.assertEqual(scatter.value_axis._element.find("c:scaling/c:logBase", ns).get("val"), "10")
+        self.assertIsNone(scatter.category_axis._element.find("c:scaling/c:logBase", ns))
+
+        # A stacked horizontal bar chart stays stacked and horizontal; its axis titles stay on their sides.
+        bars = chart_of({
+            "chartType": "bar",
+            "chartData": {"labels": ["Dry", "Wet"], "datasets": [{"label": "FGH", "data": [60, 30]}, {"label": "HJ", "data": [40, 70]}]},
+            "chartOptions": {"indexAxis": "y", "scales": {"x": {"stacked": True}, "y": {"stacked": True}}},
+            "chartStyle": {"xTitle": "Share (%)", "yTitle": "Start"},
+        })
+        self.assertEqual(bars.chart_type, XL_CHART_TYPE.BAR_STACKED)
+        self.assertEqual(bars.category_axis.axis_title.text_frame.text, "Start")
+        self.assertEqual(bars.value_axis.axis_title.text_frame.text, "Share (%)")
+        columns = chart_of({
+            "chartType": "bar",
+            "chartData": {"labels": ["A"], "datasets": [{"label": "s", "data": [1]}]},
+            "chartOptions": {"scales": {"y": {"stacked": True}}},
+        })
+        self.assertEqual(columns.chart_type, XL_CHART_TYPE.COLUMN_STACKED)
 
     def test_one_series_chart_has_no_automatic_title_beside_its_legend(self):
         slide = self._export([{

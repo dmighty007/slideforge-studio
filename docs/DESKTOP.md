@@ -6,13 +6,13 @@ It runs for a single local user, so there is no account and no sign-in. Your pre
 
 - **Editing:** themes and slide layouts, bullet lists, grouping, alignment guides, undo, and an animation timeline.
 - **Science-friendly elements:** KaTeX equations, Mermaid flowcharts and other diagrams, molecules from PDB and trajectory files, and charts with an editable data table.
-- **Presenting:** full-screen show, presenter view with notes, bullet-by-bullet and step-by-step reveals, a laser pointer, a spotlight and a chalkboard.
+- **Presenting:** full-screen show, presenter view with notes, bullet-by-bullet and step-by-step reveals, a laser pointer, a spotlight and a chalkboard; a timer (count up or down to a talk length) and recording the show as a video with your voice ([how](getting-started.md#time-and-record-a-talk)).
 - **Exporting:**
   - PowerPoint, with animations and bullet builds;
   - PDF and PNG;
   - a stand-alone HTML viewer;
   - view-only share links.
-- **Importing:** PowerPoint files, Keynote files (text, pictures, movies and notes for now) and SlideForge files. Slides can also be drafted from a PDF paper with a language model (your own API key, or a local Ollama).
+- **Importing:** PowerPoint files, Keynote files (text, pictures, shapes, tables, movies, sounds, transitions, builds and notes; merged table cells come in unmerged) and SlideForge files. Slides can also be drafted from a PDF paper with a language model (your own API key, or a local Ollama).
 
 ## Install
 
@@ -47,14 +47,49 @@ release there. The check only downloads that version number. Turn automatic chec
 card, or set `SLIDEFORGE_NO_UPDATE_CHECK=1`. A development copy (an editable install of a clone) is not updated
 from the app: `git pull` updates it.
 
+### What comes across from PowerPoint
+
+- **Charts** stay editable: bar (upright or horizontal, side by side, stacked or 100% stacked), line, pie,
+  doughnut and scatter, with their axis titles, axis ranges, logarithmic axes and numbers on the bars.
+- **Pictures in Windows formats** are converted: EMF, EMF+ and WMF drawings (MathType equations, ChemDraw
+  structures, graphs pasted from Origin or Excel) become sharp vector pictures, and TIFF pictures become PNG.
+- **Shapes** keep their outlines: all of PowerPoint's preset shapes (hearts, clouds, lightning bolts, brackets,
+  flowchart symbols) are drawn from PowerPoint's own definitions, with their adjustments and mirroring.
+- **Text** keeps vertical writing, numbering such as "(a)" or "ii.", and links to other slides, which work while
+  presenting.
+- **Embedded objects** (ChemDraw, MathType, Origin, Excel) come in as the picture PowerPoint shows of them. To edit
+  one, open it in its own program.
+- **Posters and handouts** in portrait keep a portrait page.
+
+Not yet converted: a metafile whose drawing is only in an embedded PDF copy, and some rare EMF+ features (custom
+arrowheads, texture brushes). Wipe transitions play as a slide transition.
+
 ### Fonts in imported presentations
 
 A PowerPoint or Keynote file names its fonts. When one is not on this computer, a similar font is drawn instead, and
-lines can break differently. After an import, SlideForge lists the fonts it could not find and offers **Download from
-Google Fonts**: each one Google Fonts has is downloaded (regular, bold and italic) and kept, so it is there for every
-later session. Commercial fonts, which Google Fonts does not have, keep their closest installed match. Fonts are only
-requested from Google when you click; **Download Fonts for This Presentation…** in the command palette (Ctrl+K) checks
-the open presentation at any time.
+lines can break differently. SlideForge fills the gap in four ways:
+
+- **Fonts the file carries.** A PowerPoint file saved with *Embed fonts* holds its fonts. They are added to your fonts
+  at import (including PowerPoint's compressed form), for the families this computer lacks.
+- **Bundled fonts.** Computer Modern Unicode (CMU Serif, CMU Sans Serif, CMU Typewriter Text) comes with the app, and
+  free fonts are drawn in place of common commercial ones, which SlideForge may not ship. Arimo, Tinos, Carlito and
+  Caladea have the same letter widths as Arial (and Helvetica), Times New Roman (and Times), Calibri and Cambria, so
+  lines break as in PowerPoint; STIX Two Math stands in for Cambria Math. Look-alikes, whose widths differ, stand in
+  for Garamond (EB Garamond), Century (TeX Gyre Schola), Arial Black (Archivo Black), Impact (Anton), Castellar and
+  Algerian (Cinzel), Edwardian Script ITC and Fairwater Script (Great Vibes), Comic Sans MS (Comic Neue), Arial
+  Rounded MT Bold (Nunito) and Adobe Devanagari (Noto Serif Devanagari). An installed copy of the real font, or one
+  you add, is always used first. A web export carries only the ones its slides use.
+- **Google Fonts.** After an import, SlideForge lists the fonts it could not find and offers **Download from Google
+  Fonts**: each one Google Fonts has is downloaded (regular, bold and italic) and kept for every later session. Fonts
+  are only requested from Google when you click; **Download Fonts for This Presentation…** in the command palette
+  (Ctrl+K) checks the open presentation at any time.
+- **Your own font files.** For a font Google does not have (Cambria Math, Segoe UI, a company's font), **Add Font
+  Files…** (in the same card, or the command palette) takes TrueType, OpenType, collection (.ttc), WOFF or EOT files
+  you have, for example copied from a computer with Office, or .zip files of them as downloaded (every font file in
+  a zip is added; anything else in it is skipped). They are kept for you only: in the web app, other users
+  cannot see or download them.
+
+A font that is still missing keeps its closest installed match.
 
 Or with pip, the latest release from PyPI:
 
@@ -86,7 +121,12 @@ pip install "slideforge-studio[pdf]"
 slideforge              # opens the editor in a native window
 slideforge --browser    # opens it in your default browser
 slideforge --no-open    # only starts the server and prints its URL
+slideforge talk.pptx    # opens a presentation (.pptx, .key or a SlideForge .json export)
 ```
+
+Each file given opens as a new project, as Import on the start screen would; several can be given at once. If
+SlideForge is already running, they open in its window instead of starting a second copy (a file given during a
+slide show opens when the show ends). A missing or unsupported file is reported before anything starts.
 
 SlideForge opens on a start screen. It lists your recent presentations and offers:
 - a new blank deck;

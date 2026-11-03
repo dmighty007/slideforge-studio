@@ -27,7 +27,7 @@ function buildChartPanel(panel, data) {
   const chartType = data.chartType || "bar";
   const round = chartType === "pie" || chartType === "doughnut";
   const table = _chartTable(data);
-  const types = [["bar", "Bar"], ["line", "Line"], ["pie", "Pie"], ["doughnut", "Doughnut"]];
+  const types = [["bar", "Bar"], ["line", "Line"], ["scatter", "Scatter"], ["pie", "Pie"], ["doughnut", "Doughnut"]];
   const palette = typeof chartCategoryPalette === "function" ? chartCategoryPalette() : [];
   const picks = data.chartStyle?.seriesColors || [];
   // With error bars, each series has a "±" column after its values (SD, SEM… as entered).
@@ -45,7 +45,7 @@ function buildChartPanel(panel, data) {
         </label>
       </div>
       <div class="chart-editor-grid" style="grid-template-columns:${columns}">
-        <span class="chart-editor-corner">Label</span>
+        <span class="chart-editor-corner" title="${chartType === "scatter" ? "The x of each row; the series hold the y" : ""}">${chartType === "scatter" ? "X" : "Label"}</span>
         ${table.series
           .map(
             (series, index) => `
@@ -189,7 +189,7 @@ function _bindChartPanel(group, data) {
     const values = names.map((_, series) =>
       labels.map((_, row) => {
         const input = group.querySelector(`.chart-row-value[data-row="${row}"][data-series="${series}"]`);
-        return Number(input?.value) || 0;
+        return input ? input.value : ""; // as typed: commit() reads the number (an empty cell is a gap in a scatter chart)
       }),
     );
     // The ± boxes when they are shown; otherwise the errors already stored (switching the bars off keeps them).
@@ -213,7 +213,8 @@ function _bindChartPanel(group, data) {
     const datasets = table.series.map((series, index) => ({
       ...(previous[index] || {}),
       label: series.name,
-      data: series.values.map((value) => Number(value) || 0),
+      // A scatter chart leaves an empty cell as a gap; the other charts count it as 0.
+      data: series.values.map((value) => (chartType === "scatter" && String(value ?? "").trim() === "" ? null : Number(value) || 0)),
       errors: (series.errors || []).map((value) => Math.abs(Number(value)) || 0),
       borderWidth: chartType === "line" ? 2 : 1,
     }));

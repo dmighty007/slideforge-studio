@@ -113,6 +113,7 @@ window.onload = async () => {
             if (typeof _playSlideAnimations === "function") {
                 _playSlideAnimations(event.indexh);
             }
+            if (typeof showTimerOnSlideChange === "function") showTimerOnSlideChange(event.indexh);
         } else if (typeof centerSlide === "function") {
             // Editor-only recentering. In presentation mode this causes a visible
             // stage bump because the fullscreen wrapper is intentionally fixed.
@@ -200,6 +201,7 @@ window.onload = async () => {
     });
 
     initPresentationTools?.();
+    if (typeof initShowRecorder === "function") initShowRecorder();
     initInteract();
     initKeyboard();
     updateSlideCounter();
@@ -207,6 +209,8 @@ window.onload = async () => {
     // Back where the user left off: their deck, or the start screen (start-screen.js).
     if (typeof openStartScreenOnLaunch === "function") openStartScreenOnLaunch();
     else openStartScreen?.();
+    // Presentations given on the command line (`slideforge talk.pptx`, desktop app): open-requests.js.
+    window.sfStartOpenRequests?.();
 };
 
 // Below 1180px the panel lies over the canvas, as a drawer, instead of taking its 320px from the slide (at 700px the

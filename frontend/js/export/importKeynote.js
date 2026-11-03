@@ -259,6 +259,67 @@ function _keynoteShapeElement(el, scale, zIndex) {
 
 // Keynote's transitions as the nearest of SlideForge's (they all came in as none). By name, so newer effects find
 // their family; anything unrecognised fades.
+// A Keynote table (from the server's TST reader): its columns and rows at the deck's scale, each cell with its text,
+// fill, font, colour and alignment, and its merged cells. Tables were left out of the slide.
+function _keynoteTableElement(el, scale, zIndex) {
+    const rows = Array.isArray(el.rows) ? el.rows.length : 0;
+    const cols = Array.isArray(el.columns) ? el.columns.length : 0;
+    if (!rows || !cols || !Array.isArray(el.cells)) return null;
+    const box = _keynoteBox(el, scale);
+    const colWidths = el.columns.map(width => Math.max(36, Math.round(width * scale)));
+    const rowHeights = el.rows.map(height => Math.max(24, Math.round(height * scale)));
+    const all = el.cells.flat().filter(Boolean);
+    const sizes = all.map(cell => cell.size).filter(Boolean);
+    const baseSize = sizes.length ? Math.round(sizes.sort((a, b) => a - b)[Math.floor(sizes.length / 2)] * scale) : 16;
+    const fonts = all.map(cell => cell.font).filter(Boolean);
+    const baseFont = fonts.length ? _pptxFontStack(fonts[0]) : KEYNOTE_DEFAULT_FONT;
+    const padding = all.find(cell => cell.padding)?.padding;
+    const cells = Array.from({ length: rows }, (_, r) =>
+        Array.from({ length: cols }, (_, c) => {
+            const cell = el.cells[r]?.[c] || {};
+            const styles = {};
+            if (cell.fill) styles.backgroundColor = cell.fill;
+            if (cell.color) styles.color = _keynoteColor(cell);
+            if (cell.size && Math.round(cell.size * scale) !== baseSize) styles.fontSize = `${Math.round(cell.size * scale)}px`;
+            if (cell.font) styles.fontFamily = _pptxFontStack(cell.font);
+            styles.fontWeight = cell.bold ? "700" : String(cell.weight || 400);
+            if (cell.italic) styles.fontStyle = "italic";
+            if (cell.align) styles.textAlign = cell.align;
+            if (cell.valign) styles.verticalAlign = cell.valign;
+            if (!styles.backgroundColor) styles.backgroundColor = "transparent";
+            return { text: String(cell.text || ""), styles };
+        }),
+    );
+    const base = typeof createDefaultTableData === "function" ? createDefaultTableData(rows, cols) : {};
+    return {
+        id: generateId("el"),
+        type: "table",
+        x: box.x,
+        y: box.y,
+        width: `${colWidths.reduce((a, b) => a + b, 0)}px`,
+        height: `${rowHeights.reduce((a, b) => a + b, 0)}px`,
+        content: "",
+        ...(box.rot ? { rotation: box.rot } : {}),
+        tableData: {
+            ...base,
+            rows,
+            cols,
+            colWidths,
+            rowHeights,
+            cells,
+            ...(Array.isArray(el.merges) && el.merges.length ? { merges: el.merges } : {}),
+            headerRow: (Number(el.headerRows) || 0) > 0,
+            zebra: false,
+            lineHeight: 1.2,
+            fontFamily: baseFont,
+            fontSize: `${baseSize}px`,
+            ...(padding ? { cellPadding: Math.max(2, Math.round(padding * scale)) } : {}),
+            selection: null,
+        },
+        styles: { color: "#172033", fontSize: `${baseSize}px`, fontFamily: baseFont, textAlign: "left", zIndex },
+    };
+}
+
 function _keynoteTransition(transition) {
     const effect = String(transition?.effect || "").toLowerCase();
     if (!effect || effect === "none") return "none";
@@ -408,7 +469,7 @@ async function importKeynote(file) {
 
         busy.update({ detail: `Drawing ${deck.slides.length} slides…`, progress: 0.95 });
         await sfBusyPaint();
-        const makers = { text: _keynoteTextElement, image: _keynotePictureElement, video: _keynoteVideoElement, audio: _keynoteAudioElement, shape: _keynoteShapeElement };
+        const makers = { text: _keynoteTextElement, image: _keynotePictureElement, video: _keynoteVideoElement, audio: _keynoteAudioElement, shape: _keynoteShapeElement, table: _keynoteTableElement };
         const slides = deck.slides.map(source => {
             const elements = (source.elements || [])
                 .map((el, index) => {

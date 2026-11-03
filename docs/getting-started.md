@@ -28,6 +28,32 @@ Use the play button in the top toolbar to enter presentation mode. Use the arrow
 to move through the slides and animation steps. Press **Escape** to return to editing.
 The [animation showcase](showcase/animations.md) demonstrates builds and transitions.
 
+### Time and record a talk
+
+Press **T** while presenting to show a timer: the time so far and the time on this slide.
+To count down instead, set a talk length with **Set Talk Length…** in the command palette
+(Ctrl+K) or in the recording dialog. The talk length is saved with the presentation. The timer turns amber
+near the end and red once time is up.
+
+To record the talk, use the red **Record** button next to the play button (or press **R**
+while presenting). Choose the microphone, and whether to include the sound of videos and
+audio on your slides. Your browser then asks to share this tab. The show starts, counts down 3-2-1 and
+records the slides with your voice, including animations, the laser and chalk.
+
+| Key | While presenting |
+| --- | --- |
+| **R** | Start a recording, or pause and resume it (the pauses are left out of the video) |
+| **Shift+R** | Stop the recording; the show goes on |
+| **T** | Show or hide the timer (hiding does not stop it) |
+| **Shift+T** | Pause or resume the timer |
+
+The same controls are in the show's menu, and the [presenter view](DESKTOP.md) (**P**) has the timer
+too. When you stop the recording or end the show, SlideForge offers the video as a WebM file to save.
+WebM plays in Chrome, Edge, Firefox and VLC, and you can upload it to YouTube as it is.
+Nothing is uploaded. In Chrome and Edge the video holds only the slides. In other browsers and in the
+desktop app the whole window is recorded, so hide the timer with **T** if it should not be in the video. If
+screen sharing is not available, SlideForge offers to record the sound only.
+
 ## 4. Export a copy
 
 Open **Export** in the top toolbar and choose the format your audience needs:

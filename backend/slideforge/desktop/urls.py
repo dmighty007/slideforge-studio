@@ -6,7 +6,7 @@ from slideforge.studio.frontend_files import serve_frontend_file
 from slideforge.studio.plugin_views import serve_user_plugin_file
 from slideforge.studio.views import shared_presentation, spa_index
 
-from .views import app_update, share_tunnel
+from .views import app_update, open_request_file, open_requests, share_tunnel
 
 # The desktop app always serves the bundled frontend and the user's media itself (there is no separate web server).
 _frontend = settings.FRONTEND_DIR
@@ -14,6 +14,8 @@ _frontend = settings.FRONTEND_DIR
 urlpatterns = [
     path("api/share/tunnel/", share_tunnel, name="share-tunnel"),
     path("api/desktop/update/", app_update, name="app-update"),
+    path("api/desktop/open/", open_requests, name="open-requests"),
+    re_path(r"^api/desktop/open/(?P<request_id>[0-9a-f-]{1,40})/$", open_request_file, name="open-request-file"),
     path("api/", include("slideforge.studio.urls")),
     path("", spa_index, name="spa-index"),
     re_path(r"^(?:index\.html)?$", spa_index, name="spa-index-html"),

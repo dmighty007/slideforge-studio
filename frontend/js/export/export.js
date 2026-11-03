@@ -463,8 +463,33 @@ async function addCssWithLocalDependenciesToZip(zip, path, seen = new Set()) {
   }
 }
 
+// The bundled open fonts (vendor/fonts/science-fonts.css: CMU, STIX Two Math; stand-in-fonts.css: free fonts in place
+// of Arial, Calibri, Garamond...), several MB together: an export carries only the rules and files of the families
+// its slides use. The stylesheets are always written (empty when nothing is used), so the viewer's links resolve.
+const EXPORT_FONT_STYLESHEETS = ["vendor/fonts/science-fonts.css", "vendor/fonts/stand-in-fonts.css"];
+
+async function addDeckFontStylesheetsToZip(zip) {
+  const used = typeof sfDeckFontFamilies === "function" ? new Set(sfDeckFontFamilies().map(family => family.toLowerCase())) : null;
+  for (const path of EXPORT_FONT_STYLESHEETS) {
+    const css = await fetchLocalAsset(path, true);
+    if (!css) continue;
+    const rules = (css.match(/@font-face\s*{[^}]*}/g) || []).filter(rule => {
+      const family = /font-family:\s*["']?([^"';]+)["']?/.exec(rule)?.[1]?.trim().toLowerCase();
+      return family && (!used || used.has(family));
+    });
+    zip.file(path, rules.join("\n") + "\n");
+    const base = new URL(path, window.location.href);
+    for (const url of new Set(rules.flatMap(rule => [...rule.matchAll(/url\("([^"]+)"\)/g)].map(match => match[1])))) {
+      const dependencyPath = zipPathFromUrl(new URL(url, base).toString());
+      const asset = await fetchLocalAsset(dependencyPath);
+      if (asset) zip.file(dependencyPath, asset);
+    }
+  }
+}
+
 async function addOfflineViewerVendorAssetsToZip(zip) {
   await addCssWithLocalDependenciesToZip(zip, "vendor/fonts/fonts.css");
+  await addDeckFontStylesheetsToZip(zip);
   await addCssWithLocalDependenciesToZip(zip, "vendor/fontawesome/css/all.min.css");
   const ngl = await fetchLocalAsset("vendor/ngl/ngl.js", true);
   if (ngl) zip.file("vendor/ngl/ngl.js", ngl);
@@ -1441,6 +1466,8 @@ function generateViewerHtml(stateJson, theme) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${viewerTitle}</title>
     <link rel="stylesheet" href="vendor/fonts/fonts.css" />
+    <link rel="stylesheet" href="vendor/fonts/science-fonts.css" />
+    <link rel="stylesheet" href="vendor/fonts/stand-in-fonts.css" />
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
     <link rel="stylesheet" href="css/viewer.css" />
     <script id="presentation-data" type="application/json">${safeStateJson}</script>
@@ -3377,12 +3404,30 @@ function createViewerElement(elData, mediaOptions = {}) {
         });
         table.appendChild(colgroup);
         const tbody = document.createElement('tbody');
+        // Merged cells (as the editor draws them, see tableMergeLayout): the first spans the merge, the rest are not drawn.
+        const mergeAnchors = new Map();
+        const mergeCovered = new Set();
+        (Array.isArray(elData.tableData?.merges) ? elData.tableData.merges : []).slice(0, 500).forEach(merge => {
+            const row = Math.floor(Number(merge?.row)), col = Math.floor(Number(merge?.col));
+            const rowSpan = Math.min(Math.max(1, Math.floor(Number(merge?.rowSpan)) || 1), tableData.rows - row);
+            const colSpan = Math.min(Math.max(1, Math.floor(Number(merge?.colSpan)) || 1), tableData.cols - col);
+            if (!(row >= 0 && col >= 0 && row < tableData.rows && col < tableData.cols) || (rowSpan === 1 && colSpan === 1)) return;
+            if (mergeCovered.has(row + ',' + col) || mergeAnchors.has(row + ',' + col)) return;
+            mergeAnchors.set(row + ',' + col, { rowSpan, colSpan });
+            for (let r = row; r < row + rowSpan; r += 1) for (let c = col; c < col + colSpan; c += 1) if (r !== row || c !== col) mergeCovered.add(r + ',' + c);
+        });
         for (let rowIndex = 0; rowIndex < tableData.rows; rowIndex += 1) {
             const tr = document.createElement('tr');
             tr.style.height = Math.max(24, Number(tableData.rowHeights[rowIndex]) || 44) + 'px';
             for (let colIndex = 0; colIndex < tableData.cols; colIndex += 1) {
+                if (mergeCovered.has(rowIndex + ',' + colIndex)) continue;
                 const cellData = tableData.cells[rowIndex]?.[colIndex] || { text: '', styles: {} };
                 const cell = document.createElement(rowIndex === 0 && tableData.headerRow ? 'th' : 'td');
+                const merge = mergeAnchors.get(rowIndex + ',' + colIndex);
+                if (merge) {
+                    cell.colSpan = merge.colSpan;
+                    cell.rowSpan = merge.rowSpan;
+                }
                 const isHeader = tableData.headerRow && rowIndex === 0;
                 const zebraFill = tableData.zebra && !isHeader && rowIndex % 2 === 1 ? tableData.altFill : tableData.bodyFill;
                 const styles = cellData.styles || {};
@@ -3400,7 +3445,7 @@ function createViewerElement(elData, mediaOptions = {}) {
                 cell.style.fontFamily = styles.fontFamily || tableData.fontFamily;
                 cell.style.fontSize = styles.fontSize || tableData.fontSize;
                 cell.style.fontStyle = styles.fontStyle || tableData.fontStyle;
-                cell.style.verticalAlign = 'top';
+                cell.style.verticalAlign = ['top', 'middle', 'bottom'].includes(styles.verticalAlign) ? styles.verticalAlign : 'top';
                 cell.style.whiteSpace = 'pre-wrap';
                 cell.textContent = cellData.text || '';
                 tr.appendChild(cell);

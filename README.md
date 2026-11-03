@@ -70,7 +70,9 @@ Then arrange your slide and present it.
 Open a PowerPoint (.pptx) or Keynote (.key) file and keep working on it. Text keeps its fonts, sizes, spacing and
 bullets; pictures keep their crops; and the template's logos and bars, shapes, transitions, builds, videos and
 sounds come along, with PowerPoint's SmartArt diagrams, tables and charts too. When a deck uses a font this
-computer doesn't have, SlideForge offers to download it from Google Fonts, so lines break where the author's did.
+computer doesn't have, SlideForge uses the fonts the file carries, offers to download it from Google Fonts, or
+takes a font file you have, so lines break where the author's did. Computer Modern (CMU) and a stand-in for Cambria
+Math come with the app.
 
 Import results depend on the source deck. Check layout, fonts, media and builds before a talk, especially for
 complex templates. Exported PowerPoint keeps supported text, shapes, tables and charts editable; specialized

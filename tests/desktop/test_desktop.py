@@ -405,6 +405,119 @@ class QtPermissionTests(TestCase):
         handler(BrokenPage(), QUrl("http://127.0.0.1:8123"), feature.ClipboardReadWrite)  # logged, not raised
 
 
+class QtScreenCaptureTests(TestCase):
+    """Recording a slide show: the app's own pages may capture the screen, and getDisplayMedia() records the
+    editor's window (Qt shows no picker)."""
+
+    def test_screen_capture_is_granted_to_app_pages_only(self):
+        import unittest
+
+        from slideforge.desktop import qt_support
+
+        if not qt_support.available():
+            raise unittest.SkipTest("Qt WebEngine is not installed")
+        from qtpy.QtCore import QUrl
+        from qtpy.QtWebEngineCore import QWebEnginePage
+        from webview.platforms import qt as pywebview_qt
+
+        qt_support._app_port = 8123
+        qt_support._patch_permissions()
+        handler = pywebview_qt.BrowserView.WebPage.onFeaturePermissionRequested
+        answers = []
+
+        class Page:
+            def setFeaturePermission(self, url, feature, policy):
+                answers.append(policy)
+
+        feature = QWebEnginePage.Feature
+        policy = QWebEnginePage.PermissionPolicy
+        handler(Page(), QUrl("http://127.0.0.1:8123"), feature.DesktopVideoCapture)
+        handler(Page(), QUrl("http://127.0.0.1:8123"), feature.DesktopAudioVideoCapture)
+        handler(Page(), QUrl("https://example.com"), feature.DesktopVideoCapture)
+        self.assertEqual(
+            answers, [policy.PermissionGrantedByUser, policy.PermissionGrantedByUser, policy.PermissionDeniedByUser]
+        )
+
+    def test_screen_capture_is_switched_on_for_pages(self):
+        # Off by default in Qt WebEngine: getDisplayMedia() then failed with "Invalid state" whatever was granted.
+        import unittest
+
+        from slideforge.desktop import qt_support
+
+        if not qt_support.available():
+            raise unittest.SkipTest("Qt WebEngine is not installed")
+        from qtpy.QtWebEngineCore import QWebEngineSettings
+
+        switched_on = []
+
+        class Settings:
+            def setAttribute(self, attribute, value):
+                if value:
+                    switched_on.append(attribute)
+
+        class Page:
+            def settings(self):
+                return Settings()
+
+        qt_support._enable_features(Page())
+        self.assertIn(QWebEngineSettings.WebAttribute.ScreenCaptureEnabled, switched_on)
+
+    def test_the_editor_window_is_chosen_else_the_screen(self):
+        import unittest
+
+        from slideforge.desktop import qt_support
+
+        if not qt_support.available():
+            raise unittest.SkipTest("Qt WebEngine is not installed")
+        from qtpy.QtCore import QStringListModel
+
+        class Request:
+            def __init__(self, windows, screens=("Screen 1",)):
+                self._windows = QStringListModel(list(windows))
+                self._screens = QStringListModel(list(screens))
+                self.chosen = None
+
+            def windowsModel(self):
+                return self._windows
+
+            def screensModel(self):
+                return self._screens
+
+            def selectWindow(self, index):
+                self.chosen = ("window", index.data())
+
+            def selectScreen(self, index):
+                self.chosen = ("screen", index.data())
+
+            def cancel(self):
+                self.chosen = ("cancelled", None)
+
+        request = Request(["Presenter View", "Terminal", "SlideForge"])
+        qt_support._choose_desktop_source(request, "SlideForge")
+        self.assertEqual(request.chosen, ("window", "SlideForge"))
+
+        # A web browser showing SlideForge in a tab is not the app.
+        request = Request(["Notes", "My talk - SlideForge — Firefox"])
+        qt_support._choose_desktop_source(request, "SlideForge")
+        self.assertEqual(request.chosen, ("screen", "Screen 1"))
+
+        request = Request(["Notes"])
+        qt_support._choose_desktop_source(request, "SlideForge")
+        self.assertEqual(request.chosen, ("screen", "Screen 1"))
+
+        request = Request([], screens=())
+        qt_support._choose_desktop_source(request, "SlideForge")
+        self.assertEqual(request.chosen, ("cancelled", None))
+
+        class BrokenRequest(Request):
+            def windowsModel(self):
+                raise RuntimeError("boom")
+
+        broken = BrokenRequest([])
+        qt_support._choose_desktop_source(broken, "SlideForge")  # logged, not raised
+        self.assertEqual(broken.chosen, ("cancelled", None))
+
+
 class QtPopupNavigationTests(TestCase):
     """Opening a share link (an outside address) from the app closed its popup inside Qt's navigation callback;
     Qt WebEngine then aborted the whole app with SIGTRAP."""
@@ -717,3 +830,58 @@ class UpdateTests(TestCase):
                     break
                 time.sleep(0.1)
             self.assertTrue(os.path.exists(marker))
+
+
+class OpenRequestTests(TestCase):
+    """Files given on the command line, handed to the editor page once each (open_files.py)."""
+
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+
+        from slideforge.desktop import paths
+
+        self.data_dir = paths.data_dir()
+        shutil.rmtree(self.data_dir / "open-requests", ignore_errors=True)
+        self.folder = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.folder, ignore_errors=True)
+
+    def test_the_page_lists_and_fetches_each_file_once_by_name_only(self):
+        from slideforge.desktop import open_files
+
+        deck = self.folder / "Group meeting.pptx"
+        deck.write_bytes(b"PK\x03\x04 the deck's bytes")
+        open_files.add(self.data_dir, open_files.check(str(deck)))
+        client = Client()
+        listed = client.get("/api/desktop/open/").json()["files"]
+        self.assertEqual([(item["name"], item["kind"]) for item in listed], [("Group meeting.pptx", "pptx")])
+        self.assertNotIn(str(self.folder), json.dumps(listed))  # the page never learns where the file is
+        response = client.get(f"/api/desktop/open/{listed[0]['id']}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(b"".join(response.streaming_content), b"PK\x03\x04 the deck's bytes")
+        self.assertEqual(client.get(f"/api/desktop/open/{listed[0]['id']}/").status_code, 404)
+        self.assertEqual(client.get("/api/desktop/open/").json()["files"], [])
+
+    def test_stale_and_vanished_requests_are_dropped_and_ids_cannot_reach_other_files(self):
+        import time
+
+        from slideforge.desktop import open_files
+
+        old = self.folder / "Old.key"
+        old.write_bytes(b"PK")
+        gone = self.folder / "Gone.json"
+        gone.write_text("{}")
+        old_id = open_files.add(self.data_dir, open_files.check(str(old)))
+        open_files.add(self.data_dir, open_files.check(str(gone)))
+        entry = self.data_dir / "open-requests" / f"{old_id}.json"
+        data = json.loads(entry.read_text())
+        data["created"] = time.time() - open_files.MAX_AGE_SECONDS - 5
+        entry.write_text(json.dumps(data))
+        gone.unlink()
+        self.assertEqual(Client().get("/api/desktop/open/").json()["files"], [])
+        for bad in ("../instance", "..%2Finstance", "nope"):
+            self.assertEqual(Client().get(f"/api/desktop/open/{bad}/").status_code, 404, bad)
+
+    @override_settings(SLIDEFORGE_LAUNCH_TOKEN="launch-secret")
+    def test_the_queue_needs_the_launch_token(self):
+        self.assertEqual(Client().get("/api/desktop/open/").status_code, 403)

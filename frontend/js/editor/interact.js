@@ -932,16 +932,41 @@ function _drawGuide(x, y, isVertical) {
 
 // ─── Links in text ───────────────────────────────────────────────────────────
 
+// A link to a slide (#slide:<id>, or next / previous / first / last: from PowerPoint's links to slides) moves the
+// show there. Next and previous step over hidden slides; a slide named by its id is shown even when hidden, as
+// PowerPoint does.
+function goToLinkedSlide(target) {
+  const slides = state.slides || [];
+  const current = typeof currentSlideIndex === "number" ? currentSlideIndex : 0;
+  const shown = (from, step) => (typeof presentationShownSlideFrom === "function" ? presentationShownSlideFrom(from, step) : from + step);
+  let index = -1;
+  if (target === "next") index = shown(current, 1);
+  else if (target === "previous") index = shown(current, -1);
+  else if (target === "first") index = shown(-1, 1);
+  else if (target === "last") index = shown(slides.length, -1);
+  else index = slides.findIndex((slide) => slide?.id === target);
+  if (index < 0 || index >= slides.length) return;
+  if (typeof presentationGoToSlide === "function") presentationGoToSlide(index);
+  else if (typeof window.switchSlide === "function") window.switchSlide(index);
+  if (typeof _syncPresenterPayload === "function") _syncPresenterPayload();
+}
+
 // A link in a text box opens (in a new tab) only while presenting; in the editor a click on it is a click on the box.
 document.addEventListener(
   "click",
   (event) => {
-    const link = event.target?.closest?.(".presentation-slide a[href]");
+    const textLink = event.target?.closest?.(".presentation-slide a[href]");
+    // A table cell or a whole element (a PowerPoint shape's click action) that links somewhere: only while
+    // presenting; in the editor a click on it selects it as usual.
+    const elementLink = !textLink && document.body.classList.contains("play-mode-active") ? event.target?.closest?.(".presentation-slide [data-click-link]") : null;
+    const link = textLink || elementLink;
     if (!link) return;
     event.preventDefault();
     if (!document.body.classList.contains("play-mode-active")) return;
-    const href = link.getAttribute("href") || "";
-    if (/^(https?:|mailto:)/i.test(href.trim())) window.open(href, "_blank", "noopener");
+    if (elementLink) event.stopPropagation(); // not also the show's click-to-advance
+    const href = (link.getAttribute("href") || link.dataset.clickLink || "").trim();
+    if (/^(https?:|mailto:)/i.test(href)) window.open(href, "_blank", "noopener");
+    else if (href.startsWith("#slide:")) goToLinkedSlide(href.slice(7));
   },
   true,
 );

@@ -804,9 +804,13 @@ def fonts_view(request):
     downloads each one Google Fonts has; {"results": [{"family", "status"}], "fonts": ...}."""
     from . import google_fonts
 
+    from . import font_files
+
     if request.method == "GET":
         # The page asks at every start; signed out there is nothing to load (and no 401 in the console).
-        return JsonResponse({"fonts": google_fonts.installed() if request.user.is_authenticated else {}})
+        if not request.user.is_authenticated:
+            return JsonResponse({"fonts": {}})
+        return JsonResponse({"fonts": {**google_fonts.installed(), **font_files.families(request.user)}})
     auth_error = _auth_required(request)
     if auth_error:
         return auth_error
@@ -821,7 +825,48 @@ def fonts_view(request):
     if not names or not all(google_fonts.valid_family(name) for name in names):
         return _json_error("Not a font name")
     results = [google_fonts.install(name) for name in dict.fromkeys(names)]
-    return JsonResponse({"results": results, "fonts": google_fonts.installed()})
+    return JsonResponse({"results": results, "fonts": {**google_fonts.installed(), **font_files.families(request.user)}})
+
+
+@require_http_methods(["POST"])
+@ratelimit(key="user", rate="300/h", method="POST")
+def font_files_view(request):
+    """Adds the fonts in one file for this user (font_files.py): a TrueType/OpenType/WOFF file the user chose, or a
+    font a PowerPoint file carries (EOT). Form fields: file; optional family and style (regular, bold, italic,
+    boldItalic) naming the face as the presentation does. {"faces": [{"family", "weight", "style"}], "fonts": ...}."""
+    from . import font_files, google_fonts
+
+    auth_error = _auth_required(request)
+    if auth_error:
+        return auth_error
+    uploaded = request.FILES.get("file")
+    if uploaded is None:
+        return _json_error("Missing file upload")
+    if uploaded.size > font_files.MAX_FILE_BYTES:
+        return _json_error("The font file is too large", status=413)
+    try:
+        faces = font_files.add(request.user, uploaded.read(), family=request.POST.get("family"), style=request.POST.get("style"))
+    except font_files.FontFileError as exc:
+        return _json_error(str(exc), status=422)
+    return JsonResponse({"faces": faces, "fonts": {**google_fonts.installed(), **font_files.families(request.user)}})
+
+
+@require_GET
+def own_font_file(request, path):
+    """One of the signed-in user's added fonts or their stylesheet; nobody else's."""
+    from . import font_files
+
+    auth_error = _auth_required(request)
+    if auth_error:
+        return auth_error
+    found = font_files.own_file(request.user, path)
+    if not found:
+        return _json_error("Not found", status=404)
+    target, content_type = found
+    response = FileResponse(target.open("rb"), content_type=content_type)
+    response["Cache-Control"] = "private, max-age=86400"
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 @require_GET

@@ -18,7 +18,9 @@ function parseSlideforgeDimension(value) {
 
 function isPresetBackgroundElement(el) {
     if (!el || el.type !== "shape") return false;
-    if (el.presetBackground === true || el.backgroundRole === "preset") return true;
+    // A PowerPoint slide's colour or gradient background comes in as a slide-sized rectangle (slide backgrounds here
+    // are pictures, videos or 3D); it was selectable, so a click on an empty part of the slide picked it up and moved it.
+    if (el.presetBackground === true || el.backgroundRole === "preset" || el.importedBackground === true) return true;
 
     const styles = el.styles || {};
     if (styles.pointerEvents !== "none") return false;
@@ -441,6 +443,43 @@ function createDefaultTableData(rows = 3, cols = 4) {
     };
 }
 
+// Merged cells of a table ([{ row, col, rowSpan, colSpan }], from PowerPoint and Keynote tables): each inside the
+// table (a merge running past it is trimmed, as when rows or columns are taken off the end), at least two cells, and
+// none overlapping an earlier one. The merged block shows its first cell; the others are hidden under it.
+const MAX_TABLE_MERGES = 500;
+function normalizeTableMerges(raw, rows, cols) {
+    if (!Array.isArray(raw)) return [];
+    const taken = new Set();
+    const merges = [];
+    for (const merge of raw.slice(0, MAX_TABLE_MERGES)) {
+        const row = Math.floor(Number(merge?.row));
+        const col = Math.floor(Number(merge?.col));
+        if (!(row >= 0 && col >= 0 && row < rows && col < cols)) continue;
+        const rowSpan = Math.min(Math.max(1, Math.floor(Number(merge?.rowSpan)) || 1), rows - row);
+        const colSpan = Math.min(Math.max(1, Math.floor(Number(merge?.colSpan)) || 1), cols - col);
+        if (rowSpan === 1 && colSpan === 1) continue;
+        const keys = [];
+        for (let r = row; r < row + rowSpan; r += 1) for (let c = col; c < col + colSpan; c += 1) keys.push(`${r},${c}`);
+        if (keys.some(key => taken.has(key))) continue;
+        keys.forEach(key => taken.add(key));
+        merges.push({ row, col, rowSpan, colSpan });
+    }
+    return merges;
+}
+
+// Where a table's merges put its cells: the first cell of each merge with its spans, and the cells hidden under one.
+function tableMergeLayout(merges) {
+    const anchors = new Map();
+    const covered = new Set();
+    (Array.isArray(merges) ? merges : []).forEach(merge => {
+        anchors.set(`${merge.row},${merge.col}`, merge);
+        for (let r = merge.row; r < merge.row + merge.rowSpan; r += 1) {
+            for (let c = merge.col; c < merge.col + merge.colSpan; c += 1) if (r !== merge.row || c !== merge.col) covered.add(`${r},${c}`);
+        }
+    });
+    return { anchors, covered };
+}
+
 function normalizeTableData(tableData) {
     const fallback = createDefaultTableData();
     if (!tableData || typeof tableData !== "object") return fallback;
@@ -478,6 +517,7 @@ function normalizeTableData(tableData) {
                 return {
                     text: typeof rawCell.text === "string" ? rawCell.text : "",
                     styles: rawCell.styles && typeof rawCell.styles === "object" ? { ...rawCell.styles } : {},
+                    ...(isSafeClickLink(rawCell.link) ? { link: rawCell.link.trim() } : {}),
                 };
             }
             return {
@@ -486,9 +526,11 @@ function normalizeTableData(tableData) {
             };
         }),
     );
+    const merges = normalizeTableMerges(tableData.merges, rows, cols);
     return {
         rows,
         cols,
+        ...(merges.length ? { merges } : {}),
         headerRow: tableData.headerRow !== false,
         zebra: Boolean(tableData.zebra),
         borderColor: typeof tableData.borderColor === "string" ? tableData.borderColor : fallback.borderColor,
@@ -508,6 +550,8 @@ function normalizeTableData(tableData) {
         fontWeight: typeof tableData.fontWeight === "string" ? tableData.fontWeight : "400",
         fontStyle: typeof tableData.fontStyle === "string" ? tableData.fontStyle : "normal",
         textAlign: typeof tableData.textAlign === "string" ? tableData.textAlign : "left",
+        // Line spacing in cells, set by the PowerPoint import (1.2, as PowerPoint draws them); absent otherwise.
+        ...(Number(tableData.lineHeight) >= 0.8 && Number(tableData.lineHeight) <= 3 ? { lineHeight: Number(tableData.lineHeight) } : {}),
         // The smallest text "Fit to content area" may use (table settings), and the sizes it had before a fit
         // tightened it (a split goes back to them).
         ...(Number(tableData.fitMinFontSize) >= 8 ? { fitMinFontSize: Math.min(40, Number(tableData.fitMinFontSize)) } : {}),
@@ -993,6 +1037,12 @@ const SAFE_TEXT_STYLE_PROPS = new Set([
     "padding-left",
     "line-height",
     "width",
+    // Letters filled with a gradient (PowerPoint WordArt): a gradient clipped to the text. Only gradients pass
+    // (url() is refused below), so text cannot load a picture.
+    "background-image",
+    "background-clip",
+    "-webkit-background-clip",
+    "-webkit-text-fill-color",
 ]);
 const SAFE_ELEMENT_STYLE_PROPS = new Set([
     // A gradient fill (imported PowerPoint shapes and backgrounds): it was dropped when the deck was saved and opened.
@@ -1080,6 +1130,16 @@ function _isSafeCssValue(value) {
     return !/(?:expression\s*\(|javascript:|data:text\/html|url\s*\()/i.test(str);
 }
 
+// A link to a slide of the deck: by its id, or the next, previous, first or last slide shown.
+const SLIDE_LINK_RE = /^#slide:(next|previous|first|last|[A-Za-z0-9_-]{1,80})$/;
+
+// Where a click on a whole element or a table cell may go (element.clickLink, cell.link): a web or mail address or
+// a slide of the deck, as in text links. Anything else is dropped.
+function isSafeClickLink(value) {
+    const href = typeof value === "string" ? value.trim() : "";
+    return href.length > 0 && href.length <= 2048 && (/^(https?:|mailto:)/i.test(href) || SLIDE_LINK_RE.test(href));
+}
+
 function sanitizeTextHtml(html) {
     const template = document.createElement("template");
     template.innerHTML = _truncateStateString(html, MAX_TEXT_HTML_LENGTH);
@@ -1104,12 +1164,15 @@ function sanitizeTextHtml(html) {
                 }
             }
             if (name.startsWith("data-bullet") || name.startsWith("data-level")) return;
-            // A link keeps a web or mail address only, and opens in a new tab.
-            if (node.tagName === "A" && name === "href" && /^(https?:|mailto:)/i.test(attr.value.trim())) return;
+            // A link keeps a web or mail address only, and opens in a new tab; or it goes to a slide of the deck
+            // (#slide:<id>, #slide:next / previous / first / last), as PowerPoint's links to slides do.
+            if (node.tagName === "A" && name === "href" && (/^(https?:|mailto:)/i.test(attr.value.trim()) || SLIDE_LINK_RE.test(attr.value.trim()))) return;
             node.removeAttribute(attr.name);
         });
         if (node.tagName === "A") {
-            if (node.hasAttribute("href")) {
+            if (node.hasAttribute("href") && SLIDE_LINK_RE.test(node.getAttribute("href").trim())) {
+                // stays in the presentation: no new tab
+            } else if (node.hasAttribute("href")) {
                 node.setAttribute("target", "_blank");
                 node.setAttribute("rel", "noopener noreferrer");
             } else {
@@ -1121,6 +1184,7 @@ function sanitizeTextHtml(html) {
             const kept = {};
             Array.from(node.style).forEach(prop => {
                 const value = node.style.getPropertyValue(prop);
+                if (prop === "background-image" && !/^\s*(?:repeating-)?(?:linear|radial|conic)-gradient\(/i.test(value)) return;
                 if (SAFE_TEXT_STYLE_PROPS.has(prop) && _isSafeCssValue(value)) {
                     kept[prop] = value;
                 }
@@ -1434,6 +1498,7 @@ function normalizeStateIds({ truncate = true } = {}) {
                 animation: preservedAnimation,
                 animDuration: undefined,
                 animDelay: undefined,
+                clickLink: isSafeClickLink(safeEl.clickLink) ? safeEl.clickLink.trim() : undefined,
                 ...(fallbackType === "video"
                     ? {
                           videoType:
@@ -1933,6 +1998,8 @@ function getPersistableState() {
         slides: JSON.parse(JSON.stringify(state.slides || [])),
         // "Use this background on all slides" was chosen: new slides get the shared background.
         ...(state.backgroundOnAllSlides ? { backgroundOnAllSlides: true } : {}),
+        // The talk's length, for the show timer's countdown (show-recorder.js).
+        ...(Number(state.showSettings?.targetMinutes) > 0 ? { showSettings: { targetMinutes: Number(state.showSettings.targetMinutes) } } : {}),
         selectedIds: [],
         clipboard: null,
     };

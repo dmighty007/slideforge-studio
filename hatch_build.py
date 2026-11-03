@@ -17,7 +17,7 @@ DEV_ONLY_SCRIPTS = {"animation-advanced-tests.js", "animation-examples.js", "ani
 
 
 def _referenced_fonts(vendor: Path) -> set[Path]:
-    """fontsource files reachable from vendor/fonts/fonts.css (the only stylesheet that imports them)."""
+    """fontsource files reachable from vendor/fonts/fonts.css, and those stand-in-fonts.css points at."""
     keep: set[Path] = set()
     fonts_css = (vendor / "fonts" / "fonts.css").read_text(encoding="utf-8")
     for rel in re.findall(r'@import url\("\.\./fontsource/([^"]+)"\)', fonts_css):
@@ -25,6 +25,12 @@ def _referenced_fonts(vendor: Path) -> set[Path]:
         keep.add(css)
         for url in re.findall(r"url\(\./files/([^)]+)\)", css.read_text(encoding="utf-8")):
             keep.add(css.parent / "files" / url)
+    # The stand-ins for commercial fonts (stand-in-fonts.css) also point at some of these files.
+    for css_name in ("stand-in-fonts.css",):
+        css_path = vendor / "fonts" / css_name
+        if css_path.exists():
+            for rel in re.findall(r'url\("\.\./fontsource/([^"]+)"\)', css_path.read_text(encoding="utf-8")):
+                keep.add(vendor / "fontsource" / rel)
     keep.update(vendor.glob("fontsource/*/LICENSE"))
     return keep
 

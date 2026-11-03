@@ -170,6 +170,8 @@ async function _togglePlayModeNow(willPlay) {
         });
     } else {
         _playModeExiting = true;
+        // A recording running stops here and is offered for saving once the editor is back.
+        if (typeof showRecorderOnShowEnd === "function") showRecorderOnShowEnd();
         // Out of fullscreen first, and only then back to the editor: the other way round showed the editor
         // fullscreen for a moment and then jumped when the window shrank. The wait is bounded so a fullscreen exit
         // that never completes cannot leave Present disabled.
@@ -222,6 +224,7 @@ async function _togglePlayModeNow(willPlay) {
         _syncPresentationViewportLayout();
         _ensurePresenterMessaging();
         _presentationRuntimeState.presenterStartTs = Date.now();
+        if (typeof showTimerOnShowStart === "function") showTimerOnShowStart(targetH);
     } else {
         resetPresentationTools();
         _clearPresentationViewportLayout();

@@ -185,9 +185,12 @@ async function test(name, fn) {
             // Changing direction while a transition is in flight cancels its old animations.
             await viewer.keyboard.press('ArrowLeft');
             await viewer.keyboard.press('ArrowLeft');
-            await viewer.waitForTimeout(850);
-            assert(await viewer.evaluate(() => document.querySelectorAll('.presentation-slide.is-active').length === 1 &&
-                [...document.querySelectorAll('.presentation-slide')].every(el => el.getAnimations().length === 0)), 'rapid navigation left stale transitions');
+            // Waited for, not timed: the second 800 ms transition starts when its key press lands, which on a busy
+            // CI runner can be well after the first, and a fixed 850 ms left no room for that. Transitions that were
+            // never cancelled still fail it.
+            const settledAfterNavigation = await viewer.waitForFunction(() => document.querySelectorAll('.presentation-slide.is-active').length === 1 &&
+                [...document.querySelectorAll('.presentation-slide')].every(el => el.getAnimations().length === 0), null, { timeout: 3000 }).then(() => true, () => false);
+            assert(settledAfterNavigation, 'rapid navigation left stale transitions');
         } finally {
             await viewer.close();
             await page.close();
@@ -8353,6 +8356,42 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("Plugins: control characters in labels and table cells (a form feed pasted from a PDF) do not break the drawing", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => SlideForgePlugins.ready);
+        // Each of these made the SVG unparseable ("The plugin did not return an SVG drawing"). Scale bar and QR code
+        // escape with their own helper; the others use context.escapeXml; volcano and heatmap take the text in a table.
+        const bad = "page\u000Cbreak\u000Bvt\u0000nul\uD800lone";
+        const drawn = await pageAwait(page, async bad => {
+            const cases = [
+                ["scale-bar", { label: bad }],
+                ["qr-code", { caption: bad }],
+                ["kaplan-meier", { xLabel: bad }],
+                ["volcano", { xLabel: bad, data: `label,log2FC,p\n${bad},4,0.000001\nB,-1,0.5` }],
+                ["heatmap", { data: `,c1,c2\n${bad},1,2\nr2,3,4` }],
+            ];
+            const out = [];
+            for (const [id, changes] of cases) {
+                const plugin = SlideForgePlugins.get(id);
+                const element = { id: `cc-${id}`, type: "plugin", pluginId: id, pluginData: { ...plugin.defaultData, ...changes }, width: 480, height: 320 };
+                try {
+                    const { dataUrl } = await SlideForgePlugins.draw(element);
+                    out.push({ id, svg: decodeURIComponent(dataUrl.slice(dataUrl.indexOf(",") + 1)) });
+                } catch (error) {
+                    out.push({ id, error: error.message });
+                }
+            }
+            return out;
+        }, bad);
+        for (const { id, svg, error } of drawn) {
+            assert(!error, `${id}: ${error}`);
+            assert(!/[\u0000-\u0008\u000B\u000C\u000E-\u001F]|[\uD800-\uDFFF]/.test(svg), `${id}: the SVG still holds a control character`);
+        }
+        const scaleBar = drawn.find(d => d.id === "scale-bar").svg;
+        assert(scaleBar.includes("page break vt"), `the form feed and vertical tab should read as spaces: ${scaleBar}`);
+        await page.close();
+    });
+
     // ─── Research deck study, 2026-10-15 (test-results/research-deck-2026-10-15/REPORT.md) ──────────────────────────
 
     await test("research deck: a plugin drawing keeps its shape in PowerPoint and in the PDF capture", async () => {
@@ -9834,18 +9873,464 @@ async function test(name, fn) {
                     return { background: background?.styles.background || background?.styles.backgroundColor, texts: texts.map(t => ({ color: t.styles.color, font: t.styles.fontFamily, size: t.styles.fontSize })) };
                 };
                 const imported = state.slides.map(pick);
+                // The background rectangle is drawn as the slide's background: a click on an empty part of the
+                // slide does not pick it up (it was selected and dragged like a shape).
+                setCurrentSlideIndex(0);
+                renderSlidesFromState();
+                const backgroundId = state.slides[0].elements.find(e => e.importedBackground)?.id;
+                const backgroundNode = backgroundId && document.querySelector(`[data-id="${backgroundId}"]`);
+                const clickable = !backgroundNode || getComputedStyle(backgroundNode).pointerEvents !== "none" || !backgroundNode.classList.contains("preset-background-element");
                 // A slide added after an imported one keeps the deck's look.
                 setCurrentSlideIndex(0);
                 addSlide();
                 const added = state.slides[1];
-                return { imported, added: { background: added.elements.find(e => e.importedBackground)?.styles.backgroundColor, title: added.elements.find(e => e.placeholder === "Click to add title")?.styles } };
+                return { imported, clickable, added: { background: added.elements.find(e => e.importedBackground)?.styles.backgroundColor, title: added.elements.find(e => e.placeholder === "Click to add title")?.styles } };
             });
             const [first, second] = out.imported;
             assert(first.background === "#14213d", `master background: ${JSON.stringify(first)}`);
+            assert(out.clickable === false, "the imported background can be clicked and moved like a shape");
             assert(/^"Georgia"/.test(first.texts[0].font) && first.texts[0].color === "#e4572e" && parseFloat(first.texts[0].size) > 50, `title from the master: ${JSON.stringify(first.texts[0])}`);
             assert(/^"Verdana"/.test(first.texts[1].font) && first.texts[1].color === "#ffffff", `body from the master: ${JSON.stringify(first.texts[1])}`);
-            assert(/^linear-gradient\(180deg, #e4572e 0%, #72(2b|2c)17 100%\)$/.test(second.background || ""), `layout background: ${JSON.stringify(second)}`);
+            // shade 50% of #e4572e in linear light, as PowerPoint shades (on sRGB values it was #722b17, far too dark).
+            assert(/^linear-gradient\(180deg, #e4572e 0%, #a73e(1e|1f) 100%\)$/.test(second.background || ""), `layout background: ${JSON.stringify(second)}`);
             assert(out.added.background === "#14213d" && /Georgia/.test(out.added.title?.fontFamily || "") && out.added.title?.color === "#e4572e", `a new slide: ${JSON.stringify(out.added)}`);
+            assert(!errors.length, errors.join("\n"));
+            await page.close();
+        });
+
+        await test("PowerPoint import: a title bar filled on the master, an empty title bar and an SVG-only picture come across", async () => {
+            const { page, errors } = await openEditor(context);
+            const out = await pageAwait(page, async () => {
+                const A = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
+                const ns = `${A} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"`;
+                const rels = list => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${list.map(([id, type, target]) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`).join("")}</Relationships>`;
+                const xfrm = (x, y, w, h) => `<a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${w}" cy="${h}"/></a:xfrm>`;
+                const title = (spPr, body = "") => `<p:sp><p:nvSpPr><p:cNvPr id="2" name="Title"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:spPr>${spPr}</p:spPr>${body}</p:sp>`;
+                // The master's title placeholder is a blue bar; the layout's and the slides' say nothing about its fill.
+                const master = `<p:sldMaster ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>${title(`${xfrm(0, 0, 12192000, 907525)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="3333CC"/></a:solidFill>`)}</p:spTree></p:cSld><p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/><p:txStyles><p:titleStyle><a:lvl1pPr><a:defRPr sz="3600"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:defRPr></a:lvl1pPr></p:titleStyle></p:txStyles></p:sldMaster>`;
+                const layout = `<p:sldLayout ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>${title("")}</p:spTree></p:cSld></p:sldLayout>`;
+                const svgPic = `<p:pic><p:nvPicPr><p:cNvPr id="5" name="Graphic 4"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip><a:extLst><a:ext uri="{96DAC541-7B7A-43D3-8B79-37D633B846F1}"><asvg:svgBlip xmlns:asvg="http://schemas.microsoft.com/office/drawing/2016/SVG/main" r:embed="rId2"/></a:ext></a:extLst></a:blip><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>${xfrm(1000000, 2000000, 3000000, 2000000)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
+                const slide = shapes => `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>${shapes}</p:spTree></p:cSld></p:sld>`;
+                const zip = new JSZip();
+                zip.file("ppt/presentation.xml", `<p:presentation ${ns}><p:sldIdLst><p:sldId id="256" r:id="rId1"/><p:sldId id="257" r:id="rId2"/></p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/></p:presentation>`);
+                zip.file("ppt/_rels/presentation.xml.rels", rels([["rId1", "slide", "slides/slide1.xml"], ["rId2", "slide", "slides/slide2.xml"]]));
+                zip.file("ppt/slides/slide1.xml", slide(title("", `<p:txBody><a:bodyPr/><a:p><a:r><a:t>Multidimensional spectroscopy</a:t></a:r></a:p></p:txBody>`)));
+                zip.file("ppt/slides/_rels/slide1.xml.rels", rels([["rId1", "slideLayout", "../slideLayouts/slideLayout1.xml"]]));
+                // Slide 2: the title bar with no words, and a graph stored only as SVG (no PNG copy).
+                zip.file("ppt/slides/slide2.xml", slide(title("") + svgPic));
+                zip.file("ppt/slides/_rels/slide2.xml.rels", rels([["rId1", "slideLayout", "../slideLayouts/slideLayout1.xml"], ["rId2", "image", "../media/image1.svg"]]));
+                zip.file("ppt/media/image1.svg", `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="20"><rect width="30" height="20" fill="#e4572e"/></svg>`);
+                zip.file("ppt/slideLayouts/slideLayout1.xml", layout);
+                zip.file("ppt/slideLayouts/_rels/slideLayout1.xml.rels", rels([["rId1", "slideMaster", "../slideMasters/slideMaster1.xml"]]));
+                zip.file("ppt/slideMasters/slideMaster1.xml", master);
+                zip.file("ppt/slideMasters/_rels/slideMaster1.xml.rels", rels([["rId1", "theme", "../theme/theme1.xml"]]));
+                zip.file("ppt/theme/theme1.xml", `<a:theme ${A} name="T"><a:themeElements><a:clrScheme name="T"><a:dk1><a:srgbClr val="000000"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="1F1F1F"/></a:dk2><a:lt2><a:srgbClr val="EEEEEE"/></a:lt2><a:accent1><a:srgbClr val="3333CC"/></a:accent1></a:clrScheme><a:fontScheme name="T"><a:majorFont><a:latin typeface="Arial"/></a:majorFont><a:minorFont><a:latin typeface="Arial"/></a:minorFont></a:fontScheme></a:themeElements></a:theme>`);
+                await importPptx(new File([await zip.generateAsync({ type: "blob" })], "Title bars.pptx"));
+                const [first, second] = state.slides;
+                const heading = first.elements.find(e => e.type === "text" && /Multidimensional/.test(e.content || ""));
+                const bar = second.elements.find(e => e.type === "shape" && !e.importedFrom && e.y === 0);
+                const picture = second.elements.find(e => e.type === "image");
+                return { heading: heading && { fill: heading.styles.backgroundColor, color: heading.styles.color }, bar: bar && { fill: bar.styles.backgroundColor, width: parseFloat(bar.width) }, picture: picture && String(picture.content).slice(0, 40) };
+            });
+            assert(/^#3333cc$/i.test(out.heading?.fill || ""), `the title takes the master's blue bar: ${JSON.stringify(out.heading)}`);
+            assert(/^#3333cc$/i.test(out.bar?.fill || "") && out.bar.width > 900, `an empty title keeps its bar: ${JSON.stringify(out.bar)}`);
+            assert(out.picture, "the SVG-only picture came in");
+            assert(!errors.length, errors.join("\n"));
+            await page.close();
+        });
+
+        await test("PowerPoint import: Wingdings arrows in text read as arrows, and an equation's picture is not cut at its box", async () => {
+            const { page, errors } = await openEditor(context);
+            const out = await pageAwait(page, async () => {
+                const A = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
+                const ns = `${A} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"`;
+                const rels = list => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${list.map(([id, type, target]) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`).join("")}</Relationships>`;
+                // "Interpolate ", then U+F0E8 marked as a Wingdings symbol (its arrow); then a run all in Wingdings ("à").
+                const words = `<p:sp><p:nvSpPr><p:cNvPr id="2" name="t"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="914400" y="914400"/><a:ext cx="6000000" cy="900000"/></a:xfrm></p:spPr><p:txBody><a:bodyPr/><a:p><a:r><a:rPr lang="en-US"><a:latin typeface="Times New Roman"/></a:rPr><a:t>Interpolate </a:t></a:r><a:r><a:rPr lang="en-US"><a:latin typeface="Times New Roman"/><a:sym typeface="Wingdings"/></a:rPr><a:t></a:t></a:r><a:r><a:rPr lang="en-US"><a:latin typeface="Wingdings"/></a:rPr><a:t>à</a:t></a:r></a:p></p:txBody></p:sp>`;
+                // An equation's stand-in: a text box filled with its picture, 4.7% wider than the box.
+                const equation = `<p:sp><p:nvSpPr><p:cNvPr id="3" name="TextBox 2"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="1000000" y="3000000"/><a:ext cx="6096000" cy="586251"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:blipFill><a:blip r:embed="rId2"/><a:stretch><a:fillRect r="-4700"/></a:stretch></a:blipFill></p:spPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="en-IN"><a:noFill/></a:rPr><a:t> </a:t></a:r></a:p></p:txBody></p:sp>`;
+                const canvas = document.createElement("canvas");
+                canvas.width = 40;
+                canvas.height = 4;
+                canvas.getContext("2d").fillRect(0, 0, 40, 4);
+                const png = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+                const zip = new JSZip();
+                zip.file("ppt/presentation.xml", `<p:presentation ${ns}><p:sldIdLst><p:sldId id="256" r:id="rId1"/><p:sldId id="257" r:id="rId2"/></p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/></p:presentation>`);
+                zip.file("ppt/_rels/presentation.xml.rels", rels([["rId1", "slide", "slides/slide1.xml"], ["rId2", "slide", "slides/slide2.xml"]]));
+                zip.file("ppt/slides/slide1.xml", `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>${words}${equation}</p:spTree></p:cSld></p:sld>`);
+                zip.file("ppt/slides/_rels/slide1.xml.rels", rels([["rId2", "image", "../media/image1.png"]]));
+                zip.file("ppt/slides/slide2.xml", `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/></p:spTree></p:cSld></p:sld>`);
+                zip.file("ppt/media/image1.png", png);
+                await importPptx(new File([await zip.generateAsync({ type: "blob" })], "Symbols.pptx"));
+                const slide = state.slides[0];
+                const text = slide.elements.find(e => e.type === "text" && /Interpolate/.test(e.content || ""));
+                const scratch = document.createElement("div");
+                scratch.innerHTML = text?.content || "";
+                const picture = slide.elements.find(e => e.type === "image");
+                const boxWidth = (6096000 / 12192000) * getPresentationPageSetupConfig().width;
+                return { words: scratch.textContent, wingdingsFont: /Wingdings/i.test(text?.content || ""), width: parseFloat(picture?.width), boxWidth, crop: picture?.crop || null };
+            });
+            assert(out.words.includes("Interpolate ➔➡"), `Wingdings in text: ${JSON.stringify(out)}`);
+            assert(!out.wingdingsFont, "the translated run is still set in Wingdings");
+            assert(Math.abs(out.width - out.boxWidth * 1.047) < 3, `the equation picture keeps its full width: ${JSON.stringify(out)}`);
+            assert(!out.crop || (out.crop.widthPercent || 100) === 100, `the equation picture is not zoomed: ${JSON.stringify(out.crop)}`);
+            assert(!errors.length, errors.join("\n"));
+            await page.close();
+        });
+
+        await test("PowerPoint import: a shape style's white text beats the deck's default text colour, and a flipped turned text box reads upright", async () => {
+            const { page, errors } = await openEditor(context);
+            const out = await pageAwait(page, async () => {
+                const A = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
+                const ns = `${A} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"`;
+                const rels = list => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${list.map(([id, type, target]) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`).join("")}</Relationships>`;
+                // A black bar whose words take the style's light colour (lt1); the deck's default text colour is tx1.
+                const bar = `<p:sp><p:nvSpPr><p:cNvPr id="9" name="Rectangle 8"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="4136333" cy="586966"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:solidFill><a:schemeClr val="tx1"/></a:solidFill></p:spPr><p:style><a:lnRef idx="2"><a:schemeClr val="accent1"/></a:lnRef><a:fillRef idx="1"><a:schemeClr val="accent1"/></a:fillRef><a:effectRef idx="0"><a:schemeClr val="accent1"/></a:effectRef><a:fontRef idx="minor"><a:schemeClr val="lt1"/></a:fontRef></p:style><p:txBody><a:bodyPr anchor="ctr"/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US" b="1"/><a:t>\t TDDFT</a:t></a:r></a:p></p:txBody></p:sp>`;
+                // A text box turned 180° and flipped vertically: PowerPoint shows it upright.
+                const flipped = `<p:sp><p:nvSpPr><p:cNvPr id="3" name="TextBox 2"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm rot="10800000" flipV="1"><a:off x="611434" y="809735"/><a:ext cx="10348296" cy="1631216"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr><p:txBody><a:bodyPr wrap="square"/><a:p><a:r><a:rPr lang="en-US"/><a:t>The key step</a:t></a:r></a:p></p:txBody></p:sp>`;
+                const zip = new JSZip();
+                zip.file("ppt/presentation.xml", `<p:presentation ${ns}><p:sldIdLst><p:sldId id="256" r:id="rId1"/><p:sldId id="257" r:id="rId2"/></p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/><p:defaultTextStyle><a:lvl1pPr><a:defRPr sz="1800"><a:solidFill><a:schemeClr val="tx1"/></a:solidFill></a:defRPr></a:lvl1pPr></p:defaultTextStyle></p:presentation>`);
+                zip.file("ppt/_rels/presentation.xml.rels", rels([["rId1", "slide", "slides/slide1.xml"], ["rId2", "slide", "slides/slide2.xml"]]));
+                zip.file("ppt/slides/slide1.xml", `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>${bar}${flipped}</p:spTree></p:cSld></p:sld>`);
+                zip.file("ppt/slides/_rels/slide1.xml.rels", rels([["rId1", "slideLayout", "../slideLayouts/slideLayout1.xml"]]));
+                zip.file("ppt/slides/slide2.xml", `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/></p:spTree></p:cSld></p:sld>`);
+                zip.file("ppt/slideLayouts/slideLayout1.xml", `<p:sldLayout ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/></p:spTree></p:cSld></p:sldLayout>`);
+                zip.file("ppt/slideLayouts/_rels/slideLayout1.xml.rels", rels([["rId1", "slideMaster", "../slideMasters/slideMaster1.xml"]]));
+                zip.file("ppt/slideMasters/slideMaster1.xml", `<p:sldMaster ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/></p:spTree></p:cSld><p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/><p:txStyles><p:otherStyle><a:lvl1pPr><a:defRPr><a:solidFill><a:schemeClr val="tx1"/></a:solidFill></a:defRPr></a:lvl1pPr></p:otherStyle></p:txStyles></p:sldMaster>`);
+                zip.file("ppt/slideMasters/_rels/slideMaster1.xml.rels", rels([["rId1", "theme", "../theme/theme1.xml"]]));
+                zip.file("ppt/theme/theme1.xml", `<a:theme ${A} name="T"><a:themeElements><a:clrScheme name="T"><a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1><a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="44546A"/></a:dk2><a:lt2><a:srgbClr val="E7E6E6"/></a:lt2><a:accent1><a:srgbClr val="4472C4"/></a:accent1></a:clrScheme><a:fontScheme name="T"><a:majorFont><a:latin typeface="Arial"/></a:majorFont><a:minorFont><a:latin typeface="Arial"/></a:minorFont></a:fontScheme></a:themeElements></a:theme>`);
+                await importPptx(new File([await zip.generateAsync({ type: "blob" })], "Bars.pptx"));
+                const elements = state.slides[0].elements;
+                const label = elements.find(e => /TDDFT/.test(e.content || "") || /TDDFT/.test(e.shapeText || ""));
+                const turned = elements.find(e => /key step/.test(e.content || ""));
+                return { labelColor: (label?.shapeTextStyle?.color || label?.styles?.color || "").toLowerCase(), turnedRotation: turned?.rotation || 0 };
+            });
+            assert(out.labelColor === "#ffffff", `the bar's words take the style's white: ${JSON.stringify(out)}`);
+            assert(!out.turnedRotation, `the flipped, turned text box reads upright: ${JSON.stringify(out)}`);
+            assert(!errors.length, errors.join("\n"));
+            await page.close();
+        });
+
+        await test("PowerPoint import: a moon shape draws as a crescent in its group's fill, and arcs end where PowerPoint's do", async () => {
+            const { page, errors } = await openEditor(context);
+            const out = await pageAwait(page, async () => {
+                const A = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
+                const ns = `${A} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"`;
+                const rels = list => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${list.map(([id, type, target]) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`).join("")}</Relationships>`;
+                // A brown group holding a moon (a curved arrow's shaft) that fills like its group; its style says orange.
+                const moon = `<p:sp><p:nvSpPr><p:cNvPr id="41" name="Moon 41"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm rot="5060291"><a:off x="4624222" y="4679155"/><a:ext cx="276959" cy="2820491"/></a:xfrm><a:prstGeom prst="moon"><a:avLst/></a:prstGeom><a:grpFill/></p:spPr><p:style><a:lnRef idx="0"><a:srgbClr val="ED7D31"/></a:lnRef><a:fillRef idx="1"><a:srgbClr val="ED7D31"/></a:fillRef><a:effectRef idx="0"><a:srgbClr val="ED7D31"/></a:effectRef><a:fontRef idx="minor"><a:srgbClr val="FFFFFF"/></a:fontRef></p:style></p:sp>`;
+                const group = `<p:grpSp><p:nvGrpSpPr><p:cNvPr id="40" name="Group 40"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="3352456" y="5867400"/><a:ext cx="2917210" cy="360480"/><a:chOff x="3352456" y="5867400"/><a:chExt cx="2917210" cy="360480"/></a:xfrm><a:solidFill><a:srgbClr val="8B4513"/></a:solidFill></p:grpSpPr>${moon}</p:grpSp>`;
+                const zip = new JSZip();
+                zip.file("ppt/presentation.xml", `<p:presentation ${ns}><p:sldIdLst><p:sldId id="256" r:id="rId1"/><p:sldId id="257" r:id="rId2"/></p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/></p:presentation>`);
+                zip.file("ppt/_rels/presentation.xml.rels", rels([["rId1", "slide", "slides/slide1.xml"], ["rId2", "slide", "slides/slide2.xml"]]));
+                zip.file("ppt/slides/slide1.xml", `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>${group}</p:spTree></p:cSld></p:sld>`);
+                zip.file("ppt/slides/slide2.xml", `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/></p:spTree></p:cSld></p:sld>`);
+                await importPptx(new File([await zip.generateAsync({ type: "blob" })], "Moon.pptx"));
+                const elements = state.slides[0].elements;
+                const svg = decodeURIComponent(String(elements[0]?.content || "").replace(/^data:image\/svg\+xml;charset=utf-8,/, ""));
+                // An arc a third of the way round an ellipse 125 x 187.5 that PowerPoint's crescent formulas send back
+                // to the box's corner (100, 300): it ends there with visual angles, 35 px short with parametric ones.
+                const st = Math.atan2(-150, -75);
+                const sw = Math.atan2(150, -75) - 2 * Math.PI - st;
+                const { end } = _pptxArcStep([100, 0], 125, 187.5, st, sw);
+                return { count: elements.length, types: elements.map(e => e.type), shapeType: elements[0]?.shapeType || null, brown: /#8b4513/i.test(svg), orange: /#ed7d31/i.test(svg), arcs: (svg.match(/ A /g) || []).length, rotation: elements[0]?.rotation || 0, end: end.map(v => Math.round(v * 10) / 10) };
+            });
+            // Two arcs in PowerPoint's definition; the shape evaluator may split an arc into pieces under 180°.
+            assert(out.count === 1 && !out.shapeType && out.arcs >= 2, `the moon is drawn as a crescent (arcs), not a rectangle: ${JSON.stringify(out)}`);
+            assert(out.brown && !out.orange, `it takes its group's brown, not its style's orange: ${JSON.stringify(out)}`);
+            assert(Math.round(out.rotation) === 84, `it keeps its turn: ${JSON.stringify(out)}`);
+            assert(out.end[0] === 100 && out.end[1] === 300, `the arc ends at the corner: ${JSON.stringify(out.end)}`);
+            assert(!errors.length, errors.join("\n"));
+            await page.close();
+        });
+
+        await test("Fonts card: a report closes by itself, a deck's card goes with the deck, and none shows over a slide show", async () => {
+            const { page, errors } = await openEditor(context);
+            const out = await page.evaluate(async () => {
+                const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+                // "Fonts added": gone after a few seconds on its own.
+                _sfFontsShow({ icon: "fa-circle-check", title: "Fonts added", text: "Added Aptos.", autoClose: true });
+                const reportShown = Boolean(document.getElementById("sf-fonts-card"));
+                await wait(SF_FONTS_REPORT_MS + 1500);
+                const reportGone = !document.getElementById("sf-fonts-card");
+                // A deck's missing-fonts card: hidden during a show, gone when the start screen opens.
+                _sfFontsShow({ icon: "fa-font", title: "A font is missing", text: "This presentation uses Aptos.", buttons: ['<button type="button" class="sf-update__btn" data-fonts="later">Not now</button>'] });
+                document.body.classList.add("play-mode-active");
+                const hiddenInShow = getComputedStyle(document.getElementById("sf-fonts-card")).display === "none";
+                document.body.classList.remove("play-mode-active");
+                await wait(1500);
+                const keptInDeck = Boolean(document.getElementById("sf-fonts-card"));
+                // Another deck opened: the card about the first one goes. (openEditor turns the start screen off;
+                // its open class is what the card watches for.)
+                const openDeck = currentPresentationId;
+                currentPresentationId = "another-deck";
+                await wait(1500);
+                const goneWithAnotherDeck = !document.getElementById("sf-fonts-card");
+                currentPresentationId = openDeck;
+                _sfFontsShow({ icon: "fa-font", title: "A font is missing", text: "This presentation uses Aptos." });
+                document.body.classList.add("start-screen-open");
+                await wait(1500);
+                const goneOnStartScreen = !document.getElementById("sf-fonts-card");
+                document.body.classList.remove("start-screen-open");
+                return { reportShown, reportGone, hiddenInShow, keptInDeck, goneWithAnotherDeck, goneOnStartScreen };
+            });
+            Object.entries(out).forEach(([check, ok]) => assert(ok, `${check}: ${JSON.stringify(out)}`));
+            assert(!errors.length, errors.join("\n"));
+            await page.close();
+        });
+
+        await test("PowerPoint import: mirrored groups, vertical text, (a)/(i) numbering and links to slides come across", async () => {
+            const { page, errors } = await openEditor(context);
+            const out = await pageAwait(page, async () => {
+                const A = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
+                const ns = `${A} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"`;
+                const rels = list => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${list.map(([id, type, target]) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`).join("")}</Relationships>`;
+                const xfrm = (x, y, w, h, extra = "") => `<a:xfrm${extra}><a:off x="${x}" y="${y}"/><a:ext cx="${w}" cy="${h}"/></a:xfrm>`;
+                // A group mirrored left to right holding a picture at its left: it shows at the group's right, mirrored.
+                const pic = `<p:pic><p:nvPicPr><p:cNvPr id="5" name="Picture 4"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="rId2"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>${xfrm(0, 0, 1219200, 1219200)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
+                const group = `<p:grpSp><p:nvGrpSpPr><p:cNvPr id="4" name="Group 3"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr>${xfrm(0, 0, 4876800, 1219200, ' flipH="1"').replace("</a:xfrm>", '<a:chOff x="0" y="0"/><a:chExt cx="4876800" cy="1219200"/></a:xfrm>')}</p:grpSpPr>${pic}</p:grpSp>`;
+                const label = `<p:sp><p:nvSpPr><p:cNvPr id="6" name="Embeding"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(6096000, 1828800, 457200, 2743200)}</p:spPr><p:txBody><a:bodyPr vert="vert270"/><a:p><a:r><a:rPr lang="en-US"/><a:t>Embeding</a:t></a:r></a:p></p:txBody></p:sp>`;
+                const item = (text, lvl, type) => `<a:p><a:pPr marL="${342900 + lvl * 457200}" lvl="${lvl}" indent="-342900"><a:buFont typeface="+mj-lt"/><a:buAutoNum type="${type}"/></a:pPr><a:r><a:rPr lang="en-US"/><a:t>${text}</a:t></a:r></a:p>`;
+                const list = `<p:sp><p:nvSpPr><p:cNvPr id="7" name="List"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(457200, 3200400, 5486400, 2286000)}</p:spPr><p:txBody><a:bodyPr/>${item("Structure of Host cage", 0, "alphaLcParenBoth")}${item("Guest", 1, "romanLcParenBoth")}${item("Second guest", 1, "romanLcParenBoth")}${item("Dynamics", 0, "alphaLcParenBoth")}</p:txBody></p:sp>`;
+                const links = `<p:sp><p:nvSpPr><p:cNvPr id="8" name="Links"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(457200, 5600000, 5486400, 457200)}</p:spPr><p:txBody><a:bodyPr/><a:p><a:r><a:rPr lang="en-US"><a:hlinkClick r:id="rId3" action="ppaction://hlinksldjump"/></a:rPr><a:t>Methods</a:t></a:r><a:r><a:rPr lang="en-US"/><a:t> and </a:t></a:r><a:r><a:rPr lang="en-US"><a:hlinkClick r:id="" action="ppaction://hlinkshowjump?jump=nextslide"/></a:rPr><a:t>next</a:t></a:r></a:p></p:txBody></p:sp>`;
+                const canvas = document.createElement("canvas");
+                canvas.width = 20;
+                canvas.height = 20;
+                const ctx = canvas.getContext("2d");
+                ctx.fillStyle = "#ff0000";
+                ctx.fillRect(0, 0, 10, 20); // red on the left half
+                ctx.fillStyle = "#0000ff";
+                ctx.fillRect(10, 0, 10, 20);
+                const png = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+                const zip = new JSZip();
+                zip.file("ppt/presentation.xml", `<p:presentation ${ns}><p:sldIdLst><p:sldId id="256" r:id="rId1"/><p:sldId id="257" r:id="rId2"/></p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/></p:presentation>`);
+                zip.file("ppt/_rels/presentation.xml.rels", rels([["rId1", "slide", "slides/slide1.xml"], ["rId2", "slide", "slides/slide2.xml"]]));
+                zip.file("ppt/slides/slide1.xml", `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>${group}${label}${list}${links}</p:spTree></p:cSld></p:sld>`);
+                zip.file("ppt/slides/_rels/slide1.xml.rels", rels([["rId2", "image", "../media/image1.png"], ["rId3", "slide", "slide2.xml"]]));
+                zip.file("ppt/slides/slide2.xml", `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/></p:spTree></p:cSld></p:sld>`);
+                zip.file("ppt/media/image1.png", png);
+                await importPptx(new File([await zip.generateAsync({ type: "blob" })], "Mirrors.pptx"));
+                const [first, second] = state.slides;
+                const picture = first.elements.find(e => e.type === "image");
+                const pixels = await new Promise(resolve => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const c = document.createElement("canvas");
+                        c.width = img.naturalWidth;
+                        c.height = img.naturalHeight;
+                        const g = c.getContext("2d");
+                        g.drawImage(img, 0, 0);
+                        resolve({ left: Array.from(g.getImageData(1, Math.floor(c.height / 2), 1, 1).data.slice(0, 3)), right: Array.from(g.getImageData(c.width - 2, Math.floor(c.height / 2), 1, 1).data.slice(0, 3)) });
+                    };
+                    img.onerror = () => resolve(null);
+                    img.src = picture?.content || "";
+                });
+                const vertical = first.elements.find(e => /Embeding/.test(e.content || ""));
+                const listBox = first.elements.find(e => /Host cage/.test(e.content || ""));
+                const listText = (() => { const d = document.createElement("div"); d.innerHTML = listBox?.content || ""; return [...d.querySelectorAll("p")].map(p => p.textContent.replace(/ /g, " ").trim()); })();
+                const linkBox = first.elements.find(e => /Methods/.test(e.content || ""));
+                const hrefs = (() => { const d = document.createElement("div"); d.innerHTML = linkBox?.content || ""; return [...d.querySelectorAll("a")].map(a => a.getAttribute("href")); })();
+                const sanitized = (() => { const d = document.createElement("div"); d.innerHTML = sanitizeTextHtml(linkBox?.content || ""); return [...d.querySelectorAll("a")].map(a => [a.getAttribute("href"), a.getAttribute("target")]); })();
+                const slideWidth = getPresentationPageSetupConfig().width;
+                return { pictureX: picture?.x, pictureW: parseFloat(picture?.width), slideWidth, pixels, vertical: vertical && { rotation: vertical.rotation, w: parseFloat(vertical.width), h: parseFloat(vertical.height) }, listText, hrefs, sanitized, secondId: second.id };
+            });
+            // The group spans 0..40% of the slide; mirrored, the picture (its left tenth) moves to 30..40%, colours swapped.
+            assert(Math.abs(out.pictureX - out.slideWidth * 0.3) < 3, `mirrored group: the picture moves to the group's other side: ${JSON.stringify(out)}`);
+            assert(out.pixels && out.pixels.left[2] > 200 && out.pixels.right[0] > 200, `mirrored group: the picture is mirrored: ${JSON.stringify(out.pixels)}`);
+            assert(out.vertical && out.vertical.rotation === 270 && out.vertical.w > out.vertical.h, `vert270 text is a turned box along the shape: ${JSON.stringify(out.vertical)}`);
+            assert(JSON.stringify(out.listText) === JSON.stringify(["(a) Structure of Host cage", "(i) Guest", "(ii) Second guest", "(b) Dynamics"]), `numbering: ${JSON.stringify(out.listText)}`);
+            assert(out.hrefs[0] === `#slide:${out.secondId}` && out.hrefs[1] === "#slide:next", `slide links: ${JSON.stringify(out.hrefs)}`);
+            assert(out.sanitized.every(([href, target]) => href && href.startsWith("#slide:") && !target), `slide links survive and stay in the show: ${JSON.stringify(out.sanitized)}`);
+            assert(!errors.length, errors.join("\n"));
+            await page.close();
+        });
+
+        await test("PowerPoint import: links in table cells and click actions on shapes and groups go to their slides while presenting", async () => {
+            const { page, errors } = await openEditor(context);
+            const out = await pageAwait(page, async () => {
+                const A = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
+                const ns = `${A} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"`;
+                const rels = list => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${list.map(([id, type, target]) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`).join("")}</Relationships>`;
+                const xfrm = (x, y, w, h) => `<a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${w}" cy="${h}"/></a:xfrm>`;
+                // A contents table: its second cell goes to slide 3.
+                const cell = (text, link = "") => `<a:tc><a:txBody><a:bodyPr/><a:p><a:r><a:rPr lang="en-US">${link}</a:rPr><a:t>${text}</a:t></a:r></a:p></a:txBody><a:tcPr/></a:tc>`;
+                const table = `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="2" name="Table 1"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>${xfrm(457200, 457200, 6096000, 741680).replace("a:xfrm", "p:xfrm").replace("</a:xfrm>", "</p:xfrm>")}<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblGrid><a:gridCol w="3048000"/><a:gridCol w="3048000"/></a:tblGrid><a:tr h="370840">${cell("Contents")}${cell("Results", '<a:hlinkClick r:id="rId2" action="ppaction://hlinksldjump"/>')}</a:tr></a:tbl></a:graphicData></a:graphic></p:graphicFrame>`;
+                // A button whose whole shape goes to the next slide, and a group whose action goes to slide 3.
+                const button = `<p:sp><p:nvSpPr><p:cNvPr id="3" name="Next button"><a:hlinkClick r:id="" action="ppaction://hlinkshowjump?jump=nextslide"/></p:cNvPr><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(457200, 2286000, 1828800, 914400)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="2E75B6"/></a:solidFill></p:spPr></p:sp>`;
+                const inner = `<p:sp><p:nvSpPr><p:cNvPr id="6" name="Inner"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(3657600, 2286000, 914400, 914400)}<a:prstGeom prst="ellipse"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="C00000"/></a:solidFill></p:spPr></p:sp>`;
+                const group = `<p:grpSp><p:nvGrpSpPr><p:cNvPr id="5" name="Group 4"><a:hlinkClick r:id="rId2" action="ppaction://hlinksldjump"/></p:cNvPr><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr>${xfrm(3657600, 2286000, 914400, 914400).replace("</a:xfrm>", '<a:chOff x="3657600" y="2286000"/><a:chExt cx="914400" cy="914400"/></a:xfrm>')}</p:grpSpPr>${inner}</p:grpSp>`;
+                const empty = `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/></p:spTree></p:cSld></p:sld>`;
+                const zip = new JSZip();
+                zip.file("ppt/presentation.xml", `<p:presentation ${ns}><p:sldIdLst><p:sldId id="256" r:id="rId1"/><p:sldId id="257" r:id="rId2"/><p:sldId id="258" r:id="rId3"/></p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/></p:presentation>`);
+                zip.file("ppt/_rels/presentation.xml.rels", rels([["rId1", "slide", "slides/slide1.xml"], ["rId2", "slide", "slides/slide2.xml"], ["rId3", "slide", "slides/slide3.xml"]]));
+                zip.file("ppt/slides/slide1.xml", `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>${table}${button}${group}</p:spTree></p:cSld></p:sld>`);
+                zip.file("ppt/slides/_rels/slide1.xml.rels", rels([["rId2", "slide", "slide3.xml"]]));
+                zip.file("ppt/slides/slide2.xml", empty);
+                zip.file("ppt/slides/slide3.xml", empty);
+                await importPptx(new File([await zip.generateAsync({ type: "blob" })], "Contents.pptx"));
+                const [first, , third] = state.slides;
+                const tableEl = first.elements.find(e => e.type === "table");
+                const buttonEl = first.elements.find(e => e.type === "shape" && e.styles?.backgroundColor === "#2e75b6");
+                const innerEl = first.elements.find(e => e.type === "shape" && e.styles?.backgroundColor === "#c00000");
+                // Saved and loaded again, the links stay; anything else in their place is dropped.
+                const reloaded = normalizeStateIds ? JSON.parse(JSON.stringify(state)) : null;
+                const cellLinkKept = typeof normalizeTableData === "function" ? normalizeTableData(tableEl.tableData).cells[0][1].link : null;
+                const badCell = typeof normalizeTableData === "function" ? normalizeTableData({ ...tableEl.tableData, cells: [[{ text: "x", link: "javascript:alert(1)" }, { text: "y" }]] }).cells[0][0].link : "x";
+                setCurrentSlideIndex(0);
+                renderSlidesFromState();
+                await new Promise(resolve => setTimeout(resolve, 300));
+                const buttonNode = [...document.querySelectorAll(`[data-id="${buttonEl?.id}"]`)].find(n => !n.closest("#slide-previews"));
+                // Presenting: a click on the shape in the linked group jumps to slide 3 (a plain click would only
+                // advance to slide 2).
+                const innerNode = [...document.querySelectorAll(`[data-id="${innerEl?.id}"]`)].find(n => !n.closest("#slide-previews"));
+                document.body.classList.add("play-mode-active");
+                innerNode?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+                const afterClick = currentSlideIndex;
+                document.body.classList.remove("play-mode-active");
+                return { cell: tableEl?.tableData?.cells?.[0]?.[1]?.link, plainCell: tableEl?.tableData?.cells?.[0]?.[0]?.link || null, button: buttonEl?.clickLink, inner: innerEl?.clickLink, thirdId: third.id, cellLinkKept, badCell: badCell || null, buttonMarked: buttonNode?.dataset.clickLink || null, afterClick, reloaded: Boolean(reloaded) };
+            });
+            assert(out.cell === `#slide:${out.thirdId}` && !out.plainCell, `table cell link: ${JSON.stringify(out)}`);
+            assert(out.button === "#slide:next" && out.buttonMarked === "#slide:next", `shape click action: ${JSON.stringify(out)}`);
+            assert(out.inner === `#slide:${out.thirdId}`, `a group's click action is its contents': ${JSON.stringify(out)}`);
+            assert(out.cellLinkKept === out.cell && out.badCell === null, `cell links survive loading, unsafe ones do not: ${JSON.stringify(out)}`);
+            assert(out.afterClick === 2, `clicking the linked group's shape while presenting goes to slide 3: ${JSON.stringify(out)}`);
+            assert(!errors.length, errors.join("\n"));
+            await page.close();
+        });
+
+        await test("Keynote import: a table comes in with its columns, rows, fills, fonts and vertical alignment", async () => {
+            const { page, errors } = await openEditor(context);
+            const out = await page.evaluate(() => {
+                // As the server's Keynote reader returns it (points); scaled by half here.
+                const source = {
+                    kind: "table", x: 68, y: 502, width: 600, height: 150, columns: [150, 80, 370], rows: [100, 50], headerRows: 0,
+                    cells: [
+                        [{ text: "2014", fill: "#27c7bd", valign: "middle", align: "center", font: "Arial", size: 48, color: "#ffffff", padding: 7.2 }, { text: "", fill: "#27c7bd" }, { text: "2015", fill: "#f46524", valign: "middle", size: 48, color: "#ffffff" }],
+                        [{ text: "Note", bold: true, size: 18 }, { text: "" }, { text: "" }],
+                    ],
+                };
+                const element = _keynoteTableElement(source, 0.5, 3);
+                const table = normalizeTableData(element.tableData); // as it is after saving and loading
+                const first = table.cells[0][0].styles;
+                return { x: element.x, y: element.y, widths: table.colWidths, heights: table.rowHeights, texts: table.cells.map(row => row.map(cell => cell.text)), first, note: table.cells[1][0].styles, padding: table.cellPadding, base: element.tableData.fontSize };
+            });
+            assert(out.x === 34 && out.y === 251 && JSON.stringify(out.widths) === "[75,40,185]" && JSON.stringify(out.heights) === "[50,25]", `table box: ${JSON.stringify(out)}`);
+            assert(JSON.stringify(out.texts) === JSON.stringify([["2014", "", "2015"], ["Note", "", ""]]), `cell texts: ${JSON.stringify(out.texts)}`);
+            assert(out.first.backgroundColor === "#27c7bd" && out.first.verticalAlign === "middle" && out.first.textAlign === "center" && out.first.color === "#ffffff" && /Arial/.test(out.first.fontFamily || ""), `first cell: ${JSON.stringify(out.first)}`);
+            assert(out.note.fontWeight === "700" && out.note.backgroundColor === "transparent", `bold, unfilled cell: ${JSON.stringify(out.note)}`);
+            assert(out.padding === 4, `cell padding: ${out.padding}`);
+            assert(!errors.length, errors.join("\n"));
+            await page.close();
+        });
+
+        await test("Tables: merged cells from PowerPoint and Keynote are drawn as one and kept on save", async () => {
+            const { page, errors } = await openEditor(context);
+            const out = await pageAwait(page, async () => {
+                const A = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
+                const ns = `${A} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"`;
+                const rels = list => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${list.map(([id, type, target]) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`).join("")}</Relationships>`;
+                // 3 x 3: "Title" across the first row's three columns; "Side" down the first column of rows 2-3,
+                // centred vertically.
+                const tc = (text, attrs = "", anchor = "") => `<a:tc${attrs}><a:txBody><a:bodyPr/><a:p><a:r><a:rPr lang="en-US"/><a:t>${text}</a:t></a:r></a:p></a:txBody><a:tcPr${anchor}/></a:tc>`;
+                const rows = [
+                    `<a:tr h="370840">${tc("Title", ' gridSpan="3"')}${tc("", ' hMerge="1"')}${tc("", ' hMerge="1"')}</a:tr>`,
+                    `<a:tr h="370840">${tc("Side", ' rowSpan="2"', ' anchor="ctr"')}${tc("b")}${tc("c")}</a:tr>`,
+                    `<a:tr h="370840">${tc("", ' vMerge="1"')}${tc("e")}${tc("f")}</a:tr>`,
+                ].join("");
+                const table = `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="2" name="Table 1"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x="457200" y="457200"/><a:ext cx="6096000" cy="1112520"/></p:xfrm><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblGrid><a:gridCol w="2032000"/><a:gridCol w="2032000"/><a:gridCol w="2032000"/></a:tblGrid>${rows}</a:tbl></a:graphicData></a:graphic></p:graphicFrame>`;
+                const zip = new JSZip();
+                zip.file("ppt/presentation.xml", `<p:presentation ${ns}><p:sldIdLst><p:sldId id="256" r:id="rId1"/><p:sldId id="257" r:id="rId2"/></p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/></p:presentation>`);
+                zip.file("ppt/_rels/presentation.xml.rels", rels([["rId1", "slide", "slides/slide1.xml"], ["rId2", "slide", "slides/slide2.xml"]]));
+                zip.file("ppt/slides/slide1.xml", `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>${table}</p:spTree></p:cSld></p:sld>`);
+                zip.file("ppt/slides/slide2.xml", `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/></p:spTree></p:cSld></p:sld>`);
+                await importPptx(new File([await zip.generateAsync({ type: "blob" })], "Merged.pptx"));
+                const element = state.slides[0].elements.find(e => e.type === "table");
+                setCurrentSlideIndex(0);
+                renderSlidesFromState();
+                await new Promise(resolve => setTimeout(resolve, 300));
+                const host = [...document.querySelectorAll(`[data-id="${element.id}"]`)].find(n => !n.closest("#slide-previews"));
+                const drawn = [...(host?.querySelectorAll(".table-element-cell") || [])].map(cell => `${cell.dataset.row},${cell.dataset.col}:${cell.colSpan}x${cell.rowSpan}:${cell.style.verticalAlign}`);
+                // Loading keeps sound merges and drops broken ones (outside, single-cell, overlapping).
+                const cleaned = normalizeTableMerges([{ row: 0, col: 0, rowSpan: 1, colSpan: 9 }, { row: 0, col: 1, rowSpan: 2, colSpan: 1 }, { row: 2, col: 2, rowSpan: 1, colSpan: 1 }, { row: 7, col: 0, rowSpan: 2, colSpan: 2 }], 3, 3);
+                // A Keynote table's merges (from the server's reader) come along too.
+                const keynote = _keynoteTableElement({ kind: "table", x: 0, y: 0, width: 400, height: 100, columns: [100, 100, 100, 100], rows: [100], cells: [[{ text: "2014" }, {}, { text: "2015" }, {}]], merges: [{ row: 0, col: 0, rowSpan: 1, colSpan: 2 }, { row: 0, col: 2, rowSpan: 1, colSpan: 2 }] }, 1, 1);
+                return { merges: element.tableData.merges, saved: normalizeTableData(element.tableData).merges, drawn, cleaned, keynote: normalizeTableData(keynote.tableData).merges };
+            });
+            assert(JSON.stringify(out.merges) === JSON.stringify([{ row: 0, col: 0, rowSpan: 1, colSpan: 3 }, { row: 1, col: 0, rowSpan: 2, colSpan: 1 }]), `PowerPoint merges: ${JSON.stringify(out.merges)}`);
+            assert(JSON.stringify(out.saved) === JSON.stringify(out.merges), `merges kept on save: ${JSON.stringify(out.saved)}`);
+            assert(JSON.stringify(out.drawn) === JSON.stringify(["0,0:3x1:top", "1,0:1x2:middle", "1,1:1x1:top", "1,2:1x1:top", "2,1:1x1:top", "2,2:1x1:top"]), `drawn cells: ${JSON.stringify(out.drawn)}`);
+            assert(JSON.stringify(out.cleaned) === JSON.stringify([{ row: 0, col: 0, rowSpan: 1, colSpan: 3 }]), `broken merges dropped: ${JSON.stringify(out.cleaned)}`);
+            assert(out.keynote?.length === 2 && out.keynote[1].col === 2 && out.keynote[1].colSpan === 2, `Keynote merges: ${JSON.stringify(out.keynote)}`);
+            assert(!errors.length, errors.join("\n"));
+            await page.close();
+        });
+
+        await test("Importing a SlideForge deck draws equations given as LaTeX only", async () => {
+            const { page, errors } = await openEditor(context);
+            const out = await page.evaluate(() => {
+                // As a script writes a deck (the research-slides skill): latexSrc, no drawn content.
+                const deck = { slides: [{ id: "s1", elements: [
+                    { id: "e1", type: "equation", latexSrc: "F(s) = -k_B T \\ln P(s)", content: "" },
+                    { id: "e2", type: "equation", latexSrc: "x^2", content: "<span>kept</span>" },
+                ] }] };
+                renderImportedEquations(deck);
+                const [drawn, kept] = deck.slides[0].elements;
+                return { drawn: /class="katex/.test(drawn.content), kept: kept.content };
+            });
+            assert(out.drawn, "a LaTeX-only equation is drawn with KaTeX");
+            assert(out.kept === "<span>kept</span>", `an equation already drawn is left as it is: ${out.kept}`);
+            assert(!errors.length, errors.join("\n"));
+            await page.close();
+        });
+
+        await test("Fonts: CMU and a Cambria Math stand-in are bundled; a font file added and a font a PowerPoint file carries are used", async () => {
+            const { page, errors } = await openEditor(context);
+            const out = await pageAwait(page, async () => {
+                const bundled = {};
+                for (const family of ["CMU Sans Serif", "CMU Sans Serif Medium", "CMU Serif", "CMU Typewriter Text", "Cambria Math", "Calibri", "Cambria", "Garamond", "Century", "Impact", "Castellar", "Edwardian Script ITC", "Comic Sans MS", "Arial Rounded MT Bold", "Adobe Devanagari"]) bundled[family] = await sfFontAvailable(family);
+                // A web export carries only the bundled fonts its slides use (a deck in Calibri: Carlito's files only).
+                const savedSlides = state.slides;
+                state.slides = [{ id: "font-slide", elements: [{ id: "font-text", type: "text", content: "Words", styles: { fontFamily: '"Calibri", "Carlito", sans-serif' } }] }];
+                const exportZip = new JSZip();
+                await addDeckFontStylesheetsToZip(exportZip);
+                state.slides = savedSlides;
+                const exported = Object.keys(exportZip.files).filter(name => !exportZip.files[name].dir);
+                const standInCss = await exportZip.file("vendor/fonts/stand-in-fonts.css").async("string");
+                bundled["export keeps Calibri only"] = exported.some(name => /stand-ins\/carlito\//.test(name)) && !exported.some(name => /arimo|tinos|eb-garamond|cmu\//.test(name)) && /"Calibri"/.test(standInCss) && !/"Arial"/.test(standInCss);
+                const tag = Math.random().toString(36).slice(2, 8);
+                const sfnt = new Uint8Array(await (await fetch("vendor/fonts/dejavu/DejaVuSans.ttf")).arrayBuffer());
+                // A font file the user adds, named as its own name table says, kept for later sessions.
+                const reply = await sfUploadFontFile(new File([sfnt], "DejaVuSans.ttf"), { family: `Added Face ${tag}` });
+                const fonts = (await (await fetch("/api/fonts/", { credentials: "same-origin" })).json()).fonts;
+                const added = { names: reply.faces[0].names, listed: Boolean(fonts[`Added Face ${tag}`]), available: await sfFontAvailable(`Added Face ${tag}`) };
+                // A deck that carries a font (Embedded OpenType, scrambled as PowerPoint can save it).
+                const payload = sfnt.map(byte => byte ^ 0x50);
+                const header = new Uint8Array(100);
+                const view = new DataView(header.buffer);
+                view.setUint32(0, header.length + payload.length, true);
+                view.setUint32(4, payload.length, true);
+                view.setUint32(8, 0x00020001, true);
+                view.setUint32(12, 0x10000000, true);
+                view.setUint32(28, 400, true);
+                view.setUint16(34, 0x504c, true);
+                const family = `Carried Face ${tag}`;
+                const A = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
+                const ns = `${A} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"`;
+                const rels = list => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${list.map(([id, type, target]) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`).join("")}</Relationships>`;
+                const zip = new JSZip();
+                zip.file("ppt/presentation.xml", `<p:presentation ${ns}><p:sldIdLst><p:sldId id="256" r:id="rId1"/><p:sldId id="257" r:id="rId3"/></p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/><p:embeddedFontLst><p:embeddedFont><p:font typeface="${family}"/><p:regular r:id="rId2"/></p:embeddedFont></p:embeddedFontLst></p:presentation>`);
+                zip.file("ppt/_rels/presentation.xml.rels", rels([["rId1", "slide", "slides/slide1.xml"], ["rId3", "slide", "slides/slide2.xml"], ["rId2", "font", "fonts/font1.fntdata"]]));
+                const slide = words => `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/><p:sp><p:nvSpPr><p:cNvPr id="2" name="t"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="914400" y="914400"/><a:ext cx="6000000" cy="900000"/></a:xfrm></p:spPr><p:txBody><a:bodyPr/><a:p><a:r><a:rPr lang="en-US"><a:latin typeface="${family}"/></a:rPr><a:t>${words}</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>`;
+                zip.file("ppt/slides/slide1.xml", slide("Carried in the file"));
+                zip.file("ppt/slides/slide2.xml", slide("Second slide"));
+                zip.file("ppt/fonts/font1.fntdata", new Blob([header, payload]));
+                const before = await sfFontAvailable(family);
+                await importPptx(new File([await zip.generateAsync({ type: "blob" })], "Carried font.pptx"));
+                return { bundled, added, carried: { before, after: await sfFontAvailable(family) } };
+            });
+            Object.entries(out.bundled).forEach(([family, ok]) => assert(ok, `${family} is not available`));
+            assert(out.added.listed && out.added.available && out.added.names.includes("DejaVu Sans"), `added font: ${JSON.stringify(out.added)}`);
+            assert(!out.carried.before && out.carried.after, `carried font: ${JSON.stringify(out.carried)}`);
             assert(!errors.length, errors.join("\n"));
             await page.close();
         });
@@ -9968,7 +10453,8 @@ async function test(name, fn) {
             assert(outcome.shapes.length === 2, `shapes imported: ${JSON.stringify(outcome.shapes)}`);
             const [oval, box] = outcome.shapes;
             assert(oval.type === "circle" && String(oval.fill).toLowerCase() === "#4f81bd" && oval.text === "Oval", `oval: ${JSON.stringify(oval)}`);
-            assert(String(box.fill).toLowerCase() === "#4f81bd" && String(box.line).toLowerCase() === "#28415f", `grouped box: ${JSON.stringify(box)}`);
+            // accent1 shaded 50% in linear light: #385D8A, Office's own outline for default shapes (#28415F on sRGB).
+            assert(String(box.fill).toLowerCase() === "#4f81bd" && String(box.line).toLowerCase() === "#385d8a", `grouped box: ${JSON.stringify(box)}`);
             assert(outcome.line, "the connector was dropped");
             assert(outcome.line.start === "none" && outcome.line.end === "triangle" && String(outcome.line.color).toLowerCase() === "#c00000", `connector: ${JSON.stringify(outcome.line)}`);
             // flipV: from the bottom-left corner of its box up to the top-right
@@ -10010,6 +10496,369 @@ async function test(name, fn) {
             assert(JSON.stringify(chart.names) === '["Run 1","Run 2"]' && JSON.stringify(chart.data) === "[[2.1,3.4],[2.3,3.1]]", `series: ${JSON.stringify(chart)}`);
             assert(JSON.stringify(chart.colors) === '["#2563EB","#DC2626"]', `series colours: ${JSON.stringify(chart.colors)}`);
             assert(chart.style?.title === "RMSD by mutant" && chart.style.xTitle === "Mutant" && chart.style.yTitle === "RMSD" && chart.style.legend === "bottom", `titles: ${JSON.stringify(chart.style)}`);
+            await page.close();
+        });
+
+        // Found by comparing a real talk with LibreOffice's rendering of it, slide by slide (2026-11-03).
+        await test("PowerPoint import matches the deck: theme gradients, style text colour, slide numbers, table styles, picture effects, text sizes", async () => {
+            const { page, errors } = await openEditor(context);
+            const out = await page.evaluate(async () => {
+                const ns = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"';
+                const rels = items => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${items.map(([id, type, target]) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`).join("")}</Relationships>`;
+                const xfrm = (x, y, w, h) => `<a:xfrm><a:off x="${x * 9525}" y="${y * 9525}"/><a:ext cx="${w * 9525}" cy="${h * 9525}"/></a:xfrm>`;
+                // A picture: blue left half, white right half (60 x 40).
+                const canvas = document.createElement("canvas");
+                canvas.width = 60;
+                canvas.height = 40;
+                const ctx = canvas.getContext("2d");
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(0, 0, 60, 40);
+                ctx.fillStyle = "#1d4ed8";
+                ctx.fillRect(0, 0, 30, 40);
+                const png = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+                const pic = (id, name, box, geometry, blipExtra = "") => `<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="${name}"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="rIdImg">${blipExtra}</a:blip><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>${xfrm(...box)}${geometry}</p:spPr></p:pic>`;
+                const circlePath = `<a:custGeom><a:pathLst><a:path w="100" h="100"><a:moveTo><a:pt x="50" y="0"/></a:moveTo><a:cubicBezTo><a:pt x="78" y="0"/><a:pt x="100" y="22"/><a:pt x="100" y="50"/></a:cubicBezTo><a:cubicBezTo><a:pt x="100" y="78"/><a:pt x="78" y="100"/><a:pt x="50" y="100"/></a:cubicBezTo><a:cubicBezTo><a:pt x="22" y="100"/><a:pt x="0" y="78"/><a:pt x="0" y="50"/></a:cubicBezTo><a:cubicBezTo><a:pt x="0" y="22"/><a:pt x="22" y="0"/><a:pt x="50" y="0"/></a:cubicBezTo><a:close/></a:path></a:pathLst></a:custGeom>`;
+                const slide = `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>
+                    <p:sp><p:nvSpPr><p:cNvPr id="2" name="Title bar"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(20, 10, 900, 50)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                        <a:gradFill><a:gsLst><a:gs pos="0"><a:schemeClr val="accent2"><a:shade val="51000"/><a:satMod val="130000"/></a:schemeClr></a:gs><a:gs pos="100000"><a:schemeClr val="accent2"><a:shade val="94000"/><a:satMod val="135000"/></a:schemeClr></a:gs></a:gsLst><a:lin ang="16200000" scaled="0"/></a:gradFill></p:spPr>
+                        <p:style><a:lnRef idx="0"><a:schemeClr val="accent2"/></a:lnRef><a:fillRef idx="3"><a:schemeClr val="accent2"/></a:fillRef><a:effectRef idx="0"><a:schemeClr val="accent2"/></a:effectRef><a:fontRef idx="minor"><a:schemeClr val="lt1"/></a:fontRef></p:style>
+                        <p:txBody><a:bodyPr/><a:p><a:r><a:rPr sz="2400" b="1"/><a:t>White title </a:t></a:r><a:r><a:rPr sz="2400" b="1"><a:solidFill><a:srgbClr val="7030A0"/></a:solidFill></a:rPr><a:t>purple phrase</a:t></a:r></a:p></p:txBody></p:sp>
+                    <p:sp><p:nvSpPr><p:cNvPr id="3" name="Body text"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(20, 80, 400, 200)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>
+                        <p:txBody><a:bodyPr/><a:p><a:r><a:rPr/><a:t>Default size</a:t></a:r></a:p><a:p><a:endParaRPr sz="3200"/></a:p><a:p><a:r><a:rPr/><a:t>After a 32 pt blank line</a:t></a:r><a:br><a:rPr sz="2800"/></a:br><a:r><a:rPr/><a:t>after a 28 pt break</a:t></a:r></a:p></p:txBody></p:sp>
+                    <p:sp><p:nvSpPr><p:cNvPr id="4" name="Slide Number"/><p:cNvSpPr/><p:nvPr><p:ph type="sldNum" idx="12"/></p:nvPr></p:nvSpPr><p:spPr>${xfrm(900, 700, 100, 40)}</p:spPr><p:txBody><a:bodyPr/><a:p><a:fld id="{1}" type="slidenum"><a:t>1</a:t></a:fld></a:p></p:txBody></p:sp>
+                    <p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="5" name="Table"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x="${450 * 9525}" y="${80 * 9525}"/><a:ext cx="${400 * 9525}" cy="${90 * 9525}"/></p:xfrm><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl>
+                        <a:tblPr firstRow="1" bandRow="1"><a:tableStyleId>{F5AB1C69-6EDB-4FF4-983F-18BD219EF322}</a:tableStyleId></a:tblPr><a:tblGrid><a:gridCol w="${200 * 9525}"/><a:gridCol w="${200 * 9525}"/></a:tblGrid>
+                        <a:tr h="${30 * 9525}"><a:tc><a:txBody><a:bodyPr/><a:p><a:r><a:t>System</a:t></a:r></a:p></a:txBody><a:tcPr/></a:tc><a:tc><a:txBody><a:bodyPr/><a:p><a:r><a:t>Time</a:t></a:r></a:p></a:txBody><a:tcPr/></a:tc></a:tr>
+                        <a:tr h="${30 * 9525}"><a:tc><a:txBody><a:bodyPr/><a:p><a:r><a:t>OAME-G1</a:t></a:r></a:p></a:txBody><a:tcPr/></a:tc><a:tc><a:txBody><a:bodyPr/><a:p><a:r><a:t>4.25 X 10</a:t></a:r><a:r><a:rPr baseline="30000"/><a:t>-4</a:t></a:r></a:p></a:txBody><a:tcPr/></a:tc></a:tr>
+                    </a:tbl></a:graphicData></a:graphic></p:graphicFrame>
+                    ${pic(6, "Grey logo", [450, 200, 60, 40], '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>', "<a:grayscl/>")}
+                    ${pic(7, "Round photo", [530, 200, 40, 40], '<a:prstGeom prst="flowChartConnector"><a:avLst/></a:prstGeom>')}
+                    ${pic(8, "Freeform photo", [590, 200, 40, 40], circlePath)}
+                    <p:cxnSp><p:nvCxnSpPr><p:cNvPr id="9" name="Arrow"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr><p:spPr>${xfrm(450, 300, 200, 0)}<a:prstGeom prst="straightConnector1"><a:avLst/></a:prstGeom><a:ln><a:tailEnd type="arrow"/></a:ln></p:spPr><p:style><a:lnRef idx="3"><a:schemeClr val="accent6"/></a:lnRef><a:fillRef idx="0"><a:schemeClr val="accent6"/></a:fillRef><a:effectRef idx="0"><a:schemeClr val="accent6"/></a:effectRef><a:fontRef idx="minor"><a:schemeClr val="tx1"/></a:fontRef></p:style></p:cxnSp>
+                </p:spTree></p:cSld></p:sld>`;
+                // The master's body style has bullets and its "other" style a small 13.5 pt (a master scaled for 4:3);
+                // the presentation's default text style is 18 pt.
+                const level = (sz, bullet) => `<a:lvl1pPr marL="0" indent="0">${bullet}<a:defRPr sz="${sz}"/></a:lvl1pPr>`;
+                const master = `<p:sldMaster ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/></p:spTree></p:cSld><p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>
+                    <p:txStyles><p:titleStyle>${level(4400, "")}</p:titleStyle><p:bodyStyle>${level(3200, '<a:buChar char="•"/>')}</p:bodyStyle><p:otherStyle>${level(1350, "")}</p:otherStyle></p:txStyles></p:sldMaster>`;
+                const theme = `<a:theme ${ns} name="T"><a:themeElements><a:clrScheme name="Office"><a:dk1><a:srgbClr val="000000"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="1F497D"/></a:dk2><a:lt2><a:srgbClr val="EEECE1"/></a:lt2>
+                    <a:accent1><a:srgbClr val="4F81BD"/></a:accent1><a:accent2><a:srgbClr val="C0504D"/></a:accent2><a:accent3><a:srgbClr val="9BBB59"/></a:accent3><a:accent4><a:srgbClr val="8064A2"/></a:accent4><a:accent5><a:srgbClr val="4BACC6"/></a:accent5><a:accent6><a:srgbClr val="F79646"/></a:accent6><a:hlink><a:srgbClr val="0000FF"/></a:hlink><a:folHlink><a:srgbClr val="800080"/></a:folHlink></a:clrScheme>
+                    <a:fontScheme name="F"><a:majorFont><a:latin typeface="Arial"/></a:majorFont><a:minorFont><a:latin typeface="Arial"/></a:minorFont></a:fontScheme>
+                    <a:fmtScheme name="F"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>
+                    <a:lnStyleLst><a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln><a:ln w="25400"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln><a:ln w="38100"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst></a:fmtScheme></a:themeElements></a:theme>`;
+                const zip = new JSZip();
+                zip.file("ppt/presentation.xml", `<p:presentation ${ns}><p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst><p:sldSz cx="${1024 * 9525}" cy="${768 * 9525}"/><p:defaultTextStyle>${level(1800, "")}</p:defaultTextStyle></p:presentation>`);
+                zip.file("ppt/_rels/presentation.xml.rels", rels([["rId1", "slide", "slides/slide1.xml"]]));
+                zip.file("ppt/slides/slide1.xml", slide);
+                zip.file("ppt/slides/_rels/slide1.xml.rels", rels([["rIdL", "slideLayout", "../slideLayouts/slideLayout1.xml"], ["rIdImg", "image", "../media/image1.png"]]));
+                zip.file("ppt/slideLayouts/slideLayout1.xml", `<p:sldLayout ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/></p:spTree></p:cSld></p:sldLayout>`);
+                zip.file("ppt/slideLayouts/_rels/slideLayout1.xml.rels", rels([["rIdM", "slideMaster", "../slideMasters/slideMaster1.xml"]]));
+                zip.file("ppt/slideMasters/slideMaster1.xml", master);
+                zip.file("ppt/slideMasters/_rels/slideMaster1.xml.rels", rels([["rIdT", "theme", "../theme/theme1.xml"]]));
+                zip.file("ppt/theme/theme1.xml", theme);
+                zip.file("ppt/media/image1.png", png);
+                await importPptx(new File([await zip.generateAsync({ type: "blob" })], "Fidelity.pptx"));
+                const els = state.slides[0].elements;
+                const textOf = needle => els.find(e => e.type === "text" && String(e.content).includes(needle));
+                const pixels = async (url, points) => {
+                    const img = new Image();
+                    img.src = url;
+                    await img.decode();
+                    const c = document.createElement("canvas");
+                    c.width = img.naturalWidth;
+                    c.height = img.naturalHeight;
+                    const g = c.getContext("2d");
+                    g.drawImage(img, 0, 0);
+                    return points.map(([fx, fy]) => [...g.getImageData(Math.floor(fx * (c.width - 1)), Math.floor(fy * (c.height - 1)), 1, 1).data]);
+                };
+                const title = textOf("White title");
+                const body = textOf("Default size");
+                const number = els.find(e => e.type === "text" && /(^|>)1(<|$)/.test(String(e.content)));
+                const table = els.find(e => e.type === "table");
+                const images = els.filter(e => e.type === "image");
+                const [grey, round, freeform] = ["Grey logo", "Round photo", "Freeform photo"].map((_, i) => images[i]);
+                const arrow = els.find(e => e.type === "connector" || e.type === "line" || e.type === "arrow" || e.lineEnd || e.arrowEnd || /connector|line/.test(String(e.type)));
+                // The colour each phrase is drawn in (the box's colour, or its own span's).
+                const drawnColor = (element, needle) => {
+                    const host = document.createElement("div");
+                    host.style.color = element.styles.color;
+                    host.innerHTML = element.content;
+                    document.body.appendChild(host);
+                    const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+                    let found = null;
+                    while (walker.nextNode()) if (walker.currentNode.textContent.includes(needle)) found = getComputedStyle(walker.currentNode.parentElement).color;
+                    host.remove();
+                    return found;
+                };
+                return {
+                    gradient: title?.styles.background || "",
+                    titleColor: title && drawnColor(title, "White title"),
+                    phraseColor: title && drawnColor(title, "purple phrase"),
+                    titleHtml: title?.content,
+                    bodySize: body?.styles.fontSize,
+                    bodyHtml: body?.content,
+                    number: number?.content || null,
+                    header: table?.tableData.cells[0][0].styles,
+                    band: table?.tableData.cells[1][0].styles.backgroundColor,
+                    superscript: table?.tableData.cells[1][1].text,
+                    lineHeight: table?.tableData.lineHeight,
+                    greyPixels: grey ? await pixels(grey.content, [[0.1, 0.5], [0.9, 0.5]]) : null,
+                    roundRadius: round?.styles.borderRadius,
+                    freeformPixels: freeform ? await pixels(freeform.content, [[0.02, 0.02], [0.5, 0.5]]) : null,
+                    arrow: arrow ? JSON.stringify(arrow).slice(0, 600) : null,
+                };
+            });
+            const rgb = hex => [1, 3, 5].map(i => parseInt(String(hex).slice(i, i + 2), 16));
+            // shade 51% + satMod 130% of #C0504D, in linear light as PowerPoint does: a deep red, not near black.
+            const stops = [...out.gradient.matchAll(/#[0-9a-f]{6}/gi)].map(m => m[0]);
+            assert(stops.length >= 2, `gradient: ${out.gradient}`);
+            const [dark] = stops.map(rgb);
+            assert(dark[0] >= 140 && dark[0] <= 175 && dark[1] < 70, `the dark stop should be about #9b2d2b..#a83230, got ${stops[0]}`);
+            assert(out.titleColor === "rgb(255, 255, 255)", `filled text box: words drawn in ${out.titleColor}, want the style's white`);
+            assert(out.phraseColor === "rgb(112, 48, 160)", `the run's own purple: ${out.phraseColor} (${out.titleHtml})`);
+            // Text boxes: the presentation's 18 pt (24 px at 1024 wide), not the master's 13.5 pt.
+            assert(out.bodySize === "24px", `text box size ${out.bodySize}`);
+            assert(/font-size: 42\.67px;">​<\/span><br>/.test(out.bodyHtml || ""), `32 pt blank line lost: ${out.bodyHtml}`);
+            assert(/font-size: 37\.33px;">​<\/span><br>/.test(out.bodyHtml || ""), `28 pt line break lost: ${out.bodyHtml}`);
+            assert(out.number && !/[••]|ppt-bullet|<li/.test(out.number), `the slide number has a bullet: ${out.number}`);
+            assert(String(out.header?.backgroundColor).toLowerCase() === "#9bbb59" && String(out.header?.color).toLowerCase() === "#ffffff" && out.header?.fontWeight === "700", `table header: ${JSON.stringify(out.header)}`);
+            assert(/^#[0-9a-f]{6}$/i.test(out.band || "") && String(out.band).toLowerCase() !== "#9bbb59", `banded row: ${out.band}`);
+            assert(out.superscript === "4.25 X 10⁻⁴", `superscript: ${out.superscript}`);
+            assert(out.lineHeight === 1.2, `table line height ${out.lineHeight}`);
+            const [blueSide, whiteSide] = out.greyPixels || [];
+            assert(blueSide && blueSide[0] === blueSide[1] && blueSide[1] === blueSide[2] && blueSide[0] < 120 && whiteSide[0] > 240, `greyscale: ${JSON.stringify(out.greyPixels)}`);
+            assert(out.roundRadius === "50%", `round photo radius ${out.roundRadius}`);
+            assert(out.freeformPixels && out.freeformPixels[0][3] === 0 && out.freeformPixels[1][3] === 255, `freeform outline not cut: ${JSON.stringify(out.freeformPixels)}`);
+            assert(out.arrow && /"(strokeWidth|lineWidth|width)":\s*"?4/.test(out.arrow), `the theme's 3 pt arrow (4 px): ${out.arrow}`);
+            assert(!errors.length, errors.join("\n"));
+            await page.close();
+        });
+
+        await test("PowerPoint import: EMF pictures, snipped and framed pictures, glow, highlight, WordArt gradient, paragraph spacing, slide number from the master", async () => {
+            const { page, errors } = await openEditor(context);
+            const out = await page.evaluate(async () => {
+                const ns = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"';
+                const rels = items => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${items.map(([id, type, target]) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`).join("")}</Relationships>`;
+                const xfrm = (x, y, w, h) => `<a:xfrm><a:off x="${x * 9525}" y="${y * 9525}"/><a:ext cx="${w * 9525}" cy="${h * 9525}"/></a:xfrm>`;
+                // A pasted picture saved as EMF: a header, one STRETCHDIBITS holding a 2 x 2 32-bit DIB (left column
+                // blue, right column white, the unused fourth byte 0) and the end record.
+                const emf = new ArrayBuffer(88 + 136 + 20);
+                const v = new DataView(emf);
+                v.setUint32(0, 1, true); v.setUint32(4, 88, true); v.setUint32(40, 0x464d4520, true);
+                const r = 88;
+                v.setUint32(r, 81, true); v.setUint32(r + 4, 136, true);
+                [[40, 2], [44, 2], [48, 80], [52, 40], [56, 120], [60, 16], [72, 2], [76, 2]].forEach(([at, value]) => v.setInt32(r + at, value, true));
+                v.setUint32(r + 80, 40, true); v.setInt32(r + 84, 2, true); v.setInt32(r + 88, 2, true); v.setUint16(r + 92, 1, true); v.setUint16(r + 94, 32, true);
+                for (let row = 0; row < 2; row++) {
+                    v.setUint32(r + 120 + row * 8, 0x001d4ed8, true); // blue, B G R then 0
+                    v.setUint32(r + 124 + row * 8, 0x00ffffff, true);
+                }
+                v.setUint32(r + 136, 14, true); v.setUint32(r + 140, 20, true);
+                const canvas = document.createElement("canvas");
+                canvas.width = 40;
+                canvas.height = 40;
+                const ctx = canvas.getContext("2d");
+                ctx.fillStyle = "#1d4ed8";
+                ctx.fillRect(0, 0, 40, 40);
+                const png = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+                const pic = (id, embed, box, spExtra) => `<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="Picture ${id}"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="${embed}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>${xfrm(...box)}${spExtra}</p:spPr></p:pic>`;
+                const textBox = (id, box, body, spExtra = "<a:noFill/>") => `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="Text ${id}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(...box)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>${spExtra}</p:spPr><p:txBody>${body}</p:txBody></p:sp>`;
+                const slide = `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>
+                    ${pic(2, "rIdEmf", [20, 20, 100, 100], '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>')}
+                    ${pic(3, "rIdPng", [140, 20, 100, 100], '<a:prstGeom prst="snip2SameRect"><a:avLst><a:gd name="adj1" fmla="val 40000"/><a:gd name="adj2" fmla="val 0"/></a:avLst></a:prstGeom>')}
+                    ${pic(4, "rIdPng", [260, 20, 100, 100], '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:ln><a:solidFill><a:srgbClr val="000000"/></a:solidFill></a:ln>')}
+                    <p:sp><p:nvSpPr><p:cNvPr id="5" name="Curved Left Arrow"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(700, 20, 80, 160)}<a:prstGeom prst="curvedLeftArrow"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="4472C4"/></a:solidFill></p:spPr></p:sp>
+                    ${textBox(6, [380, 20, 200, 40], '<a:bodyPr/><a:p><a:r><a:rPr sz="1800"/><a:t>Glowing label</a:t></a:r></a:p>', '<a:solidFill><a:srgbClr val="DDEEFF"/></a:solidFill><a:effectLst><a:glow rad="63500"><a:srgbClr val="4472C4"><a:alpha val="40000"/></a:srgbClr></a:glow></a:effectLst>')}
+                    ${textBox(7, [20, 140, 600, 40], '<a:bodyPr/><a:p><a:r><a:rPr sz="2000"><a:highlight><a:srgbClr val="FFFF00"/></a:highlight></a:rPr><a:t>Marked title</a:t></a:r></a:p>')}
+                    ${textBox(8, [20, 200, 600, 120], '<a:bodyPr wrap="none" fromWordArt="1"/><a:p><a:r><a:rPr sz="6000"><a:gradFill><a:gsLst><a:gs pos="0"><a:srgbClr val="FFE701"/></a:gs><a:gs pos="100000"><a:srgbClr val="FE3E02"/></a:gs></a:gsLst><a:lin ang="5400000" scaled="1"/></a:gradFill></a:rPr><a:t>Thank you</a:t></a:r></a:p>')}
+                    ${textBox(9, [20, 340, 600, 300], '<a:bodyPr><a:normAutofit lnSpcReduction="10000"/></a:bodyPr><a:lstStyle><a:lvl1pPr><a:spcBef><a:spcPct val="20000"/></a:spcBef></a:lvl1pPr></a:lstStyle><a:p><a:r><a:rPr sz="2400"/><a:t>Heading line</a:t></a:r></a:p><a:p><a:r><a:rPr sz="1100"/><a:t> </a:t></a:r></a:p><a:p><a:pPr><a:lnSpc><a:spcPct val="150000"/></a:lnSpc></a:pPr><a:r><a:rPr sz="2400"/><a:t>Spaced body</a:t></a:r></a:p>')}
+                    ${textBox(10, [640, 340, 300, 40], '<a:bodyPr><a:normAutofit fontScale="90000"/></a:bodyPr><a:p><a:pPr><a:lnSpc><a:spcPct val="150000"/></a:lnSpc></a:pPr><a:r><a:rPr sz="3600"/><a:t>Fitted title</a:t></a:r></a:p>')}
+                    <p:sp><p:nvSpPr><p:cNvPr id="11" name="Slide Number"/><p:cNvSpPr/><p:nvPr><p:ph type="sldNum" sz="quarter" idx="12"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:fld id="{1}" type="slidenum"><a:rPr lang="en-US"/><a:t>7</a:t></a:fld></a:p></p:txBody></p:sp>
+                </p:spTree></p:cSld></p:sld>`;
+                // The layout's slide number is idx 12 with nothing of its own; the master's is idx 4, right-aligned
+                // 12 pt grey. PowerPoint matches them by type.
+                const layout = `<p:sldLayout ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/><p:sp><p:nvSpPr><p:cNvPr id="2" name="Slide Number"/><p:cNvSpPr/><p:nvPr><p:ph type="sldNum" sz="quarter" idx="12"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:fld id="{1}" type="slidenum"><a:t>‹#›</a:t></a:fld></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sldLayout>`;
+                const master = `<p:sldMaster ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/><p:sp><p:nvSpPr><p:cNvPr id="2" name="Slide Number"/><p:cNvSpPr/><p:nvPr><p:ph type="sldNum" sz="quarter" idx="4"/></p:nvPr></p:nvSpPr><p:spPr>${xfrm(700, 720, 300, 40)}</p:spPr><p:txBody><a:bodyPr anchor="ctr"/><a:lstStyle><a:lvl1pPr algn="r"><a:defRPr sz="1200"><a:solidFill><a:srgbClr val="888888"/></a:solidFill></a:defRPr></a:lvl1pPr></a:lstStyle><a:p><a:fld id="{1}" type="slidenum"><a:t>‹#›</a:t></a:fld></a:p></p:txBody></p:sp></p:spTree></p:cSld>
+                    <p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>
+                    <p:txStyles><p:titleStyle><a:lvl1pPr><a:defRPr sz="4400"/></a:lvl1pPr></p:titleStyle><p:bodyStyle><a:lvl1pPr><a:defRPr sz="3200"/></a:lvl1pPr></p:bodyStyle><p:otherStyle><a:lvl1pPr><a:defRPr sz="1800"/></a:lvl1pPr></p:otherStyle></p:txStyles></p:sldMaster>`;
+                const theme = `<a:theme ${ns} name="T"><a:themeElements><a:clrScheme name="Office"><a:dk1><a:srgbClr val="000000"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="1F497D"/></a:dk2><a:lt2><a:srgbClr val="EEECE1"/></a:lt2><a:accent1><a:srgbClr val="4F81BD"/></a:accent1><a:accent2><a:srgbClr val="C0504D"/></a:accent2><a:accent3><a:srgbClr val="9BBB59"/></a:accent3><a:accent4><a:srgbClr val="8064A2"/></a:accent4><a:accent5><a:srgbClr val="4BACC6"/></a:accent5><a:accent6><a:srgbClr val="F79646"/></a:accent6><a:hlink><a:srgbClr val="0000FF"/></a:hlink><a:folHlink><a:srgbClr val="800080"/></a:folHlink></a:clrScheme><a:fontScheme name="F"><a:majorFont><a:latin typeface="Arial"/></a:majorFont><a:minorFont><a:latin typeface="Arial"/></a:minorFont></a:fontScheme><a:fmtScheme name="F"/></a:themeElements></a:theme>`;
+                const zip = new JSZip();
+                zip.file("ppt/presentation.xml", `<p:presentation ${ns}><p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst><p:sldSz cx="${1024 * 9525}" cy="${768 * 9525}"/><p:defaultTextStyle><a:lvl1pPr><a:defRPr sz="1800"/></a:lvl1pPr></p:defaultTextStyle></p:presentation>`);
+                zip.file("ppt/_rels/presentation.xml.rels", rels([["rId1", "slide", "slides/slide1.xml"]]));
+                zip.file("ppt/slides/slide1.xml", slide);
+                zip.file("ppt/slides/_rels/slide1.xml.rels", rels([["rIdL", "slideLayout", "../slideLayouts/slideLayout1.xml"], ["rIdEmf", "image", "../media/image1.emf"], ["rIdPng", "image", "../media/image2.png"]]));
+                zip.file("ppt/slideLayouts/slideLayout1.xml", layout);
+                zip.file("ppt/slideLayouts/_rels/slideLayout1.xml.rels", rels([["rIdM", "slideMaster", "../slideMasters/slideMaster1.xml"]]));
+                zip.file("ppt/slideMasters/slideMaster1.xml", master);
+                zip.file("ppt/slideMasters/_rels/slideMaster1.xml.rels", rels([["rIdT", "theme", "../theme/theme1.xml"]]));
+                zip.file("ppt/theme/theme1.xml", theme);
+                zip.file("ppt/media/image1.emf", emf);
+                zip.file("ppt/media/image2.png", png);
+                await importPptx(new File([await zip.generateAsync({ type: "blob" })], "Fidelity2.pptx"));
+                const els = state.slides[0].elements;
+                const pixels = async (url, points) => {
+                    const img = new Image();
+                    img.src = url;
+                    await img.decode();
+                    const c = document.createElement("canvas");
+                    c.width = img.naturalWidth;
+                    c.height = img.naturalHeight;
+                    const g = c.getContext("2d");
+                    g.drawImage(img, 0, 0);
+                    return points.map(([fx, fy]) => [...g.getImageData(Math.floor(fx * (c.width - 1)), Math.floor(fy * (c.height - 1)), 1, 1).data]);
+                };
+                const images = els.filter(e => e.type === "image" && e.x < 400).sort((a, b) => a.x - b.x); // the arrow is drawn as a picture too
+                const textOf = needle => els.find(e => e.type === "text" && String(e.content).includes(needle));
+                if (typeof switchSlide === "function") switchSlide(0);
+                await new Promise(resolve => setTimeout(resolve, 400));
+                const drawn = [...document.querySelectorAll("#slides-container span")].find(span => span.textContent === "Thank you");
+                const drawnStyle = drawn && getComputedStyle(drawn);
+                const gapLine = [...document.querySelectorAll("#slides-container p")].find(p => p.textContent === " ");
+                const arrowBox = els.filter(e => e.x >= 640 && e.x < 800 && e.y < 200);
+                return {
+                    imageCount: images.length,
+                    emfPixels: images[0] ? await pixels(images[0].content, [[0, 0.5], [1, 0.5]]) : null,
+                    snipPixels: images[1] ? await pixels(images[1].content, [[0.02, 0.02], [0.5, 0.5]]) : null,
+                    framed: images[2]?.styles,
+                    arrow: arrowBox.map(e => ({ type: e.type, shapeType: e.shapeType || null, x: e.x, y: e.y })),
+                    all: els.map(e => `${e.type}@${e.x},${e.y}`).join(" "),
+                    glow: textOf("Glowing label")?.styles.boxShadow || null,
+                    highlight: textOf("Marked title")?.content || "",
+                    gradientFill: drawnStyle?.webkitTextFillColor || null,
+                    gradientImage: drawnStyle?.backgroundImage || null,
+                    spaced: textOf("Spaced body")?.content || "",
+                    gapLineSize: gapLine ? getComputedStyle(gapLine).fontSize : null,
+                    fitted: textOf("Fitted title")?.textFitMode || null,
+                    number: els.find(e => e.type === "text" && /(^|>)7(<|$)/.test(String(e.content))),
+                };
+            });
+            assert(out.imageCount === 3, `pictures: ${out.imageCount} (the EMF one is dropped?)`);
+            const [blue, white] = out.emfPixels || [];
+            assert(blue && blue[2] > 180 && blue[0] < 60 && blue[3] === 255 && white[0] > 240 && white[3] === 255, `EMF bitmap: ${JSON.stringify(out.emfPixels)}`);
+            assert(out.snipPixels && out.snipPixels[0][3] === 0 && out.snipPixels[1][3] === 255, `snipped corner not cut: ${JSON.stringify(out.snipPixels)}`);
+            assert(String(out.framed?.borderColor).toLowerCase() === "#000000" && parseFloat(out.framed?.borderWidth) >= 1, `picture outline: ${JSON.stringify(out.framed)}`);
+            assert(out.arrow.length && !out.arrow.some(e => e.type === "shape" && e.shapeType === "rectangle"), `curved left arrow came in as a box: ${JSON.stringify(out.arrow)} (${out.all})`);
+            assert(/rgba\(68, 114, 196, 0\.4\)/.test(out.glow || ""), `glow: ${out.glow}`);
+            assert(/background-color: (#ffff00|rgb\(255, 255, 0\))/i.test(out.highlight), `highlight: ${out.highlight}`);
+            assert(out.gradientFill === "rgba(0, 0, 0, 0)" && /linear-gradient/.test(out.gradientImage || ""), `WordArt gradient lost when drawn: ${out.gradientFill} ${out.gradientImage}`);
+            // 20% of a 24 pt line before each paragraph (7.68 px), and 150% spacing less the 10% shrink.
+            assert(/margin(-top)?: ?7\.68px[^"]*line-height: ?1\.68[^"]*">Spaced body/.test(out.spaced), `paragraph spacing: ${out.spaced}`);
+            assert(out.gapLineSize === "14.67px", `the 11 pt gap line is drawn at ${out.gapLineSize}`);
+            assert(out.fitted === "fixed", `a box PowerPoint already fitted is shrunk again: ${out.fitted}`);
+            assert(out.number && out.number.styles.textAlign === "right" && out.number.styles.fontSize === "16px" && String(out.number.styles.color).toLowerCase() === "#888888", `slide number: ${JSON.stringify(out.number?.styles)}`);
+            assert(!errors.length, errors.join("\n"));
+            await page.close();
+        });
+
+        await test("PowerPoint import: scatter, horizontal stacked and log charts, TIFF pictures, EMF drawings and embedded objects, portrait posters", async () => {
+            const { page, errors } = await openEditor(context);
+            const out = await page.evaluate(async () => {
+                const ns = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"';
+                const cns = 'xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
+                const rels = items => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${items.map(([id, type, target]) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`).join("")}</Relationships>`;
+                const emu = n => Math.round(n * 9525);
+                const xfrm = (tag, x, y, w, h) => `<${tag}><a:off x="${emu(x)}" y="${emu(y)}"/><a:ext cx="${emu(w)}" cy="${emu(h)}"/></${tag}>`;
+                const cache = values => `<c:numCache><c:ptCount val="${values.length}"/>${values.map((v, i) => (v === null ? "" : `<c:pt idx="${i}"><c:v>${v}</c:v></c:pt>`)).join("")}</c:numCache>`;
+                const strCache = values => `<c:strCache><c:ptCount val="${values.length}"/>${values.map((v, i) => `<c:pt idx="${i}"><c:v>${v}</c:v></c:pt>`).join("")}</c:strCache>`;
+                const name = text => `<c:tx><c:strRef><c:f>S!A1</c:f>${strCache([text])}</c:strRef></c:tx>`;
+                // A scatter chart: three points at x = 0 (a cluster), markers only, y on a log axis from 1e-6 to 1.
+                const scatter = `<c:chartSpace ${cns}><c:chart><c:plotArea><c:scatterChart><c:scatterStyle val="lineMarker"/>
+                    <c:ser>${name("round 1")}<c:spPr><a:ln><a:noFill/></a:ln></c:spPr><c:xVal><c:numRef><c:f>S!A2</c:f>${cache([0, 0, 0, 5])}</c:numRef></c:xVal><c:yVal><c:numRef><c:f>S!B2</c:f>${cache([0.5, 0.01, 0.0001, 0.000002])}</c:numRef></c:yVal></c:ser>
+                    <c:axId val="1"/><c:axId val="2"/></c:scatterChart>
+                    <c:valAx><c:axId val="1"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:axPos val="b"/><c:title><c:tx><c:rich><a:p><a:r><a:t>λ</a:t></a:r></a:p></c:rich></c:tx></c:title></c:valAx>
+                    <c:valAx><c:axId val="2"/><c:scaling><c:logBase val="10"/><c:orientation val="minMax"/><c:max val="1"/><c:min val="1e-6"/></c:scaling><c:axPos val="l"/><c:title><c:tx><c:rich><a:p><a:r><a:t>P</a:t></a:r></a:p></c:rich></c:tx></c:title></c:valAx>
+                    </c:plotArea></c:chart></c:chartSpace>`;
+                // Horizontal bars, 100% stacked, numbers on them.
+                const bars = `<c:chartSpace ${cns}><c:chart><c:plotArea><c:barChart><c:barDir val="bar"/><c:grouping val="percentStacked"/>
+                    <c:ser>${name("FGH")}<c:cat><c:strRef><c:f>S!A2</c:f>${strCache(["dry", "wet"])}</c:strRef></c:cat><c:val><c:numRef><c:f>S!B2</c:f>${cache([3, 1])}</c:numRef></c:val></c:ser>
+                    <c:ser>${name("HJ")}<c:cat><c:strRef><c:f>S!A2</c:f>${strCache(["dry", "wet"])}</c:strRef></c:cat><c:val><c:numRef><c:f>S!C2</c:f>${cache([1, 3])}</c:numRef></c:val></c:ser>
+                    <c:dLbls><c:showVal val="1"/></c:dLbls><c:axId val="1"/><c:axId val="2"/></c:barChart>
+                    <c:catAx><c:axId val="1"/><c:axPos val="l"/><c:title><c:tx><c:rich><a:p><a:r><a:t>Start</a:t></a:r></a:p></c:rich></c:tx></c:title></c:catAx>
+                    <c:valAx><c:axId val="2"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:axPos val="b"/></c:valAx>
+                    </c:plotArea></c:chart></c:chartSpace>`;
+                // A drawing saved as EMF (no bitmap in it): a red brush, no pen, a 100 x 100 rectangle.
+                const emf = new ArrayBuffer(88 + 24 + 12 + 12 + 24 + 20);
+                const v = new DataView(emf);
+                v.setUint32(0, 1, true); v.setUint32(4, 88, true); v.setInt32(16, 99, true); v.setInt32(20, 99, true);
+                v.setInt32(32, 10000, true); v.setInt32(36, 10000, true); v.setUint32(40, 0x464d4520, true);
+                [72, 76, 80, 84].forEach(at => v.setInt32(at, 100, true)); // 100 pixels to 100 mm: 1 px per mm
+                let r = 88;
+                const record = (type, size, fields) => {
+                    v.setUint32(r, type, true); v.setUint32(r + 4, size, true);
+                    fields.forEach(([at, value]) => v.setUint32(r + at, value >>> 0, true));
+                    r += size;
+                };
+                record(39, 24, [[8, 1], [12, 0], [16, 0x000000ff]]); // CREATEBRUSHINDIRECT: solid red
+                record(37, 12, [[8, 1]]); // SELECTOBJECT the brush
+                record(37, 12, [[8, 0x80000008]]); // SELECTOBJECT NULL_PEN
+                record(43, 24, [[8, 0], [12, 0], [16, 100], [20, 100]]); // RECTANGLE
+                record(14, 20, []);
+                // A TIFF, 2 x 1 pixels, uncompressed RGB: red then blue.
+                const tiff = new ArrayBuffer(8 + 2 + 9 * 12 + 4 + 6);
+                const tv = new DataView(tiff);
+                tv.setUint16(0, 0x4949); tv.setUint16(2, 42, true); tv.setUint32(4, 8, true); tv.setUint16(8, 9, true);
+                [[256, 3, 2], [257, 3, 1], [258, 3, 8], [259, 3, 1], [262, 3, 2], [273, 4, 122], [277, 3, 3], [278, 3, 1], [279, 4, 6]].forEach(([tag, type, value], i) => {
+                    const at = 10 + i * 12;
+                    tv.setUint16(at, tag, true); tv.setUint16(at + 2, type, true); tv.setUint32(at + 4, 1, true);
+                    if (type === 3) tv.setUint16(at + 8, value, true); else tv.setUint32(at + 8, value, true);
+                });
+                [255, 0, 0, 0, 0, 255].forEach((b, i) => tv.setUint8(122 + i, b));
+                const frame = (id, rid, box) => `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="${id}" name="Chart ${id}"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>${xfrm("p:xfrm", ...box)}<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="${rid}"/></a:graphicData></a:graphic></p:graphicFrame>`;
+                const pic = (id, embed, box) => `<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="Object ${id}"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="${embed}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>${xfrm("a:xfrm", ...box)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
+                // An embedded ChemDraw object: PowerPoint shows its EMF picture.
+                const ole = `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="6" name="Object 6"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>${xfrm("p:xfrm", 1000, 1500, 400, 400)}<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/presentationml/2006/ole"><mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice Requires="v"><p:oleObj name="CS ChemDraw Drawing" r:id="rIdOle" progId="ChemDraw.Document.6.0"><p:embed/></p:oleObj></mc:Choice><mc:Fallback><p:oleObj name="CS ChemDraw Drawing" r:id="rIdOle" progId="ChemDraw.Document.6.0"><p:embed/>${pic(6, "rIdEmf", [1000, 1500, 400, 400])}</p:oleObj></mc:Fallback></mc:AlternateContent></a:graphicData></a:graphic></p:graphicFrame>`;
+                const slide = `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>${frame(2, "rIdC1", [100, 100, 1200, 900])}${frame(3, "rIdC2", [1500, 100, 1200, 900])}${pic(4, "rIdTif", [100, 1500, 400, 200])}${ole}</p:spTree></p:cSld></p:sld>`;
+                const zip = new JSZip();
+                // An A0 portrait poster (841 x 1189 mm).
+                zip.file("ppt/presentation.xml", `<p:presentation ${ns}><p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst><p:sldSz cx="30275213" cy="42803763"/></p:presentation>`);
+                zip.file("ppt/_rels/presentation.xml.rels", rels([["rId1", "slide", "slides/slide1.xml"]]));
+                zip.file("ppt/slides/slide1.xml", slide);
+                zip.file("ppt/slides/_rels/slide1.xml.rels", rels([["rIdC1", "chart", "../charts/chart1.xml"], ["rIdC2", "chart", "../charts/chart2.xml"], ["rIdTif", "image", "../media/image1.tiff"], ["rIdEmf", "image", "../media/image2.emf"], ["rIdOle", "oleObject", "../embeddings/oleObject1.bin"]]));
+                zip.file("ppt/charts/chart1.xml", scatter);
+                zip.file("ppt/charts/chart2.xml", bars);
+                zip.file("ppt/media/image1.tiff", tiff);
+                zip.file("ppt/media/image2.emf", emf);
+                zip.file("ppt/embeddings/oleObject1.bin", new Uint8Array([0]));
+                await importPptx(new File([await zip.generateAsync({ type: "blob" })], "Poster.pptx"));
+                const els = state.slides[0].elements;
+                const charts = els.filter(e => e.type === "chart").sort((a, b) => a.x - b.x);
+                const images = els.filter(e => e.type === "image").sort((a, b) => a.x - b.x);
+                const pixels = async (url, points) => {
+                    const img = new Image();
+                    img.src = url;
+                    await img.decode();
+                    const c = document.createElement("canvas");
+                    c.width = img.naturalWidth || 100;
+                    c.height = img.naturalHeight || 100;
+                    const g = c.getContext("2d");
+                    g.drawImage(img, 0, 0, c.width, c.height);
+                    return points.map(([fx, fy]) => [...g.getImageData(Math.floor(fx * (c.width - 1)), Math.floor(fy * (c.height - 1)), 1, 1).data]);
+                };
+                const scatterConfig = charts[0] && buildChartJsConfig(charts[0], { forExport: true });
+                return {
+                    pageSetup: state.pageSetup,
+                    scatter: charts[0] && { type: charts[0].chartType, labels: charts[0].chartData.labels, data: charts[0].chartData.datasets.map(d => d.data), showLine: charts[0].chartData.datasets[0].showLine, scales: charts[0].chartOptions.scales, style: charts[0].chartStyle },
+                    scatterPoints: scatterConfig?.data.datasets[0].data,
+                    bars: charts[1] && { type: charts[1].chartType, data: charts[1].chartData.datasets.map(d => d.data), options: charts[1].chartOptions, style: charts[1].chartStyle },
+                    imageCount: images.length,
+                    tiff: images[0] ? await pixels(images[0].content, [[0, 0.5], [1, 0.5]]) : null,
+                    emfIsSvg: images[1] ? /^data:image\/svg\+xml|\.svg/.test(images[1].content) : null,
+                    emf: images[1] ? await pixels(images[1].content, [[0.5, 0.5]]) : null,
+                };
+            });
+            assert(out.pageSetup === "poster-portrait", `an A0 portrait poster came in on page ${out.pageSetup}`);
+            const s = out.scatter;
+            assert(s && s.type === "scatter" && s.data[0].length === 4 && JSON.stringify(s.labels) === JSON.stringify(["0", "0", "0", "5"]), `scatter: ${JSON.stringify(s)}`);
+            assert(s.showLine === false && s.scales?.y?.type === "logarithmic" && s.scales.y.min === 1e-6 && s.style.xTitle === "λ" && s.style.yTitle === "P", `scatter settings: ${JSON.stringify(s)}`);
+            assert(JSON.stringify(out.scatterPoints?.[1]) === JSON.stringify({ x: 0, y: 0.01 }), `scatter points drawn: ${JSON.stringify(out.scatterPoints)}`);
+            const b = out.bars;
+            assert(b && b.type === "bar" && b.options.indexAxis === "y" && b.options.scales?.x?.stacked && b.options.scales?.y?.stacked, `bars: ${JSON.stringify(b)}`);
+            assert(JSON.stringify(b.data) === JSON.stringify([[75, 25], [25, 75]]) && b.options.scales.x.max === 100 && b.style.valueLabels === true && b.style.yTitle === "Start", `100% bars: ${JSON.stringify(b)}`);
+            assert(out.imageCount === 2, `pictures: ${out.imageCount} (TIFF or the embedded object dropped)`);
+            const [red, blue] = out.tiff || [];
+            assert(red && red[0] > 240 && red[2] < 20 && blue[2] > 240 && blue[0] < 20, `TIFF pixels: ${JSON.stringify(out.tiff)}`);
+            assert(out.emfIsSvg && out.emf && out.emf[0][0] > 240 && out.emf[0][1] < 20 && out.emf[0][3] === 255, `EMF drawing: ${out.emfIsSvg} ${JSON.stringify(out.emf)}`);
+            assert(!errors.length, errors.join("\n"));
             await page.close();
         });
 

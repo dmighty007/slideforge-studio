@@ -10,6 +10,12 @@
         "fontStyle",
         "textDecoration",
         "verticalAlign",
+        // Letters filled with a gradient (PowerPoint WordArt): the gradient, clipped to the text. Only a gradient
+        // is kept as the image (markListFromElement), so text cannot load a picture.
+        "backgroundImage",
+        "backgroundClip",
+        "WebkitBackgroundClip",
+        "WebkitTextFillColor",
     ]);
 
     function uid(prefix = "txt") {
@@ -67,7 +73,9 @@
         };
     }
 
-    const PARAGRAPH_STYLE_PROPS = ["marginLeft", "textIndent", "marginTop", "marginBottom", "lineHeight"];
+    // fontSize: a paragraph whose words are all smaller than the box's (an imported 11 pt gap line in 24 pt text)
+    // sets its own size, so its line is as tall as its words; without it the line kept the box's height.
+    const PARAGRAPH_STYLE_PROPS = ["marginLeft", "textIndent", "marginTop", "marginBottom", "lineHeight", "fontSize"];
     function paragraphStyle(style = {}) {
         return Object.fromEntries(PARAGRAPH_STYLE_PROPS.filter(key => style[key] && /^-?[\d.]+(?:px|em|%)?$/.test(String(style[key]))).map(key => [key, String(style[key])]));
     }
@@ -133,6 +141,7 @@
         INLINE_MARK_STYLE_PROPS.forEach(prop => {
             const cssProp = kebab(prop);
             const value = style.getPropertyValue(cssProp);
+            if (prop === "backgroundImage" && !/^\s*(?:repeating-)?(?:linear|radial|conic)-gradient\(/i.test(value)) return;
             if (value) styleMark[prop] = cssValue(value);
         });
         if (Object.keys(styleMark).length) marks.push({ type: "style", style: styleMark });

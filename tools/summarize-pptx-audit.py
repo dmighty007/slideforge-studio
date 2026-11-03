@@ -21,7 +21,7 @@ counts=collections.Counter();decks=collections.defaultdict(set);rows=[];failures
 for d in data:
  if d.get('error'):failures.append((d['file'],'deck',d['error']))
  if d.get('aspectRatioChanged'):
-  counts['aspect-ratio-adjusted']+=1;decks['aspect-ratio-adjusted'].add(d['file']);rows.append([d['file'],'all','aspect-ratio-adjusted',f"Source {d['width']} x {d['height']} pixels; nearest preset selected"])
+  counts['aspect-ratio-adjusted']+=1;decks['aspect-ratio-adjusted'].add(d['file']);rows.append([d['file'],'all','aspect-ratio-adjusted',f"Source {d['width']} x {d['height']} pixels; nearest preset selected{(' (' + d['pageSetup'] + ')') if d.get('pageSetup') else ''}"])
  for s in d.get('slides',[]):
   if s.get('error'):failures.append((d['file'],s['slide'],s['error']));rows.append([d['file'],s['slide'],'import-error',s['error']])
   for i in s.get('issues',[]):
