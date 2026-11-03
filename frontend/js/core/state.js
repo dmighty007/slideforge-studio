@@ -378,6 +378,11 @@ const PRESENTATION_STORAGE_KEY = "pptmaker_presentation_id";
 const LOCAL_PRESENTATION_STORAGE_KEY = "pptmaker_local_presentation";
 // Unsaved edits captured when the page closes before autosave ran; recovered on the next load.
 const UNSAVED_BACKUP_STORAGE_KEY = "pptmaker_unsaved_backup";
+// A deck too big for localStorage (about 5 MB an origin; pictures are kept inline) is backed up in IndexedDB instead,
+// under this key. localStorage stays the first choice: it is written at once, so a backup taken as the page closes
+// (pagehide) is kept, where an IndexedDB write may not finish.
+const UNSAVED_BACKUP_DB_NAME = "slideforge_recovery";
+const UNSAVED_BACKUP_DB_STORE = "backups";
 // Text typed since that backup (or the last save), per box; small enough to write on every keystroke.
 const UNSAVED_TYPING_STORAGE_KEY = "pptmaker_unsaved_typing";
 let _pendingRecoverySave = false;
@@ -2285,6 +2290,8 @@ async function createPresentationRecord() {
 }
 
 async function loadPresentationRecord(presentationId) {
+    // Read before anything changes: once this deck is current, a backup taken of it could replace the one to recover.
+    const keptBackup = _readUnsavedBackup();
     const loaded = await _presentationRequest(`/api/presentations/${presentationId}/`, { method: "GET" });
     currentPresentationId = loaded.id;
     currentPresentationAutosaveVersion = loaded.autosaveVersion || 1;
@@ -2303,11 +2310,9 @@ async function loadPresentationRecord(presentationId) {
         state.presentationTheme = state.presentationTheme || loaded.presentationTheme || "blank";
     }
     const serverVersion = loaded.autosaveVersion || 1;
-    let hadBackup = false;
-    try {
-        hadBackup = JSON.parse(localStorage.getItem(UNSAVED_BACKUP_STORAGE_KEY) || "null")?.presentationId === loaded.id;
-    } catch (_err) { /* unreadable: _takeUnsavedBackup drops it */ }
-    const recovered = _takeUnsavedBackup(loaded.id, serverVersion, loaded.state);
+    const backup = await keptBackup;
+    const hadBackup = backup?.presentationId === loaded.id;
+    const recovered = _takeUnsavedBackup(backup, loaded.id, serverVersion, loaded.state);
     if (recovered) {
         state = recovered.state;
         _pendingRecoverySave = true;
@@ -2477,19 +2482,86 @@ function _unsavedBackupScope() {
     return _presentationPersistenceReady && currentPresentationId ? currentPresentationId : null;
 }
 
-function _writeUnsavedBackup(snapshot) {
-    try {
-        localStorage.setItem(UNSAVED_BACKUP_STORAGE_KEY, JSON.stringify({
-            ...snapshot,
-            presentationId: currentPresentationId,
-            pendingFingerprints: [..._pendingSaveHashes],
-            savedAt: new Date().toISOString(),
-        }));
-        // The snapshot holds that typing now.
-        localStorage.removeItem(UNSAVED_TYPING_STORAGE_KEY);
-    } catch (err) {
-        console.warn("Could not keep a backup of unsaved changes:", err);
+let _unsavedBackupDb = null;
+
+// The IndexedDB database for backups too big for localStorage; resolves to null where IndexedDB cannot be used.
+function _openUnsavedBackupDb() {
+    if (!_unsavedBackupDb) {
+        _unsavedBackupDb = new Promise(resolve => {
+            try {
+                const request = indexedDB.open(UNSAVED_BACKUP_DB_NAME, 1);
+                request.onupgradeneeded = () => request.result.createObjectStore(UNSAVED_BACKUP_DB_STORE);
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => resolve(null);
+                request.onblocked = () => resolve(null);
+            } catch (_err) {
+                resolve(null);
+            }
+        });
     }
+    return _unsavedBackupDb;
+}
+
+// Runs `work(store)` in one transaction; resolves to the result of the request it returns (or null) when it commits.
+// Transactions on the store run in the order they were started, so a later write or delete always wins.
+async function _unsavedBackupDbRun(mode, work) {
+    const db = await _openUnsavedBackupDb();
+    if (!db) return null;
+    return new Promise(resolve => {
+        try {
+            const transaction = db.transaction(UNSAVED_BACKUP_DB_STORE, mode);
+            const request = work(transaction.objectStore(UNSAVED_BACKUP_DB_STORE));
+            transaction.oncomplete = () => resolve(request ? request.result ?? null : null);
+            transaction.onerror = transaction.onabort = () => resolve(null);
+        } catch (_err) {
+            resolve(null);
+        }
+    });
+}
+
+// The kept backup, from localStorage or else IndexedDB; null when there is none or it cannot be read.
+async function _readUnsavedBackup() {
+    try {
+        const kept = localStorage.getItem(UNSAVED_BACKUP_STORAGE_KEY);
+        if (kept) return JSON.parse(kept);
+    } catch (_err) {
+        localStorage.removeItem(UNSAVED_BACKUP_STORAGE_KEY);
+    }
+    return _unsavedBackupDbRun("readonly", store => store.get(UNSAVED_BACKUP_STORAGE_KEY));
+}
+
+function _removeUnsavedBackup() {
+    localStorage.removeItem(UNSAVED_BACKUP_STORAGE_KEY);
+    _unsavedBackupDbRun("readwrite", store => store.delete(UNSAVED_BACKUP_STORAGE_KEY));
+}
+
+function _writeUnsavedBackup(snapshot) {
+    const backup = {
+        ...snapshot,
+        presentationId: currentPresentationId,
+        pendingFingerprints: [..._pendingSaveHashes],
+        savedAt: new Date().toISOString(),
+    };
+    try {
+        localStorage.setItem(UNSAVED_BACKUP_STORAGE_KEY, JSON.stringify(backup));
+        // The snapshot holds that typing now; and a copy left in IndexedDB is older than this one.
+        localStorage.removeItem(UNSAVED_TYPING_STORAGE_KEY);
+        _unsavedBackupDbRun("readwrite", store => store.delete(UNSAVED_BACKUP_STORAGE_KEY));
+        return;
+    } catch (_err) {
+        // Too big (or storage refused): the copy left there is older than this one, so it must not be recovered.
+        try { localStorage.removeItem(UNSAVED_BACKUP_STORAGE_KEY); } catch (_removeErr) { /* nothing kept */ }
+    }
+    let typingAtSnapshot = null;
+    try { typingAtSnapshot = localStorage.getItem(UNSAVED_TYPING_STORAGE_KEY); } catch (_err) { /* none */ }
+    _unsavedBackupDbRun("readwrite", store => store.put(backup, UNSAVED_BACKUP_STORAGE_KEY)).then(() => {
+        // Once the snapshot is stored it holds that typing; typing done since is newer, and stays.
+        try {
+            if (typingAtSnapshot !== null && localStorage.getItem(UNSAVED_TYPING_STORAGE_KEY) === typingAtSnapshot) {
+                localStorage.removeItem(UNSAVED_TYPING_STORAGE_KEY);
+            }
+        } catch (_err) { /* kept */ }
+    });
 }
 
 let _unsavedBackupTimer = null;
@@ -2585,15 +2657,10 @@ function schedulePresentationAutosave(delay = 1200) {
     }, delay);
 }
 
-function _takeUnsavedBackup(presentationId, serverVersion, serverState = null) {
-    let backup = null;
-    try {
-        backup = JSON.parse(localStorage.getItem(UNSAVED_BACKUP_STORAGE_KEY) || "null");
-    } catch (_err) {
-        backup = null;
-    }
+// `backup` is the one _readUnsavedBackup found; it is taken (removed) when it belongs to this deck.
+function _takeUnsavedBackup(backup, presentationId, serverVersion, serverState = null) {
     if (!backup || backup.presentationId !== presentationId) return null;
-    localStorage.removeItem(UNSAVED_BACKUP_STORAGE_KEY);
+    _removeUnsavedBackup();
     // Same version as when the backup was taken: the server never received those edits.
     const sameVersion = backup.autosaveVersion === serverVersion;
     // A save already in flight can land after the page closes. Recover only if the server has that exact snapshot.
@@ -2614,6 +2681,14 @@ function _clearUnsavedBackup(presentationId) {
     } catch (_err) {
         localStorage.removeItem(UNSAVED_BACKUP_STORAGE_KEY);
     }
+    // Checked and removed in one transaction, so a backup of another deck written meanwhile is not lost.
+    _unsavedBackupDbRun("readwrite", store => {
+        const request = store.get(UNSAVED_BACKUP_STORAGE_KEY);
+        request.onsuccess = () => {
+            if (request.result?.presentationId === presentationId) store.delete(UNSAVED_BACKUP_STORAGE_KEY);
+        };
+        return null;
+    });
     _clearTypingBackup(presentationId);
 }
 
