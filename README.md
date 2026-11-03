@@ -44,6 +44,7 @@ Then arrange your slide and present it.
 |---|---|
 | **Charts and tables** | Paste a block from a spreadsheet: it becomes a bar, line or pie chart with axis titles, error bars and values on the chart. A long table splits across slides with its header repeated. |
 | **Equations** | Type LaTeX, get a crisp equation that exports as a picture PowerPoint can show. |
+| **Landscapes** | Plot a CSV grid or `f(x, y)` as a heatmap, contours or a rotatable 3D surface. Inspect values while presenting; PowerPoint and PDF keep a still of the saved view. |
 | **Molecules** | Open a PDB, CIF, XYZ or trajectory file and turn it with the mouse while you present. Bound drugs and metal ions are drawn so the room can see them. |
 | **Chemistry** | Structures and reactions from SMILES or a compound name, RDKit drawings with properties, energy diagrams. |
 | **Biology** | Plasmid maps, protein domains, sequences and sequence logos, phylogenetic trees, gels. |
@@ -102,6 +103,14 @@ from PyPI, then `slideforge`, and `slideforge --install-shortcut` for the icons.
 [docs/DESKTOP.md](docs/DESKTOP.md).
 
 To run it from this repository instead, or to help build it, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+
+## New in 0.5
+
+- **Landscape Explorer:** CSV grids or `f(x, y)` as heatmaps, contours and rotatable 3D surfaces, with live inspection and saved export views.
+- **Better PowerPoint and Keynote imports:** merged tables, navigation links, more picture formats, preset shapes and imported fonts.
+- **Show recorder and timer**, plus improved animation playback in exported web presentations.
+
+See the [0.5.0 release notes](docs/releases/v0.5.0.md) and [Landscape Explorer guide](docs/PLUGINS.md#landscape-explorer).
 
 ## New in 0.4
 

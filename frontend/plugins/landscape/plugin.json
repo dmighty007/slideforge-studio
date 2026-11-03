@@ -1,0 +1,8 @@
+{
+    "id": "landscape",
+    "name": "Landscape Explorer",
+    "version": "1.0.0",
+    "description": "Interactive heatmaps, contours and rotatable surfaces from grid CSV or f(x, y), with a saved still for export.",
+    "icon": "fa-solid fa-mountain",
+    "author": "SlideForge"
+}

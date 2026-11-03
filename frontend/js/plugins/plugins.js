@@ -353,6 +353,7 @@ function _pluginRenderContext(plugin, elData = null) {
     const theme = typeof getPresentationTheme === "function" ? getPresentationTheme() : null;
     return {
         textColor: _pluginThemeColor(),
+        fontFamily: stack,
         theme,
         baseUrl: plugin.baseUrl,
         loadScript: url => loadPluginScript(new URL(url, plugin.baseUrl).href),
@@ -607,6 +608,89 @@ function getPluginElementNotice(id) {
     return _sfPluginNotices.get(id) || "";
 }
 
+// Optional live views sit over the saved SVG only in the main editor/show. Thumbnails and exports remain stills.
+// One observer owns cleanup across slide rebuilds, deletion, undo, plugin switching and presentation changes.
+const _sfPluginLiveViews = new Set();
+let _sfPluginLiveObserver = null;
+function _disposePluginLiveView(entry) {
+    entry.controller?.abort();
+    entry.controller = null;
+    try { entry.cleanup?.(); } catch (error) { console.warn("Plugin live-view cleanup:", error); }
+    entry.cleanup = null;
+    entry.viewport?.remove();
+    entry.viewport = null;
+    entry.image.hidden = false;
+    entry.key = null;
+}
+
+function _syncPluginLiveViews() {
+    const presenting = document.body.classList.contains("play-mode-active");
+    for (const entry of _sfPluginLiveViews) {
+        if (!entry.host.isConnected) { _disposePluginLiveView(entry); _sfPluginLiveViews.delete(entry); continue; }
+        const source = _findPluginElementInState(entry.id), plugin = getSlidePlugin(source?.pluginId);
+        const active = typeof currentSlideIndex === "number" && state.slides?.[currentSlideIndex]?.elements?.some(el => el.id === entry.id);
+        entry.toggle.hidden = presenting;
+        entry.toggle.textContent = entry.manual ? "Close explorer" : "Explore";
+        entry.toggle.setAttribute("aria-expanded", String(entry.manual));
+        if (!source || !plugin || !active || (!presenting && !entry.manual)) { _disposePluginLiveView(entry); continue; }
+        const data = normalizePluginData(plugin, source.pluginData), key = `${presenting}:` + _pluginPreviewKey(plugin, data, source);
+        if (entry.key === key || entry.failedKey === key) continue;
+        _disposePluginLiveView(entry);
+        entry.key = key;
+        const viewport = document.createElement("div"), controller = new AbortController();
+        viewport.className = "plugin-live-view";
+        viewport.dataset.presentationUi = "true";
+        entry.viewport = viewport; entry.controller = controller;
+        // These gestures belong to the plot, not object dragging, slide swipes or click/wheel-to-advance.
+        for (const name of ["pointerdown", "pointermove", "pointerup", "pointercancel", "mousedown", "mouseup", "click", "dblclick", "wheel", "touchstart", "touchmove", "touchend"]) {
+            viewport.addEventListener(name, event => event.stopPropagation(), { signal: controller.signal });
+        }
+        viewport.addEventListener("keydown", event => {
+            if (event.key === "Escape") {
+                if (!presenting) { event.preventDefault(); event.stopPropagation(); entry.manual = false; _syncPluginLiveViews(); entry.toggle.focus(); }
+            } else event.stopPropagation();
+        }, { signal: controller.signal });
+        entry.box.appendChild(viewport);
+        Promise.resolve().then(() => plugin.mount(viewport, data, {
+            ..._pluginRenderContext(plugin, source), signal: controller.signal, isPresenting: presenting,
+            update: updates => { if (!controller.signal.aborted && !document.body.classList.contains("play-mode-active")) return updatePluginElementData(entry.id, updates); },
+        })).then(cleanup => {
+            if (controller.signal.aborted) { if (typeof cleanup === "function") cleanup(); return; }
+            entry.cleanup = typeof cleanup === "function" ? cleanup : null;
+            // Keep the still underneath: it also remains available if an async mount finishes during a capture.
+        }).catch(error => {
+            if (controller.signal.aborted) return;
+            entry.failedKey = key;
+            _disposePluginLiveView(entry);
+            entry.note.textContent = `Interactive view unavailable: ${error?.message || error}. The saved picture is still available.`;
+            entry.note.hidden = false;
+        });
+    }
+    if (!_sfPluginLiveViews.size) { _sfPluginLiveObserver?.disconnect(); _sfPluginLiveObserver = null; }
+}
+
+function _trackPluginLiveView(plugin, host, box, image, note, source) {
+    if (typeof plugin.mount !== "function") return;
+    const toggle = document.createElement("button");
+    toggle.type = "button"; toggle.className = "plugin-live-toggle"; toggle.textContent = "Explore";
+    toggle.dataset.presentationUi = "true";
+    toggle.setAttribute("aria-label", `Explore ${plugin.name}`);
+    box.appendChild(toggle);
+    const entry = { host, box, image, note, toggle, id: source.id, manual: false };
+    _sfPluginLiveViews.add(entry);
+    toggle.addEventListener("pointerdown", event => event.stopPropagation());
+    toggle.addEventListener("mousedown", event => event.stopPropagation());
+    toggle.addEventListener("dblclick", event => event.stopPropagation());
+    toggle.addEventListener("click", event => { event.stopPropagation(); entry.manual = !entry.manual; entry.failedKey = null; _syncPluginLiveViews(); });
+    if (!_sfPluginLiveObserver) {
+        _sfPluginLiveObserver = new MutationObserver(records => {
+            if (records.some(r => r.type === "attributes" && (r.target === document.body || r.target.classList?.contains("presentation-slide")) || r.type === "childList" && [...r.removedNodes].some(n => n.nodeType === 1))) _syncPluginLiveViews();
+        });
+        _sfPluginLiveObserver.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "style"] });
+    }
+    queueMicrotask(_syncPluginLiveViews);
+}
+
 // The object on the slide: its last picture at once, then the plugin's fresh drawing when that differs.
 function renderPluginElementContent(host, elData, { interactive = false } = {}) {
     const plugin = getSlidePlugin(elData.pluginId);
@@ -671,6 +755,7 @@ function renderPluginElementContent(host, elData, { interactive = false } = {}) 
                     elData.pluginPreviewKey = drawing.key;
                     if (interactive && typeof refreshActiveSlidePreview === "function") refreshActiveSlidePreview();
                 }
+                if (interactive && typeof plugin.mount === "function") _syncPluginLiveViews();
             })
             .catch(error => {
                 // A failed lookup explains a failed drawing better (a compound name is no SMILES string).
@@ -712,6 +797,7 @@ function renderPluginElementContent(host, elData, { interactive = false } = {}) 
     }
 
     if (interactive) {
+        _trackPluginLiveView(plugin, host, box, img, note, elData);
         host.addEventListener("dblclick", () => {
             if (document.body.classList.contains("play-mode-active")) return;
             editPluginElement(elData.id);
@@ -1391,6 +1477,14 @@ async function _pluginPictureForBox(el) {
 // drawing centred in it. html2canvas ignores object-fit: contain, so pictures came out stretched to their box.
 async function showPluginPicturesForCapture(slideNode) {
     const restored = [];
+    // Live interaction is transient. PDF/PNG captures use the saved SVG camera, without controls or tooltips.
+    for (const box of slideNode?.querySelectorAll(".plugin-element-content") || []) {
+        for (const live of box.querySelectorAll(".plugin-live-view, .plugin-live-toggle")) {
+            const hidden = live.hidden; live.hidden = true; restored.push(() => { live.hidden = hidden; });
+        }
+        const image = box.querySelector("img");
+        if (image) { const hidden = image.hidden; image.hidden = false; restored.push(() => { image.hidden = hidden; }); }
+    }
     for (const img of slideNode?.querySelectorAll(".plugin-element-content img[src^='data:image/svg+xml']") || []) {
         const width = img.clientWidth;
         const height = img.clientHeight;

@@ -44,7 +44,7 @@ function _setupElementInteract() {
   interact(".canvas-element")
     .draggable({
       ignoreFrom:
-        ".resize-handle, .crop-handle, .connector-point-handle, .pdf-annotation-layer, .pdf-annotation-layer *, .canvas-element.cropping img, .editing-text, .editing-text *, .editing-table, .editing-table *, .table-element-cell, .table-element-cell *, .sketch-mode-active, .sketch-mode-active *",
+        ".resize-handle, .crop-handle, .connector-point-handle, .pdf-annotation-layer, .pdf-annotation-layer *, .canvas-element.cropping img, .editing-text, .editing-text *, .editing-table, .editing-table *, .table-element-cell, .table-element-cell *, .sketch-mode-active, .sketch-mode-active *, .plugin-live-view, .plugin-live-view *, .plugin-live-toggle",
       listeners: {
         start(event) {
           if (document.body.classList.contains("play-mode-active")) return;
