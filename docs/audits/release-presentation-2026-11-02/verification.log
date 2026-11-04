@@ -1,0 +1,31 @@
+PASS reopen saved demonstration deck
+PASS recheck geometry with explicit commits
+PASS edit curve-fit data and model through named fields
+FAIL edit demonstration titles through canvas Title not committed on 1
+FAIL edit molecule style and rotate in presentation locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for locator('.properties-tab').filter({ hasText: 'Content' })[22m
+
+FAIL presenter view displays saved notes CURRENT SLIDE
+1 / 1
+ELAPSED
+00:00
+Previous
+Next
+Reset Timer
+NEXT SLIDE
+NOTES
+No notes for this slide.
+PASS diagram click builds reveal the next stage
+PASS export pptx through menu
+PASS export pdf through menu
+PASS export web through menu
+PASS capture polished chart and plot editor screenshots
+FAIL import synthetic PowerPoint via file picker locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for locator('button[title="Home"]')[22m
+
+FAIL import synthetic Keynote via file picker locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for locator('button[title="Home"]')[22m
+

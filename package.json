@@ -10,9 +10,12 @@
     "test:phase2": "node tests/browser/test-phase2-functional.js",
     "test:ui": "node tests/browser/test-ui-smoke.js",
     "lint:python": "ruff check .",
+    "test:async-lifecycle": "node tests/browser/test-async-lifecycle.js",
     "test:regressions": "node tests/browser/test-regressions.js",
     "test:recorder": "node tests/browser/test-show-recorder.js",
     "test:desktop": "python3 -m pytest",
+    "test:landscape-usability": "node tests/browser/test-landscape-usability.js",
+    "test:molecule-trajectory": "node tests/browser/test-molecule-trajectory.js",
     "test:landscape": "node tests/browser/test-landscape.js",
     "test:landscape-wigner": "node tests/browser/test-landscape-wigner.js"
   },

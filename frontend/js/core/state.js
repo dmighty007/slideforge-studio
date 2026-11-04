@@ -357,6 +357,8 @@ Object.defineProperties(window, {
     },
 });
 let currentPresentationId = null;
+// Only the latest project navigation may adopt a response or finish hydration.
+let _presentationLoadGeneration = 0;
 let currentPresentationAutosaveVersion = 0;
 let currentPresentationTitle = "Untitled Presentation";
 let currentAuthUser = null;
@@ -1560,6 +1562,7 @@ function normalizeStateIds({ truncate = true } = {}) {
                           moleculeBackgroundMode: ["theme", "transparent", "custom"].includes(safeEl.moleculeBackgroundMode) ? safeEl.moleculeBackgroundMode : "custom",
                           moleculeInteractive: safeEl.moleculeInteractive ?? true,
                           moleculeAutoRotate: Boolean(safeEl.moleculeAutoRotate),
+                          moleculePlayback: normalizeMoleculePlayback(safeEl.moleculePlayback),
                           moleculeProjection:
                               safeEl.moleculeProjection === "orthographic" ? "orthographic" : "perspective",
                           moleculeDefaultStyle: ["cartoon", "stick", "sphere", "line", "surface"].includes(
@@ -2226,6 +2229,8 @@ async function submitAuthForm(event) {
 }
 
 async function logoutCurrentUser() {
+    ++_presentationLoadGeneration;
+    setPresentationHydrating(false);
     await _authRequest("/api/auth/logout/", { method: "POST" });
     closeStartScreen?.({ force: true });
     sessionStorage.removeItem(ENTRY_GATE_DISMISSED_KEY);
@@ -2267,9 +2272,13 @@ function setCurrentPresentationTitle(title) {
 }
 
 async function createPresentationRecord() {
+    const generation = _presentationLoadGeneration;
+    const originalId = currentPresentationId;
+    const stillCurrent = () => generation === _presentationLoadGeneration && currentPresentationId === originalId;
     if (typeof syncMoleculeViewStatesFromDom === "function") {
         await syncMoleculeViewStatesFromDom();
     }
+    if (!stillCurrent()) return null;
     const payload = {
         title: _inferPresentationTitle(),
         presentationTheme: state.presentationTheme,
@@ -2279,6 +2288,7 @@ async function createPresentationRecord() {
         method: "POST",
         body: JSON.stringify(payload),
     });
+    if (!stillCurrent()) return null;
     currentPresentationId = created.id;
     currentPresentationAutosaveVersion = created.autosaveVersion || 1;
     setCurrentPresentationTitle(created.title || payload.title);
@@ -2289,10 +2299,12 @@ async function createPresentationRecord() {
     return created;
 }
 
-async function loadPresentationRecord(presentationId) {
+async function loadPresentationRecord(presentationId, generation = ++_presentationLoadGeneration) {
     // Read before anything changes: once this deck is current, a backup taken of it could replace the one to recover.
     const keptBackup = _readUnsavedBackup();
     const loaded = await _presentationRequest(`/api/presentations/${presentationId}/`, { method: "GET" });
+    const backup = await keptBackup;
+    if (generation !== _presentationLoadGeneration) return null;
     currentPresentationId = loaded.id;
     currentPresentationAutosaveVersion = loaded.autosaveVersion || 1;
     setCurrentPresentationTitle(loaded.title || "Untitled Presentation");
@@ -2310,7 +2322,6 @@ async function loadPresentationRecord(presentationId) {
         state.presentationTheme = state.presentationTheme || loaded.presentationTheme || "blank";
     }
     const serverVersion = loaded.autosaveVersion || 1;
-    const backup = await keptBackup;
     const hadBackup = backup?.presentationId === loaded.id;
     const recovered = _takeUnsavedBackup(backup, loaded.id, serverVersion, loaded.state);
     if (recovered) {
@@ -2756,6 +2767,8 @@ window.sfFlushBeforeClose = sfFlushBeforeClose;
 
 function adoptPresentationRecord(presentationId, title = null, autosaveVersion = 1) {
     if (!presentationId) return;
+    ++_presentationLoadGeneration;
+    setPresentationHydrating(false);
     currentPresentationId = presentationId;
     currentPresentationAutosaveVersion = autosaveVersion || 1;
     if (title) setCurrentPresentationTitle(title);
@@ -2786,7 +2799,8 @@ async function saveCurrentProject() {
         return saveLocalPresentationNow();
     }
     if (!currentPresentationId) {
-        await createPresentationRecord();
+        const created = await createPresentationRecord();
+        if (!created) return false;
         setProjectSaveHint("Project saved", "success");
         return true;
     }
@@ -2850,6 +2864,8 @@ async function createNewProject() {
     // it still waits.
     const localOnly = !_backendApiAvailable || (accountsDisabled() && _authReady && !currentAuthUser);
     if (localOnly) {
+        ++_presentationLoadGeneration;
+        setPresentationHydrating(false);
         saveStateToUndo();
         clearTimeout(_autosaveTimer);
         state = buildDefaultPresentationState();
@@ -2869,6 +2885,8 @@ async function createNewProject() {
         openAuthModal("login");
         return false;
     }
+    ++_presentationLoadGeneration;
+    setPresentationHydrating(false);
     clearTimeout(_autosaveTimer);
     state = buildDefaultPresentationState();
     resetUndoHistory();
@@ -2883,7 +2901,7 @@ async function createNewProject() {
     _lastPersistedFingerprint = "";
     _lastPersistedTitle = "";
     localStorage.removeItem(PRESENTATION_STORAGE_KEY);
-    await createPresentationRecord();
+    if (!await createPresentationRecord()) return false;
     applyPresentationTheme(state.presentationTheme, { persist: false });
     renderSlidesFromState?.();
     updateSlideCounter?.();
@@ -2897,10 +2915,12 @@ async function loadProjectById(presentationId) {
         openAuthModal("login");
         return false;
     }
+    const generation = ++_presentationLoadGeneration;
     clearTimeout(_autosaveTimer);
     setPresentationHydrating(true);
     try {
-        await loadPresentationRecord(presentationId);
+        const loaded = await loadPresentationRecord(presentationId, generation);
+        if (!loaded || generation !== _presentationLoadGeneration) return false;
         normalizeStateIds();
         if (typeof migrateInlineVideoAssets === "function") {
             try {
@@ -2909,15 +2929,21 @@ async function loadProjectById(presentationId) {
                 console.warn("Inline video migration failed:", err);
             }
         }
+        if (generation !== _presentationLoadGeneration) return false;
         currentSlideIndex = 0;
         applyPresentationTheme(state.presentationTheme, { persist: false });
         syncPresentationPageSetup?.();
         renderSlidesFromState?.();
         updateSlideCounter?.();
         return true;
+    } catch (error) {
+        if (generation !== _presentationLoadGeneration) return false;
+        throw error;
     } finally {
-        setPresentationHydrating(false);
-        _saveRecoveredChanges();
+        if (generation === _presentationLoadGeneration) {
+            setPresentationHydrating(false);
+            _saveRecoveredChanges();
+        }
     }
 }
 
@@ -2927,14 +2953,15 @@ async function duplicateCurrentStateToNewProject(title = null) {
         openAuthModal("login");
         return false;
     }
+    ++_presentationLoadGeneration;
+    setPresentationHydrating(false);
     currentPresentationId = null;
     currentPresentationAutosaveVersion = 0;
     setCurrentPresentationTitle(title || _inferPresentationTitle());
     _lastPersistedFingerprint = "";
     _lastPersistedTitle = "";
     localStorage.removeItem(PRESENTATION_STORAGE_KEY);
-    await createPresentationRecord();
-    return true;
+    return Boolean(await createPresentationRecord());
 }
 
 function bindProjectTitleInput() {

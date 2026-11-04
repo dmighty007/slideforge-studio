@@ -1,0 +1,72 @@
+{
+  "offline": {
+    "before": {
+      "slides": 6,
+      "index": "1 / 6",
+      "images": [
+        {
+          "src": "assets/asset_0.png",
+          "loaded": true
+        },
+        {
+          "src": "assets/asset_1.png",
+          "loaded": true
+        },
+        {
+          "src": "assets/asset_2.svg",
+          "loaded": true
+        },
+        {
+          "src": "assets/asset_3.svg",
+          "loaded": true
+        }
+      ],
+      "body": "Illustrative enzyme response\n1 / 6"
+    },
+    "after": {
+      "index": "2 / 6",
+      "body": "Dose sponse — illustrative data\n02\n2 / 6"
+    },
+    "errors": [],
+    "requests": []
+  },
+  "readme": {
+    "images": [
+      {
+        "src": "docs/images/readme-hero.png",
+        "naturalWidth": 1600,
+        "shownWidth": 830,
+        "shownHeight": 643
+      },
+      {
+        "src": "docs/images/gallery.jpg",
+        "naturalWidth": 1960,
+        "shownWidth": 830,
+        "shownHeight": 474
+      },
+      {
+        "src": "docs/images/molecule.jpg",
+        "naturalWidth": 1200,
+        "shownWidth": 407,
+        "shownHeight": 229
+      },
+      {
+        "src": "docs/images/diagram.jpg",
+        "naturalWidth": 1200,
+        "shownWidth": 407,
+        "shownHeight": 229
+      },
+      {
+        "src": "docs/images/plugins.jpg",
+        "naturalWidth": 1600,
+        "shownWidth": 830,
+        "shownHeight": 498
+      }
+    ],
+    "mobile": {
+      "viewport": 390,
+      "documentWidth": 390
+    },
+    "rendering": "Local MarkdownIt approximation of GitHub, not actual GitHub UI"
+  }
+}

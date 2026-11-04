@@ -1617,8 +1617,10 @@ function schedulePreview(options = {}) {
 }
 
 async function runValidation({ force = false } = {}) {
+    const session = dialogState;
     const source = getEditorValue();
     const result = await validateMermaid(source);
+    if (!session || dialogState !== session || getEditorValue() !== source) return result;
     if (result.ok && dialogState?.graphDocument?.nodes?.length) {
         const scientific = validateScientificGraph(dialogState.graphDocument);
         if (scientific.warnings?.length) {
@@ -1654,10 +1656,15 @@ async function renderPreview() {
     const source = getEditorValue();
     const preview = document.getElementById("mermaid-preview");
     if (!preview || !dialogState) return;
+    const session = dialogState;
+    // Invalidate a pending native render even when switching to the synchronous visual graph.
+    const token = {};
+    session.previewToken = token;
     syncDiagramKindControls(source);
     if (canUseVisualGraph(source)) {
         if (!dialogState.graphModel) rebuildGraphFromEditor();
         renderGraphPreview();
+        preview.classList.remove("is-loading");
         // Lines the flowchart reader could not use are skipped in the preview; say which, so a typo is not silent.
         const problems = diagnoseFlowchart(source);
         if (problems.length) {
@@ -1668,14 +1675,12 @@ async function renderPreview() {
         }
         return;
     }
-    const token = `${Date.now()}-${Math.random()}`;
-    dialogState.previewToken = token;
     preview.classList.add("is-loading");
     setDiagnostics("Rendering...", null);
     try {
         const style = getSelectedStyle();
         const { svg } = await renderMermaid(source, { theme: getSelectedTheme(), style });
-        if (dialogState.previewToken !== token) return;
+        if (dialogState !== session || session.previewToken !== token || getEditorValue() !== source) return;
         preview.innerHTML = svg;
         installPreviewPartInteraction(preview);
         setSelectedPartLabel(null);
@@ -1688,7 +1693,7 @@ async function renderPreview() {
         setDiagnostics("Syntax valid", true);
         updateLiveCanvasObject(source, svg);
     } catch (error) {
-        if (dialogState.previewToken !== token) return;
+        if (dialogState !== session || session.previewToken !== token || getEditorValue() !== source) return;
         preview.classList.remove("is-loading");
         if (!dialogState.lastValidSvg) preview.innerHTML = `<div class="mermaid-preview-empty">Fix syntax to render preview.</div>`;
         setDiagnostics(error?.message || String(error), false);
@@ -1733,6 +1738,8 @@ function updateLiveCanvasObject(source, svg) {
 }
 
 async function applyMermaidDialog() {
+    const session = dialogState;
+    if (!session) return;
     let source = getEditorValue();
     let svg = getPreviewSvgContent() || dialogState?.lastValidSvg || "";
     let theme = getSelectedTheme();
@@ -1752,12 +1759,15 @@ async function applyMermaidDialog() {
         try {
             setDiagnostics("Rendering final diagram...", null);
             const rendered = await renderMermaid(source, { theme, style });
+            if (dialogState !== session || getEditorValue() !== source ||
+                getSelectedTheme() !== theme || JSON.stringify(getSelectedStyle()) !== JSON.stringify(style)) return;
             svg = rendered.svg;
             dialogState.lastValidSvg = svg;
             dialogState.lastValidSource = source;
             dialogState.lastValidTheme = theme;
             dialogState.lastValidStyle = style;
         } catch (error) {
+            if (dialogState !== session) return;
             setDiagnostics(error?.message || String(error), false);
             return;
         }

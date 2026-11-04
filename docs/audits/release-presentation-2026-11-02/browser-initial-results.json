@@ -1,0 +1,3088 @@
+{
+  "steps": [
+    {
+      "name": "create themed deck through first-launch UI",
+      "status": "pass",
+      "detail": {
+        "title": "Illustrative data — release audit",
+        "id": "a962b798-8c52-4e6a-a0eb-ab70b1aee98a",
+        "theme": "editorial",
+        "index": 0,
+        "slides": [
+          {
+            "id": "slide_3e5d238b-581b-402a-b2a6-4c5b58468f70",
+            "layoutId": "blank-titled",
+            "masterId": "title",
+            "notes": "",
+            "presentationTransition": "none",
+            "elements": [
+              {
+                "id": "el_61e9f233-ed69-4e05-b679-d107ddeb26b4",
+                "type": "text",
+                "x": 64,
+                "y": 216,
+                "width": "1152px",
+                "height": "150px",
+                "autoHeight": false,
+                "textFitMode": "autofit",
+                "minAutoFitFontSize": 20,
+                "content": "",
+                "placeholder": "Click to add title",
+                "styles": {
+                  "zIndex": 1,
+                  "borderRadius": "0px",
+                  "color": "#2E2E2E",
+                  "fontSize": "56px",
+                  "fontFamily": "\"Newsreader\", serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "center"
+                },
+                "animation": null,
+                "iconMode": false,
+                "bulletStyle": "default",
+                "_textDocumentSourceContent": "",
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_bjl7o01",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_f4z4hm1",
+                          "type": "text",
+                          "text": "",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "themeManaged": true
+              },
+              {
+                "id": "el_d0117427-9b65-4c85-bcde-221eaa1a9fe2",
+                "type": "text",
+                "x": 64,
+                "y": 390,
+                "width": "1152px",
+                "height": "56px",
+                "autoHeight": true,
+                "textFitMode": "autoHeight",
+                "content": "",
+                "placeholder": "Click to add subtitle",
+                "styles": {
+                  "zIndex": 2,
+                  "borderRadius": "0px",
+                  "color": "#6B7280",
+                  "fontSize": "26px",
+                  "fontFamily": "\"Manrope\", sans-serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "center"
+                },
+                "animation": null,
+                "iconMode": false,
+                "bulletStyle": "default",
+                "_textDocumentSourceContent": "",
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_tr52ohy",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_yt7oaf2",
+                          "type": "text",
+                          "text": "",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "themeManaged": true
+              }
+            ],
+            "background": null,
+            "editableMasterFooter": true,
+            "editableFooterNumberAlignmentVersion": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "insert chart and paste spreadsheet data",
+      "status": "pass",
+      "detail": {
+        "labels": [
+          "Control",
+          "Low dose",
+          "High dose"
+        ],
+        "datasets": [
+          {
+            "label": "Illustrative response",
+            "data": [
+              12,
+              24,
+              38
+            ],
+            "backgroundColor": "#3B82F6",
+            "borderColor": "#3B82F6",
+            "borderWidth": 1,
+            "errors": [
+              0,
+              0,
+              0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "edit chart value and verify rendered chart updates",
+      "status": "pass",
+      "detail": {
+        "state": {
+          "labels": [
+            "Control",
+            "Low dose",
+            "High dose"
+          ],
+          "datasets": [
+            {
+              "label": "Illustrative response",
+              "data": [
+                12,
+                31,
+                38
+              ],
+              "backgroundColor": "#3B82F6",
+              "borderColor": "#3B82F6",
+              "borderWidth": 1,
+              "errors": [
+                0,
+                0,
+                0
+              ]
+            }
+          ]
+        },
+        "rendered": {
+          "labels": [
+            "Control",
+            "Low dose",
+            "High dose"
+          ],
+          "datasets": [
+            {
+              "label": "Illustrative response",
+              "data": [
+                12,
+                31,
+                38
+              ],
+              "backgroundColor": "#3B82F6",
+              "borderColor": "#3B82F6",
+              "borderWidth": 1,
+              "errors": [
+                0,
+                0,
+                0
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "resize and reposition chart through geometry controls",
+      "status": "fail",
+      "error": "locator.click: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.properties-tab').filter({ hasText: 'Base' })\u001b[22m\n\n    at /home/dm/Dibyendu/Projects/slideforge-studio/docs/audits/release-presentation-2026-11-02/browser-audit.cjs:24:133\n    at step (/home/dm/Dibyendu/Projects/slideforge-studio/docs/audits/release-presentation-2026-11-02/browser-audit.cjs:17:53)\n    at /home/dm/Dibyendu/Projects/slideforge-studio/docs/audits/release-presentation-2026-11-02/browser-audit.cjs:24:7"
+    },
+    {
+      "name": "duplicate chart, undo, redo and undo duplicate",
+      "status": "pass",
+      "detail": {
+        "originalCount": 5
+      }
+    },
+    {
+      "name": "insert and edit LaTeX equation",
+      "status": "pass",
+      "detail": {
+        "title": "Illustrative data — release audit",
+        "id": "a962b798-8c52-4e6a-a0eb-ab70b1aee98a",
+        "theme": "editorial",
+        "index": 2,
+        "slides": [
+          {
+            "id": "slide_3e5d238b-581b-402a-b2a6-4c5b58468f70",
+            "layoutId": "blank-titled",
+            "masterId": "title",
+            "notes": "",
+            "presentationTransition": "none",
+            "elements": [
+              {
+                "id": "el_61e9f233-ed69-4e05-b679-d107ddeb26b4",
+                "type": "text",
+                "x": 64,
+                "y": 216,
+                "width": "1152px",
+                "height": "150px",
+                "autoHeight": false,
+                "textFitMode": "autofit",
+                "minAutoFitFontSize": 20,
+                "content": "",
+                "placeholder": "Click to add title",
+                "styles": {
+                  "zIndex": 1,
+                  "borderRadius": "0px",
+                  "color": "#2E2E2E",
+                  "fontSize": "56px",
+                  "fontFamily": "\"Newsreader\", serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "center"
+                },
+                "animation": null,
+                "iconMode": false,
+                "bulletStyle": "default",
+                "_textDocumentSourceContent": "",
+                "themeManaged": true,
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_r64xstc",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_18uip42",
+                          "type": "text",
+                          "text": "",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "el_d0117427-9b65-4c85-bcde-221eaa1a9fe2",
+                "type": "text",
+                "x": 64,
+                "y": 390,
+                "width": "1152px",
+                "height": "56px",
+                "autoHeight": true,
+                "textFitMode": "autoHeight",
+                "content": "",
+                "placeholder": "Click to add subtitle",
+                "styles": {
+                  "zIndex": 2,
+                  "borderRadius": "0px",
+                  "color": "#6B7280",
+                  "fontSize": "26px",
+                  "fontFamily": "\"Manrope\", sans-serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "center"
+                },
+                "animation": null,
+                "iconMode": false,
+                "bulletStyle": "default",
+                "_textDocumentSourceContent": "",
+                "themeManaged": true,
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_77zzgfr",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_1hrmms0",
+                          "type": "text",
+                          "text": "",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ],
+            "background": null,
+            "editableMasterFooter": true,
+            "editableFooterNumberAlignmentVersion": 1
+          },
+          {
+            "id": "slide_a0bec4e3-b64a-46b2-a496-c5391035334d",
+            "layoutId": "blank-titled",
+            "masterId": "content",
+            "notes": "",
+            "presentationTransition": "none",
+            "elements": [
+              {
+                "id": "el_31adccf0-77fb-4d1f-8324-efe6f862d6cb",
+                "type": "text",
+                "x": 64,
+                "y": 52,
+                "width": "1152px",
+                "height": "96px",
+                "autoHeight": false,
+                "textFitMode": "autofit",
+                "minAutoFitFontSize": 20,
+                "content": "",
+                "placeholder": "Click to add title",
+                "styles": {
+                  "zIndex": 1,
+                  "borderRadius": "0px",
+                  "color": "#2E2E2E",
+                  "fontSize": "40px",
+                  "fontFamily": "\"Newsreader\", serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "left",
+                  "fontWeight": "700"
+                },
+                "animation": null,
+                "_textDocumentSourceContent": "",
+                "iconMode": false,
+                "bulletStyle": "default",
+                "themeManaged": true,
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_d1qts7c",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_puz8y7h",
+                          "type": "text",
+                          "text": "",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "el_2019a14f-4af6-4d74-b6ba-deb1f6241591",
+                "type": "shape",
+                "x": 65,
+                "y": 669,
+                "width": "1150px",
+                "height": "1px",
+                "content": "",
+                "styles": {
+                  "zIndex": 1,
+                  "borderRadius": "0px",
+                  "backgroundColor": "rgba(209, 213, 219, 0.80)",
+                  "opacity": "0.85"
+                },
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "footer-rule",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "shapeType": "rectangle",
+                "animation": null
+              },
+              {
+                "id": "el_360ba745-2c1c-422b-97c5-2cf5eaba6d14",
+                "type": "shape",
+                "x": 1140,
+                "y": 673,
+                "width": "77.5px",
+                "height": "26.25px",
+                "content": "",
+                "styles": {
+                  "zIndex": 3,
+                  "borderRadius": "999px",
+                  "backgroundColor": "rgba(248, 250, 252, 0.88)",
+                  "border": "1px solid rgba(209, 213, 219, 0.80)"
+                },
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "slide-number-bg",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "shapeType": "rectangle",
+                "animation": null
+              },
+              {
+                "id": "el_d51482cb-8444-4af5-8360-4236ff8a9d32",
+                "type": "text",
+                "x": 1140,
+                "y": 673,
+                "width": "77.5px",
+                "height": "26.25px",
+                "content": "02",
+                "styles": {
+                  "zIndex": 5,
+                  "borderRadius": "0px",
+                  "color": "#295BAC",
+                  "fontSize": "11.25px",
+                  "fontFamily": "\"Manrope\", sans-serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "center",
+                  "fontWeight": "800"
+                },
+                "autoHeight": false,
+                "textFitMode": "fixed",
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "slide-number",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "_textDocumentSourceContent": "02",
+                "animation": null,
+                "iconMode": false,
+                "bulletStyle": "default",
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_loogwln",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_a5wk6i1",
+                          "type": "text",
+                          "text": "02",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "el_840c0d81-0ba4-4989-8eff-f718bb91f7ee",
+                "type": "chart",
+                "chartType": "bar",
+                "chartData": {
+                  "labels": [
+                    "Control",
+                    "Low dose",
+                    "High dose"
+                  ],
+                  "datasets": [
+                    {
+                      "label": "Illustrative response",
+                      "data": [
+                        12,
+                        31,
+                        38
+                      ],
+                      "backgroundColor": "#3B82F6",
+                      "borderColor": "#3B82F6",
+                      "borderWidth": 1,
+                      "errors": [
+                        0,
+                        0,
+                        0
+                      ]
+                    }
+                  ]
+                },
+                "chartOptions": {
+                  "responsive": true,
+                  "maintainAspectRatio": false,
+                  "plugins": {
+                    "legend": {
+                      "display": true,
+                      "position": "top"
+                    }
+                  }
+                },
+                "chartStyle": {
+                  "legend": "top",
+                  "title": "",
+                  "xTitle": "Condition",
+                  "yTitle": "",
+                  "grid": true,
+                  "fontSize": 18,
+                  "seriesColors": []
+                },
+                "x": 64,
+                "y": 168,
+                "width": "1152px",
+                "height": "442px",
+                "styles": {
+                  "zIndex": 6,
+                  "borderRadius": "12px",
+                  "backgroundColor": "rgba(248, 250, 252, 0.88)",
+                  "padding": "16px",
+                  "boxShadow": "0 4px 12px rgba(0,0,0,0.05)"
+                },
+                "animation": null,
+                "content": ""
+              }
+            ],
+            "editableMasterFooter": true,
+            "editableFooterNumberAlignmentVersion": 1,
+            "background": null
+          },
+          {
+            "id": "slide_b19c0d9b-d5f2-457b-9943-baaca2959523",
+            "layoutId": "blank-titled",
+            "masterId": "content",
+            "notes": "",
+            "presentationTransition": "none",
+            "elements": [
+              {
+                "id": "el_270d79df-c259-40fd-b50e-51c44dfa6a70",
+                "type": "text",
+                "x": 64,
+                "y": 52,
+                "width": "1152px",
+                "height": "96px",
+                "autoHeight": false,
+                "textFitMode": "autofit",
+                "minAutoFitFontSize": 20,
+                "content": "",
+                "placeholder": "Click to add title",
+                "styles": {
+                  "zIndex": 1,
+                  "borderRadius": "0px",
+                  "color": "#2E2E2E",
+                  "fontSize": "40px",
+                  "fontFamily": "\"Newsreader\", serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "left",
+                  "fontWeight": "700"
+                },
+                "animation": null,
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_bwa4o3r",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_z3xjnf4",
+                          "type": "text",
+                          "text": "",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "_textDocumentSourceContent": "",
+                "iconMode": false,
+                "bulletStyle": "default",
+                "themeManaged": true
+              },
+              {
+                "id": "el_56192c1c-f1b6-461f-a8a7-72ce86782898",
+                "type": "shape",
+                "x": 65,
+                "y": 669,
+                "width": "1150px",
+                "height": "1px",
+                "content": "",
+                "styles": {
+                  "zIndex": 1,
+                  "borderRadius": "0px",
+                  "backgroundColor": "rgba(209, 213, 219, 0.80)",
+                  "opacity": "0.85"
+                },
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "footer-rule",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "shapeType": "rectangle",
+                "animation": null
+              },
+              {
+                "id": "el_8f8681de-f2b1-49b0-aa73-22d433a6e716",
+                "type": "shape",
+                "x": 1140,
+                "y": 673,
+                "width": "77.5px",
+                "height": "26.25px",
+                "content": "",
+                "styles": {
+                  "zIndex": 3,
+                  "borderRadius": "999px",
+                  "backgroundColor": "rgba(248, 250, 252, 0.88)",
+                  "border": "1px solid rgba(209, 213, 219, 0.80)"
+                },
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "slide-number-bg",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "shapeType": "rectangle",
+                "animation": null
+              },
+              {
+                "id": "el_5e5bc078-f05d-48fe-a3ee-5c65799a3674",
+                "type": "text",
+                "x": 1140,
+                "y": 673,
+                "width": "77.5px",
+                "height": "26.25px",
+                "content": "03",
+                "styles": {
+                  "zIndex": 5,
+                  "borderRadius": "0px",
+                  "color": "#295BAC",
+                  "fontSize": "11.25px",
+                  "fontFamily": "\"Manrope\", sans-serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "center",
+                  "fontWeight": "800"
+                },
+                "autoHeight": false,
+                "textFitMode": "fixed",
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "slide-number",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_me3gtuy",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_fk2ey50",
+                          "type": "text",
+                          "text": "03",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "_textDocumentSourceContent": "03",
+                "animation": null,
+                "iconMode": false,
+                "bulletStyle": "default"
+              },
+              {
+                "id": "el_618f9b1b-90ab-4e12-882a-bd7da486c4eb",
+                "type": "equation",
+                "latexSrc": "v = \\frac{V_{max}[S]}{K_M + [S]}",
+                "x": 543,
+                "y": 168,
+                "width": "197px",
+                "height": "133px",
+                "content": "<span class=\"katex-display\"><span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\"><semantics><mrow><mi>v</mi><mo>=</mo><mfrac><mrow><msub><mi>V</mi><mrow><mi>m</mi><mi>a</mi><mi>x</mi></mrow></msub><mo stretchy=\"false\">[</mo><mi>S</mi><mo stretchy=\"false\">]</mo></mrow><mrow><msub><mi>K</mi><mi>M</mi></msub><mo>+</mo><mo stretchy=\"false\">[</mo><mi>S</mi><mo stretchy=\"false\">]</mo></mrow></mfrac></mrow><annotation encoding=\"application/x-tex\">v = \\frac{V_{max}[S]}{K_M + [S]}</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"base\"><span class=\"strut\" style=\"height:0.4306em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.03588em;\">v</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"base\"><span class=\"strut\" style=\"height:2.363em;vertical-align:-0.936em;\"></span><span class=\"mord\"><span class=\"mopen nulldelimiter\"></span><span class=\"mfrac\"><span class=\"vlist-t vlist-t2\"><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:1.427em;\"><span style=\"top:-2.314em;\"><span class=\"pstrut\" style=\"height:3em;\"></span><span class=\"mord\"><span class=\"mord\"><span class=\"mord mathnormal\" style=\"margin-right:0.07153em;\">K</span><span class=\"msupsub\"><span class=\"vlist-t vlist-t2\"><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.3283em;\"><span style=\"top:-2.55em;margin-left:-0.0715em;margin-right:0.05em;\"><span class=\"pstrut\" style=\"height:2.7em;\"></span><span class=\"sizing reset-size6 size3 mtight\"><span class=\"mord mathnormal mtight\" style=\"margin-right:0.10903em;\">M</span></span></span></span><span class=\"vlist-s\">​</span></span><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.15em;\"><span></span></span></span></span></span></span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">+</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mopen\">[</span><span class=\"mord mathnormal\" style=\"margin-right:0.05764em;\">S</span><span class=\"mclose\">]</span></span></span><span style=\"top:-3.23em;\"><span class=\"pstrut\" style=\"height:3em;\"></span><span class=\"frac-line\" style=\"border-bottom-width:0.04em;\"></span></span><span style=\"top:-3.677em;\"><span class=\"pstrut\" style=\"height:3em;\"></span><span class=\"mord\"><span class=\"mord\"><span class=\"mord mathnormal\" style=\"margin-right:0.22222em;\">V</span><span class=\"msupsub\"><span class=\"vlist-t vlist-t2\"><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.1514em;\"><span style=\"top:-2.55em;margin-left:-0.2222em;margin-right:0.05em;\"><span class=\"pstrut\" style=\"height:2.7em;\"></span><span class=\"sizing reset-size6 size3 mtight\"><span class=\"mord mtight\"><span class=\"mord mathnormal mtight\">ma</span><span class=\"mord mathnormal mtight\">x</span></span></span></span></span><span class=\"vlist-s\">​</span></span><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.15em;\"><span></span></span></span></span></span></span><span class=\"mopen\">[</span><span class=\"mord mathnormal\" style=\"margin-right:0.05764em;\">S</span><span class=\"mclose\">]</span></span></span></span><span class=\"vlist-s\">​</span></span><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.936em;\"><span></span></span></span></span></span><span class=\"mclose nulldelimiter\"></span></span></span></span></span></span>",
+                "styles": {
+                  "color": "#2E2E2E",
+                  "fontSize": "24px",
+                  "zIndex": 6,
+                  "backgroundColor": "transparent"
+                }
+              }
+            ],
+            "editableMasterFooter": true,
+            "editableFooterNumberAlignmentVersion": 1,
+            "background": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "insert and edit mechanism diagram with branch reveal",
+      "status": "pass",
+      "detail": {
+        "title": "Illustrative data — release audit",
+        "id": "a962b798-8c52-4e6a-a0eb-ab70b1aee98a",
+        "theme": "editorial",
+        "index": 3,
+        "slides": [
+          {
+            "id": "slide_3e5d238b-581b-402a-b2a6-4c5b58468f70",
+            "layoutId": "blank-titled",
+            "masterId": "title",
+            "notes": "",
+            "presentationTransition": "none",
+            "elements": [
+              {
+                "id": "el_61e9f233-ed69-4e05-b679-d107ddeb26b4",
+                "type": "text",
+                "x": 64,
+                "y": 216,
+                "width": "1152px",
+                "height": "150px",
+                "autoHeight": false,
+                "textFitMode": "autofit",
+                "minAutoFitFontSize": 20,
+                "content": "",
+                "placeholder": "Click to add title",
+                "styles": {
+                  "zIndex": 1,
+                  "borderRadius": "0px",
+                  "color": "#2E2E2E",
+                  "fontSize": "56px",
+                  "fontFamily": "\"Newsreader\", serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "center"
+                },
+                "animation": null,
+                "iconMode": false,
+                "bulletStyle": "default",
+                "_textDocumentSourceContent": "",
+                "themeManaged": true,
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_r64xstc",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_18uip42",
+                          "type": "text",
+                          "text": "",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "el_d0117427-9b65-4c85-bcde-221eaa1a9fe2",
+                "type": "text",
+                "x": 64,
+                "y": 390,
+                "width": "1152px",
+                "height": "40px",
+                "autoHeight": true,
+                "textFitMode": "autoHeight",
+                "content": "",
+                "placeholder": "Click to add subtitle",
+                "styles": {
+                  "zIndex": 2,
+                  "borderRadius": "0px",
+                  "color": "#6B7280",
+                  "fontSize": "26px",
+                  "fontFamily": "\"Manrope\", sans-serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "center"
+                },
+                "animation": null,
+                "iconMode": false,
+                "bulletStyle": "default",
+                "_textDocumentSourceContent": "",
+                "themeManaged": true,
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_77zzgfr",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_1hrmms0",
+                          "type": "text",
+                          "text": "",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ],
+            "background": null,
+            "editableMasterFooter": true,
+            "editableFooterNumberAlignmentVersion": 1
+          },
+          {
+            "id": "slide_a0bec4e3-b64a-46b2-a496-c5391035334d",
+            "layoutId": "blank-titled",
+            "masterId": "content",
+            "notes": "",
+            "presentationTransition": "none",
+            "elements": [
+              {
+                "id": "el_31adccf0-77fb-4d1f-8324-efe6f862d6cb",
+                "type": "text",
+                "x": 64,
+                "y": 52,
+                "width": "1152px",
+                "height": "96px",
+                "autoHeight": false,
+                "textFitMode": "autofit",
+                "minAutoFitFontSize": 20,
+                "content": "",
+                "placeholder": "Click to add title",
+                "styles": {
+                  "zIndex": 1,
+                  "borderRadius": "0px",
+                  "color": "#2E2E2E",
+                  "fontSize": "40px",
+                  "fontFamily": "\"Newsreader\", serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "left",
+                  "fontWeight": "700"
+                },
+                "animation": null,
+                "_textDocumentSourceContent": "",
+                "iconMode": false,
+                "bulletStyle": "default",
+                "themeManaged": true,
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_d1qts7c",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_puz8y7h",
+                          "type": "text",
+                          "text": "",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "el_2019a14f-4af6-4d74-b6ba-deb1f6241591",
+                "type": "shape",
+                "x": 65,
+                "y": 669,
+                "width": "1150px",
+                "height": "1px",
+                "content": "",
+                "styles": {
+                  "zIndex": 1,
+                  "borderRadius": "0px",
+                  "backgroundColor": "rgba(209, 213, 219, 0.80)",
+                  "opacity": "0.85"
+                },
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "footer-rule",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "shapeType": "rectangle",
+                "animation": null
+              },
+              {
+                "id": "el_360ba745-2c1c-422b-97c5-2cf5eaba6d14",
+                "type": "shape",
+                "x": 1140,
+                "y": 673,
+                "width": "77.5px",
+                "height": "26.25px",
+                "content": "",
+                "styles": {
+                  "zIndex": 3,
+                  "borderRadius": "999px",
+                  "backgroundColor": "rgba(248, 250, 252, 0.88)",
+                  "border": "1px solid rgba(209, 213, 219, 0.80)"
+                },
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "slide-number-bg",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "shapeType": "rectangle",
+                "animation": null
+              },
+              {
+                "id": "el_d51482cb-8444-4af5-8360-4236ff8a9d32",
+                "type": "text",
+                "x": 1140,
+                "y": 673,
+                "width": "77.5px",
+                "height": "26.25px",
+                "content": "02",
+                "styles": {
+                  "zIndex": 5,
+                  "borderRadius": "0px",
+                  "color": "#295BAC",
+                  "fontSize": "11.25px",
+                  "fontFamily": "\"Manrope\", sans-serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "center",
+                  "fontWeight": "800"
+                },
+                "autoHeight": false,
+                "textFitMode": "fixed",
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "slide-number",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "_textDocumentSourceContent": "02",
+                "animation": null,
+                "iconMode": false,
+                "bulletStyle": "default",
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_loogwln",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_a5wk6i1",
+                          "type": "text",
+                          "text": "02",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "el_840c0d81-0ba4-4989-8eff-f718bb91f7ee",
+                "type": "chart",
+                "chartType": "bar",
+                "chartData": {
+                  "labels": [
+                    "Control",
+                    "Low dose",
+                    "High dose"
+                  ],
+                  "datasets": [
+                    {
+                      "label": "Illustrative response",
+                      "data": [
+                        12,
+                        31,
+                        38
+                      ],
+                      "backgroundColor": "#3B82F6",
+                      "borderColor": "#3B82F6",
+                      "borderWidth": 1,
+                      "errors": [
+                        0,
+                        0,
+                        0
+                      ]
+                    }
+                  ]
+                },
+                "chartOptions": {
+                  "responsive": true,
+                  "maintainAspectRatio": false,
+                  "plugins": {
+                    "legend": {
+                      "display": true,
+                      "position": "top"
+                    }
+                  }
+                },
+                "chartStyle": {
+                  "legend": "top",
+                  "title": "",
+                  "xTitle": "Condition",
+                  "yTitle": "",
+                  "grid": true,
+                  "fontSize": 18,
+                  "seriesColors": []
+                },
+                "x": 64,
+                "y": 168,
+                "width": "1152px",
+                "height": "442px",
+                "styles": {
+                  "zIndex": 6,
+                  "borderRadius": "12px",
+                  "backgroundColor": "rgba(248, 250, 252, 0.88)",
+                  "padding": "16px",
+                  "boxShadow": "0 4px 12px rgba(0,0,0,0.05)"
+                },
+                "animation": null,
+                "content": ""
+              }
+            ],
+            "editableMasterFooter": true,
+            "editableFooterNumberAlignmentVersion": 1,
+            "background": null
+          },
+          {
+            "id": "slide_b19c0d9b-d5f2-457b-9943-baaca2959523",
+            "layoutId": "blank-titled",
+            "masterId": "content",
+            "notes": "",
+            "presentationTransition": "none",
+            "elements": [
+              {
+                "id": "el_270d79df-c259-40fd-b50e-51c44dfa6a70",
+                "type": "text",
+                "x": 64,
+                "y": 52,
+                "width": "1152px",
+                "height": "96px",
+                "autoHeight": false,
+                "textFitMode": "autofit",
+                "minAutoFitFontSize": 20,
+                "content": "",
+                "placeholder": "Click to add title",
+                "styles": {
+                  "zIndex": 1,
+                  "borderRadius": "0px",
+                  "color": "#2E2E2E",
+                  "fontSize": "40px",
+                  "fontFamily": "\"Newsreader\", serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "left",
+                  "fontWeight": "700"
+                },
+                "animation": null,
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_bwa4o3r",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_z3xjnf4",
+                          "type": "text",
+                          "text": "",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "_textDocumentSourceContent": "",
+                "iconMode": false,
+                "bulletStyle": "default",
+                "themeManaged": true
+              },
+              {
+                "id": "el_56192c1c-f1b6-461f-a8a7-72ce86782898",
+                "type": "shape",
+                "x": 65,
+                "y": 669,
+                "width": "1150px",
+                "height": "1px",
+                "content": "",
+                "styles": {
+                  "zIndex": 1,
+                  "borderRadius": "0px",
+                  "backgroundColor": "rgba(209, 213, 219, 0.80)",
+                  "opacity": "0.85"
+                },
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "footer-rule",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "shapeType": "rectangle",
+                "animation": null
+              },
+              {
+                "id": "el_8f8681de-f2b1-49b0-aa73-22d433a6e716",
+                "type": "shape",
+                "x": 1140,
+                "y": 673,
+                "width": "77.5px",
+                "height": "26.25px",
+                "content": "",
+                "styles": {
+                  "zIndex": 3,
+                  "borderRadius": "999px",
+                  "backgroundColor": "rgba(248, 250, 252, 0.88)",
+                  "border": "1px solid rgba(209, 213, 219, 0.80)"
+                },
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "slide-number-bg",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "shapeType": "rectangle",
+                "animation": null
+              },
+              {
+                "id": "el_5e5bc078-f05d-48fe-a3ee-5c65799a3674",
+                "type": "text",
+                "x": 1140,
+                "y": 673,
+                "width": "77.5px",
+                "height": "26.25px",
+                "content": "03",
+                "styles": {
+                  "zIndex": 5,
+                  "borderRadius": "0px",
+                  "color": "#295BAC",
+                  "fontSize": "11.25px",
+                  "fontFamily": "\"Manrope\", sans-serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "center",
+                  "fontWeight": "800"
+                },
+                "autoHeight": false,
+                "textFitMode": "fixed",
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "slide-number",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_me3gtuy",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_fk2ey50",
+                          "type": "text",
+                          "text": "03",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "_textDocumentSourceContent": "03",
+                "animation": null,
+                "iconMode": false,
+                "bulletStyle": "default"
+              },
+              {
+                "id": "el_618f9b1b-90ab-4e12-882a-bd7da486c4eb",
+                "type": "equation",
+                "latexSrc": "v = \\frac{V_{max}[S]}{K_M + [S]}",
+                "x": 543,
+                "y": 168,
+                "width": "197px",
+                "height": "133px",
+                "content": "<span class=\"katex-display\"><span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\"><semantics><mrow><mi>v</mi><mo>=</mo><mfrac><mrow><msub><mi>V</mi><mrow><mi>m</mi><mi>a</mi><mi>x</mi></mrow></msub><mo stretchy=\"false\">[</mo><mi>S</mi><mo stretchy=\"false\">]</mo></mrow><mrow><msub><mi>K</mi><mi>M</mi></msub><mo>+</mo><mo stretchy=\"false\">[</mo><mi>S</mi><mo stretchy=\"false\">]</mo></mrow></mfrac></mrow><annotation encoding=\"application/x-tex\">v = \\frac{V_{max}[S]}{K_M + [S]}</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"base\"><span class=\"strut\" style=\"height:0.4306em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.03588em;\">v</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"base\"><span class=\"strut\" style=\"height:2.363em;vertical-align:-0.936em;\"></span><span class=\"mord\"><span class=\"mopen nulldelimiter\"></span><span class=\"mfrac\"><span class=\"vlist-t vlist-t2\"><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:1.427em;\"><span style=\"top:-2.314em;\"><span class=\"pstrut\" style=\"height:3em;\"></span><span class=\"mord\"><span class=\"mord\"><span class=\"mord mathnormal\" style=\"margin-right:0.07153em;\">K</span><span class=\"msupsub\"><span class=\"vlist-t vlist-t2\"><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.3283em;\"><span style=\"top:-2.55em;margin-left:-0.0715em;margin-right:0.05em;\"><span class=\"pstrut\" style=\"height:2.7em;\"></span><span class=\"sizing reset-size6 size3 mtight\"><span class=\"mord mathnormal mtight\" style=\"margin-right:0.10903em;\">M</span></span></span></span><span class=\"vlist-s\">​</span></span><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.15em;\"><span></span></span></span></span></span></span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">+</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mopen\">[</span><span class=\"mord mathnormal\" style=\"margin-right:0.05764em;\">S</span><span class=\"mclose\">]</span></span></span><span style=\"top:-3.23em;\"><span class=\"pstrut\" style=\"height:3em;\"></span><span class=\"frac-line\" style=\"border-bottom-width:0.04em;\"></span></span><span style=\"top:-3.677em;\"><span class=\"pstrut\" style=\"height:3em;\"></span><span class=\"mord\"><span class=\"mord\"><span class=\"mord mathnormal\" style=\"margin-right:0.22222em;\">V</span><span class=\"msupsub\"><span class=\"vlist-t vlist-t2\"><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.1514em;\"><span style=\"top:-2.55em;margin-left:-0.2222em;margin-right:0.05em;\"><span class=\"pstrut\" style=\"height:2.7em;\"></span><span class=\"sizing reset-size6 size3 mtight\"><span class=\"mord mtight\"><span class=\"mord mathnormal mtight\">ma</span><span class=\"mord mathnormal mtight\">x</span></span></span></span></span><span class=\"vlist-s\">​</span></span><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.15em;\"><span></span></span></span></span></span></span><span class=\"mopen\">[</span><span class=\"mord mathnormal\" style=\"margin-right:0.05764em;\">S</span><span class=\"mclose\">]</span></span></span></span><span class=\"vlist-s\">​</span></span><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.936em;\"><span></span></span></span></span></span><span class=\"mclose nulldelimiter\"></span></span></span></span></span></span>",
+                "styles": {
+                  "zIndex": 6,
+                  "borderRadius": "0px",
+                  "color": "#2E2E2E",
+                  "fontSize": "24px",
+                  "backgroundColor": "transparent"
+                },
+                "animation": null
+              }
+            ],
+            "editableMasterFooter": true,
+            "editableFooterNumberAlignmentVersion": 1,
+            "background": null
+          },
+          {
+            "id": "slide_3ab91795-2442-4aaf-b975-4bf4288a8149",
+            "layoutId": "blank-titled",
+            "masterId": "content",
+            "notes": "",
+            "presentationTransition": "none",
+            "elements": [
+              {
+                "id": "el_b7e800ae-acc6-43b4-83f2-e02b3f774f9a",
+                "type": "text",
+                "x": 64,
+                "y": 52,
+                "width": "1152px",
+                "height": "96px",
+                "autoHeight": false,
+                "textFitMode": "autofit",
+                "minAutoFitFontSize": 20,
+                "content": "",
+                "placeholder": "Click to add title",
+                "styles": {
+                  "zIndex": 1,
+                  "borderRadius": "0px",
+                  "color": "#2E2E2E",
+                  "fontSize": "40px",
+                  "fontFamily": "\"Newsreader\", serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "left",
+                  "fontWeight": "700"
+                },
+                "animation": null,
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_3uregna",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_mvqbdrc",
+                          "type": "text",
+                          "text": "",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "_textDocumentSourceContent": "",
+                "iconMode": false,
+                "bulletStyle": "default",
+                "themeManaged": true
+              },
+              {
+                "id": "el_73bfa3af-e96c-49fa-86cb-7938dd08e606",
+                "type": "shape",
+                "x": 65,
+                "y": 669,
+                "width": "1150px",
+                "height": "1px",
+                "content": "",
+                "styles": {
+                  "zIndex": 1,
+                  "borderRadius": "0px",
+                  "backgroundColor": "rgba(209, 213, 219, 0.80)",
+                  "opacity": "0.85"
+                },
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "footer-rule",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "shapeType": "rectangle",
+                "animation": null
+              },
+              {
+                "id": "el_b0207fd4-5620-4397-8489-6beef39b29e2",
+                "type": "shape",
+                "x": 1140,
+                "y": 673,
+                "width": "77.5px",
+                "height": "26.25px",
+                "content": "",
+                "styles": {
+                  "zIndex": 3,
+                  "borderRadius": "999px",
+                  "backgroundColor": "rgba(248, 250, 252, 0.88)",
+                  "border": "1px solid rgba(209, 213, 219, 0.80)"
+                },
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "slide-number-bg",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "shapeType": "rectangle",
+                "animation": null
+              },
+              {
+                "id": "el_4f392732-afda-44cb-a022-12fc17be8e3f",
+                "type": "text",
+                "x": 1140,
+                "y": 673,
+                "width": "77.5px",
+                "height": "26.25px",
+                "content": "04",
+                "styles": {
+                  "zIndex": 5,
+                  "borderRadius": "0px",
+                  "color": "#295BAC",
+                  "fontSize": "11.25px",
+                  "fontFamily": "\"Manrope\", sans-serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "center",
+                  "fontWeight": "800"
+                },
+                "autoHeight": false,
+                "textFitMode": "fixed",
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "slide-number",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_k9el1kh",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_2mas9yy",
+                          "type": "text",
+                          "text": "04",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "_textDocumentSourceContent": "04",
+                "animation": null,
+                "iconMode": false,
+                "bulletStyle": "default"
+              },
+              {
+                "id": "el_41f60289-e6e8-483d-991a-93a0ea8895c6",
+                "type": "mermaid",
+                "x": 64,
+                "y": 168,
+                "width": "1152px",
+                "height": "289px",
+                "rotation": 0,
+                "zIndex": 6,
+                "locked": false,
+                "opacity": 1,
+                "mermaidSource": "flowchart LR\n%% sf:graph {\"positions\":{\"A\":{\"x\":48,\"y\":55},\"B\":{\"x\":351,\"y\":48},\"C\":{\"x\":583,\"y\":55}},\"routingStyle\":\"orthogonal\",\"connectionStyle\":\"arrow\",\"lockedLayout\":false,\"autoLayout\":true,\"edgeLabels\":{\"e_A_B_0\":{\"x\":0,\"y\":0},\"e_B_C_1\":{\"x\":0,\"y\":0}}} %%\n    A[Illustrative substrate] --> B[Enzyme binding]\n    B[Enzyme binding] --> C[Illustrative product]",
+                "mermaidType": "flowchart",
+                "theme": "default",
+                "svgContent": "<svg xmlns=\"http://www.w3.org/2000/svg\" preserveAspectRatio=\"xMidYMid meet\" viewBox=\"0 0 877 220\" height=\"100%\" width=\"100%\" role=\"img\">\n            \n            <style>\n                .mermaid-graph-node-label{font-family:'Manrope', sans-serif;font-size:16px;fill:#2e2e2e;pointer-events:none}\n                .mermaid-graph-edge-label{font-family:'Manrope', sans-serif;font-size:14px;font-weight:800;fill:#2e2e2e;cursor:grab;pointer-events:visiblePainted}\n                .mermaid-graph-edge-halo{font-weight:800;pointer-events:none}\n                .mermaid-graph-node-shape{stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}\n                .mermaid-graph-node.is-selected .mermaid-graph-node-shape,.mermaid-graph-edge.is-selected path{stroke:#f59e0b;stroke-width:3}\n                .mermaid-graph-edge-label.is-selected{fill:#92400e;stroke:#fffbeb}\n                \n            </style>\n            <rect fill=\"transparent\" height=\"220\" width=\"877\" y=\"0\" x=\"0\"/>\n            <g class=\"mermaid-graph-edges\">\n            <g data-edge-id=\"e_A_B_0\" class=\"mermaid-graph-edge\">\n                <path stroke-width=\"2.2\" stroke=\"#3b82f6\" fill=\"none\" d=\"M 287.12 84 L 319 84 L 319 84.25 L 351 84.25\"/>\n                \n                <polygon fill=\"#3b82f6\" points=\"351,84.3 340,89.8 340,78.8\"/>\n            </g>\n        \n            <g data-edge-id=\"e_B_C_1\" class=\"mermaid-graph-edge\">\n                <path stroke-width=\"2.2\" stroke=\"#3b82f6\" fill=\"none\" d=\"M 518.44 84.25 L 551 84.25 L 551 84 L 583 84\"/>\n                \n                <polygon fill=\"#3b82f6\" points=\"583,84 572,89.5 572,78.5\"/>\n            </g>\n        </g>\n            <g class=\"mermaid-graph-nodes\">\n            <g data-node-id=\"A\" class=\"mermaid-graph-node\">\n                <rect stroke=\"#3b82f6\" fill=\"#e7f0fe\" rx=\"10\" height=\"58\" width=\"239.12\" y=\"55\" x=\"48\" class=\"mermaid-graph-node-shape\" data-node-id=\"A\"/>\n                <text style=\"font-family:'Manrope', sans-serif;font-size:16px;fill:#2e2e2e\" class=\"mermaid-graph-node-label\" fill=\"#2e2e2e\" text-anchor=\"middle\" y=\"84\" x=\"167.56\"><tspan>Illustrative substrate</tspan></text>\n                \n            </g>\n        \n            <g data-node-id=\"B\" class=\"mermaid-graph-node\">\n                <rect stroke=\"#3b82f6\" fill=\"#e7f0fe\" rx=\"10\" height=\"72.5\" width=\"167.44\" y=\"48\" x=\"351\" class=\"mermaid-graph-node-shape\" data-node-id=\"B\"/>\n                <text style=\"font-family:'Manrope', sans-serif;font-size:16px;fill:#2e2e2e\" class=\"mermaid-graph-node-label\" fill=\"#2e2e2e\" text-anchor=\"middle\" y=\"84.25\" x=\"434.72\"><tspan>Enzyme binding</tspan></text>\n                \n            </g>\n        \n            <g data-node-id=\"C\" class=\"mermaid-graph-node\">\n                <rect stroke=\"#3b82f6\" fill=\"#e7f0fe\" rx=\"10\" height=\"58\" width=\"221.20000000000002\" y=\"55\" x=\"583\" class=\"mermaid-graph-node-shape\" data-node-id=\"C\"/>\n                <text style=\"font-family:'Manrope', sans-serif;font-size:16px;fill:#2e2e2e\" class=\"mermaid-graph-node-label\" fill=\"#2e2e2e\" text-anchor=\"middle\" y=\"84\" x=\"693.6\"><tspan>Illustrative product</tspan></text>\n                \n            </g>\n        </g>\n            <g class=\"mermaid-graph-edge-labels\"/>\n        </svg>",
+                "svgManualEdits": false,
+                "editMode": "code",
+                "graphDocument": {
+                  "schemaVersion": 2,
+                  "version": 1,
+                  "id": "graph_1793610409731_9529",
+                  "type": "flowchart",
+                  "title": "",
+                  "canvas": {
+                    "width": 1280,
+                    "height": 720,
+                    "coordinateSpace": "slide-local"
+                  },
+                  "nodes": [
+                    {
+                      "id": "A",
+                      "type": "process",
+                      "shape": "process",
+                      "subtype": "",
+                      "label": "Illustrative substrate",
+                      "semanticRole": "process",
+                      "scientific": {},
+                      "execution": {},
+                      "geometry": {
+                        "x": 48,
+                        "y": 55,
+                        "width": 239.12,
+                        "height": 58
+                      },
+                      "x": 48,
+                      "y": 55,
+                      "width": 239.12,
+                      "height": 58,
+                      "ports": [
+                        {
+                          "id": "in",
+                          "side": "left",
+                          "kind": "input"
+                        },
+                        {
+                          "id": "out",
+                          "side": "right",
+                          "kind": "output"
+                        }
+                      ],
+                      "style": {},
+                      "animation": {},
+                      "ai": {
+                        "tags": [],
+                        "confidence": null
+                      },
+                      "locked": false,
+                      "autoPlacedAt": {
+                        "x": 48,
+                        "y": 55
+                      }
+                    },
+                    {
+                      "id": "B",
+                      "type": "process",
+                      "shape": "process",
+                      "subtype": "",
+                      "label": "Enzyme binding",
+                      "semanticRole": "process",
+                      "scientific": {},
+                      "execution": {},
+                      "geometry": {
+                        "x": 351,
+                        "y": 48,
+                        "width": 167.44,
+                        "height": 72.5
+                      },
+                      "x": 351,
+                      "y": 48,
+                      "width": 167.44,
+                      "height": 72.5,
+                      "ports": [
+                        {
+                          "id": "in",
+                          "side": "left",
+                          "kind": "input"
+                        },
+                        {
+                          "id": "out",
+                          "side": "right",
+                          "kind": "output"
+                        }
+                      ],
+                      "style": {},
+                      "animation": {},
+                      "ai": {
+                        "tags": [],
+                        "confidence": null
+                      },
+                      "locked": false,
+                      "autoPlacedAt": {
+                        "x": 351,
+                        "y": 48
+                      }
+                    },
+                    {
+                      "id": "C",
+                      "type": "process",
+                      "shape": "process",
+                      "subtype": "",
+                      "label": "Illustrative product",
+                      "semanticRole": "process",
+                      "scientific": {},
+                      "execution": {},
+                      "geometry": {
+                        "x": 583,
+                        "y": 55,
+                        "width": 221.20000000000002,
+                        "height": 58
+                      },
+                      "x": 583,
+                      "y": 55,
+                      "width": 221.20000000000002,
+                      "height": 58,
+                      "ports": [
+                        {
+                          "id": "in",
+                          "side": "left",
+                          "kind": "input"
+                        },
+                        {
+                          "id": "out",
+                          "side": "right",
+                          "kind": "output"
+                        }
+                      ],
+                      "style": {},
+                      "animation": {},
+                      "ai": {
+                        "tags": [],
+                        "confidence": null
+                      },
+                      "locked": false,
+                      "autoPlacedAt": {
+                        "x": 583,
+                        "y": 55
+                      }
+                    }
+                  ],
+                  "edges": [
+                    {
+                      "id": "e_A_B_0",
+                      "from": "A",
+                      "to": "B",
+                      "ports": {
+                        "from": "out",
+                        "to": "in"
+                      },
+                      "type": "dependency",
+                      "semanticRole": "dependency",
+                      "label": "",
+                      "routing": {
+                        "mode": "orthogonal",
+                        "waypoints": []
+                      },
+                      "routingStyle": "orthogonal",
+                      "waypoints": [],
+                      "arrow": "arrow",
+                      "lineStyle": "solid",
+                      "labelOffset": {
+                        "x": 0,
+                        "y": 0
+                      },
+                      "style": {},
+                      "animation": {},
+                      "ai": {}
+                    },
+                    {
+                      "id": "e_B_C_1",
+                      "from": "B",
+                      "to": "C",
+                      "ports": {
+                        "from": "out",
+                        "to": "in"
+                      },
+                      "type": "dependency",
+                      "semanticRole": "dependency",
+                      "label": "",
+                      "routing": {
+                        "mode": "orthogonal",
+                        "waypoints": []
+                      },
+                      "routingStyle": "orthogonal",
+                      "waypoints": [],
+                      "arrow": "arrow",
+                      "lineStyle": "solid",
+                      "labelOffset": {
+                        "x": 0,
+                        "y": 0
+                      },
+                      "style": {},
+                      "animation": {},
+                      "ai": {}
+                    }
+                  ],
+                  "groups": [],
+                  "lanes": [],
+                  "sections": [],
+                  "annotations": [],
+                  "references": [],
+                  "embeddedMedia": [],
+                  "viewport": {
+                    "x": 0,
+                    "y": 0,
+                    "zoom": 1
+                  },
+                  "styles": {
+                    "fontFamily": "'Manrope', sans-serif",
+                    "fontSize": 16,
+                    "primaryColor": "#e7f0fe",
+                    "primaryTextColor": "#2e2e2e",
+                    "lineColor": "#3b82f6",
+                    "backgroundColor": "#ffffff",
+                    "renderMode": "real",
+                    "handDrawn": false
+                  },
+                  "layoutState": {
+                    "direction": "LR",
+                    "engine": "slideforge-hierarchical",
+                    "routingStyle": "orthogonal",
+                    "connectionStyle": "arrow",
+                    "autoLayout": true,
+                    "lockedLayout": false,
+                    "nodePositions": {
+                      "A": {
+                        "x": 48,
+                        "y": 55
+                      },
+                      "B": {
+                        "x": 351,
+                        "y": 48
+                      },
+                      "C": {
+                        "x": 583,
+                        "y": 55
+                      }
+                    },
+                    "updatedAt": 1793610409731
+                  },
+                  "presentationState": {
+                    "activePreset": "branch-reveal",
+                    "revealOrder": [
+                      "A",
+                      "B",
+                      "C"
+                    ],
+                    "focusPath": [
+                      "A",
+                      "B",
+                      "C"
+                    ],
+                    "steps": []
+                  },
+                  "animations": [
+                    {
+                      "id": "branch-reveal",
+                      "label": "Reveal by branch",
+                      "strategy": "branch",
+                      "duration": 650,
+                      "createdAt": 1793610407615
+                    }
+                  ],
+                  "metadata": {
+                    "sourceFormat": "mermaid",
+                    "domain": "general",
+                    "updatedAt": 1793610408797,
+                    "lastInteraction": "apply"
+                  },
+                  "mermaid": {
+                    "source": "flowchart LR\n A[Illustrative substrate] --> B[Enzyme binding]\n B --> C[Illustrative product]",
+                    "importedWith": "slideforge",
+                    "exportCompatibility": "round-trip",
+                    "unsupportedBlocks": []
+                  }
+                },
+                "graphModel": {
+                  "version": 1,
+                  "type": "flowchart",
+                  "direction": "LR",
+                  "nodes": [
+                    {
+                      "id": "A",
+                      "label": "Illustrative substrate",
+                      "shape": "process",
+                      "x": 48,
+                      "y": 55,
+                      "width": 239.12,
+                      "height": 58,
+                      "locked": false,
+                      "style": {}
+                    },
+                    {
+                      "id": "B",
+                      "label": "Enzyme binding",
+                      "shape": "process",
+                      "x": 351,
+                      "y": 48,
+                      "width": 167.44,
+                      "height": 72.5,
+                      "locked": false,
+                      "style": {}
+                    },
+                    {
+                      "id": "C",
+                      "label": "Illustrative product",
+                      "shape": "process",
+                      "x": 583,
+                      "y": 55,
+                      "width": 221.20000000000002,
+                      "height": 58,
+                      "locked": false,
+                      "style": {}
+                    }
+                  ],
+                  "edges": [
+                    {
+                      "id": "e_A_B_0",
+                      "from": "A",
+                      "to": "B",
+                      "label": "",
+                      "arrow": "arrow",
+                      "routingStyle": "orthogonal",
+                      "waypoints": [],
+                      "labelOffset": {
+                        "x": 0,
+                        "y": 0
+                      },
+                      "style": {}
+                    },
+                    {
+                      "id": "e_B_C_1",
+                      "from": "B",
+                      "to": "C",
+                      "label": "",
+                      "arrow": "arrow",
+                      "routingStyle": "orthogonal",
+                      "waypoints": [],
+                      "labelOffset": {
+                        "x": 0,
+                        "y": 0
+                      },
+                      "style": {}
+                    }
+                  ],
+                  "groups": [],
+                  "mermaidSource": "",
+                  "layoutMetadata": {},
+                  "viewport": {
+                    "x": 0,
+                    "y": 0,
+                    "zoom": 1
+                  },
+                  "style": {
+                    "fontFamily": "'Manrope', sans-serif",
+                    "fontSize": 16,
+                    "primaryColor": "#e7f0fe",
+                    "primaryTextColor": "#2e2e2e",
+                    "lineColor": "#3b82f6",
+                    "backgroundColor": "#ffffff",
+                    "handDrawn": false
+                  },
+                  "nodePositions": {
+                    "A": {
+                      "x": 48,
+                      "y": 55
+                    },
+                    "B": {
+                      "x": 351,
+                      "y": 48
+                    },
+                    "C": {
+                      "x": 583,
+                      "y": 55
+                    }
+                  },
+                  "lockedLayout": false,
+                  "autoLayout": true,
+                  "routingStyle": "orthogonal",
+                  "connectionStyle": "arrow"
+                },
+                "semanticGraphVersion": 2,
+                "nodePositions": {
+                  "A": {
+                    "x": 48,
+                    "y": 55
+                  },
+                  "B": {
+                    "x": 351,
+                    "y": 48
+                  },
+                  "C": {
+                    "x": 583,
+                    "y": 55
+                  }
+                },
+                "lockedLayout": false,
+                "autoLayout": true,
+                "routingStyle": "orthogonal",
+                "connectionStyle": "arrow",
+                "animation": null,
+                "style": {
+                  "fontFamily": "'Manrope', sans-serif",
+                  "fontSize": 16,
+                  "primaryColor": "#e7f0fe",
+                  "primaryTextColor": "#2e2e2e",
+                  "lineColor": "#3b82f6",
+                  "backgroundColor": "#ffffff",
+                  "handDrawn": false
+                },
+                "styles": {
+                  "zIndex": 6,
+                  "borderRadius": "8px",
+                  "backgroundColor": "transparent"
+                },
+                "content": ""
+              }
+            ],
+            "editableMasterFooter": true,
+            "editableFooterNumberAlignmentVersion": 1,
+            "background": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "insert scientific curve-fit plugin",
+      "status": "pass",
+      "detail": {
+        "title": "Illustrative data — release audit",
+        "id": "a962b798-8c52-4e6a-a0eb-ab70b1aee98a",
+        "theme": "editorial",
+        "index": 4,
+        "slides": [
+          {
+            "id": "slide_3e5d238b-581b-402a-b2a6-4c5b58468f70",
+            "layoutId": "blank-titled",
+            "masterId": "title",
+            "notes": "",
+            "presentationTransition": "none",
+            "elements": [
+              {
+                "id": "el_61e9f233-ed69-4e05-b679-d107ddeb26b4",
+                "type": "text",
+                "x": 64,
+                "y": 216,
+                "width": "1152px",
+                "height": "150px",
+                "autoHeight": false,
+                "textFitMode": "autofit",
+                "minAutoFitFontSize": 20,
+                "content": "",
+                "placeholder": "Click to add title",
+                "styles": {
+                  "zIndex": 1,
+                  "borderRadius": "0px",
+                  "color": "#2E2E2E",
+                  "fontSize": "56px",
+                  "fontFamily": "\"Newsreader\", serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "center"
+                },
+                "animation": null,
+                "iconMode": false,
+                "bulletStyle": "default",
+                "_textDocumentSourceContent": "",
+                "themeManaged": true,
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_r64xstc",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_18uip42",
+                          "type": "text",
+                          "text": "",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "el_d0117427-9b65-4c85-bcde-221eaa1a9fe2",
+                "type": "text",
+                "x": 64,
+                "y": 390,
+                "width": "1152px",
+                "height": "40px",
+                "autoHeight": true,
+                "textFitMode": "autoHeight",
+                "content": "",
+                "placeholder": "Click to add subtitle",
+                "styles": {
+                  "zIndex": 2,
+                  "borderRadius": "0px",
+                  "color": "#6B7280",
+                  "fontSize": "26px",
+                  "fontFamily": "\"Manrope\", sans-serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "center"
+                },
+                "animation": null,
+                "iconMode": false,
+                "bulletStyle": "default",
+                "_textDocumentSourceContent": "",
+                "themeManaged": true,
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_77zzgfr",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_1hrmms0",
+                          "type": "text",
+                          "text": "",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ],
+            "background": null,
+            "editableMasterFooter": true,
+            "editableFooterNumberAlignmentVersion": 1
+          },
+          {
+            "id": "slide_a0bec4e3-b64a-46b2-a496-c5391035334d",
+            "layoutId": "blank-titled",
+            "masterId": "content",
+            "notes": "",
+            "presentationTransition": "none",
+            "elements": [
+              {
+                "id": "el_31adccf0-77fb-4d1f-8324-efe6f862d6cb",
+                "type": "text",
+                "x": 64,
+                "y": 52,
+                "width": "1152px",
+                "height": "96px",
+                "autoHeight": false,
+                "textFitMode": "autofit",
+                "minAutoFitFontSize": 20,
+                "content": "",
+                "placeholder": "Click to add title",
+                "styles": {
+                  "zIndex": 1,
+                  "borderRadius": "0px",
+                  "color": "#2E2E2E",
+                  "fontSize": "40px",
+                  "fontFamily": "\"Newsreader\", serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "left",
+                  "fontWeight": "700"
+                },
+                "animation": null,
+                "_textDocumentSourceContent": "",
+                "iconMode": false,
+                "bulletStyle": "default",
+                "themeManaged": true,
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_d1qts7c",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_puz8y7h",
+                          "type": "text",
+                          "text": "",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "el_2019a14f-4af6-4d74-b6ba-deb1f6241591",
+                "type": "shape",
+                "x": 65,
+                "y": 669,
+                "width": "1150px",
+                "height": "1px",
+                "content": "",
+                "styles": {
+                  "zIndex": 1,
+                  "borderRadius": "0px",
+                  "backgroundColor": "rgba(209, 213, 219, 0.80)",
+                  "opacity": "0.85"
+                },
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "footer-rule",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "shapeType": "rectangle",
+                "animation": null
+              },
+              {
+                "id": "el_360ba745-2c1c-422b-97c5-2cf5eaba6d14",
+                "type": "shape",
+                "x": 1140,
+                "y": 673,
+                "width": "77.5px",
+                "height": "26.25px",
+                "content": "",
+                "styles": {
+                  "zIndex": 3,
+                  "borderRadius": "999px",
+                  "backgroundColor": "rgba(248, 250, 252, 0.88)",
+                  "border": "1px solid rgba(209, 213, 219, 0.80)"
+                },
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "slide-number-bg",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "shapeType": "rectangle",
+                "animation": null
+              },
+              {
+                "id": "el_d51482cb-8444-4af5-8360-4236ff8a9d32",
+                "type": "text",
+                "x": 1140,
+                "y": 673,
+                "width": "77.5px",
+                "height": "26.25px",
+                "content": "02",
+                "styles": {
+                  "zIndex": 5,
+                  "borderRadius": "0px",
+                  "color": "#295BAC",
+                  "fontSize": "11.25px",
+                  "fontFamily": "\"Manrope\", sans-serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "center",
+                  "fontWeight": "800"
+                },
+                "autoHeight": false,
+                "textFitMode": "fixed",
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "slide-number",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "_textDocumentSourceContent": "02",
+                "animation": null,
+                "iconMode": false,
+                "bulletStyle": "default",
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_loogwln",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_a5wk6i1",
+                          "type": "text",
+                          "text": "02",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "el_840c0d81-0ba4-4989-8eff-f718bb91f7ee",
+                "type": "chart",
+                "chartType": "bar",
+                "chartData": {
+                  "labels": [
+                    "Control",
+                    "Low dose",
+                    "High dose"
+                  ],
+                  "datasets": [
+                    {
+                      "label": "Illustrative response",
+                      "data": [
+                        12,
+                        31,
+                        38
+                      ],
+                      "backgroundColor": "#3B82F6",
+                      "borderColor": "#3B82F6",
+                      "borderWidth": 1,
+                      "errors": [
+                        0,
+                        0,
+                        0
+                      ]
+                    }
+                  ]
+                },
+                "chartOptions": {
+                  "responsive": true,
+                  "maintainAspectRatio": false,
+                  "plugins": {
+                    "legend": {
+                      "display": true,
+                      "position": "top"
+                    }
+                  }
+                },
+                "chartStyle": {
+                  "legend": "top",
+                  "title": "",
+                  "xTitle": "Condition",
+                  "yTitle": "",
+                  "grid": true,
+                  "fontSize": 18,
+                  "seriesColors": []
+                },
+                "x": 64,
+                "y": 168,
+                "width": "1152px",
+                "height": "442px",
+                "styles": {
+                  "zIndex": 6,
+                  "borderRadius": "12px",
+                  "backgroundColor": "rgba(248, 250, 252, 0.88)",
+                  "padding": "16px",
+                  "boxShadow": "0 4px 12px rgba(0,0,0,0.05)"
+                },
+                "animation": null,
+                "content": ""
+              }
+            ],
+            "editableMasterFooter": true,
+            "editableFooterNumberAlignmentVersion": 1,
+            "background": null
+          },
+          {
+            "id": "slide_b19c0d9b-d5f2-457b-9943-baaca2959523",
+            "layoutId": "blank-titled",
+            "masterId": "content",
+            "notes": "",
+            "presentationTransition": "none",
+            "elements": [
+              {
+                "id": "el_270d79df-c259-40fd-b50e-51c44dfa6a70",
+                "type": "text",
+                "x": 64,
+                "y": 52,
+                "width": "1152px",
+                "height": "96px",
+                "autoHeight": false,
+                "textFitMode": "autofit",
+                "minAutoFitFontSize": 20,
+                "content": "",
+                "placeholder": "Click to add title",
+                "styles": {
+                  "zIndex": 1,
+                  "borderRadius": "0px",
+                  "color": "#2E2E2E",
+                  "fontSize": "40px",
+                  "fontFamily": "\"Newsreader\", serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "left",
+                  "fontWeight": "700"
+                },
+                "animation": null,
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_bwa4o3r",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_z3xjnf4",
+                          "type": "text",
+                          "text": "",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "_textDocumentSourceContent": "",
+                "iconMode": false,
+                "bulletStyle": "default",
+                "themeManaged": true
+              },
+              {
+                "id": "el_56192c1c-f1b6-461f-a8a7-72ce86782898",
+                "type": "shape",
+                "x": 65,
+                "y": 669,
+                "width": "1150px",
+                "height": "1px",
+                "content": "",
+                "styles": {
+                  "zIndex": 1,
+                  "borderRadius": "0px",
+                  "backgroundColor": "rgba(209, 213, 219, 0.80)",
+                  "opacity": "0.85"
+                },
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "footer-rule",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "shapeType": "rectangle",
+                "animation": null
+              },
+              {
+                "id": "el_8f8681de-f2b1-49b0-aa73-22d433a6e716",
+                "type": "shape",
+                "x": 1140,
+                "y": 673,
+                "width": "77.5px",
+                "height": "26.25px",
+                "content": "",
+                "styles": {
+                  "zIndex": 3,
+                  "borderRadius": "999px",
+                  "backgroundColor": "rgba(248, 250, 252, 0.88)",
+                  "border": "1px solid rgba(209, 213, 219, 0.80)"
+                },
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "slide-number-bg",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "shapeType": "rectangle",
+                "animation": null
+              },
+              {
+                "id": "el_5e5bc078-f05d-48fe-a3ee-5c65799a3674",
+                "type": "text",
+                "x": 1140,
+                "y": 673,
+                "width": "77.5px",
+                "height": "26.25px",
+                "content": "03",
+                "styles": {
+                  "zIndex": 5,
+                  "borderRadius": "0px",
+                  "color": "#295BAC",
+                  "fontSize": "11.25px",
+                  "fontFamily": "\"Manrope\", sans-serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "center",
+                  "fontWeight": "800"
+                },
+                "autoHeight": false,
+                "textFitMode": "fixed",
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "slide-number",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_me3gtuy",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_fk2ey50",
+                          "type": "text",
+                          "text": "03",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "_textDocumentSourceContent": "03",
+                "animation": null,
+                "iconMode": false,
+                "bulletStyle": "default"
+              },
+              {
+                "id": "el_618f9b1b-90ab-4e12-882a-bd7da486c4eb",
+                "type": "equation",
+                "latexSrc": "v = \\frac{V_{max}[S]}{K_M + [S]}",
+                "x": 543,
+                "y": 168,
+                "width": "197px",
+                "height": "133px",
+                "content": "<span class=\"katex-display\"><span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\"><semantics><mrow><mi>v</mi><mo>=</mo><mfrac><mrow><msub><mi>V</mi><mrow><mi>m</mi><mi>a</mi><mi>x</mi></mrow></msub><mo stretchy=\"false\">[</mo><mi>S</mi><mo stretchy=\"false\">]</mo></mrow><mrow><msub><mi>K</mi><mi>M</mi></msub><mo>+</mo><mo stretchy=\"false\">[</mo><mi>S</mi><mo stretchy=\"false\">]</mo></mrow></mfrac></mrow><annotation encoding=\"application/x-tex\">v = \\frac{V_{max}[S]}{K_M + [S]}</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"base\"><span class=\"strut\" style=\"height:0.4306em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.03588em;\">v</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"base\"><span class=\"strut\" style=\"height:2.363em;vertical-align:-0.936em;\"></span><span class=\"mord\"><span class=\"mopen nulldelimiter\"></span><span class=\"mfrac\"><span class=\"vlist-t vlist-t2\"><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:1.427em;\"><span style=\"top:-2.314em;\"><span class=\"pstrut\" style=\"height:3em;\"></span><span class=\"mord\"><span class=\"mord\"><span class=\"mord mathnormal\" style=\"margin-right:0.07153em;\">K</span><span class=\"msupsub\"><span class=\"vlist-t vlist-t2\"><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.3283em;\"><span style=\"top:-2.55em;margin-left:-0.0715em;margin-right:0.05em;\"><span class=\"pstrut\" style=\"height:2.7em;\"></span><span class=\"sizing reset-size6 size3 mtight\"><span class=\"mord mathnormal mtight\" style=\"margin-right:0.10903em;\">M</span></span></span></span><span class=\"vlist-s\">​</span></span><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.15em;\"><span></span></span></span></span></span></span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">+</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mopen\">[</span><span class=\"mord mathnormal\" style=\"margin-right:0.05764em;\">S</span><span class=\"mclose\">]</span></span></span><span style=\"top:-3.23em;\"><span class=\"pstrut\" style=\"height:3em;\"></span><span class=\"frac-line\" style=\"border-bottom-width:0.04em;\"></span></span><span style=\"top:-3.677em;\"><span class=\"pstrut\" style=\"height:3em;\"></span><span class=\"mord\"><span class=\"mord\"><span class=\"mord mathnormal\" style=\"margin-right:0.22222em;\">V</span><span class=\"msupsub\"><span class=\"vlist-t vlist-t2\"><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.1514em;\"><span style=\"top:-2.55em;margin-left:-0.2222em;margin-right:0.05em;\"><span class=\"pstrut\" style=\"height:2.7em;\"></span><span class=\"sizing reset-size6 size3 mtight\"><span class=\"mord mtight\"><span class=\"mord mathnormal mtight\">ma</span><span class=\"mord mathnormal mtight\">x</span></span></span></span></span><span class=\"vlist-s\">​</span></span><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.15em;\"><span></span></span></span></span></span></span><span class=\"mopen\">[</span><span class=\"mord mathnormal\" style=\"margin-right:0.05764em;\">S</span><span class=\"mclose\">]</span></span></span></span><span class=\"vlist-s\">​</span></span><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.936em;\"><span></span></span></span></span></span><span class=\"mclose nulldelimiter\"></span></span></span></span></span></span>",
+                "styles": {
+                  "zIndex": 6,
+                  "borderRadius": "0px",
+                  "color": "#2E2E2E",
+                  "fontSize": "24px",
+                  "backgroundColor": "transparent"
+                },
+                "animation": null
+              }
+            ],
+            "editableMasterFooter": true,
+            "editableFooterNumberAlignmentVersion": 1,
+            "background": null
+          },
+          {
+            "id": "slide_3ab91795-2442-4aaf-b975-4bf4288a8149",
+            "layoutId": "blank-titled",
+            "masterId": "content",
+            "notes": "",
+            "presentationTransition": "none",
+            "elements": [
+              {
+                "id": "el_b7e800ae-acc6-43b4-83f2-e02b3f774f9a",
+                "type": "text",
+                "x": 64,
+                "y": 52,
+                "width": "1152px",
+                "height": "96px",
+                "autoHeight": false,
+                "textFitMode": "autofit",
+                "minAutoFitFontSize": 20,
+                "content": "",
+                "placeholder": "Click to add title",
+                "styles": {
+                  "zIndex": 1,
+                  "borderRadius": "0px",
+                  "color": "#2E2E2E",
+                  "fontSize": "40px",
+                  "fontFamily": "\"Newsreader\", serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "left",
+                  "fontWeight": "700"
+                },
+                "animation": null,
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_3uregna",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_mvqbdrc",
+                          "type": "text",
+                          "text": "",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "_textDocumentSourceContent": "",
+                "iconMode": false,
+                "bulletStyle": "default",
+                "themeManaged": true
+              },
+              {
+                "id": "el_73bfa3af-e96c-49fa-86cb-7938dd08e606",
+                "type": "shape",
+                "x": 65,
+                "y": 669,
+                "width": "1150px",
+                "height": "1px",
+                "content": "",
+                "styles": {
+                  "zIndex": 1,
+                  "borderRadius": "0px",
+                  "backgroundColor": "rgba(209, 213, 219, 0.80)",
+                  "opacity": "0.85"
+                },
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "footer-rule",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "shapeType": "rectangle",
+                "animation": null
+              },
+              {
+                "id": "el_b0207fd4-5620-4397-8489-6beef39b29e2",
+                "type": "shape",
+                "x": 1140,
+                "y": 673,
+                "width": "77.5px",
+                "height": "26.25px",
+                "content": "",
+                "styles": {
+                  "zIndex": 3,
+                  "borderRadius": "999px",
+                  "backgroundColor": "rgba(248, 250, 252, 0.88)",
+                  "border": "1px solid rgba(209, 213, 219, 0.80)"
+                },
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "slide-number-bg",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "shapeType": "rectangle",
+                "animation": null
+              },
+              {
+                "id": "el_4f392732-afda-44cb-a022-12fc17be8e3f",
+                "type": "text",
+                "x": 1140,
+                "y": 673,
+                "width": "77.5px",
+                "height": "26.25px",
+                "content": "04",
+                "styles": {
+                  "zIndex": 5,
+                  "borderRadius": "0px",
+                  "color": "#295BAC",
+                  "fontSize": "11.25px",
+                  "fontFamily": "\"Manrope\", sans-serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "center",
+                  "fontWeight": "800"
+                },
+                "autoHeight": false,
+                "textFitMode": "fixed",
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "slide-number",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_k9el1kh",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_2mas9yy",
+                          "type": "text",
+                          "text": "04",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "_textDocumentSourceContent": "04",
+                "animation": null,
+                "iconMode": false,
+                "bulletStyle": "default"
+              },
+              {
+                "id": "el_41f60289-e6e8-483d-991a-93a0ea8895c6",
+                "type": "mermaid",
+                "x": 64,
+                "y": 168,
+                "width": "1152px",
+                "height": "289px",
+                "rotation": 0,
+                "zIndex": 6,
+                "locked": false,
+                "opacity": 1,
+                "mermaidSource": "flowchart LR\n%% sf:graph {\"positions\":{\"A\":{\"x\":48,\"y\":55},\"B\":{\"x\":351,\"y\":48},\"C\":{\"x\":583,\"y\":55}},\"routingStyle\":\"orthogonal\",\"connectionStyle\":\"arrow\",\"lockedLayout\":false,\"autoLayout\":true,\"edgeLabels\":{\"e_A_B_0\":{\"x\":0,\"y\":0},\"e_B_C_1\":{\"x\":0,\"y\":0}}} %%\n    A[Illustrative substrate] --> B[Enzyme binding]\n    B[Enzyme binding] --> C[Illustrative product]",
+                "mermaidType": "flowchart",
+                "theme": "default",
+                "svgContent": "<svg xmlns=\"http://www.w3.org/2000/svg\" preserveAspectRatio=\"xMidYMid meet\" viewBox=\"0 0 877 220\" height=\"100%\" width=\"100%\" role=\"img\">\n            \n            <style>\n                .mermaid-graph-node-label{font-family:'Manrope', sans-serif;font-size:16px;fill:#2e2e2e;pointer-events:none}\n                .mermaid-graph-edge-label{font-family:'Manrope', sans-serif;font-size:14px;font-weight:800;fill:#2e2e2e;cursor:grab;pointer-events:visiblePainted}\n                .mermaid-graph-edge-halo{font-weight:800;pointer-events:none}\n                .mermaid-graph-node-shape{stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}\n                .mermaid-graph-node.is-selected .mermaid-graph-node-shape,.mermaid-graph-edge.is-selected path{stroke:#f59e0b;stroke-width:3}\n                .mermaid-graph-edge-label.is-selected{fill:#92400e;stroke:#fffbeb}\n                \n            </style>\n            <rect fill=\"transparent\" height=\"220\" width=\"877\" y=\"0\" x=\"0\"/>\n            <g class=\"mermaid-graph-edges\">\n            <g data-edge-id=\"e_A_B_0\" class=\"mermaid-graph-edge\">\n                <path stroke-width=\"2.2\" stroke=\"#3b82f6\" fill=\"none\" d=\"M 287.12 84 L 319 84 L 319 84.25 L 351 84.25\"/>\n                \n                <polygon fill=\"#3b82f6\" points=\"351,84.3 340,89.8 340,78.8\"/>\n            </g>\n        \n            <g data-edge-id=\"e_B_C_1\" class=\"mermaid-graph-edge\">\n                <path stroke-width=\"2.2\" stroke=\"#3b82f6\" fill=\"none\" d=\"M 518.44 84.25 L 551 84.25 L 551 84 L 583 84\"/>\n                \n                <polygon fill=\"#3b82f6\" points=\"583,84 572,89.5 572,78.5\"/>\n            </g>\n        </g>\n            <g class=\"mermaid-graph-nodes\">\n            <g data-node-id=\"A\" class=\"mermaid-graph-node\">\n                <rect stroke=\"#3b82f6\" fill=\"#e7f0fe\" rx=\"10\" height=\"58\" width=\"239.12\" y=\"55\" x=\"48\" class=\"mermaid-graph-node-shape\" data-node-id=\"A\"/>\n                <text style=\"font-family:'Manrope', sans-serif;font-size:16px;fill:#2e2e2e\" class=\"mermaid-graph-node-label\" fill=\"#2e2e2e\" text-anchor=\"middle\" y=\"84\" x=\"167.56\"><tspan>Illustrative substrate</tspan></text>\n                \n            </g>\n        \n            <g data-node-id=\"B\" class=\"mermaid-graph-node\">\n                <rect stroke=\"#3b82f6\" fill=\"#e7f0fe\" rx=\"10\" height=\"72.5\" width=\"167.44\" y=\"48\" x=\"351\" class=\"mermaid-graph-node-shape\" data-node-id=\"B\"/>\n                <text style=\"font-family:'Manrope', sans-serif;font-size:16px;fill:#2e2e2e\" class=\"mermaid-graph-node-label\" fill=\"#2e2e2e\" text-anchor=\"middle\" y=\"84.25\" x=\"434.72\"><tspan>Enzyme binding</tspan></text>\n                \n            </g>\n        \n            <g data-node-id=\"C\" class=\"mermaid-graph-node\">\n                <rect stroke=\"#3b82f6\" fill=\"#e7f0fe\" rx=\"10\" height=\"58\" width=\"221.20000000000002\" y=\"55\" x=\"583\" class=\"mermaid-graph-node-shape\" data-node-id=\"C\"/>\n                <text style=\"font-family:'Manrope', sans-serif;font-size:16px;fill:#2e2e2e\" class=\"mermaid-graph-node-label\" fill=\"#2e2e2e\" text-anchor=\"middle\" y=\"84\" x=\"693.6\"><tspan>Illustrative product</tspan></text>\n                \n            </g>\n        </g>\n            <g class=\"mermaid-graph-edge-labels\"/>\n        </svg>",
+                "svgManualEdits": false,
+                "editMode": "code",
+                "graphDocument": {
+                  "schemaVersion": 2,
+                  "version": 1,
+                  "id": "graph_1793610409731_9529",
+                  "type": "flowchart",
+                  "title": "",
+                  "canvas": {
+                    "width": 1280,
+                    "height": 720,
+                    "coordinateSpace": "slide-local"
+                  },
+                  "nodes": [
+                    {
+                      "id": "A",
+                      "type": "process",
+                      "shape": "process",
+                      "subtype": "",
+                      "label": "Illustrative substrate",
+                      "semanticRole": "process",
+                      "scientific": {},
+                      "execution": {},
+                      "geometry": {
+                        "x": 48,
+                        "y": 55,
+                        "width": 239.12,
+                        "height": 58
+                      },
+                      "x": 48,
+                      "y": 55,
+                      "width": 239.12,
+                      "height": 58,
+                      "ports": [
+                        {
+                          "id": "in",
+                          "side": "left",
+                          "kind": "input"
+                        },
+                        {
+                          "id": "out",
+                          "side": "right",
+                          "kind": "output"
+                        }
+                      ],
+                      "style": {},
+                      "animation": {},
+                      "ai": {
+                        "tags": [],
+                        "confidence": null
+                      },
+                      "locked": false,
+                      "autoPlacedAt": {
+                        "x": 48,
+                        "y": 55
+                      }
+                    },
+                    {
+                      "id": "B",
+                      "type": "process",
+                      "shape": "process",
+                      "subtype": "",
+                      "label": "Enzyme binding",
+                      "semanticRole": "process",
+                      "scientific": {},
+                      "execution": {},
+                      "geometry": {
+                        "x": 351,
+                        "y": 48,
+                        "width": 167.44,
+                        "height": 72.5
+                      },
+                      "x": 351,
+                      "y": 48,
+                      "width": 167.44,
+                      "height": 72.5,
+                      "ports": [
+                        {
+                          "id": "in",
+                          "side": "left",
+                          "kind": "input"
+                        },
+                        {
+                          "id": "out",
+                          "side": "right",
+                          "kind": "output"
+                        }
+                      ],
+                      "style": {},
+                      "animation": {},
+                      "ai": {
+                        "tags": [],
+                        "confidence": null
+                      },
+                      "locked": false,
+                      "autoPlacedAt": {
+                        "x": 351,
+                        "y": 48
+                      }
+                    },
+                    {
+                      "id": "C",
+                      "type": "process",
+                      "shape": "process",
+                      "subtype": "",
+                      "label": "Illustrative product",
+                      "semanticRole": "process",
+                      "scientific": {},
+                      "execution": {},
+                      "geometry": {
+                        "x": 583,
+                        "y": 55,
+                        "width": 221.20000000000002,
+                        "height": 58
+                      },
+                      "x": 583,
+                      "y": 55,
+                      "width": 221.20000000000002,
+                      "height": 58,
+                      "ports": [
+                        {
+                          "id": "in",
+                          "side": "left",
+                          "kind": "input"
+                        },
+                        {
+                          "id": "out",
+                          "side": "right",
+                          "kind": "output"
+                        }
+                      ],
+                      "style": {},
+                      "animation": {},
+                      "ai": {
+                        "tags": [],
+                        "confidence": null
+                      },
+                      "locked": false,
+                      "autoPlacedAt": {
+                        "x": 583,
+                        "y": 55
+                      }
+                    }
+                  ],
+                  "edges": [
+                    {
+                      "id": "e_A_B_0",
+                      "from": "A",
+                      "to": "B",
+                      "ports": {
+                        "from": "out",
+                        "to": "in"
+                      },
+                      "type": "dependency",
+                      "semanticRole": "dependency",
+                      "label": "",
+                      "routing": {
+                        "mode": "orthogonal",
+                        "waypoints": []
+                      },
+                      "routingStyle": "orthogonal",
+                      "waypoints": [],
+                      "arrow": "arrow",
+                      "lineStyle": "solid",
+                      "labelOffset": {
+                        "x": 0,
+                        "y": 0
+                      },
+                      "style": {},
+                      "animation": {},
+                      "ai": {}
+                    },
+                    {
+                      "id": "e_B_C_1",
+                      "from": "B",
+                      "to": "C",
+                      "ports": {
+                        "from": "out",
+                        "to": "in"
+                      },
+                      "type": "dependency",
+                      "semanticRole": "dependency",
+                      "label": "",
+                      "routing": {
+                        "mode": "orthogonal",
+                        "waypoints": []
+                      },
+                      "routingStyle": "orthogonal",
+                      "waypoints": [],
+                      "arrow": "arrow",
+                      "lineStyle": "solid",
+                      "labelOffset": {
+                        "x": 0,
+                        "y": 0
+                      },
+                      "style": {},
+                      "animation": {},
+                      "ai": {}
+                    }
+                  ],
+                  "groups": [],
+                  "lanes": [],
+                  "sections": [],
+                  "annotations": [],
+                  "references": [],
+                  "embeddedMedia": [],
+                  "viewport": {
+                    "x": 0,
+                    "y": 0,
+                    "zoom": 1
+                  },
+                  "styles": {
+                    "fontFamily": "'Manrope', sans-serif",
+                    "fontSize": 16,
+                    "primaryColor": "#e7f0fe",
+                    "primaryTextColor": "#2e2e2e",
+                    "lineColor": "#3b82f6",
+                    "backgroundColor": "#ffffff",
+                    "renderMode": "real",
+                    "handDrawn": false
+                  },
+                  "layoutState": {
+                    "direction": "LR",
+                    "engine": "slideforge-hierarchical",
+                    "routingStyle": "orthogonal",
+                    "connectionStyle": "arrow",
+                    "autoLayout": true,
+                    "lockedLayout": false,
+                    "nodePositions": {
+                      "A": {
+                        "x": 48,
+                        "y": 55
+                      },
+                      "B": {
+                        "x": 351,
+                        "y": 48
+                      },
+                      "C": {
+                        "x": 583,
+                        "y": 55
+                      }
+                    },
+                    "updatedAt": 1793610409731
+                  },
+                  "presentationState": {
+                    "activePreset": "branch-reveal",
+                    "revealOrder": [
+                      "A",
+                      "B",
+                      "C"
+                    ],
+                    "focusPath": [
+                      "A",
+                      "B",
+                      "C"
+                    ],
+                    "steps": []
+                  },
+                  "animations": [
+                    {
+                      "id": "branch-reveal",
+                      "label": "Reveal by branch",
+                      "strategy": "branch",
+                      "duration": 650,
+                      "createdAt": 1793610407615
+                    }
+                  ],
+                  "metadata": {
+                    "sourceFormat": "mermaid",
+                    "domain": "general",
+                    "updatedAt": 1793610408797,
+                    "lastInteraction": "apply"
+                  },
+                  "mermaid": {
+                    "source": "flowchart LR\n A[Illustrative substrate] --> B[Enzyme binding]\n B --> C[Illustrative product]",
+                    "importedWith": "slideforge",
+                    "exportCompatibility": "round-trip",
+                    "unsupportedBlocks": []
+                  }
+                },
+                "graphModel": {
+                  "version": 1,
+                  "type": "flowchart",
+                  "direction": "LR",
+                  "nodes": [
+                    {
+                      "id": "A",
+                      "label": "Illustrative substrate",
+                      "shape": "process",
+                      "x": 48,
+                      "y": 55,
+                      "width": 239.12,
+                      "height": 58,
+                      "locked": false,
+                      "style": {}
+                    },
+                    {
+                      "id": "B",
+                      "label": "Enzyme binding",
+                      "shape": "process",
+                      "x": 351,
+                      "y": 48,
+                      "width": 167.44,
+                      "height": 72.5,
+                      "locked": false,
+                      "style": {}
+                    },
+                    {
+                      "id": "C",
+                      "label": "Illustrative product",
+                      "shape": "process",
+                      "x": 583,
+                      "y": 55,
+                      "width": 221.20000000000002,
+                      "height": 58,
+                      "locked": false,
+                      "style": {}
+                    }
+                  ],
+                  "edges": [
+                    {
+                      "id": "e_A_B_0",
+                      "from": "A",
+                      "to": "B",
+                      "label": "",
+                      "arrow": "arrow",
+                      "routingStyle": "orthogonal",
+                      "waypoints": [],
+                      "labelOffset": {
+                        "x": 0,
+                        "y": 0
+                      },
+                      "style": {}
+                    },
+                    {
+                      "id": "e_B_C_1",
+                      "from": "B",
+                      "to": "C",
+                      "label": "",
+                      "arrow": "arrow",
+                      "routingStyle": "orthogonal",
+                      "waypoints": [],
+                      "labelOffset": {
+                        "x": 0,
+                        "y": 0
+                      },
+                      "style": {}
+                    }
+                  ],
+                  "groups": [],
+                  "mermaidSource": "",
+                  "layoutMetadata": {},
+                  "viewport": {
+                    "x": 0,
+                    "y": 0,
+                    "zoom": 1
+                  },
+                  "style": {
+                    "fontFamily": "'Manrope', sans-serif",
+                    "fontSize": 16,
+                    "primaryColor": "#e7f0fe",
+                    "primaryTextColor": "#2e2e2e",
+                    "lineColor": "#3b82f6",
+                    "backgroundColor": "#ffffff",
+                    "handDrawn": false
+                  },
+                  "nodePositions": {
+                    "A": {
+                      "x": 48,
+                      "y": 55
+                    },
+                    "B": {
+                      "x": 351,
+                      "y": 48
+                    },
+                    "C": {
+                      "x": 583,
+                      "y": 55
+                    }
+                  },
+                  "lockedLayout": false,
+                  "autoLayout": true,
+                  "routingStyle": "orthogonal",
+                  "connectionStyle": "arrow"
+                },
+                "semanticGraphVersion": 2,
+                "nodePositions": {
+                  "A": {
+                    "x": 48,
+                    "y": 55
+                  },
+                  "B": {
+                    "x": 351,
+                    "y": 48
+                  },
+                  "C": {
+                    "x": 583,
+                    "y": 55
+                  }
+                },
+                "lockedLayout": false,
+                "autoLayout": true,
+                "routingStyle": "orthogonal",
+                "connectionStyle": "arrow",
+                "animation": null,
+                "style": {
+                  "fontFamily": "'Manrope', sans-serif",
+                  "fontSize": 16,
+                  "primaryColor": "#e7f0fe",
+                  "primaryTextColor": "#2e2e2e",
+                  "lineColor": "#3b82f6",
+                  "backgroundColor": "#ffffff",
+                  "handDrawn": false
+                },
+                "styles": {
+                  "zIndex": 6,
+                  "borderRadius": "8px",
+                  "backgroundColor": "transparent"
+                },
+                "content": ""
+              }
+            ],
+            "editableMasterFooter": true,
+            "editableFooterNumberAlignmentVersion": 1,
+            "background": null
+          },
+          {
+            "id": "slide_517d0e8c-953a-4bac-be2b-82adf8992085",
+            "layoutId": "blank-titled",
+            "masterId": "content",
+            "notes": "",
+            "presentationTransition": "none",
+            "elements": [
+              {
+                "id": "el_a734ea2d-a42c-4a32-81b4-53e6d0459e79",
+                "type": "text",
+                "x": 64,
+                "y": 52,
+                "width": "1152px",
+                "height": "96px",
+                "autoHeight": false,
+                "textFitMode": "autofit",
+                "minAutoFitFontSize": 20,
+                "content": "",
+                "placeholder": "Click to add title",
+                "styles": {
+                  "zIndex": 1,
+                  "borderRadius": "0px",
+                  "color": "#2E2E2E",
+                  "fontSize": "40px",
+                  "fontFamily": "\"Newsreader\", serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "left",
+                  "fontWeight": "700"
+                },
+                "animation": null,
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_02iay3p",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_gct1rax",
+                          "type": "text",
+                          "text": "",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "_textDocumentSourceContent": "",
+                "iconMode": false,
+                "bulletStyle": "default",
+                "themeManaged": true
+              },
+              {
+                "id": "el_560bd21e-7d39-4407-b88b-a264c1e8b043",
+                "type": "shape",
+                "x": 65,
+                "y": 669,
+                "width": "1150px",
+                "height": "1px",
+                "content": "",
+                "styles": {
+                  "zIndex": 1,
+                  "borderRadius": "0px",
+                  "backgroundColor": "rgba(209, 213, 219, 0.80)",
+                  "opacity": "0.85"
+                },
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "footer-rule",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "shapeType": "rectangle",
+                "animation": null
+              },
+              {
+                "id": "el_6e51b9ae-6991-4928-9dbb-7b5fa69164e1",
+                "type": "shape",
+                "x": 1140,
+                "y": 673,
+                "width": "77.5px",
+                "height": "26.25px",
+                "content": "",
+                "styles": {
+                  "zIndex": 3,
+                  "borderRadius": "999px",
+                  "backgroundColor": "rgba(248, 250, 252, 0.88)",
+                  "border": "1px solid rgba(209, 213, 219, 0.80)"
+                },
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "slide-number-bg",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "shapeType": "rectangle",
+                "animation": null
+              },
+              {
+                "id": "el_427a1a86-13d1-4a10-871b-e85c2775e1e2",
+                "type": "text",
+                "x": 1140,
+                "y": 673,
+                "width": "77.5px",
+                "height": "26.25px",
+                "content": "05",
+                "styles": {
+                  "zIndex": 5,
+                  "borderRadius": "0px",
+                  "color": "#295BAC",
+                  "fontSize": "11.25px",
+                  "fontFamily": "\"Manrope\", sans-serif",
+                  "backgroundColor": "transparent",
+                  "textAlign": "center",
+                  "fontWeight": "800"
+                },
+                "autoHeight": false,
+                "textFitMode": "fixed",
+                "masterId": "content",
+                "editableMasterFooterElement": true,
+                "footerRole": "slide-number",
+                "sourceMasterId": "content",
+                "themeManaged": true,
+                "textDocument": {
+                  "version": 1,
+                  "type": "document",
+                  "blocks": [
+                    {
+                      "id": "block_r4ltn65",
+                      "type": "paragraph",
+                      "paragraphStyle": {},
+                      "children": [
+                        {
+                          "id": "run_f1d4hup",
+                          "type": "text",
+                          "text": "05",
+                          "marks": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "_textDocumentSourceContent": "05",
+                "animation": null,
+                "iconMode": false,
+                "bulletStyle": "default"
+              },
+              {
+                "id": "el_6975bc2f-764d-48af-afa6-dbeda959223f",
+                "type": "plugin",
+                "pluginId": "curve-fit",
+                "pluginData": {
+                  "data": "Dose (µM),Drug A,Drug B\n0.01,2.1,1.5\n0.03,4.0,2.2\n0.1,11.8,4.1\n0.3,29.5,9.8\n1,58.2,24.6\n3,82.1,51.3\n10,93.6,77.9\n30,97.0,90.2",
+                  "model": "dose-response",
+                  "xScale": "auto",
+                  "showFit": true,
+                  "showParams": true,
+                  "xLabel": "Dose (µM)",
+                  "yLabel": "Response (%)",
+                  "pointSize": 8,
+                  "lineWidth": 2.5,
+                  "fontSize": 18
+                },
+                "pluginPreview": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%201152%20493%22%20font-family%3D%22'Manrope'%2C%20Arial%2C%20Helvetica%2C%20sans-serif%22%20width%3D%221152%22%20height%3D%22493%22%3E%3Cline%20x1%3D%2272.2%22%20x2%3D%221134%22%20y1%3D%22440.8%22%20y2%3D%22440.8%22%20stroke%3D%22%232E2E2E%22%20stroke-opacity%3D%220.1%22%2F%3E%3Ctext%20x%3D%2265.0%22%20y%3D%22446.6%22%20font-size%3D%2218%22%20text-anchor%3D%22end%22%20fill%3D%22%232E2E2E%22%3E0%3C%2Ftext%3E%3Cline%20x1%3D%2272.2%22%20x2%3D%221134%22%20y1%3D%22366.0%22%20y2%3D%22366.0%22%20stroke%3D%22%232E2E2E%22%20stroke-opacity%3D%220.1%22%2F%3E%3Ctext%20x%3D%2265.0%22%20y%3D%22371.7%22%20font-size%3D%2218%22%20text-anchor%3D%22end%22%20fill%3D%22%232E2E2E%22%3E20%3C%2Ftext%3E%3Cline%20x1%3D%2272.2%22%20x2%3D%221134%22%20y1%3D%22291.1%22%20y2%3D%22291.1%22%20stroke%3D%22%232E2E2E%22%20stroke-opacity%3D%220.1%22%2F%3E%3Ctext%20x%3D%2265.0%22%20y%3D%22296.9%22%20font-size%3D%2218%22%20text-anchor%3D%22end%22%20fill%3D%22%232E2E2E%22%3E40%3C%2Ftext%3E%3Cline%20x1%3D%2272.2%22%20x2%3D%221134%22%20y1%3D%22216.3%22%20y2%3D%22216.3%22%20stroke%3D%22%232E2E2E%22%20stroke-opacity%3D%220.1%22%2F%3E%3Ctext%20x%3D%2265.0%22%20y%3D%22222.0%22%20font-size%3D%2218%22%20text-anchor%3D%22end%22%20fill%3D%22%232E2E2E%22%3E60%3C%2Ftext%3E%3Cline%20x1%3D%2272.2%22%20x2%3D%221134%22%20y1%3D%22141.4%22%20y2%3D%22141.4%22%20stroke%3D%22%232E2E2E%22%20stroke-opacity%3D%220.1%22%2F%3E%3Ctext%20x%3D%2265.0%22%20y%3D%22147.2%22%20font-size%3D%2218%22%20text-anchor%3D%22end%22%20fill%3D%22%232E2E2E%22%3E80%3C%2Ftext%3E%3Cline%20x1%3D%2272.2%22%20x2%3D%221134%22%20y1%3D%2266.6%22%20y2%3D%2266.6%22%20stroke%3D%22%232E2E2E%22%20stroke-opacity%3D%220.1%22%2F%3E%3Ctext%20x%3D%2265.0%22%20y%3D%2272.4%22%20font-size%3D%2218%22%20text-anchor%3D%22end%22%20fill%3D%22%232E2E2E%22%3E100%3C%2Ftext%3E%3Cpath%20d%3D%22M72.2%2066.60000000000001V440.8H1134%22%20fill%3D%22none%22%20stroke%3D%22%232E2E2E%22%20stroke-width%3D%221.2%22%2F%3E%3Cline%20x1%3D%22128.0%22%20x2%3D%22128.0%22%20y1%3D%22440.8%22%20y2%3D%22447.1%22%20stroke%3D%22%232E2E2E%22%2F%3E%3Ctext%20x%3D%22128.0%22%20y%3D%22465.1%22%20font-size%3D%2218%22%20text-anchor%3D%22middle%22%20fill%3D%22%232E2E2E%22%3E0.01%3C%2Ftext%3E%3Cline%20x1%3D%22401.3%22%20x2%3D%22401.3%22%20y1%3D%22440.8%22%20y2%3D%22447.1%22%20stroke%3D%22%232E2E2E%22%2F%3E%3Ctext%20x%3D%22401.3%22%20y%3D%22465.1%22%20font-size%3D%2218%22%20text-anchor%3D%22middle%22%20fill%3D%22%232E2E2E%22%3E0.1%3C%2Ftext%3E%3Cline%20x1%3D%22674.5%22%20x2%3D%22674.5%22%20y1%3D%22440.8%22%20y2%3D%22447.1%22%20stroke%3D%22%232E2E2E%22%2F%3E%3Ctext%20x%3D%22674.5%22%20y%3D%22465.1%22%20font-size%3D%2218%22%20text-anchor%3D%22middle%22%20fill%3D%22%232E2E2E%22%3E1%3C%2Ftext%3E%3Cline%20x1%3D%22947.8%22%20x2%3D%22947.8%22%20y1%3D%22440.8%22%20y2%3D%22447.1%22%20stroke%3D%22%232E2E2E%22%2F%3E%3Ctext%20x%3D%22947.8%22%20y%3D%22465.1%22%20font-size%3D%2218%22%20text-anchor%3D%22middle%22%20fill%3D%22%232E2E2E%22%3E10%3C%2Ftext%3E%3Ctext%20x%3D%22603.1%22%20y%3D%22486.7%22%20font-size%3D%2218%22%20text-anchor%3D%22middle%22%20fill%3D%22%232E2E2E%22%3EDose%20(%C2%B5M)%3C%2Ftext%3E%3Ctext%20transform%3D%22translate(17.1%20253.7)%20rotate(-90)%22%20font-size%3D%2218%22%20text-anchor%3D%22middle%22%20fill%3D%22%232E2E2E%22%3EResponse%20(%25)%3C%2Ftext%3E%3CclipPath%20id%3D%22fit-area%22%3E%3Crect%20x%3D%2272.2%22%20y%3D%2258.60000000000001%22%20width%3D%221061.8%22%20height%3D%22390.2%22%2F%3E%3C%2FclipPath%3E%3Cg%20clip-path%3D%22url(%23fit-area)%22%3E%3Cpath%20class%3D%22fit-curve%22%20d%3D%22M72.2%20434.9L78.8%20434.8L85.5%20434.6L92.1%20434.5L98.7%20434.3L105.4%20434.1L112.0%20433.9L118.7%20433.7L125.3%20433.5L131.9%20433.3L138.6%20433.0L145.2%20432.8L151.8%20432.5L158.5%20432.2L165.1%20431.9L171.7%20431.5L178.4%20431.2L185.0%20430.8L191.7%20430.4L198.3%20430.0L204.9%20429.6L211.6%20429.1L218.2%20428.6L224.8%20428.1L231.5%20427.5L238.1%20427.0L244.7%20426.3L251.4%20425.7L258.0%20425.0L264.7%20424.3L271.3%20423.5L277.9%20422.7L284.6%20421.8L291.2%20420.9L297.8%20420.0L304.5%20418.9L311.1%20417.9L317.7%20416.8L324.4%20415.6L331.0%20414.3L337.6%20413.0L344.3%20411.6L350.9%20410.2L357.6%20408.6L364.2%20407.0L370.8%20405.3L377.5%20403.6L384.1%20401.7L390.7%20399.8L397.4%20397.7L404.0%20395.6L410.6%20393.3L417.3%20391.0L423.9%20388.5L430.6%20385.9L437.2%20383.3L443.8%20380.5L450.5%20377.6L457.1%20374.5L463.7%20371.4L470.4%20368.1L477.0%20364.7L483.6%20361.2L490.3%20357.6L496.9%20353.8L503.6%20349.9L510.2%20345.9L516.8%20341.8L523.5%20337.5L530.1%20333.1L536.7%20328.7L543.4%20324.1L550.0%20319.4L556.6%20314.6L563.3%20309.7L569.9%20304.7L576.6%20299.6L583.2%20294.5L589.8%20289.3L596.5%20284.0L603.1%20278.7L609.7%20273.3L616.4%20267.9L623.0%20262.5L629.6%20257.1L636.3%20251.6L642.9%20246.2L649.6%20240.8L656.2%20235.4L662.8%20230.0L669.5%20224.7L676.1%20219.4L682.7%20214.1L689.4%20209.0L696.0%20203.9L702.6%20198.9L709.3%20194.0L715.9%20189.2L722.6%20184.4L729.2%20179.8L735.8%20175.3L742.5%20170.9L749.1%20166.6L755.7%20162.5L762.4%20158.4L769.0%20154.5L775.6%20150.7L782.3%20147.1L788.9%20143.5L795.6%20140.1L802.2%20136.8L808.8%20133.6L815.5%20130.6L822.1%20127.6L828.7%20124.8L835.4%20122.1L842.0%20119.5L848.6%20117.0L855.3%20114.6L861.9%20112.4L868.5%20110.2L875.2%20108.1L881.8%20106.2L888.5%20104.3L895.1%20102.5L901.7%20100.8L908.4%2099.1L915.0%2097.6L921.6%2096.1L928.3%2094.7L934.9%2093.4L941.5%2092.1L948.2%2090.9L954.8%2089.8L961.5%2088.7L968.1%2087.7L974.7%2086.7L981.4%2085.8L988.0%2084.9L994.6%2084.1L1001.3%2083.3L1007.9%2082.6L1014.5%2081.9L1021.2%2081.2L1027.8%2080.6L1034.5%2080.0L1041.1%2079.4L1047.7%2078.9L1054.4%2078.4L1061.0%2077.9L1067.6%2077.5L1074.3%2077.1L1080.9%2076.7L1087.5%2076.3L1094.2%2075.9L1100.8%2075.6L1107.5%2075.3L1114.1%2075.0L1120.7%2074.7L1127.4%2074.5L1134.0%2074.2%22%20fill%3D%22none%22%20stroke%3D%22%230072B2%22%20stroke-width%3D%222.5%22%2F%3E%3Ccircle%20cx%3D%22128.0%22%20cy%3D%22432.9%22%20r%3D%224.0%22%20fill%3D%22%230072B2%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%220.8%22%2F%3E%3Ccircle%20cx%3D%22258.4%22%20cy%3D%22425.8%22%20r%3D%224.0%22%20fill%3D%22%230072B2%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%220.8%22%2F%3E%3Ccircle%20cx%3D%22401.3%22%20cy%3D%22396.6%22%20r%3D%224.0%22%20fill%3D%22%230072B2%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%220.8%22%2F%3E%3Ccircle%20cx%3D%22531.7%22%20cy%3D%22330.4%22%20r%3D%224.0%22%20fill%3D%22%230072B2%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%220.8%22%2F%3E%3Ccircle%20cx%3D%22674.5%22%20cy%3D%22223.0%22%20r%3D%224.0%22%20fill%3D%22%230072B2%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%220.8%22%2F%3E%3Ccircle%20cx%3D%22804.9%22%20cy%3D%22133.6%22%20r%3D%224.0%22%20fill%3D%22%230072B2%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%220.8%22%2F%3E%3Ccircle%20cx%3D%22947.8%22%20cy%3D%2290.5%22%20r%3D%224.0%22%20fill%3D%22%230072B2%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%220.8%22%2F%3E%3Ccircle%20cx%3D%221078.2%22%20cy%3D%2277.8%22%20r%3D%224.0%22%20fill%3D%22%230072B2%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%220.8%22%2F%3E%3Cpath%20class%3D%22fit-curve%22%20d%3D%22M72.2%20434.5L78.8%20434.5L85.5%20434.5L92.1%20434.4L98.7%20434.4L105.4%20434.4L112.0%20434.3L118.7%20434.3L125.3%20434.2L131.9%20434.2L138.6%20434.2L145.2%20434.1L151.8%20434.0L158.5%20434.0L165.1%20433.9L171.7%20433.8L178.4%20433.8L185.0%20433.7L191.7%20433.6L198.3%20433.5L204.9%20433.4L211.6%20433.3L218.2%20433.2L224.8%20433.1L231.5%20433.0L238.1%20432.9L244.7%20432.8L251.4%20432.6L258.0%20432.5L264.7%20432.3L271.3%20432.1L277.9%20432.0L284.6%20431.8L291.2%20431.6L297.8%20431.4L304.5%20431.1L311.1%20430.9L317.7%20430.6L324.4%20430.4L331.0%20430.1L337.6%20429.8L344.3%20429.4L350.9%20429.1L357.6%20428.7L364.2%20428.3L370.8%20427.9L377.5%20427.5L384.1%20427.0L390.7%20426.6L397.4%20426.0L404.0%20425.5L410.6%20424.9L417.3%20424.3L423.9%20423.6L430.6%20423.0L437.2%20422.2L443.8%20421.5L450.5%20420.6L457.1%20419.8L463.7%20418.9L470.4%20417.9L477.0%20416.9L483.6%20415.8L490.3%20414.7L496.9%20413.5L503.6%20412.2L510.2%20410.9L516.8%20409.5L523.5%20408.0L530.1%20406.4L536.7%20404.8L543.4%20403.1L550.0%20401.3L556.6%20399.4L563.3%20397.3L569.9%20395.2L576.6%20393.0L583.2%20390.7L589.8%20388.3L596.5%20385.8L603.1%20383.2L609.7%20380.4L616.4%20377.5L623.0%20374.5L629.6%20371.4L636.3%20368.2L642.9%20364.8L649.6%20361.3L656.2%20357.7L662.8%20353.9L669.5%20350.1L676.1%20346.1L682.7%20341.9L689.4%20337.7L696.0%20333.3L702.6%20328.8L709.3%20324.3L715.9%20319.6L722.6%20314.7L729.2%20309.8L735.8%20304.9L742.5%20299.8L749.1%20294.6L755.7%20289.4L762.4%20284.1L769.0%20278.8L775.6%20273.5L782.3%20268.1L788.9%20262.7L795.6%20257.2L802.2%20251.8L808.8%20246.4L815.5%20241.0L822.1%20235.6L828.7%20230.3L835.4%20225.0L842.0%20219.7L848.6%20214.6L855.3%20209.5L861.9%20204.5L868.5%20199.6L875.2%20194.7L881.8%20190.0L888.5%20185.4L895.1%20180.9L901.7%20176.5L908.4%20172.2L915.0%20168.0L921.6%20164.0L928.3%20160.1L934.9%20156.3L941.5%20152.7L948.2%20149.1L954.8%20145.7L961.5%20142.5L968.1%20139.3L974.7%20136.3L981.4%20133.4L988.0%20130.6L994.6%20127.9L1001.3%20125.4L1007.9%20122.9L1014.5%20120.6L1021.2%20118.4L1027.8%20116.3L1034.5%20114.2L1041.1%20112.3L1047.7%20110.5L1054.4%20108.7L1061.0%20107.1L1067.6%20105.5L1074.3%20104.0L1080.9%20102.6L1087.5%20101.2L1094.2%2099.9L1100.8%2098.7L1107.5%2097.6L1114.1%2096.5L1120.7%2095.4L1127.4%2094.5L1134.0%2093.5%22%20fill%3D%22none%22%20stroke%3D%22%23D55E00%22%20stroke-width%3D%222.5%22%2F%3E%3Ccircle%20cx%3D%22128.0%22%20cy%3D%22435.2%22%20r%3D%224.0%22%20fill%3D%22%23D55E00%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%220.8%22%2F%3E%3Ccircle%20cx%3D%22258.4%22%20cy%3D%22432.6%22%20r%3D%224.0%22%20fill%3D%22%23D55E00%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%220.8%22%2F%3E%3Ccircle%20cx%3D%22401.3%22%20cy%3D%22425.5%22%20r%3D%224.0%22%20fill%3D%22%23D55E00%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%220.8%22%2F%3E%3Ccircle%20cx%3D%22531.7%22%20cy%3D%22404.1%22%20r%3D%224.0%22%20fill%3D%22%23D55E00%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%220.8%22%2F%3E%3Ccircle%20cx%3D%22674.5%22%20cy%3D%22348.7%22%20r%3D%224.0%22%20fill%3D%22%23D55E00%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%220.8%22%2F%3E%3Ccircle%20cx%3D%22804.9%22%20cy%3D%22248.8%22%20r%3D%224.0%22%20fill%3D%22%23D55E00%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%220.8%22%2F%3E%3Ccircle%20cx%3D%22947.8%22%20cy%3D%22149.3%22%20r%3D%224.0%22%20fill%3D%22%23D55E00%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%220.8%22%2F%3E%3Ccircle%20cx%3D%221078.2%22%20cy%3D%22103.3%22%20r%3D%224.0%22%20fill%3D%22%23D55E00%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%220.8%22%2F%3E%3C%2Fg%3E%3Cline%20x1%3D%2272.2%22%20x2%3D%2293.8%22%20y1%3D%2216.7%22%20y2%3D%2216.7%22%20stroke%3D%22%230072B2%22%20stroke-width%3D%223.5%22%2F%3E%3Ctext%20class%3D%22fit-legend%22%20x%3D%22101.0%22%20y%3D%2222.5%22%20font-size%3D%2218%22%20fill%3D%22%232E2E2E%22%3EDrug%20A%3A%20EC50%200.709%20%C2%B5M%20(0.669%E2%80%930.752)%2C%20Hill%201.06%2C%20R%C2%B2%201.000%3C%2Ftext%3E%3Cline%20x1%3D%2272.2%22%20x2%3D%2293.8%22%20y1%3D%2241.0%22%20y2%3D%2241.0%22%20stroke%3D%22%23D55E00%22%20stroke-width%3D%223.5%22%2F%3E%3Ctext%20class%3D%22fit-legend%22%20x%3D%22101.0%22%20y%3D%2246.8%22%20font-size%3D%2218%22%20fill%3D%22%232E2E2E%22%3EDrug%20B%3A%20EC50%202.79%20%C2%B5M%20(2.63%E2%80%932.96)%2C%20Hill%201.09%2C%20R%C2%B2%201.000%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "pluginSurfaceMode": "theme",
+                "pluginPreviewKey": "[\"curve-fit\",\"4\",{\"label\":\"Editorial\",\"revealTheme\":\"white\",\"headingFont\":\"\\\"Newsreader\\\", serif\",\"bodyFont\":\"\\\"Manrope\\\", sans-serif\",\"defaultTextColor\":\"#2E2E2E\",\"defaultMutedColor\":\"#6B7280\",\"defaultShapeColor\":\"#A7C7E7\",\"accentStrong\":\"#3B82F6\",\"accentSoft\":\"rgba(59, 130, 246, 0.12)\",\"surfaceColor\":\"rgba(248, 250, 252, 0.88)\",\"surfaceBorder\":\"rgba(209, 213, 219, 0.80)\",\"cssVars\":{\"--slide-bg\":\"radial-gradient(70% 60% at 0% 0%, rgba(59,130,246,0.09), transparent 70%), radial-gradient(60% 50% at 100% 100%, rgba(167,199,231,0.20), transparent 70%), linear-gradient(180deg, #FFFFFF 0%, #F6F8FB 56%, #EEF2F7 100%)\",\"--slide-fg\":\"#2E2E2E\",\"--slide-muted\":\"#6B7280\",\"--slide-accent\":\"#3B82F6\",\"--slide-accent-2\":\"#A7C7E7\",\"--slide-grid\":\"rgba(46,46,46,0.03)\",\"--editor-accent\":\"#3B82F6\",\"--editor-accent-soft\":\"rgba(59,130,246,0.12)\"},\"system\":{\"id\":\"editorial\",\"label\":\"Editorial\",\"family\":\"editorial\",\"intent\":{\"tone\":\"editorial\",\"bestFor\":[\"narrative decks\",\"essays\",\"conference talks\"],\"audience\":[\"general\",\"professional\"]},\"variants\":{\"preferred\":\"light\",\"light\":{\"contrastFloor\":4.5},\"dark\":{\"contrastFloor\":4.5},\"print\":{\"contrastFloor\":7}},\"tokens\":{\"color\":{\"text\":{\"primary\":\"#2E2E2E\",\"secondary\":\"#6B7280\",\"inverse\":\"#ffffff\"},\"accent\":{\"primary\":\"#3B82F6\",\"secondary\":\"#A7C7E7\",\"soft\":\"rgba(59, 130, 246, 0.12)\"},\"surface\":{\"canvas\":\"radial-gradient(70% 60% at 0% 0%, rgba(59,130,246,0.09), transparent 70%), radial-gradient(60% 50% at 100% 100%, rgba(167,199,231,0.20), transparent 70%), linear-gradient(180deg, #FFFFFF 0%, #F6F8FB 56%, #EEF2F7 100%)\",\"panel\":\"rgba(248, 250, 252, 0.88)\",\"border\":\"rgba(209, 213, 219, 0.80)\"}},\"typography\":{\"family\":{\"display\":\"\\\"Newsreader\\\", serif\",\"body\":\"\\\"Manrope\\\", sans-serif\",\"mono\":\"\\\"JetBrains Mono\\\", \\\"SFMono-Regular\\\", monospace\",\"equation\":\"\\\"STIX Two Text\\\", \\\"Times New Roman\\\", serif\"},\"role\":{\"title\":{\"size\":48,\"lineHeight\":1.04,\"weight\":800},\"subtitle\":{\"size\":25,\"lineHeight\":1.22,\"weight\":600},\"body\":{\"size\":22,\"lineHeight\":1.4,\"weight\":500},\"caption\":{\"size\":13,\"lineHeight\":1.32,\"weight\":600},\"label\":{\"size\":11,\"lineHeight\":1.1,\"weight\":800,\"casing\":\"uppercase\"}}},\"spacing\":{\"base\":8,\"slidePadding\":64,\"regionGap\":24,\"captionGap\":10},\"density\":{\"default\":\"standard\",\"maxTextBlocks\":5,\"whitespaceBias\":0.62},\"elevation\":{\"slide\":\"0 28px 80px rgba(15,23,42,0.18)\",\"panel\":\"0 16px 44px rgba(15,23,42,0.10)\"},\"motion\":{\"personality\":\"precise\",\"duration\":{\"fast\":120,\"normal\":220,\"slow\":420},\"easing\":{\"standard\":[0.2,0,0,1],\"expressive\":[0.16,1,0.3,1]}},\"chart\":{\"palette\":[\"#3B82F6\",\"#A7C7E7\",\"#A7C7E7\",\"#F59E0B\",\"#EF4444\"],\"grid\":\"subtle\",\"legend\":\"bottom\"},\"science\":{\"figureCaption\":\"editorial\",\"panelLabels\":\"minimal\",\"equationBackground\":\"rgba(248, 250, 252, 0.88)\",\"moleculeBackground\":\"#f8fafc\"},\"table\":{\"headerFill\":\"rgba(59, 130, 246, 0.12)\",\"border\":\"rgba(209, 213, 219, 0.80)\",\"density\":\"standard\"}},\"rhythm\":{\"sectionBreakInterval\":7,\"titleFrequency\":\"medium\",\"annotationStyle\":\"editorial\"},\"accessibility\":{\"minContrast\":4.5,\"colorBlindSafe\":false,\"minBodyFontPx\":20,\"minCaptionFontPx\":12},\"aiGuidance\":{\"rewriteTone\":\"editorial\",\"preferredLayouts\":[\"title-page\",\"content-slide\",\"two-column\",\"section-divider\"],\"densityAdvice\":\"Prefer spacious hierarchy and one dominant idea per slide.\"}},\"tokens\":{\"color\":{\"text\":{\"primary\":\"#2E2E2E\",\"secondary\":\"#6B7280\",\"inverse\":\"#ffffff\"},\"accent\":{\"primary\":\"#3B82F6\",\"secondary\":\"#A7C7E7\",\"soft\":\"rgba(59, 130, 246, 0.12)\"},\"surface\":{\"canvas\":\"radial-gradient(70% 60% at 0% 0%, rgba(59,130,246,0.09), transparent 70%), radial-gradient(60% 50% at 100% 100%, rgba(167,199,231,0.20), transparent 70%), linear-gradient(180deg, #FFFFFF 0%, #F6F8FB 56%, #EEF2F7 100%)\",\"panel\":\"rgba(248, 250, 252, 0.88)\",\"border\":\"rgba(209, 213, 219, 0.80)\"}},\"typography\":{\"family\":{\"display\":\"\\\"Newsreader\\\", serif\",\"body\":\"\\\"Manrope\\\", sans-serif\",\"mono\":\"\\\"JetBrains Mono\\\", \\\"SFMono-Regular\\\", monospace\",\"equation\":\"\\\"STIX Two Text\\\", \\\"Times New Roman\\\", serif\"},\"role\":{\"title\":{\"size\":48,\"lineHeight\":1.04,\"weight\":800},\"subtitle\":{\"size\":25,\"lineHeight\":1.22,\"weight\":600},\"body\":{\"size\":22,\"lineHeight\":1.4,\"weight\":500},\"caption\":{\"size\":13,\"lineHeight\":1.32,\"weight\":600},\"label\":{\"size\":11,\"lineHeight\":1.1,\"weight\":800,\"casing\":\"uppercase\"}}},\"spacing\":{\"base\":8,\"slidePadding\":64,\"regionGap\":24,\"captionGap\":10},\"density\":{\"default\":\"standard\",\"maxTextBlocks\":5,\"whitespaceBias\":0.62},\"elevation\":{\"slide\":\"0 28px 80px rgba(15,23,42,0.18)\",\"panel\":\"0 16px 44px rgba(15,23,42,0.10)\"},\"motion\":{\"personality\":\"precise\",\"duration\":{\"fast\":120,\"normal\":220,\"slow\":420},\"easing\":{\"standard\":[0.2,0,0,1],\"expressive\":[0.16,1,0.3,1]}},\"chart\":{\"palette\":[\"#3B82F6\",\"#A7C7E7\",\"#A7C7E7\",\"#F59E0B\",\"#EF4444\"],\"grid\":\"subtle\",\"legend\":\"bottom\"},\"science\":{\"figureCaption\":\"editorial\",\"panelLabels\":\"minimal\",\"equationBackground\":\"rgba(248, 250, 252, 0.88)\",\"moleculeBackground\":\"#f8fafc\"},\"table\":{\"headerFill\":\"rgba(59, 130, 246, 0.12)\",\"border\":\"rgba(209, 213, 219, 0.80)\",\"density\":\"standard\"}},\"family\":\"editorial\",\"intent\":{\"tone\":\"editorial\",\"bestFor\":[\"narrative decks\",\"essays\",\"conference talks\"],\"audience\":[\"general\",\"professional\"]},\"rhythm\":{\"sectionBreakInterval\":7,\"titleFrequency\":\"medium\",\"annotationStyle\":\"editorial\"},\"accessibility\":{\"minContrast\":4.5,\"colorBlindSafe\":false,\"minBodyFontPx\":20,\"minCaptionFontPx\":12},\"aiGuidance\":{\"rewriteTone\":\"editorial\",\"preferredLayouts\":[\"title-page\",\"content-slide\",\"two-column\",\"section-divider\"],\"densityAdvice\":\"Prefer spacious hierarchy and one dominant idea per slide.\"}},\"#2E2E2E\",\"'Manrope', Arial, Helvetica, sans-serif\",{\"data\":\"Dose (µM),Drug A,Drug B\\n0.01,2.1,1.5\\n0.03,4.0,2.2\\n0.1,11.8,4.1\\n0.3,29.5,9.8\\n1,58.2,24.6\\n3,82.1,51.3\\n10,93.6,77.9\\n30,97.0,90.2\",\"model\":\"dose-response\",\"xScale\":\"auto\",\"showFit\":true,\"showParams\":true,\"xLabel\":\"Dose (µM)\",\"yLabel\":\"Response (%)\",\"pointSize\":8,\"lineWidth\":2.5,\"fontSize\":18},1152,493]",
+                "x": 64,
+                "y": 164,
+                "width": "1152px",
+                "height": "493px",
+                "styles": {
+                  "zIndex": 6,
+                  "borderRadius": "0px",
+                  "backgroundColor": "rgba(248, 250, 252, 0.88)"
+                },
+                "animation": null,
+                "content": ""
+              }
+            ],
+            "editableMasterFooter": true,
+            "editableFooterNumberAlignmentVersion": 1,
+            "background": null
+          }
+        ]
+      }
+    }
+  ],
+  "pageErrors": [],
+  "consoleErrors": [],
+  "failedRequests": [],
+  "httpErrors": [],
+  "dialogs": [],
+  "externalRequests": [],
+  "environment": {
+    "browser": "148.0.7778.96",
+    "node": "v26.12.1",
+    "url": "http://127.0.0.1:8094/",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    }
+  },
+  "chartId": "el_840c0d81-0ba4-4989-8eff-f718bb91f7ee",
+  "equationId": "el_618f9b1b-90ab-4e12-882a-bd7da486c4eb",
+  "diagramId": "el_41f60289-e6e8-483d-991a-93a0ea8895c6"
+}

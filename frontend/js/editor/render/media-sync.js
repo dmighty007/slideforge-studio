@@ -25,13 +25,17 @@ function syncActiveSlideMedia() {
     section.querySelectorAll(".slide-background-three").forEach((wrapper) => setThemeMotionActive(wrapper, isActive));
 
     section.querySelectorAll("video").forEach((video) => {
+      const shouldAutoPlay = video.autoplay || video.classList.contains("slide-background-video");
+      const becameActive = video.dataset.sfMediaActive !== "true";
+      const enabledAutoplay = video.dataset.sfMediaAutoplay !== "true" && shouldAutoPlay;
+      video.dataset.sfMediaActive = String(isActive);
+      video.dataset.sfMediaAutoplay = String(shouldAutoPlay);
       if (!isActive) {
         if (!video.paused) video.pause();
         return;
       }
-      const shouldAutoPlay =
-        video.autoplay || video.classList.contains("slide-background-video");
-      if (shouldAutoPlay) video.play().catch(() => {});
+      // Repeated resize/focus synchronization must respect a user's pause.
+      if (shouldAutoPlay && (becameActive || enabledAutoplay)) video.play().catch(() => {});
     });
 
     // Sounds: one set to play by itself starts when its slide opens while presenting (never while editing: a
@@ -55,7 +59,7 @@ function syncActiveSlideMedia() {
       const isMolecule = iframe.classList.contains("molecule-embed-frame");
       if (isMolecule) {
         iframe.contentWindow?.postMessage(
-          { type: "pptmaker:molecule:lifecycle", active: isActive },
+          { type: "pptmaker:molecule:lifecycle", active: isActive, presenting },
           "*",
         );
         return;

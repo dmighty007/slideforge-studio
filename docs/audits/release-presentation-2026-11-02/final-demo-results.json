@@ -1,0 +1,14 @@
+{
+  "errors": [],
+  "selection": {
+    "selected": [],
+    "panel": "PROPERTIES\nBase\nLayout\nStyle\nNotes\nGlobal Settings\nTheme\nBlank\nEditorial\nBlueprint\nField Notes\nMonograph\nGraphite\nHorizon\nChalkboard\nCircuit\nAfterglow\nSage Calm\nPorcelain\nRosewater\nButtercup\nTidepool\nLavender Mist\nMidnight Garden\nRetro Pop\nBrowse theme previews\nSlide Size\nTalk 16:9\nLecture 16:10\nPaper / Handout\nConference Poster\nClassic 4:3\nLegacy 16:9\nLegacy 16:10\nMaster Slide"
+  },
+  "style": "cartoon",
+  "rotationPixelsChanged": true,
+  "escapeAfterMolecule": true,
+  "exitAfterClickOutside": true,
+  "video": "evidence/workflow-demo.webm",
+  "durationSeconds": 17.4,
+  "rawRecordingsArchive": "/tmp/sf-release-raw-recordings"
+}

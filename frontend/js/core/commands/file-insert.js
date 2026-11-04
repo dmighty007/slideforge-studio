@@ -462,18 +462,24 @@ function _dataUrlToFile(dataUrl, filename = "video.mp4") {
 
 async function migrateInlineVideoAssets() {
     if (typeof isBackendApiAvailable === "function" && !isBackendApiAvailable()) return false;
-    if (window.__inlineVideoMigrationPromise) return window.__inlineVideoMigrationPromise;
-
-    window.__inlineVideoMigrationPromise = (async () => {
+    const presentation = state, presentationId = currentPresentationId;
+    const previous = window.__inlineVideoMigrationContext;
+    if (window.__inlineVideoMigrationPromise && previous?.state === presentation && previous?.id === presentationId) {
+        return window.__inlineVideoMigrationPromise;
+    }
+    const stillCurrent = () => state === presentation && currentPresentationId === presentationId;
+    const context = { state: presentation, id: presentationId };
+    window.__inlineVideoMigrationContext = context;
+    const job = (async () => {
         const candidates = [];
-        (state.slides || []).forEach((slide, slideIndex) => {
-            (slide.elements || []).forEach((el, elementIndex) => {
+        (presentation.slides || []).forEach(slide => {
+            (slide.elements || []).forEach(el => {
                 if (el?.type === "video" && typeof el.content === "string" && el.content.startsWith("data:video/")) {
-                    candidates.push({ slideIndex, elementIndex, el });
+                    candidates.push({ slideId: slide.id, el: { id: el.id, type: el.type, content: el.content } });
                 }
                 // Sounds carried in a deck's JSON file are stored as uploads again, like videos.
                 if (el?.type === "audio" && typeof el.content === "string" && el.content.startsWith("data:audio/")) {
-                    candidates.push({ slideIndex, elementIndex, el });
+                    candidates.push({ slideId: slide.id, el: { id: el.id, type: el.type, content: el.content } });
                 }
             });
         });
@@ -486,6 +492,7 @@ async function migrateInlineVideoAssets() {
 
         let changed = false;
         for (const candidate of candidates) {
+            if (!stillCurrent()) return false;
             const isAudio = candidate.el.type === "audio";
             const audioType = isAudio ? candidate.el.content.slice(11).split(/[;,]/)[0].toLowerCase() : "";
             const audioExt = { mpeg: "mp3", mp3: "mp3", mp4: "m4a", "x-m4a": "m4a", aac: "aac", wav: "wav", "x-wav": "wav", ogg: "ogg", flac: "flac", webm: "weba" }[audioType] || "mp3";
@@ -493,9 +500,11 @@ async function migrateInlineVideoAssets() {
                 ? `${candidate.el.id || "audio"}.${audioExt}`
                 : `${candidate.el.id || "video"}${candidate.el.content.includes("data:video/webm") ? ".webm" : ".mp4"}`;
             const file = _dataUrlToFile(candidate.el.content, filename);
-            const upload = await _uploadAssetFile(file);
-            const target = state.slides[candidate.slideIndex]?.elements?.[candidate.elementIndex];
-            if (!target) continue;
+            const upload = await _uploadAssetFile(file, { presentationId });
+            if (!stillCurrent()) return false;
+            const target = state.slides.find(slide => slide.id === candidate.slideId)?.elements?.find(el => el.id === candidate.el.id);
+            // Reordering, deletion or replacing the source while uploading must not retarget the result.
+            if (!target || target.type !== candidate.el.type || target.content !== candidate.el.content) continue;
             target.content = upload.url;
             if (isAudio) {
                 if (upload.webmUrl) target.audioWebm = upload.webmUrl;
@@ -519,10 +528,14 @@ async function migrateInlineVideoAssets() {
         return changed;
     })();
 
+    window.__inlineVideoMigrationPromise = job;
     try {
-        return await window.__inlineVideoMigrationPromise;
+        return await job;
     } finally {
-        window.__inlineVideoMigrationPromise = null;
+        if (window.__inlineVideoMigrationContext === context) {
+            window.__inlineVideoMigrationPromise = null;
+            window.__inlineVideoMigrationContext = null;
+        }
     }
 }
 

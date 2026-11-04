@@ -190,6 +190,8 @@ function disableSlidePlugin(id) {
     _sfSwitchedOff.add(id);
     if (!_sfPlugins.delete(id)) return;
     _removePluginInsertControls(id);
+    // Its open explorers are forgotten: switching the plugin back on shows the saved pictures, not live views.
+    for (const elementId of _sfPluginExplorersOpen) if (_findPluginElementInState(elementId)?.pluginId === id) _sfPluginExplorersOpen.delete(elementId);
     if (countPluginObjects(id) && typeof renderSlidesFromState === "function") renderSlidesFromState();
     if (state?.selectedIds?.length && typeof buildPropertiesPanel === "function") buildPropertiesPanel();
 }
@@ -611,6 +613,13 @@ function getPluginElementNotice(id) {
 // Optional live views sit over the saved SVG only in the main editor/show. Thumbnails and exports remain stills.
 // One observer owns cleanup across slide rebuilds, deletion, undo, plugin switching and presentation changes.
 const _sfPluginLiveViews = new Set();
+// Element ids whose explorer the user opened. A slide rebuild (any saved change, including a view the explorer
+// saves itself) makes new entries; they reopen from this, so saving never closes the explorer under the pointer.
+const _sfPluginExplorersOpen = new Set();
+function _setPluginExplorerOpen(entry, open) {
+    entry.manual = open;
+    if (open) _sfPluginExplorersOpen.add(entry.id); else _sfPluginExplorersOpen.delete(entry.id);
+}
 let _sfPluginLiveObserver = null;
 function _disposePluginLiveView(entry) {
     entry.controller?.abort();
@@ -632,6 +641,7 @@ function _syncPluginLiveViews() {
         entry.toggle.hidden = presenting;
         entry.toggle.textContent = entry.manual ? "Close explorer" : "Explore";
         entry.toggle.setAttribute("aria-expanded", String(entry.manual));
+        if (!source) _sfPluginExplorersOpen.delete(entry.id);
         if (!source || !plugin || !active || (!presenting && !entry.manual)) { _disposePluginLiveView(entry); continue; }
         const data = normalizePluginData(plugin, source.pluginData), key = `${presenting}:` + _pluginPreviewKey(plugin, data, source);
         if (entry.key === key || entry.failedKey === key) continue;
@@ -647,7 +657,7 @@ function _syncPluginLiveViews() {
         }
         viewport.addEventListener("keydown", event => {
             if (event.key === "Escape") {
-                if (!presenting) { event.preventDefault(); event.stopPropagation(); entry.manual = false; _syncPluginLiveViews(); entry.toggle.focus(); }
+                if (!presenting) { event.preventDefault(); event.stopPropagation(); _setPluginExplorerOpen(entry, false); _syncPluginLiveViews(); entry.toggle.focus(); }
             } else event.stopPropagation();
         }, { signal: controller.signal });
         entry.box.appendChild(viewport);
@@ -678,12 +688,12 @@ function _trackPluginLiveView(plugin, host, box, image, note, source) {
     toggle.dataset.presentationUi = "true";
     toggle.setAttribute("aria-label", `Explore ${plugin.name}`);
     box.appendChild(toggle);
-    const entry = { host, box, image, note, toggle, id: source.id, manual: false };
+    const entry = { host, box, image, note, toggle, id: source.id, manual: _sfPluginExplorersOpen.has(source.id) };
     _sfPluginLiveViews.add(entry);
     toggle.addEventListener("pointerdown", event => event.stopPropagation());
     toggle.addEventListener("mousedown", event => event.stopPropagation());
     toggle.addEventListener("dblclick", event => event.stopPropagation());
-    toggle.addEventListener("click", event => { event.stopPropagation(); entry.manual = !entry.manual; entry.failedKey = null; _syncPluginLiveViews(); });
+    toggle.addEventListener("click", event => { event.stopPropagation(); _setPluginExplorerOpen(entry, !entry.manual); entry.failedKey = null; _syncPluginLiveViews(); });
     if (!_sfPluginLiveObserver) {
         _sfPluginLiveObserver = new MutationObserver(records => {
             if (records.some(r => r.type === "attributes" && (r.target === document.body || r.target.classList?.contains("presentation-slide")) || r.type === "childList" && [...r.removedNodes].some(n => n.nodeType === 1))) _syncPluginLiveViews();

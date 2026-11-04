@@ -157,7 +157,7 @@
             // Room around the box for its axis labels, and under it for the surfaces' names.
             // Sideways the labels need their width (the value name sits beside the upright axis).
             const labelWidth = data.axesBox ? Math.max(...[data.valueLabel, data.yLabel, data.xLabel].map(v => measure(v, Math.max(10, font - 1))), ...[zLowText(), zHighText()].map(v => measure(v, small))) : 0;
-            const marginX = data.axesBox ? Math.max(font * 2.6, labelWidth + font * 1.6) : 8, margin = data.axesBox ? font * 2.6 : 8, names = surfaces.length > 1 ? font + 10 : 0;
+            const marginX = data.axesBox ? Math.max(font * 2.6, labelWidth + font * 1.6) : 8, margin = data.axesBox ? font * 3.3 : 8, names = surfaces.length > 1 ? font + 10 : 0;
             plot = { x: pad, y: top, w: Math.max(40, barX - gap - pad), h: Math.max(40, height - top - pad) };
             const fit = Math.max(1, Math.min((plot.w - 2 * marginX) / spanX, (plot.h - 2 * margin - names) / spanY)), scale = fit * camera.zoom;
             // When the height limits the drawing, the drawing and its color bar are centred together: no wide empty
@@ -215,22 +215,29 @@
                 const clear = b => placed.every(o => b.right < o.left || b.left > o.right || b.bottom < o.top || b.top > o.bottom);
                 const inside = b => b.left >= plot.x && b.right <= plot.x + plot.w && b.top >= plot.y && b.bottom <= plot.y + plot.h;
                 const label = (value, x, y, anchor, size) => { const b = boxOf(value, x, y, anchor, size); if (!clear(b) || !inside(b)) return false; placed.push(b); text(value, x, y, anchor, size); return true; };
+                // Each axis carries round tick values along its edge (as many as fit), with short marks pointing out of
+                // the box. An axis seen end-on (straight-on views) shrinks to a point: it is left out, not stacked up.
                 const axis = ([a, b], from, to, name) => {
-                    const A = cage[a], B = cage[b], M = mid(A, B);
-                    let dx = M.sx - centroid.sx, dy = M.sy - centroid.sy; const length = Math.hypot(dx, dy) || 1; dx /= length; dy /= length;
+                    const A = cage[a], B = cage[b], M = mid(A, B), edge = Math.hypot(B.sx - A.sx, B.sy - A.sy);
+                    if (edge < 24) return;
+                    let dx = M.sx - centroid.sx, dy = M.sy - centroid.sy; const length = Math.hypot(dx, dy);
+                    // Straight on, the edge can pass through the centre: point away from it, across the edge.
+                    if (length < 1) { dx = -(B.sy - A.sy) / edge; dy = (B.sx - A.sx) / edge; } else { dx /= length; dy /= length; }
                     const anchor = dx > 0.35 ? "start" : dx < -0.35 ? "end" : "middle";
                     line([[A.sx, A.sy], [B.sx, B.sy]], ink, 1, 0.8, true);
-                    // Each value sits a little along its own edge, so values of axes that meet at a corner part.
-                    for (const [P, Q, value] of [[A, B, from], [B, A, to]]) {
-                        label(value, P.sx + (Q.sx - P.sx) * 0.07 + dx * small * 0.9, P.sy + (Q.sy - P.sy) * 0.07 + dy * small * 0.9 + small * 0.35, anchor, small);
+                    const marks = ticks(from, to, Math.max(1, Math.min(6, Math.floor(edge / 55))));
+                    for (const value of marks.values) {
+                        const f = to > from ? (value - from) / (to - from) : 0, x = A.sx + (B.sx - A.sx) * f, y = A.sy + (B.sy - A.sy) * f;
+                        line([[x, y], [x + dx * 5, y + dy * 5]], ink, 0.8, 0.8);
+                        label(tickText(value, marks.decimals), x + dx * (small * 0.6 + 6), y + dy * (small * 0.6 + 6) + small * 0.35, anchor, small);
                     }
                     const size = Math.max(10, font - 1);
-                    for (const out of [1.5, 2.2, 3, 3.8]) if (label(name, M.sx + dx * font * out, M.sy + dy * font * out + font * 0.35, anchor, size)) break;
+                    for (const out of [1.9, 2.6, 3.4, 4.2]) if (label(name, M.sx + dx * font * out, M.sy + dy * font * out + font * 0.35, anchor, size)) break;
                 };
-                axis(lowest([[0, 1], [3, 2]]), short(xMin), short(xMax), data.xLabel);
+                axis(lowest([[0, 1], [3, 2]]), xMin, xMax, data.xLabel);
                 // Beside other boxes the y axis goes on the outer (left) side, away from the next box.
-                axis((surfaces.length > 1 ? leftmost : lowest)([[0, 3], [1, 2]]), short(yMin), short(yMax), data.yLabel);
-                axis(leftmost([[0, 4], [1, 5], [2, 6], [3, 7]]), short(zLow), short(zHigh), data.valueLabel);
+                axis((surfaces.length > 1 ? leftmost : lowest)([[0, 3], [1, 2]]), yMin, yMax, data.yLabel);
+                axis(leftmost([[0, 4], [1, 5], [2, 6], [3, 7]]), zLow, zHigh, data.valueLabel);
             }
             // The surfaces' names share one line under the lowest box.
             const namesY = Math.min(height - pad, Math.max(...all.map(p => screen(p).sy)) + (data.axesBox ? font * 2.4 : font + 4));
@@ -302,40 +309,113 @@
         }
         return nearest;
     }
+    // Set when a saved view rebuilds the slide while the plot has focus, so the remounted plot takes it back.
+    let refocus = false;
     function mount(host, data, context) {
         const grid = api.dataset(data, context.parseTable), canvas = document.createElement("canvas"), toolbar = document.createElement("div"), readout = document.createElement("output");
         const gpuCanvas = document.createElement("canvas"), surface = data.view === "surface", renderer = surface ? api.createSurfaceRenderer(gpuCanvas) : null;
-        canvas.className = "landscape-canvas"; canvas.tabIndex = 0; canvas.setAttribute("aria-label", "Landscape. Hover or tap for values. Drag to orbit, shift or right-drag to pan. Pinch or wheel to zoom. Arrow keys rotate; plus and minus zoom.");
+        canvas.className = "landscape-canvas"; canvas.classList.toggle("is-surface", surface); canvas.tabIndex = 0; canvas.setAttribute("aria-label", surface ? "Landscape. Hover or tap for values. Drag to orbit, shift or right-drag to pan. Pinch or wheel to zoom. Arrow keys rotate; plus and minus zoom." : "Landscape. Hover or tap to inspect values.");
         toolbar.className = "landscape-toolbar"; toolbar.setAttribute("role", "toolbar"); toolbar.setAttribute("aria-label", "Landscape view");
         readout.className = "landscape-readout"; readout.textContent = surface ? "Drag to orbit · Shift-drag to pan · Wheel to zoom" : "Hover or tap to inspect values";
         host.append(canvas, toolbar, readout);
-        const initial = () => ({ yaw: data.yaw, pitch: data.pitch, zoom: data.zoom, panX: data.panX || 0, panY: data.panY || 0 });
-        let camera = initial(), current, drag = null, frame = null, gesture = null;
+        const initial = () => ({ autoRotate: data.autoRotate === true, rotationSpeed: data.rotationSpeed || 20, yaw: data.yaw, pitch: data.pitch, zoom: data.zoom, panX: data.panX || 0, panY: data.panY || 0 });
+        let camera = initial(), current, drag = null, frame = null, gesture = null, lastTime = null, disposed = false, tween = null, saveTimer = null;
         const touches = new Map();
         const options = { signal: context.signal };
-        const draw = () => { frame = null; current = scene(data, grid, context, camera); const gpu = renderer?.render(current); canvas.dataset.engine = gpu ? "webgl" : "canvas"; paint(canvas, current, gpu ? gpuCanvas : null); };
+        const draw = time => {
+            frame = null;
+            if (disposed || context.signal.aborted) return;
+            if (tween && Number.isFinite(time)) {
+                tween.start ??= time;
+                const t = Math.min(1, (time - tween.start) / 280), e = t * t * (3 - 2 * t);
+                for (const key of Object.keys(tween.to)) camera[key] = tween.from[key] + (tween.to[key] - tween.from[key]) * e;
+                if (t === 1) { tween = null; syncViewButtons(); saveView(0); }
+            } else if (surface && camera.autoRotate && !drag && !gesture && !document.hidden && lastTime !== null && Number.isFinite(time)) {
+                camera.yaw = (camera.yaw + camera.rotationSpeed * Math.min(0.1, Math.max(0, (time - lastTime) / 1000))) % 360;
+                readout.classList.remove("is-visible");
+            }
+            lastTime = Number.isFinite(time) ? time : null; current = scene(data, grid, context, camera); const gpu = renderer?.render(current); canvas.dataset.engine = gpu ? "webgl" : "canvas"; paint(canvas, current, gpu ? gpuCanvas : null);
+            if (surface && (camera.autoRotate || tween)) redraw();
+        };
         const redraw = () => { if (frame === null) frame = requestAnimationFrame(draw); };
+        // The view you leave the surface at is the slide's view (and its export): saved, as one undo step, once an
+        // orbit, zoom or pan settles. Saving rebuilds the slide; the editor keeps this explorer open across that,
+        // and keyboard focus comes back to the plot. A running show never changes the saved deck.
+        const round = (v, step) => Number((Math.round(v / step) * step).toFixed(3));
+        let saved = { yaw: data.yaw, pitch: data.pitch, zoom: data.zoom, panX: data.panX || 0, panY: data.panY || 0, autoRotate: data.autoRotate === true, rotationSpeed: data.rotationSpeed || 20 };
+        const saveView = (delay = 350) => {
+            clearTimeout(saveTimer);
+            if (context.isPresenting || typeof context.update !== "function") return;
+            saveTimer = setTimeout(() => {
+                if (disposed || drag || gesture || tween) return;
+                const view = { yaw: round(camera.yaw, 0.1), pitch: round(camera.pitch, 0.1), zoom: round(camera.zoom, 0.001), panX: round(camera.panX, 0.001), panY: round(camera.panY, 0.001), autoRotate: camera.autoRotate, rotationSpeed: camera.rotationSpeed };
+                if (Object.keys(view).every(key => view[key] === saved[key])) return;
+                saved = view; refocus = host.contains(document.activeElement);
+                context.update(view);
+            }, delay);
+        };
         // Icon buttons; the accessible name says what each does, and shows as its tooltip.
-        const button = (label, icon, action) => {
+        const button = (label, icon, action, text) => {
             const b = document.createElement("button"); b.type = "button"; b.title = label; b.setAttribute("aria-label", label);
-            const i = document.createElement("i"); i.className = `fa-solid ${icon}`; i.setAttribute("aria-hidden", "true"); b.append(i);
+            if (text) { b.textContent = text; b.className = "landscape-view-button"; }
+            else { const i = document.createElement("i"); i.className = `fa-solid ${icon}`; i.setAttribute("aria-hidden", "true"); b.append(i); }
             b.addEventListener("click", action, options); toolbar.append(b); return b;
         };
-        const zoom = amount => { camera.zoom = Math.max(0.25, Math.min(4, camera.zoom * amount)); redraw(); };
+        const zoom = amount => { camera.zoom = Math.max(0.25, Math.min(4, camera.zoom * amount)); redraw(); saveView(); };
+        // Straight-on views look along one axis, like Mayavi's view buttons; 3D is the angled view you can orbit.
+        const views = [
+            { name: "Top", label: "Top view: look straight down the value axis", yaw: 0, pitch: 90 },
+            { name: "Front", label: "Front view: look along the y axis", yaw: 0, pitch: 0 },
+            { name: "Side", label: "Side view: look along the x axis", yaw: -90, pitch: 0 },
+            { name: "3D", label: "3D view: the angled view", yaw: -35, pitch: 40 },
+        ];
+        const viewButtons = [];
+        const angle = v => ((v % 360) + 540) % 360 - 180;
+        const syncViewButtons = () => {
+            for (const [b, v] of viewButtons) b.setAttribute("aria-pressed", String(Math.abs(angle(camera.yaw - v.yaw)) < 0.5 && Math.abs(camera.pitch - v.pitch) < 0.5));
+        };
+        const goTo = v => {
+            camera.autoRotate = false; syncRotationControls();
+            // The short way round, so a turn of 350 degrees is a turn of 10.
+            const to = { yaw: camera.yaw + angle(v.yaw - camera.yaw), pitch: v.pitch, zoom: 1, panX: 0, panY: 0 };
+            tween = { from: Object.fromEntries(Object.keys(to).map(key => [key, camera[key]])), to, start: null };
+            lastTime = null; redraw();
+        };
+        let autoButton, speedSelect;
+        const syncRotationControls = () => {
+            if (!autoButton) return;
+            const label = camera.autoRotate ? "Pause auto rotation" : "Start auto rotation";
+            autoButton.title = label; autoButton.setAttribute("aria-label", label);
+            autoButton.setAttribute("aria-pressed", String(camera.autoRotate));
+            autoButton.querySelector("i").className = "fa-solid " + (camera.autoRotate ? "fa-pause" : "fa-play");
+            // Speed only matters while rotating; hiding it otherwise keeps the toolbar clear of the title.
+            speedSelect.hidden = !camera.autoRotate;
+            speedSelect.value = String(camera.rotationSpeed);
+            if (!speedSelect.value) {
+                const option = document.createElement("option"); option.value = String(camera.rotationSpeed);
+                option.textContent = camera.rotationSpeed + "°/s"; speedSelect.append(option); speedSelect.value = option.value;
+            }
+        };
         if (surface) {
-            button("Zoom out", "fa-minus", () => zoom(0.9));
-            button("Zoom in", "fa-plus", () => zoom(1.1));
-            button("Fit surface to the box", "fa-expand", () => { camera = { ...camera, zoom: 1, panX: 0, panY: 0 }; redraw(); });
-        }
-        button("Reset view", "fa-rotate-left", () => { camera = initial(); redraw(); });
-        if (surface && !context.isPresenting) {
-            button("Use view for export", "fa-camera", () => context.update(camera));
+            for (const v of views) viewButtons.push([button(v.label, null, () => goTo(v), v.name), v]);
+            syncViewButtons();
+            autoButton = button("Start auto rotation", "fa-play", () => { camera.autoRotate = !camera.autoRotate; lastTime = null; syncRotationControls(); redraw(); saveView(0); });
+            speedSelect = document.createElement("select"); speedSelect.setAttribute("aria-label", "Auto rotation speed");
+            for (const speed of [5, 10, 20, 45, 90]) {
+                const option = document.createElement("option"); option.value = String(speed); option.textContent = speed + "°/s"; speedSelect.append(option);
+            }
+            speedSelect.addEventListener("change", () => { camera.rotationSpeed = Number(speedSelect.value); saveView(0); }, options);
+            toolbar.append(speedSelect); syncRotationControls();
+            // Wheel and pinch also zoom, so narrow boxes drop these buttons first (see components.css).
+            for (const b of [button("Zoom out", "fa-minus", () => zoom(0.9)), button("Zoom in", "fa-plus", () => zoom(1.1))]) b.classList.add("landscape-zoom");
+            button("Fit surface to the box", "fa-expand", () => { camera = { ...camera, zoom: 1, panX: 0, panY: 0 }; redraw(); saveView(0); }).classList.add("landscape-fit");
             // The element's box shrinks (or grows) to the drawing as now shown: no empty margins around the surface.
-            if (typeof context.resize === "function") button("Crop box to content", "fa-crop-simple", () => {
+            if (!context.isPresenting && typeof context.resize === "function") button("Crop box to content", "fa-crop-simple", () => {
+                clearTimeout(saveTimer);
                 const crop = (current || scene(data, grid, context, camera)).crop;
-                if (crop) context.resize(crop, { yaw: camera.yaw, pitch: camera.pitch, zoom: 1, panX: 0, panY: 0 });
+                if (crop) context.resize(crop, { yaw: camera.yaw, pitch: camera.pitch, autoRotate: camera.autoRotate, rotationSpeed: camera.rotationSpeed, zoom: 1, panX: 0, panY: 0 });
             });
-        }
+        } else toolbar.hidden = true;
         const place = event => {
             const box = host.getBoundingClientRect(), x = event.clientX - box.left, y = event.clientY - box.top;
             const w = readout.offsetWidth, h = readout.offsetHeight;
@@ -355,8 +435,10 @@
         canvas.addEventListener("pointerleave", () => readout.classList.remove("is-visible"), options);
         canvas.addEventListener("pointerdown", event => {
             if (![0, 2].includes(event.button)) return;
-            event.preventDefault(); canvas.focus(); canvas.setPointerCapture(event.pointerId);
+            event.preventDefault(); canvas.focus({ preventScroll: true }); canvas.setPointerCapture(event.pointerId);
+            clearTimeout(saveTimer); tween = null;
             if (event.pointerType === "touch") { touches.set(event.pointerId, { x: event.clientX, y: event.clientY }); if (touches.size === 2) { gesture = { ...pinch(), ...camera }; drag = null; return; } }
+            canvas.classList.toggle("is-dragging", surface);
             drag = { id: event.pointerId, x: event.clientX, y: event.clientY, ...camera, pan: event.shiftKey || event.button === 2 }; inspect(event);
         }, options);
         canvas.addEventListener("pointermove", event => {
@@ -366,28 +448,51 @@
                 const rect = canvas.getBoundingClientRect();
                 readout.classList.remove("is-visible");
                 if (drag.pan) { camera.panX = Math.max(-1, Math.min(1, drag.panX + (event.clientX - drag.x) / rect.width)); camera.panY = Math.max(-1, Math.min(1, drag.panY + (event.clientY - drag.y) / rect.height)); }
-                else { camera.yaw = (drag.yaw + (event.clientX - drag.x) / rect.width * 240) % 360; camera.pitch = Math.max(-85, Math.min(85, drag.pitch + (event.clientY - drag.y) / rect.height * 120)); }
-                redraw();
+                else { camera.yaw = (drag.yaw + (event.clientX - drag.x) / rect.width * 240) % 360; camera.pitch = Math.max(-90, Math.min(90, drag.pitch + (event.clientY - drag.y) / rect.height * 120)); }
+                syncViewButtons(); redraw();
             }
             else inspect(event);
         }, options);
-        for (const name of ["pointerup", "pointercancel", "lostpointercapture"]) canvas.addEventListener(name, event => { touches.delete(event.pointerId); gesture = null; drag = null; }, options);
-        canvas.addEventListener("wheel", event => { event.preventDefault(); if (surface) zoom(event.deltaY > 0 ? 0.9 : 1.1); }, { ...options, passive: false });
+        for (const name of ["pointerup", "pointercancel", "lostpointercapture"]) canvas.addEventListener(name, event => {
+            touches.delete(event.pointerId);
+            if (drag?.id === event.pointerId) drag = null;
+            if (gesture) {
+                gesture = null;
+                // Continue orbiting from the remaining finger without jumping to the old camera.
+                const remaining = [...touches.entries()][0];
+                if (remaining) { const [id, p] = remaining; drag = { id, x: p.x, y: p.y, ...camera, pan: false }; }
+            }
+            canvas.classList.toggle("is-dragging", surface && Boolean(drag));
+            if (surface && !drag && !gesture) saveView();
+        }, options);
+        canvas.addEventListener("wheel", event => { if (!surface || !event.deltaY) return;
+            event.preventDefault();
+            const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? canvas.clientHeight : 1);
+            readout.classList.remove("is-visible");
+            zoom(Math.exp(-Math.max(-200, Math.min(200, pixels)) * 0.0015)); }, { ...options, passive: false });
         canvas.addEventListener("keydown", event => {
             if (event.key === "Escape") return; // preserve the show's exit key
             if (surface) {
                 if (event.key === "ArrowLeft") camera.yaw -= 5;
                 else if (event.key === "ArrowRight") camera.yaw += 5;
-                else if (event.key === "ArrowUp") camera.pitch = Math.max(-85, camera.pitch - 5);
-                else if (event.key === "ArrowDown") camera.pitch = Math.min(85, camera.pitch + 5);
+                else if (event.key === "ArrowUp") camera.pitch = Math.max(-90, camera.pitch - 5);
+                else if (event.key === "ArrowDown") camera.pitch = Math.min(90, camera.pitch + 5);
                 else if (["+", "="].includes(event.key)) zoom(1.1);
                 else if (event.key === "-") zoom(0.9);
                 else return;
-                event.preventDefault(); redraw();
+                event.preventDefault(); syncViewButtons(); redraw(); saveView(600);
             }
         }, options);
+        if (refocus) { refocus = false; canvas.focus({ preventScroll: true }); }
         draw();
-        return () => { if (frame !== null) cancelAnimationFrame(frame); drag = null; touches.clear(); renderer?.dispose(); host.replaceChildren(); };
+        const dispose = () => {
+            if (disposed) return;
+            disposed = true;
+            if (frame !== null) cancelAnimationFrame(frame);
+            clearTimeout(saveTimer); frame = null; drag = null; touches.clear(); renderer?.dispose(); host.replaceChildren();
+        };
+        context.signal.addEventListener("abort", dispose, { once: true });
+        return () => { context.signal.removeEventListener("abort", dispose); dispose(); };
     }
     Object.assign(api, { scene, svg, paint, pick, mount, ticks });
 })();

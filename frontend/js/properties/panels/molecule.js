@@ -94,6 +94,13 @@ function buildMoleculePanel(panel, data) {
                     </button>
                 </div>
                 <div class="mt-3 pt-3 border-t border-slate-200 space-y-2">
+                    <div class="text-[11px] text-slate-500 font-semibold">Trajectory playback</div>
+                    <label class="flex items-center gap-2 text-xs"><input id="prop-molecule-autoplay" type="checkbox" ${data.moleculePlayback?.autoplay ? "checked" : ""}> Play on slide entry</label>
+                    <label class="flex items-center justify-between text-xs">Speed (FPS)<input id="prop-molecule-fps" type="number" min="1" max="30" step="1" class="w-20" value="${normalizeMoleculePlayback(data.moleculePlayback).fps}"></label>
+                    <label class="flex items-center justify-between text-xs">Starting frame<input id="prop-molecule-start-frame" type="number" min="1" step="1" class="w-20" value="${normalizeMoleculePlayback(data.moleculePlayback).startFrame}"></label>
+                    <p class="text-[10px] text-slate-500">Saved for presentations. Frame stepping pauses playback.</p>
+                </div>
+                <div class="mt-3 pt-3 border-t border-slate-200 space-y-2">
                     <div class="text-[11px] text-slate-500 font-semibold uppercase tracking-wide">Representation Layer</div>
                     <input type="hidden" id="prop-molecule-layer-edit-id" value="">
                     <input type="text" id="prop-molecule-layer-selection" class="w-full text-xs" value="all" placeholder="all, protein, ligand, chain A, resi 42">
@@ -195,6 +202,20 @@ function bindMoleculePanel(data, onCommit) {
     }
     syncMoleculeElementNode(dom, merged, state.slides[currentSlideIndex]);
   };
+  const commitPlayback = () => onCommit(() => {
+    const playback = normalizeMoleculePlayback({
+      autoplay: document.getElementById("prop-molecule-autoplay").checked,
+      fps: document.getElementById("prop-molecule-fps").value,
+      startFrame: document.getElementById("prop-molecule-start-frame").value,
+    });
+    data.moleculePlayback = playback;
+    updateElementState(data.id, { moleculePlayback: playback });
+    refreshMoleculeDom({ moleculePlayback: playback });
+  });
+  for (const id of ["prop-molecule-autoplay", "prop-molecule-fps", "prop-molecule-start-frame"]) {
+    const field = document.getElementById(id);
+    if (field) field.onchange = commitPlayback;
+  }
   const normalizedLayers = () =>
     (Array.isArray(data.moleculeRepresentationLayers)
       ? data.moleculeRepresentationLayers
