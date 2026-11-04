@@ -6,7 +6,9 @@
    Its upright faces are weight 500 ("Medium"), so they cover 100-600; Windows names the upright sans face
    "CMU Sans Serif Medium", which PowerPoint files then name.
    STIX Two Math 2.13 (SIL OFL 1.1) stands in for Cambria Math, Office's equation font (licensed with Windows and
-   Office, not ours to ship): an installed Cambria Math, or one added from a file, is used instead. */
+   Office, not ours to ship): an installed Cambria Math, or one added from a file, is used instead. Both have one
+   weight: declared for 100-500, so bold equation letters are drawn bold (emboldened); declared for every weight,
+   the browser took the regular face for bold and drew it thin. */
 
 @font-face { font-family: "CMU Serif"; font-style: normal; font-weight: 100 600; font-display: swap; src: local("CMU Serif Roman"), local("CMUSerif-Roman"), url("cmu/cmunrm.woff2") format("woff2"); }
 @font-face { font-family: "CMU Serif"; font-style: normal; font-weight: 700 900; font-display: swap; src: local("CMU Serif Bold"), local("CMUSerif-Bold"), url("cmu/cmunbx.woff2") format("woff2"); }
@@ -28,5 +30,5 @@
 @font-face { font-family: "CMU Typewriter Text"; font-style: italic; font-weight: 100 600; font-display: swap; src: local("CMU Typewriter Text Italic"), local("CMUTypewriter-Italic"), url("cmu/cmunit.woff2") format("woff2"); }
 @font-face { font-family: "CMU Typewriter Text"; font-style: italic; font-weight: 700 900; font-display: swap; src: local("CMU Typewriter Text BoldItalic"), local("CMUTypewriter-BoldItalic"), url("cmu/cmuntx.woff2") format("woff2"); }
 
-@font-face { font-family: "STIX Two Math"; font-style: normal; font-weight: 100 900; font-display: swap; src: local("STIX Two Math"), local("STIXTwoMath-Regular"), url("stix-two-math/STIXTwoMath-Regular.woff2") format("woff2"); }
-@font-face { font-family: "Cambria Math"; font-style: normal; font-weight: 100 900; font-display: swap; src: local("Cambria Math"), local("CambriaMath"), url("stix-two-math/STIXTwoMath-Regular.woff2") format("woff2"); }
+@font-face { font-family: "STIX Two Math"; font-style: normal; font-weight: 100 500; font-display: swap; src: local("STIX Two Math"), local("STIXTwoMath-Regular"), url("stix-two-math/STIXTwoMath-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Cambria Math"; font-style: normal; font-weight: 100 500; font-display: swap; src: local("Cambria Math"), local("CambriaMath"), url("stix-two-math/STIXTwoMath-Regular.woff2") format("woff2"); }

@@ -198,6 +198,8 @@ The drawing and sketch modules under `frontend/js/drawing/` and `frontend/js/ske
 
 `frontend/js/export/importPptx.js` handles presentation import-related behavior where supported by the app.
 
+`frontend/js/export/importOmml.js` reads Office equations (OMML) in PowerPoint text boxes. A box with plain mathematics (letters, sub- and superscripts, brackets) comes in as editable text with the mathematics styled in its runs; a box that holds only equations comes in as an equation object (the OMML turned into LaTeX for KaTeX), with its frame and the colours of its terms. Only a box mixing words with fractions, radicals or other built-up mathematics keeps the picture PowerPoint stores beside it.
+
 The backend provides a separate PowerPoint export endpoint backed by `backend/slideforge/bridge/pptx_exporter.py`.
 
 ## Backend Architecture
