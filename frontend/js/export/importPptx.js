@@ -473,16 +473,9 @@ function _pptxParagraph(p, fontScale, links = {}, lineReduction = 0) {
         const largestPt = largestPx / ((96 / 72) * fontScale) || 18;
         return (percent / 100000) * 1.2 * largestPt;
     };
-    const runs = [];
-    Array.from(p.children).forEach(node => {
-        // A line break has a size of its own (its rPr), which sets the height of the line it ends: a title slide
-        // spaced its address down with breaks of 20 and 28 pt, and it came in a line and a half too high.
-        if (node.tagName === "a:br") {
-            const brSize = Number((_pptxChild(node, "a:rPr") || _pptxChild(pPr, "a:defRPr"))?.getAttribute("sz"));
-            runs.push({ br: true, size: brSize ? _pptxPx((brSize / 100) * (96 / 72) * fontScale) : null });
-        }
-        if (node.tagName !== "a:r" && node.tagName !== "a:fld") return;
-        const own = _pptxChild(node, "a:rPr");
+    // A run of text with its own properties (rPr) over the paragraph's defaults. `extra` sets what an equation's
+    // runs decide themselves (italic letters, raised or lowered scripts).
+    const makeRun = (value, own, extra = {}) => {
         const rPr = (_pptxChild(pPr, "a:defRPr") || own)?.cloneNode(true);
         if (rPr && own) {
             Array.from(own.attributes).forEach(a => rPr.setAttribute(a.name, a.value));
@@ -493,8 +486,8 @@ function _pptxParagraph(p, fontScale, links = {}, lineReduction = 0) {
         }
         const size = Number(rPr?.getAttribute("sz"));
         const runGradient = _pptxChild(rPr, "a:gradFill") ? _pptxFillBackground(_pptxChild(rPr, "a:gradFill"), null, _pptxCurrentThemeColors) : null;
-        runs.push({
-            text: _pptxSymbolFontText(_pptxFirst(node, "a:t")?.textContent || "", rPr),
+        const run = {
+            text: _pptxSymbolFontText(value, rPr),
             size: size ? _pptxPx((size / 100) * (96 / 72) * fontScale) : null,
             // Superscript and subscript (baseline="30000" / "-25000"): chemical formulas and units lost them.
             baseline: Number(rPr?.getAttribute("baseline")) || 0,
@@ -514,7 +507,29 @@ function _pptxParagraph(p, fontScale, links = {}, lineReduction = 0) {
             spacing: rPr?.hasAttribute("spc") ? Math.round((Number(rPr.getAttribute("spc")) / 100) * (96 / 72) * fontScale * 100) / 100 : null,
             // A linked run (a:hlinkClick) keeps its web address; it came in as plain text.
             link: _pptxClickLink(_pptxChild(rPr, "a:hlinkClick"), links),
-        });
+        };
+        if (extra.italic !== undefined) run.italic = extra.italic;
+        if (extra.bold !== undefined) run.bold = extra.bold;
+        if (extra.baseline) run.baseline = extra.baseline;
+        return run;
+    };
+    const runs = [];
+    Array.from(p.children).forEach(node => {
+        // A line break has a size of its own (its rPr), which sets the height of the line it ends: a title slide
+        // spaced its address down with breaks of 20 and 28 pt, and it came in a line and a half too high.
+        if (node.tagName === "a:br") {
+            const brSize = Number((_pptxChild(node, "a:rPr") || _pptxChild(pPr, "a:defRPr"))?.getAttribute("sz"));
+            runs.push({ br: true, size: brSize ? _pptxPx((brSize / 100) * (96 / 72) * fontScale) : null });
+        }
+        // An equation in the line (<a14:m>, plain: ommlShapePlan sent the box here): its letters, scripts and brackets
+        // as runs, in the paragraph's style.
+        if (node.tagName === "a14:m" && typeof ommlToRuns === "function") {
+            _pptxChildren(node, "m:oMathPara").concat(_pptxChildren(node, "m:oMath"))
+                .forEach(math => runs.push(...ommlToRuns(math, (text, own, extra) => makeRun(text, own, extra))));
+            return;
+        }
+        if (node.tagName !== "a:r" && node.tagName !== "a:fld") return;
+        runs.push(makeRun(_pptxFirst(node, "a:t")?.textContent || "", _pptxChild(node, "a:rPr")));
     });
     const text = runs.filter(run => !run.br);
     const length = text.reduce((sum, run) => sum + run.text.length, 0);
@@ -632,6 +647,59 @@ function _pptxRunsHtml(runs, box) {
         .join("");
 }
 
+// A PowerPoint text box of equations (ommlShapePlan's "equation") as an equation object in the box's place: the
+// LaTeX drawn by KaTeX at the equations' size and colour. KaTeX draws its letters about 1.21 times the size it is
+// given, so the size is divided by that. The box keeps its centre and grows to the equation if it is wider.
+function _pptxEquationElement(plan, design, box, fontScale, zIndex) {
+    if (!plan.latex || !(box.w > 0) || typeof katex === "undefined") return null;
+    let content;
+    try {
+        content = katex.renderToString(plan.latex, { throwOnError: true, displayMode: true });
+    } catch (_error) {
+        return null; // LaTeX KaTeX cannot draw: the picture stays.
+    }
+    // The equation's letters: their most common size and colour. A run that sets no colour has the deck's text
+    // colour, and counts as that (a black equation with one green term came in green otherwise).
+    const runProps = Array.from(plan.shape.getElementsByTagName("m:r")).map(r => _pptxChild(r, "a:rPr")).filter(Boolean);
+    const mostCommon = values => [...values.reduce((m, v) => (v == null ? m : m.set(v, (m.get(v) || 0) + 1)), new Map()).entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    const defaults = design ? _pptxTextDefaults(design, null) : {};
+    const sizeValue = mostCommon(runProps.map(r => Number(r.getAttribute("sz")) || null)) || Number(_pptxFirst(plan.shape, "a:endParaRPr")?.getAttribute("sz"));
+    const points = sizeValue / 100 || defaults.size || 18;
+    // A box shrunk to fit (normAutofit fontScale="62500") draws its equation that much smaller, as its text.
+    const autofit = Number(_pptxFirst(_pptxChild(plan.shape, "p:txBody"), "a:normAutofit")?.getAttribute("fontScale")) / 100000 || 1;
+    const fontSize = Math.max(6, Math.round((points * autofit * (96 / 72) * fontScale / 1.21) * 10) / 10);
+    // The colour most of its letters have; letters in another colour (a green k_off) keep theirs.
+    const textColor = defaults.color || "#000000";
+    const colorOf = rPr => _pptxColor(rPr) || textColor;
+    const color = mostCommon(runProps.map(colorOf)) || textColor;
+    if (new Set(runProps.map(colorOf)).size > 1 && typeof ommlShapeLatex === "function") {
+        const coloured = ommlShapeLatex(plan.shape, { color: colorOf, baseColor: color });
+        try {
+            content = katex.renderToString(coloured, { throwOnError: true, displayMode: true });
+            plan = { ...plan, latex: coloured };
+        } catch (_error) { /* the one-colour equation stays */ }
+    }
+    let { x, y, w, h } = box;
+    if (typeof equationLayout === "function") {
+        const natural = equationLayout(content, fontSize);
+        const needW = parseFloat(natural.width) * 1.08, needH = parseFloat(natural.height);
+        if (needW > w) { x -= (needW - w) / 2; w = needW; }
+        if (needH > h) { y -= (needH - h) / 2; h = needH; }
+    }
+    return {
+        id: generateId("el"),
+        type: "equation",
+        latexSrc: plan.latex,
+        x: Math.round(x),
+        y: Math.round(y),
+        width: `${Math.round(w)}px`,
+        height: `${Math.round(h)}px`,
+        content,
+        ...(box.rot ? { rotation: box.rot } : {}),
+        styles: { color, fontSize: `${fontSize}px`, zIndex, backgroundColor: "transparent" },
+    };
+}
+
 // Text boxes whose paragraphs set no alignment, neither themselves nor through the deck's text styles.
 const _pptxUnalignedText = new WeakSet();
 
@@ -656,6 +724,14 @@ function _pptxTextElement(sp, box, { fontScale, placeholder, zIndex, links, desi
         const own = _pptxChild(copy, "a:pPr");
         const level = Number(own?.getAttribute("lvl")) || 0;
         const inherited = _pptxParagraphDefaults(design, placeholder, sp, level);
+        // A paragraph that is a displayed equation (<m:oMathPara>) and sets no alignment itself is set as the
+        // equation says (m:jc), centred unless it says otherwise, not as the deck's text: words typed in such an
+        // equation came in at the box's left, off the slide in one deck.
+        if (!own?.hasAttribute("algn") && _pptxChildren(copy, "a14:m").some(m => _pptxChild(m, "m:oMathPara"))
+            && !_pptxChildren(copy, "a:r").some(r => /\S/.test(r.textContent))) {
+            const jc = _pptxFirst(_pptxFirst(copy, "m:oMathParaPr"), "m:jc")?.getAttribute("m:val");
+            inherited.setAttribute("algn", { left: "l", right: "r" }[jc] || "ctr");
+        }
         if (own) {
             Array.from(own.attributes).forEach(a => inherited.setAttribute(a.name, a.value));
             const bulletTags = ["a:buNone", "a:buChar", "a:buAutoNum"];
@@ -3008,7 +3084,28 @@ async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
             if (part.inherited && ["p:sp", "p:pic", "p:graphicFrame"].includes(node.tagName) && _pptxFirst(_pptxChild(node, node.tagName === "p:sp" ? "p:nvSpPr" : node.tagName === "p:pic" ? "p:nvPicPr" : "p:nvGraphicFramePr"), "p:ph")) continue;
             if (node.tagName === "mc:AlternateContent") {
                 // Content for newer PowerPoint (an equation, an ink drawing) and the picture of it older readers show.
+                // A text box with equations comes in as its text (plain mathematics as styled runs) or, when it is all
+                // equations, as an equation object; the picture only when words mix with equations that need LaTeX.
+                // The picture came in for all of them: words neither editable nor searchable, blurred when enlarged.
                 const fallback = _pptxChild(node, "mc:Fallback");
+                const choice = _pptxChildren(node, "mc:Choice").find(c => c.getElementsByTagName("a14:m").length);
+                const plan = choice && typeof ommlShapePlan === "function" ? ommlShapePlan(choice) : null;
+                if (plan?.mode === "text") {
+                    const before = elements.length;
+                    await walk(choice, t);
+                    if (elements.length > before) continue;
+                } else if (plan?.mode === "equation") {
+                    // The box's own fill and outline (a boxed, shaded equation) behind the equation.
+                    const equationBox = toBox(_pptxXfrm(plan.shape) || {}, t);
+                    const frame = equationBox.w > 0 ? _pptxShapeElement(plan.shape, equationBox, zIndex) : null;
+                    const equation = _pptxEquationElement(plan, design, equationBox, scale * (t.fs || 1), frame ? zIndex + 1 : zIndex);
+                    if (equation) {
+                        const made = [frame, equation].filter(Boolean);
+                        elements.push(...made);
+                        register(plan.shape, ...made);
+                        continue;
+                    }
+                }
                 if (fallback) await walk(fallback, t);
             } else if (node.tagName === "p:grpSp") {
                 const g = _pptxXfrm(node);

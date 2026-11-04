@@ -9995,6 +9995,76 @@ async function test(name, fn) {
             await page.close();
         });
 
+        await test("PowerPoint import: text boxes with equations come in as text and equations, not as their pictures", async () => {
+            const { page, errors } = await openEditor(context);
+            const out = await pageAwait(page, async () => {
+                const ns = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"';
+                const rels = list => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${list.map(([id, type, target]) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`).join("")}</Relationships>`;
+                const r = (text, rPr = '<a:rPr lang="en-US" i="1"><a:latin typeface="Cambria Math"/></a:rPr>', mPr = "") => `<m:r>${mPr}${rPr}<m:t>${text}</m:t></m:r>`;
+                const frac = (num, den) => `<m:f><m:num>${num}</m:num><m:den>${den}</m:den></m:f>`;
+                const sub = (base, script) => `<m:sSub><m:e>${base}</m:e><m:sub>${script}</m:sub></m:sSub>`;
+                // A box as PowerPoint keeps it: text with equations, and the picture of it older readers show.
+                const box = (id, y, paragraphs, extraSpPr = "") => `<mc:AlternateContent><mc:Choice Requires="a14"><p:sp><p:nvSpPr><p:cNvPr id="${id}" name="TextBox ${id}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="914400" y="${y}"/><a:ext cx="6000000" cy="700000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>${extraSpPr}</p:spPr><p:txBody><a:bodyPr wrap="square"/><a:lstStyle/>${paragraphs}</p:txBody></p:sp></mc:Choice><mc:Fallback><p:sp><p:nvSpPr><p:cNvPr id="${id}" name="TextBox ${id}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="914400" y="${y}"/><a:ext cx="6000000" cy="700000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:blipFill><a:blip r:embed="rId2"/><a:stretch><a:fillRect/></a:stretch></a:blipFill></p:spPr><p:txBody><a:bodyPr/><a:p><a:r><a:rPr lang="en-IN"><a:noFill/></a:rPr><a:t> </a:t></a:r></a:p></p:txBody></p:sp></mc:Fallback></mc:AlternateContent>`;
+                const words = text => `<a:r><a:rPr lang="en-US" sz="2400"/><a:t>${text}</a:t></a:r>`;
+                // 1. Words with plain mathematics: "Heating for 5 ns", a bold vector R_i (𝑹 is bold italic).
+                const plain = box(2, 500000, `<a:p>${words("Heating for ")}<a14:m><m:oMath>${r("5 ns", '<a:rPr lang="en-US"><a:latin typeface="Cambria Math"/></a:rPr>', '<m:rPr><m:sty m:val="p"/></m:rPr>')}</m:oMath></a14:m>${words(" then ")}<a14:m><m:oMath>${sub(r("𝑹"), r("𝑖"))}${r("=")}${r("0")}</m:oMath></a14:m></a:p>`);
+                // 2. Only an equation, displayed, framed, one term green: K_D = [E][L] / k_on.
+                const green = '<a:rPr lang="en-US" i="1"><a:solidFill><a:srgbClr val="00B050"/></a:solidFill><a:latin typeface="Cambria Math"/></a:rPr>';
+                const display = box(3, 1500000, `<a:p><a14:m><m:oMathPara><m:oMath>${sub(r("𝐾"), r("𝐷"))}${r("=")}${frac(r("[𝐸][𝐿]"), sub(r("𝑘", green), r("𝑜𝑛", green)))}${r("+")}<m:nary><m:naryPr><m:chr m:val="∑"/></m:naryPr><m:sub>${r("𝑗")}</m:sub><m:sup>${r("𝑁")}</m:sup><m:e>${r("𝑥")}</m:e></m:nary></m:oMath></m:oMathPara></a14:m></a:p>`, '<a:ln w="12700"><a:solidFill><a:srgbClr val="C00000"/></a:solidFill></a:ln>');
+                // 3. Words and a fraction: the picture stays (the most faithful, until text can hold LaTeX).
+                const mixed = box(4, 2500000, `<a:p>${words("Rate ")}<a14:m><m:oMath>${frac(r("1"), r("𝜏"))}</m:oMath></a14:m></a:p>`);
+                // 4. An equation set in the line (no oMathPara): text-size fractions.
+                const inline = box(5, 3500000, `<a:p><a14:m><m:oMath>${r("𝑦")}${r("=")}${frac(r("1"), r("2"))}</m:oMath></a14:m></a:p>`);
+                const canvas = document.createElement("canvas"); canvas.width = 40; canvas.height = 4;
+                const png = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+                const zip = new JSZip();
+                zip.file("ppt/presentation.xml", `<p:presentation ${ns}><p:sldIdLst><p:sldId id="256" r:id="rId1"/><p:sldId id="257" r:id="rId2"/></p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/></p:presentation>`);
+                zip.file("ppt/_rels/presentation.xml.rels", rels([["rId1", "slide", "slides/slide1.xml"], ["rId2", "slide", "slides/slide2.xml"]]));
+                zip.file("ppt/slides/slide1.xml", `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>${plain}${display}${mixed}${inline}</p:spTree></p:cSld></p:sld>`);
+                zip.file("ppt/slides/_rels/slide1.xml.rels", rels([["rId2", "image", "../media/image1.png"]]));
+                zip.file("ppt/slides/slide2.xml", `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/></p:spTree></p:cSld></p:sld>`);
+                zip.file("ppt/media/image1.png", png);
+                await importPptx(new File([await zip.generateAsync({ type: "blob" })], "Equations.pptx"));
+                const elements = state.slides[0].elements;
+                const text = elements.find(e => e.type === "text" && /Heating/.test(e.content || ""));
+                const scratch = document.createElement("div"); scratch.innerHTML = text?.content || "";
+                const equations = elements.filter(e => e.type === "equation");
+                const frame = elements.find(e => e.type === "shape" && /c00000/i.test(e.styles?.borderColor || ""));
+                // The converter on its own: what Office writes, the LaTeX KaTeX draws.
+                const doc = new DOMParser().parseFromString(`<root ${ns}>
+                    <m:oMath><m:rad><m:deg>${r("3")}</m:deg><m:e>${r("𝑥")}</m:e></m:rad></m:oMath>
+                    <m:oMath><m:acc><m:accPr><m:chr m:val="⃗"/></m:accPr><m:e>${r("𝑣")}</m:e></m:acc></m:oMath>
+                    <m:oMath><m:func><m:fName>${r("sin", '<a:rPr lang="en-US"/>', '<m:rPr><m:sty m:val="p"/></m:rPr>')}</m:fName><m:e>${r("𝜃")}</m:e></m:func></m:oMath>
+                    <m:oMath><m:limLow><m:e>${r("lim", '<a:rPr lang="en-US"/>', '<m:rPr><m:sty m:val="p"/></m:rPr>')}</m:e><m:lim>${r("𝑥→0")}</m:lim></m:limLow></m:oMath>
+                    <m:oMath><m:eqArr><m:e>${r("1")}</m:e><m:e>${r("0 (else)")}</m:e></m:eqArr></m:oMath>
+                    <m:oMath><m:m><m:mr><m:e>${r("𝑎")}</m:e><m:e>${r("𝑏")}</m:e></m:mr><m:mr><m:e>${r("𝑐")}</m:e><m:e>${r("𝑑")}</m:e></m:mr></m:m></m:oMath>
+                    <m:oMath>${r("𝛯")}${r("𝛽")}${r("𝜇")}${r("𝑁")}</m:oMath>
+                    <m:oMath><m:sSup><m:e>${r("𝐺")}</m:e><m:sup>${r("′")}</m:sup></m:sSup>${r("′")}</m:oMath></root>`, "application/xml");
+                const latex = Array.from(doc.documentElement.children).map(math => ommlToLatex(math));
+                const drawn = latex.every(l => { try { katex.renderToString(l, { throwOnError: true }); return true; } catch (_e) { return false; } });
+                return {
+                    words: scratch.textContent.replace(/\s+/g, " "), html: text?.content || "",
+                    equations: equations.map(e => e.latexSrc), equationColor: equations[0]?.styles?.color,
+                    frame: Boolean(frame), frameBehind: frame && equations[0] ? frame.styles.zIndex < equations[0].styles.zIndex : null,
+                    pictures: elements.filter(e => e.type === "image").length, latex, drawn,
+                };
+            });
+            assert(/Heating for 5\s?ns then/.test(out.words) && /<sub>/.test(out.html) && /font-weight: 700|<b>|bold/.test(out.html), `plain mathematics as text: ${JSON.stringify(out.words)} ${out.html}`);
+            assert(out.equations.length === 2, `two equation objects: ${JSON.stringify(out.equations)}`);
+            const [displayed, inline] = out.equations;
+            assert(/\\frac/.test(displayed) && /\\sum/.test(displayed) && /\\textcolor\{#00b050\}/i.test(displayed) && !/^\\textstyle/.test(displayed), `displayed equation: ${displayed}`);
+            assert(/^\\textstyle /.test(inline) && /\\frac\{1\}\{2\}/.test(inline), `inline equation at text size: ${inline}`);
+            assert(out.frame && out.frameBehind, "the equation box keeps its outline, behind the equation");
+            assert(out.pictures === 1, `only the box mixing words and a fraction keeps its picture: ${out.pictures}`);
+            const [radical, accent, fn, limit, array, matrix, letters, primes] = out.latex;
+            assert(/\{\}'$/.test(primes), `a prime after a superscript is not a second superscript: ${primes}`);
+            assert(radical === "\\sqrt[3]{x}" && accent === "\\vec{v}" && /^\\sin /.test(fn) && /^\\lim_\{x\s*\\rightarrow 0\}/.test(limit), JSON.stringify(out.latex));
+            assert(/\\begin\{aligned\}&1 \\\\ &0/.test(array) && /\\begin\{matrix\}a & b \\\\ c & d\\end\{matrix\}/.test(matrix), JSON.stringify(out.latex));
+            assert(/\\varXi /.test(letters) && /\\mu N/.test(letters) && out.drawn, `letters and spacing: ${letters}; all drawn: ${out.drawn}`);
+            assert(!errors.length, errors.join("\n"));
+            await page.close();
+        });
+
         await test("PowerPoint import: Wingdings arrows in text read as arrows, and an equation's picture is not cut at its box", async () => {
             const { page, errors } = await openEditor(context);
             const out = await pageAwait(page, async () => {
