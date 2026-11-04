@@ -59,16 +59,15 @@ const fs = require("fs"), os = require("os"), path = require("path"), assert = r
         const point = { x: bounds.x + bounds.width * 0.5, y: bounds.y + bounds.height * 0.5 };
         await page.mouse.move(point.x, point.y); await page.mouse.down(); await page.mouse.move(point.x + 45, point.y + 15, { steps: 4 }); await page.mouse.up();
         await page.keyboard.down("Shift"); await page.mouse.down(); await page.mouse.move(point.x + 75, point.y + 35, { steps: 4 }); await page.mouse.up(); await page.keyboard.up("Shift");
-        await root.getByRole("button", { name: "Use view for export" }).click();
         await page.waitForFunction(id => { const d = _findPluginElementInState(id)?.pluginData; return d && d.yaw !== -25 && Math.abs(d.panX) > 0.001; }, id);
-        await root.locator(".plugin-live-toggle").click(); await root.locator("canvas").waitFor();
+        await root.locator("canvas").waitFor();
         bounds = await root.locator("canvas").boundingBox();
         const editorZoom = await page.evaluate(() => stateZoom);
         const cdp = await page.context().newCDPSession(page), cy = bounds.y + bounds.height * 0.5, cx = bounds.x + bounds.width * 0.5;
         await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: cx - 35, y: cy, id: 1 }, { x: cx + 35, y: cy, id: 2 }] });
         await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: cx - 50, y: cy, id: 1 }, { x: cx + 50, y: cy, id: 2 }] });
         await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-        await root.getByRole("button", { name: "Use view for export" }).click();
+        await page.waitForFunction(id => _findPluginElementInState(id)?.pluginData.zoom > 1.2, id);
         const pinchResult = await page.evaluate(id => ({ zoom: _findPluginElementInState(id)?.pluginData.zoom, editorZoom: stateZoom }), id);
         assert(pinchResult.zoom > 1.2 && pinchResult.editorZoom === editorZoom, JSON.stringify(pinchResult));
         const saved = await page.evaluate(async id => { await saveCurrentProject(); const project = currentPresentationId; await loadProjectById(project); const e = _findPluginElementInState(id); return { data: e.pluginData, preview: e.pluginPreview }; }, id);
@@ -81,9 +80,11 @@ const fs = require("fs"), os = require("os"), path = require("path"), assert = r
         fs.writeFileSync(path.join(output, "wigner.png"), Buffer.from(preview.split(",")[1], "base64"));
         const pdf = page.waitForEvent("download", { timeout: 60000 }); await page.evaluate(() => exportPDF()); await (await pdf).saveAs(path.join(output, "wigner.pdf"));
         const pptx = page.waitForEvent("download", { timeout: 60000 }); await page.evaluate(() => exportPPTX()); await (await pptx).saveAs(path.join(output, "wigner.pptx"));
+        // The explorer stays open through saves; close it so the show alone owns the live view below.
+        await root.locator(".plugin-live-toggle").click(); await page.waitForFunction(() => !document.querySelector(".plugin-live-view"));
         await page.evaluate(() => document.body.classList.add("play-mode-active")); await root.locator("canvas").waitFor();
-        await root.getByRole("button", { name: "Reset view" }).click();
-        assert.equal(await page.evaluate(() => currentSlideIndex), 0, "plot reset advanced the show");
+        await root.getByRole("button", { name: "3D view" }).click();
+        assert.equal(await page.evaluate(() => currentSlideIndex), 0, "a plot view button advanced the show");
         await page.evaluate(() => document.body.classList.remove("play-mode-active"));
         await page.waitForFunction(() => !document.querySelector(".plugin-live-view"));
         assert.equal(errors.length, 0, errors.join("\n"));

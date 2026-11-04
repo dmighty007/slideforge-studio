@@ -83,8 +83,9 @@ const assert = require("assert/strict");
         const canvas = root.locator("canvas"), bounds = await canvas.boundingBox();
         await page.mouse.move(bounds.x + bounds.width * 0.5, bounds.y + bounds.height * 0.5);
         await page.mouse.down(); await page.mouse.move(bounds.x + bounds.width * 0.7, bounds.y + bounds.height * 0.6, { steps: 5 }); await page.mouse.up();
-        await root.getByRole("button", { name: "Use view for export" }).click();
+        // The view saves itself once the orbit settles, and the explorer stays open through the rebuild.
         await page.waitForFunction(id => _findPluginElementInState(id)?.pluginData.yaw !== -35, id);
+        assert(await root.locator("canvas").count() === 1, "saving the view closed the explorer");
         await page.waitForFunction(id => { const e = _findPluginElementInState(id); return e.pluginPreviewKey === _pluginPreviewKey(getSlidePlugin("landscape"), e.pluginData, e); }, id);
         const persistence = await page.evaluate(id => {
             const saved = getPersistableState(), e = saved.slides[0].elements.find(e => e.id === id);
@@ -101,6 +102,8 @@ const assert = require("assert/strict");
         assert(reloaded && reloaded.data.yaw === persistence.data.yaw && reloaded.preview.startsWith("data:image/svg+xml"), "backend save/reload lost landscape data or still");
         console.log("PASS editor rotation, explicit saved camera and backend save/reload");
 
+        // The explorer stays open through saves; close it so the show alone owns the live view below.
+        await root.locator(".plugin-live-toggle").click(); await page.waitForFunction(() => !document.querySelector(".plugin-live-view"));
         await page.evaluate(() => document.body.classList.add("play-mode-active"));
         await root.locator("canvas").waitFor();
         const liveBounds = await root.locator("canvas").boundingBox();

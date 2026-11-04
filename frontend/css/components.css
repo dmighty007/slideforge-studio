@@ -162,13 +162,14 @@
 .plugin-live-view { position: absolute; inset: 0; z-index: 2; background: white; pointer-events: auto; }
 .plugin-live-toggle { position: absolute; top: 6px; left: 6px; z-index: 3; padding: 4px 9px; border: 1px solid #94a3b8; border-radius: 5px; background: #fff; color: #172033; font: 12px Arial, sans-serif; cursor: pointer; }
 .plugin-live-view .landscape-canvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+.plugin-live-view .landscape-canvas.is-surface { cursor: grab; }
+.plugin-live-view .landscape-canvas.is-dragging { cursor: grabbing; }
 .plugin-live-view .landscape-canvas:focus-visible { outline: 2px solid #2563eb; outline-offset: -3px; }
-/* Landscape explorer: a small icon bar that shows while the pointer or focus is on the plot (always on touch screens),
-   and a value tip that follows the pointer, so neither covers the title or the axis labels for long. */
-.landscape-toolbar { position: absolute; top: 6px; right: 6px; display: flex; gap: 1px; padding: 2px; border-radius: 8px; background: rgba(255, 255, 255, 0.92); box-shadow: 0 1px 4px rgba(15, 23, 42, 0.22); opacity: 0; transition: opacity 0.15s ease; }
+/* Keep plot controls discoverable; value tips follow the pointer. */
+.landscape-toolbar { position: absolute; top: 6px; right: 6px; display: flex; gap: 1px; padding: 2px; border-radius: 8px; background: rgba(255, 255, 255, 0.92); box-shadow: 0 1px 4px rgba(15, 23, 42, 0.22); opacity: 1; transition: opacity 0.15s ease; }
 .plugin-live-view:hover .landscape-toolbar, .plugin-live-view:focus-within .landscape-toolbar { opacity: 1; }
 @media (hover: none) { .landscape-toolbar { opacity: 1; } }
-.landscape-toolbar button { width: 26px; height: 24px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #172033; font: 12px/1 Arial, sans-serif; cursor: pointer; }
+.landscape-toolbar button { width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #172033; font: 12px/1 Arial, sans-serif; cursor: pointer; }
 .landscape-toolbar button:hover { background: #e2e8f0; }
 .landscape-toolbar button:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
 .landscape-readout { position: absolute; left: 8px; top: 8px; max-width: calc(100% - 16px); padding: 4px 8px; border-radius: 6px; color: #f8fafc; background: rgba(15, 23, 42, 0.88); font: 11px/1.35 Arial, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; opacity: 0; transition: opacity 0.12s ease; z-index: 2; }
@@ -5277,3 +5278,17 @@ audio.sf-rec-preview {
 .play-mode-active .presentation-slide [data-click-link] {
     cursor: pointer;
 }
+
+.landscape-toolbar select { min-width: 80px; max-width: 100px; height: 32px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #172033; font: 12px Arial, sans-serif; }
+
+.landscape-toolbar { max-width: calc(100% - 12px); flex-wrap: wrap; justify-content: flex-end; }
+.landscape-toolbar button[aria-pressed="true"] { background: #dbeafe; color: #1d4ed8; }
+/* Straight-on views (Top, Front, Side) and the angled 3D view, as one labelled group. */
+.landscape-toolbar .landscape-view-button { width: auto; min-width: 32px; padding: 0 7px; font: 600 12px/1 Arial, sans-serif; }
+.landscape-toolbar .landscape-view-button + :not(.landscape-view-button) { margin-left: 4px; }
+/* Narrow plot boxes: shed optional controls so the toolbar stays on one row and clear of "Close explorer"
+   and the title. Speed stays in the properties panel; wheel and pinch still zoom. */
+.plugin-live-view { container-type: inline-size; }
+.landscape-toolbar select[hidden], .landscape-toolbar[hidden] { display: none; }
+@container (max-width: 600px) { .landscape-toolbar select, .landscape-toolbar .landscape-zoom { display: none; } }
+@container (max-width: 460px) { .landscape-toolbar .landscape-fit { display: none; } }
