@@ -4,6 +4,8 @@ title: Install
 
 # Install SlideForge
 
+<p class="sf-page-lead">A local desktop workspace for scientific presentations, on Linux, macOS and Windows.</p>
+
 Choose your operating system below. The installer sets up Python and the app for your
 user, then adds an applications-menu entry and desktop shortcut. You need an internet
 connection for installation; no administrator rights or existing Python setup are required.

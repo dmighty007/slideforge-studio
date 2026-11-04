@@ -195,8 +195,22 @@ committed). `.github/workflows/docs.yml` does the same on every push to `main` a
 pip install -r requirements-docs.txt
 SLIDEFORGE_ACCOUNTS_ENABLED=0 python backend/manage.py runserver 127.0.0.1:8076 &
 node tools/build-showcase.cjs            # or --only=capabilities
+node tools/capture-docs-visuals.cjs --url=http://127.0.0.1:8076/
 mkdocs serve                             # http://127.0.0.1:8000/
 ```
+
+Current editor and scientific-object screenshots live in `docs/images/current/`. The capture script uses public, illustrative fixtures and the bundled 1UBQ structure; it does not include user trajectories. The optimized WebP images are committed and refreshed in the documentation workflow. Typography is served from `docs/images/fonts/` with the bundled font licenses, so documentation pages do not need Google Fonts.
+
+For browser checks, build and serve a preview, then point the smoke script at it:
+
+~~~bash
+mkdocs build --strict
+python -m http.server 8095 --bind 127.0.0.1 --directory site
+# In a second terminal:
+DOCS_TEST_URL=http://127.0.0.1:8095/ node tools/check-docs-layout.cjs
+~~~
+
+The checks cover desktop/mobile layouts, images, local fonts, dark mode, navigation and local links. Screenshots and results go to `output/docs-refresh/` by default; set `DOCS_TEST_OUTPUT` to change it.
 
 ## Maintenance
 

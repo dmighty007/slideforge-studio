@@ -6,6 +6,8 @@ title: Animation deck
 
 # Animation deck
 
+<p class="sf-kicker">Motion / staged builds / transitions</p>
+
 Builds bring a slide on one idea at a time. Click the slide, then press <kbd>→</kbd> to play each effect.
 
 <div class="sf-deck">

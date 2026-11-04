@@ -4,6 +4,8 @@ title: Your first presentation
 
 # Your first presentation
 
+<p class="sf-page-lead">Make one figure, try one build, and present a short explanation. Keep the native deck so the scientific inputs remain editable.</p>
+
 [Install SlideForge](install.md) first, then open it from your applications menu.
 You can work locally without creating an account.
 
@@ -21,6 +23,13 @@ to position it.
 For a first example, insert a chart and edit its data table. If you prefer equations,
 insert an equation and enter LaTeX. The [capabilities showcase](showcase/capabilities.md)
 shows the kinds of figures you can build.
+
+<figure class="sf-figure">
+<img src="../images/current/editor.webp" alt="The current editor with slide thumbnails, a selected curve fit, and its input controls" loading="lazy" width="1600" height="1000">
+<figcaption>Select an object on the canvas to edit its inputs in the properties panel.</figcaption>
+</figure>
+
+For molecules, trajectories or a live surface, follow the [scientific-object guide](guides/scientific-objects.md).
 
 ## 3. Try presenting
 
@@ -68,6 +77,9 @@ Keep your SlideForge presentation so you can edit the original figures later.
 
 ## Where next?
 
+- [Scientific objects](guides/scientific-objects.md): structures, trajectory playback, and landscapes.
+- [Presenting and recording](guides/presenting.md): builds, notes, timers, and capture.
+- [Import and export](guides/import-export.md): supported editable content and format limits.
 - [Desktop guide](DESKTOP.md): local storage, updates, imports, and sharing.
 - [Science plugins](PLUGINS.md): available plugins and how to write your own.
 - [Development](DEVELOPMENT.md): run from source and contribute.

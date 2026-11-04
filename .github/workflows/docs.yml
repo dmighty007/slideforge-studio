@@ -11,6 +11,8 @@ on:
       - mkdocs.yml
       - requirements-docs.txt
       - tools/build-showcase.cjs
+      - tools/capture-docs-visuals.cjs
+      - tools/check-docs-layout.cjs
       - tools/showcase/**
       - frontend/**
       - .github/workflows/docs.yml
@@ -61,8 +63,16 @@ jobs:
           curl --fail --silent http://127.0.0.1:8076/ > /dev/null
       - name: Build the showcase decks
         run: node tools/build-showcase.cjs --url=http://127.0.0.1:8076/
+      - name: Capture current app visuals
+        run: node tools/capture-docs-visuals.cjs --url=http://127.0.0.1:8076/
       - name: Build the site
         run: mkdocs build --strict
+      - name: Check documentation layout
+        run: |
+          python -m http.server 8095 --bind 127.0.0.1 --directory site > /tmp/slideforge-docs-preview.log 2>&1 &
+          for attempt in {1..30}; do curl --fail --silent http://127.0.0.1:8095/ > /dev/null && break; sleep 1; done
+          curl --fail --silent http://127.0.0.1:8095/ > /dev/null
+          DOCS_TEST_URL=http://127.0.0.1:8095/ DOCS_TEST_OUTPUT=/tmp/slideforge-docs-check node tools/check-docs-layout.cjs
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

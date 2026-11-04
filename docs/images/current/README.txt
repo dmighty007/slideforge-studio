@@ -1,0 +1,1 @@
+Current application captures, generated with tools/capture-docs-visuals.cjs. The chart, surface and process diagram are illustrative. The structure is the bundled Ubiquitin PDB 1UBQ. No user trajectory or private research data is included.

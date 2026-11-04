@@ -6,6 +6,8 @@ title: Capabilities deck
 
 # Capabilities deck
 
+<p class="sf-kicker">Scientific objects / playable examples</p>
+
 One kind of figure on each slide, every one of them editable in SlideForge. Click the slide, then use
 <kbd>→</kbd> and <kbd>←</kbd> to step through. On the protein slide, drag the structure to turn it.
 
