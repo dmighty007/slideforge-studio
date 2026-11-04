@@ -9135,6 +9135,64 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("Web ZIP: links in text work, a linked hidden slide is kept and opens from its link, Next and End step over it", async () => {
+        const { page } = await openFreshEditor(context);
+        await page.evaluate(() => {
+            const box = (id, content) => ({ id, type: "text", x: 80, y: 80, width: "800px", height: "120px", content, styles: { fontSize: "28px" } });
+            state.slides = [
+                { id: "wz-agenda", layoutId: "blank", masterId: "none", elements: [box("wz-links", '<p><a href="https://example.org/paper">The paper</a> and <a href="#slide:wz-backup">the backup</a></p>')] },
+                { id: "wz-main", layoutId: "blank", masterId: "none", elements: [box("wz-main-text", "<p>Main result</p>")] },
+                { id: "wz-backup", layoutId: "blank", masterId: "none", hidden: true, elements: [box("wz-back", '<p><a href="#slide:wz-agenda">Back</a></p>')] },
+                { id: "wz-unlinked", layoutId: "blank", masterId: "none", hidden: true, elements: [box("wz-unlinked-text", "<p>Nobody links here</p>")] },
+            ];
+            normalizeStateIds(); setCurrentSlideIndex(0); renderSlidesFromState();
+        });
+        const files = await page.evaluate(async () => {
+            const zip = await JSZip.loadAsync(await buildViewerBundle({ includeVendor: true }));
+            const out = {};
+            for (const [name, file] of Object.entries(zip.files)) if (!file.dir) out[name] = await file.async("base64");
+            return out;
+        });
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sf-viewer-links-"));
+        for (const [name, data] of Object.entries(files)) {
+            fs.mkdirSync(path.dirname(path.join(dir, name)), { recursive: true });
+            fs.writeFileSync(path.join(dir, name), Buffer.from(data, "base64"));
+        }
+        const viewer = await context.newPage();
+        const errors = [];
+        viewer.on("pageerror", error => errors.push(error.message));
+        await viewer.goto(`file://${path.join(dir, "index.html")}`);
+        await viewer.waitForTimeout(800);
+        const at = () => viewer.evaluate(() => document.querySelector(".is-active")?.id);
+        const counter = () => viewer.evaluate(() => [...document.querySelectorAll("*")].find(n => n.children.length === 0 && /^(\d+ \/ \d+|Hidden slide)$/.test(n.textContent.trim()))?.textContent.trim());
+        const result = {
+            slides: await viewer.evaluate(() => [...document.querySelector(".is-active").parentElement.children].map(n => n.id)),
+            web: await viewer.evaluate(() => { const a = document.querySelector('[id="wz-links"] a[href^="https:"]'); return a ? [a.getAttribute("href"), a.getAttribute("target")] : null; }),
+            firstCounter: await counter(),
+        };
+        await viewer.keyboard.press("ArrowRight"); await viewer.waitForTimeout(300);
+        await viewer.keyboard.press("ArrowRight"); await viewer.waitForTimeout(300);
+        result.afterTwoNext = await at();
+        result.mainCounter = await counter();
+        await viewer.keyboard.press("Home"); await viewer.waitForTimeout(300);
+        await viewer.keyboard.press("End"); await viewer.waitForTimeout(300);
+        result.afterEnd = await at();
+        await viewer.keyboard.press("Home"); await viewer.waitForTimeout(300);
+        await viewer.locator('[id="wz-links"] a[href^="#slide:"]').click(); await viewer.waitForTimeout(400);
+        result.afterLink = await at();
+        result.backupCounter = await counter();
+        await viewer.locator('[id="wz-back"] a').click(); await viewer.waitForTimeout(400);
+        result.afterBack = await at();
+        await viewer.close();
+        assert(JSON.stringify(result.slides) === JSON.stringify(["wz-agenda", "wz-main", "wz-backup"]), `the linked hidden slide must stay and the unlinked one go: ${JSON.stringify(result)}`);
+        assert(JSON.stringify(result.web) === JSON.stringify(["https://example.org/paper", "_blank"]), `a web link in text was lost: ${JSON.stringify(result)}`);
+        assert(result.afterTwoNext === "wz-main" && result.afterEnd === "wz-main", `Next or End went onto the hidden slide: ${JSON.stringify(result)}`);
+        assert(result.afterLink === "wz-backup" && result.afterBack === "wz-agenda", `slide links did not move the show: ${JSON.stringify(result)}`);
+        assert(result.firstCounter === "1 / 2" && result.mainCounter === "2 / 2" && result.backupCounter === "Hidden slide", `counter: ${JSON.stringify(result)}`);
+        assert(!errors.length, errors.join("\n"));
+        await page.close();
+    });
+
     await test("research deck: plots draw in the theme's body font, carried inside the picture but not saved with it", async () => {
         const { page } = await openFreshEditor(context);
         // A theme with a bundled web font (Blank uses Arial, which is not embedded).

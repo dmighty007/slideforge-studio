@@ -86,13 +86,16 @@ function sanitizeHtml(html) {
       }
     }
 
-    // A link keeps a web or mail address only and opens in a new tab (it would replace the presentation).
+    // A link keeps a web or mail address only and opens in a new tab (it would replace the presentation). A link to a
+    // slide (#slide:<id>, next, previous, first, last; the editor's rule in state.js) stays, for the viewer to follow.
     if (node.tagName === "A") {
       const href = String(node.getAttribute("href") || "").trim();
       if (/^(https?:|mailto:)/i.test(href)) {
         newNode.setAttribute("href", href);
         newNode.setAttribute("target", "_blank");
         newNode.setAttribute("rel", "noopener noreferrer");
+      } else if (/^#slide:(next|previous|first|last|[A-Za-z0-9_-]{1,80})$/.test(href)) {
+        newNode.setAttribute("href", href);
       }
     }
 
@@ -310,9 +313,12 @@ function chartValueAxisForExport(el) {
 function createZipViewerState(snapshot, theme) {
   const exportState = JSON.parse(JSON.stringify(snapshot || {}));
   if (!Array.isArray(exportState.slides)) exportState.slides = [];
-  // The viewer is for presenting: slides hidden from presenting are left out (unless every slide is hidden).
-  const shownSlides = exportState.slides.filter((slide) => slide?.hidden !== true);
-  if (shownSlides.length) exportState.slides = shownSlides;
+  // The viewer is for presenting: slides hidden from presenting are left out (unless every slide is hidden), except one a
+  // link in the deck opens (a backup slide): the viewer steps over it, as the app does, and the link still reaches it.
+  const linked = new Set([...JSON.stringify(exportState.slides).matchAll(/#slide:([A-Za-z0-9_-]{1,80})/g)].map((match) => match[1]));
+  if (exportState.slides.some((slide) => slide?.hidden !== true)) {
+    exportState.slides = exportState.slides.filter((slide) => slide?.hidden !== true || linked.has(slide?.id));
+  }
   // The standalone viewer injects equation markup as-is; sanitize it here like the editor does.
   exportState.slides.forEach((slide) => {
     // Untouched "Click to add ..." boxes are editor-only (an empty list would still draw its bullet).
@@ -2981,7 +2987,12 @@ function initViewer(data) {
             prepareSlideAnimations(activeSlideIndex);
             playSlideTransition(previousIndex);
         }
-        if (status) status.textContent = (activeSlideIndex + 1) + ' / ' + Math.max(1, slides.length);
+        // Counted over the slides the show steps through; a hidden one (reached by a link) says so.
+        if (status) {
+            const shown = slides.filter(slide => slide?.hidden !== true).length;
+            const position = slides.slice(0, activeSlideIndex + 1).filter(slide => slide?.hidden !== true).length;
+            status.textContent = slides[activeSlideIndex]?.hidden === true ? 'Hidden slide' : position + ' / ' + Math.max(1, shown);
+        }
         syncViewerActiveMedia();
         syncHash();
     }
@@ -3048,6 +3059,14 @@ function initViewer(data) {
     window.addEventListener('focus', () => requestAnimationFrame(syncViewerActiveMedia));
     window.addEventListener('blur', () => requestAnimationFrame(syncViewerActiveMedia));
 
+    // A slide hidden from presenting (Hide Slide): Next and Previous step over it, as in the app; a link still opens it.
+    function shownSlideFrom(from, step) {
+        for (let i = from + step; i >= 0 && i < slides.length; i += step) {
+            if (slides[i]?.hidden !== true) return i;
+        }
+        return -1;
+    }
+
     function goToSlide(index, fragmentIndex) {
         activeSlideIndex = Math.max(0, Math.min(index, slides.length - 1));
         const fragments = getFragments(getSlideDom(activeSlideIndex));
@@ -3063,8 +3082,8 @@ function initViewer(data) {
             applySlideState();
         } else if (revealNextBulletStep() || revealNextAnimationGroup() || revealNextAdvancedGroup()) {
             return;
-        } else if (activeSlideIndex < slides.length - 1) {
-            activeSlideIndex += 1;
+        } else if (shownSlideFrom(activeSlideIndex, 1) >= 0) {
+            activeSlideIndex = shownSlideFrom(activeSlideIndex, 1);
             activeFragmentIndex = -1;
             applySlideState();
         }
@@ -3077,14 +3096,28 @@ function initViewer(data) {
         if (activeFragmentIndex >= 0) {
             activeFragmentIndex -= 1;
             applySlideState();
-        } else if (activeSlideIndex > 0) {
-            activeSlideIndex -= 1;
+        } else if (shownSlideFrom(activeSlideIndex, -1) >= 0) {
+            activeSlideIndex = shownSlideFrom(activeSlideIndex, -1);
             activeFragmentIndex = getFragments(getSlideDom(activeSlideIndex)).length - 1;
             applySlideState();
             showWholeSlide();
         }
     }
 
+    // A link to a slide moves the show there (as goToLinkedSlide does in the app) instead of changing the address.
+    document.addEventListener('click', event => {
+        const link = event.target?.closest?.('a[href^="#slide:"]');
+        if (!link) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const target = link.getAttribute('href').slice(7);
+        const index = target === 'next' ? shownSlideFrom(activeSlideIndex, 1)
+            : target === 'previous' ? shownSlideFrom(activeSlideIndex, -1)
+            : target === 'first' ? shownSlideFrom(-1, 1)
+            : target === 'last' ? shownSlideFrom(slides.length, -1)
+            : slides.findIndex(slide => slide?.id === target);
+        if (index >= 0) goToSlide(index, -1);
+    }, true);
     prevBtn && prevBtn.addEventListener('click', () => { prevStep(); closeMenus(); });
     nextBtn && nextBtn.addEventListener('click', () => { nextStep(); closeMenus(); });
     menuToggle && menuToggle.addEventListener('click', event => {
@@ -3220,10 +3253,11 @@ function initViewer(data) {
             prevStep();
         } else if (event.key === 'Home') {
             event.preventDefault();
-            goToSlide(0, -1);
+            goToSlide(Math.max(0, shownSlideFrom(-1, 1)), -1);
         } else if (event.key === 'End') {
             event.preventDefault();
-            const lastIndex = slides.length - 1;
+            // The last slide the show reaches: a hidden backup after it opens only from its link.
+            const lastIndex = Math.max(0, shownSlideFrom(slides.length, -1));
             goToSlide(lastIndex, getFragments(getSlideDom(lastIndex)).length - 1);
         }
     });
@@ -3881,7 +3915,11 @@ function renderTextContent(elData) {
                     });
                 }
             });
-            return styles.length ? '<span style="' + styles.join(';') + '">' + inner + '</span>' : inner;
+            const styled = styles.length ? '<span style="' + styles.join(';') + '">' + inner + '</span>' : inner;
+            // A link (web, mail or another slide) stays a link: sanitizeHtml keeps only those targets. It was dropped,
+            // so links in text did nothing in the exported presentation.
+            const link = (Array.isArray(run?.marks) ? run.marks : []).find(mark => mark?.type === 'link' && mark.href);
+            return link ? '<a href="' + escape(link.href) + '">' + styled + '</a>' : styled;
         };
         // Consecutive list items share one bullet block (its gap spaces them as the editor does). Joined with <br>,
         // each item was followed by an empty line: bullets sat half as far apart again as on the slide.
