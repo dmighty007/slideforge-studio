@@ -49,3 +49,11 @@ build/
 # Documentation site: showcase decks made by tools/build-showcase.cjs, and the built site
 docs/showcase/decks/
 site/
+
+# Generated showcase decks (rebuilt by tools/build-feature-showcase*.cjs; the decks are attached to releases).
+output/
+# Large release-audit evidence (over 1 MB), kept out of history; logs and small evidence are committed.
+docs/audits/release-presentation-2026-11-02/evidence/37-readme-desktop.png
+docs/audits/release-presentation-2026-11-02/evidence/demonstration.pdf
+docs/audits/release-presentation-2026-11-02/evidence/demonstration.zip
+docs/audits/release-presentation-2026-11-02/evidence/workflow-demo.webm
