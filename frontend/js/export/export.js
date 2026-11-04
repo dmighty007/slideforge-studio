@@ -2420,6 +2420,7 @@ ${typeof isMoleculeContentUrl === "function" ? isMoleculeContentUrl.toString() :
 ${typeof isMoleculeTrajectoryData === "function" ? isMoleculeTrajectoryData.toString() : ""}
 ${typeof normalizeMoleculeRepresentationLayer === "function" ? normalizeMoleculeRepresentationLayer.toString() : ""}
 ${typeof normalizeMoleculeViewState === "function" ? normalizeMoleculeViewState.toString() : ""}
+${typeof normalizeMoleculePlayback === "function" ? normalizeMoleculePlayback.toString() : ""}
 ${typeof _escapeMoleculeHtml === "function" ? _escapeMoleculeHtml.toString() : ""}
 ${typeof _serializeMoleculePayload === "function" ? _serializeMoleculePayload.toString() : ""}
 ${typeof _moleculeSrcdocScript === "function" ? _moleculeSrcdocScript.toString() : ""}

@@ -55,7 +55,7 @@ function syncActiveSlideMedia() {
       const isMolecule = iframe.classList.contains("molecule-embed-frame");
       if (isMolecule) {
         iframe.contentWindow?.postMessage(
-          { type: "pptmaker:molecule:lifecycle", active: isActive },
+          { type: "pptmaker:molecule:lifecycle", active: isActive, presenting },
           "*",
         );
         return;

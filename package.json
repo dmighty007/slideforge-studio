@@ -14,6 +14,7 @@
     "test:recorder": "node tests/browser/test-show-recorder.js",
     "test:desktop": "python3 -m pytest",
     "test:landscape-usability": "node tests/browser/test-landscape-usability.js",
+    "test:molecule-trajectory": "node tests/browser/test-molecule-trajectory.js",
     "test:landscape": "node tests/browser/test-landscape.js",
     "test:landscape-wigner": "node tests/browser/test-landscape-wigner.js"
   },

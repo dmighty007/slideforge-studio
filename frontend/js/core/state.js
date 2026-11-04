@@ -1560,6 +1560,7 @@ function normalizeStateIds({ truncate = true } = {}) {
                           moleculeBackgroundMode: ["theme", "transparent", "custom"].includes(safeEl.moleculeBackgroundMode) ? safeEl.moleculeBackgroundMode : "custom",
                           moleculeInteractive: safeEl.moleculeInteractive ?? true,
                           moleculeAutoRotate: Boolean(safeEl.moleculeAutoRotate),
+                          moleculePlayback: normalizeMoleculePlayback(safeEl.moleculePlayback),
                           moleculeProjection:
                               safeEl.moleculeProjection === "orthographic" ? "orthographic" : "perspective",
                           moleculeDefaultStyle: ["cartoon", "stick", "sphere", "line", "surface"].includes(

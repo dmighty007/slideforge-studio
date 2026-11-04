@@ -3,6 +3,11 @@ const MOLECULE_SUPPORTED_FORMATS = new Set(["pdb", "ent", "gro", "mol2", "xyz", 
 const MOLECULE_INLINE_CONTENT_LIMIT = 2 * 1024 * 1024;
 const MOLECULE_LARGE_CONTENT_LIMIT = 64 * 1024 * 1024;
 
+function normalizeMoleculePlayback(raw = {}) {
+    const integer = (value, fallback, min, max) => Number.isFinite(Number(value)) ? Math.max(min, Math.min(max, Math.round(Number(value)))) : fallback;
+    return { autoplay: raw?.autoplay === true, fps: integer(raw?.fps, 10, 1, 30), startFrame: integer(raw?.startFrame, 1, 1, 1000000) };
+}
+
 function createDefaultMoleculeContent() {
     return [
         "HEADER    SLIDEFORGE MOLECULE PLACEHOLDER",
@@ -79,6 +84,7 @@ function createMoleculeElementData({ data, name = "Molecule", format = "pdb", is
         moleculeInteractive: true,
         moleculeBackgroundMode: "theme",
         moleculeAutoRotate: false,
+        moleculePlayback: normalizeMoleculePlayback(),
         moleculeDepthCue: true,
         moleculeProjection: "perspective",
         moleculeDefaultStyle: "cartoon",
@@ -148,6 +154,8 @@ const playBtn = document.getElementById("traj-play");
 const frameInput = document.getElementById("traj-frame");
 const frameLabel = document.getElementById("traj-label");
 const speedInput = document.getElementById("traj-speed");
+const speedLabel = document.getElementById("traj-speed-label");
+const frameNumber = document.getElementById("traj-number");
 const presentPlayBtn = document.getElementById("present-play");
 const presentRotateBtn = document.getElementById("present-rotate");
 let stage = null;
@@ -156,10 +164,14 @@ let trajectory = null;
 let timer = null;
 let frameCount = 0;
 let currentFrame = 0;
+let frameRequest = null;
+let pendingFrame = null;
+let lastFrameTime = 0;
 let resizeQueued = false;
 let lifecycleActive = payload.active !== false;
 let spinRequested = Boolean(payload.autoRotate);
 let resumeTrajectoryOnActive = false;
+let presenting = Boolean(payload.presentationMode);
 let viewStateBroadcastTimer = null;
 
 // This frame sits in a slide that is scaled to the window (editor zoom, presenting) with a CSS transform, which the
@@ -744,39 +756,89 @@ function applySpin() {
   requestRender();
 }
 function stop(options = {}) {
-  if (timer && options.remember) resumeTrajectoryOnActive = true;
-  if (timer) cancelAnimationFrame(timer);
+  resumeTrajectoryOnActive = Boolean(timer !== null && options.remember);
+  if (timer !== null) cancelAnimationFrame(timer);
   timer = null;
+  // An in-flight NGL load can finish, but paused/hidden slides must not drain queued requests.
+  if (!options.keepPending) pendingFrame = null;
   if (playBtn) playBtn.textContent = "Play";
   if (presentPlayBtn) presentPlayBtn.textContent = "Play";
 }
+function syncFrameControls() {
+  if (frameInput) {
+    frameInput.value = String(currentFrame);
+    frameInput.setAttribute("aria-valuetext", "Frame " + (currentFrame + 1) + " of " + frameCount);
+  }
+  if (frameLabel) frameLabel.textContent = "/ " + frameCount;
+  if (frameNumber) frameNumber.value = String(currentFrame + 1);
+}
+function frameChanged(index) {
+  if (!Number.isInteger(Number(index)) || Number(index) < 0) return;
+  currentFrame = Number(index);
+  syncFrameControls();
+}
+function requestedFrame() {
+  return pendingFrame ?? frameRequest?.index ?? currentFrame;
+}
+function loadPendingFrame() {
+  if (frameRequest || pendingFrame === null || !trajectory?.setFrame) return;
+  const request = { index: pendingFrame };
+  pendingFrame = null;
+  frameRequest = request;
+  framePanel.setAttribute("aria-busy", "true");
+  try {
+    trajectory.setFrame(request.index, () => {
+      if (frameRequest !== request) return;
+      frameRequest = null;
+      framePanel.setAttribute("aria-busy", "false");
+      frameChanged(trajectory.currentFrame);
+      lastFrameTime = performance.now();
+      requestRender();
+      // Rapid seeks coalesce to one latest target instead of building a frame backlog.
+      loadPendingFrame();
+    });
+  } catch (error) {
+    frameRequest = null;
+    framePanel.setAttribute("aria-busy", "false");
+    stop();
+    syncFrameControls();
+    setStatus("Could not load trajectory frame: " + (error?.message || error), "error");
+  }
+}
 function setFrame(index) {
   if (!frameCount) return;
-  currentFrame = Math.max(0, Math.min(Number(index) || 0, frameCount - 1));
-  if (trajectory?.setFrame) trajectory.setFrame(currentFrame, requestRender);
-  if (frameInput) frameInput.value = String(currentFrame);
-  if (frameLabel) frameLabel.textContent = (currentFrame + 1) + " / " + frameCount;
-  requestRender();
+  pendingFrame = Math.max(0, Math.min(Math.round(Number(index) || 0), frameCount - 1));
+  syncFrameControls();
+  loadPendingFrame();
 }
 function play() {
-  if (!frameCount || !lifecycleActive) return;
-  resumeTrajectoryOnActive = false;
-  stop();
-  // Paced by the display instead of a timer: a slow frame is not queued up behind the next ones.
-  let last = performance.now();
+  if (frameCount < 2 || !lifecycleActive) return;
+  stop({ keepPending: true });
+  lastFrameTime = performance.now();
   const tick = now => {
-    const delay = 1000 / Math.max(1, Math.min(60, Number(speedInput.value) || 10));
-    if (now - last >= delay) {
-      last = now - ((now - last) % delay);
+    if (!lifecycleActive) { stop(); return; }
+    const delay = 1000 / Math.max(1, Math.min(30, Number(speedInput.value) || 10));
+    // Pace from completed loads: never overlap requests or catch up with a burst after a slow frame.
+    if (!frameRequest && pendingFrame === null && !trajectory?.inProgress && now - lastFrameTime >= delay) {
       setFrame((currentFrame + 1) % frameCount);
     }
-    timer = requestAnimationFrame(tick);
+    // setFrame can stop playback if NGL throws.
+    if (timer !== null) timer = requestAnimationFrame(tick);
   };
   timer = requestAnimationFrame(tick);
   playBtn.textContent = "Pause";
   if (presentPlayBtn) presentPlayBtn.textContent = "Pause";
 }
-function setLifecycleActive(nextActive) {
+function setLifecycleActive(nextActive, nextPresenting = presenting) {
+  const enteredShow = !presenting && Boolean(nextPresenting);
+  const exitedShow = presenting && !nextPresenting;
+  presenting = Boolean(nextPresenting);
+  document.body.classList.toggle("presentation-mode", presenting);
+  if (exitedShow) stop();
+  if (enteredShow && nextActive && payload.playback.autoplay && frameCount > 1) {
+    lifecycleActive = Boolean(nextActive);
+    setFrame(payload.playback.startFrame - 1); play(); return;
+  }
   const next = Boolean(nextActive);
   if (next === lifecycleActive) return;
   lifecycleActive = next;
@@ -786,7 +848,10 @@ function setLifecycleActive(nextActive) {
     return;
   }
   applySpin();
-  if (resumeTrajectoryOnActive) {
+  if (presenting && payload.playback.autoplay) {
+    setFrame(payload.playback.startFrame - 1);
+    play();
+  } else if (resumeTrajectoryOnActive) {
     resumeTrajectoryOnActive = false;
     play();
   } else {
@@ -802,7 +867,11 @@ function setupTrajectoryControls() {
     frameInput.max = String(frameCount - 1);
     frameInput.value = "0";
   }
-  if (frameLabel) frameLabel.textContent = "1 / " + frameCount;
+  if (frameNumber) frameNumber.max = String(frameCount);
+  speedInput.value = String(payload.playback.fps);
+  speedLabel.textContent = payload.playback.fps + " FPS";
+  setFrame(payload.playback.startFrame - 1);
+  if (presenting && payload.playback.autoplay) play();
 }
 function getTrajectoryFromComponent(trajComponent) {
   if (trajComponent?.trajectory) return trajComponent.trajectory;
@@ -850,11 +919,7 @@ async function load() {
       trajectory = getTrajectoryFromComponent(component.addTrajectory());
       if (trajectory?.frameCount) frameCount = trajectory.frameCount;
       if (trajectory?.signals?.frameChanged?.add) {
-        trajectory.signals.frameChanged.add(index => {
-          currentFrame = Number(index) || trajectory.currentFrame || currentFrame;
-          if (frameInput) frameInput.value = String(currentFrame);
-          if (frameLabel) frameLabel.textContent = (currentFrame + 1) + " / " + frameCount;
-        });
+        trajectory.signals.frameChanged.add(frameChanged);
       }
     } else if (payload.trajectory?.url) {
       // A trajectory that does not fit the structure is set aside, not fatal: the error used to hide the
@@ -870,11 +935,7 @@ async function load() {
       frameCount = 0;
     }
     if (trajectory?.signals?.frameChanged?.add && payload.trajectory?.url) {
-      trajectory.signals.frameChanged.add(index => {
-        currentFrame = Number(index) || 0;
-        if (frameInput) frameInput.value = String(currentFrame);
-        if (frameLabel) frameLabel.textContent = (currentFrame + 1) + " / " + frameCount;
-      });
+      trajectory.signals.frameChanged.add(frameChanged);
     }
     setStatus("Drawing " + (payload.name || "molecule") + "…", "loading");
     await applyRepresentations();
@@ -919,10 +980,22 @@ if (presentRotateBtn) {
 if (playBtn) playBtn.addEventListener("click", () => timer ? stop() : play());
 if (presentPlayBtn) presentPlayBtn.addEventListener("click", () => timer ? stop() : play());
 if (frameInput) frameInput.addEventListener("input", () => { stop(); setFrame(frameInput.value); });
-if (speedInput) speedInput.addEventListener("input", () => { if (timer) play(); });
+if (speedInput) speedInput.addEventListener("input", () => { speedLabel.textContent = speedInput.value + " FPS"; });
+if (frameNumber) frameNumber.addEventListener("change", () => { stop(); setFrame(Number(frameNumber.value) - 1); });
+for (const [id, target] of [["traj-first", () => 0], ["traj-prev", () => requestedFrame() - 1], ["traj-next", () => requestedFrame() + 1], ["traj-last", () => frameCount - 1]]) {
+  document.getElementById(id)?.addEventListener("click", () => { const index = target(); stop(); setFrame(index); });
+}
 window.addEventListener("message", async event => {
   const message = event.data || {};
   if (!message || message.type !== "pptmaker:molecule:update") return;
+  if (message.playback) {
+    const previous = payload.playback;
+    payload.playback = message.playback;
+    if (speedInput && previous.fps !== payload.playback.fps) {
+      speedInput.value = String(payload.playback.fps); speedLabel.textContent = payload.playback.fps + " FPS";
+    }
+    if (previous.startFrame !== payload.playback.startFrame) { stop(); setFrame(payload.playback.startFrame - 1); }
+  }
   if (Object.prototype.hasOwnProperty.call(message, "fogColor")) payload.fogColor = message.fogColor || "";
   if (Object.prototype.hasOwnProperty.call(message, "backgroundColor") || Object.prototype.hasOwnProperty.call(message, "fogColor")) {
     if (Object.prototype.hasOwnProperty.call(message, "backgroundColor")) payload.backgroundColor = message.backgroundColor || "#020617";
@@ -991,7 +1064,7 @@ window.addEventListener("message", event => {
 window.addEventListener("message", event => {
   const message = event.data || {};
   if (!message || message.type !== "pptmaker:molecule:lifecycle") return;
-  setLifecycleActive(message.active);
+  setLifecycleActive(message.active, message.presenting ?? presenting);
 });
 window.addEventListener("message", event => {
   const message = event.data || {};
@@ -1097,6 +1170,7 @@ function buildMoleculeEmbedSrcdoc(elementData = {}) {
         name: String(elementData.moleculeName || "Molecule"),
         isTrajectory: Boolean(elementData.moleculeIsTrajectory || (!externalContent && isMoleculeTrajectoryData(elementData.content))),
         autoRotate: Boolean(elementData.moleculeAutoRotate),
+        playback: normalizeMoleculePlayback(elementData.moleculePlayback),
         projection: elementData.moleculeProjection === "orthographic" ? "orthographic" : "perspective",
         defaultStyle: ["cartoon", "stick", "sphere", "line", "surface"].includes(elementData.moleculeDefaultStyle)
             ? elementData.moleculeDefaultStyle
@@ -1150,15 +1224,18 @@ html,body{width:100%;height:100%;margin:0;overflow:hidden;background:${backgroun
 #viewer{position:absolute;inset:0;background:${background}}
 .hud{position:absolute;left:10px;right:10px;bottom:10px;display:flex;flex-wrap:wrap;justify-content:center;gap:8px;align-items:end;pointer-events:none}
 .panel{pointer-events:auto;border:1px solid rgba(148,163,184,.24);background:rgba(15,23,42,.82);backdrop-filter:blur(12px);border-radius:8px;padding:8px;box-shadow:0 12px 28px rgba(0,0,0,.28)}
-.trajectory-controls{display:flex;align-items:center;gap:8px;flex:1 1 300px;min-width:0;max-width:560px}
-.trajectory-controls button{min-width:56px}
+.trajectory-controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px;flex:1 1 300px;min-width:0;max-width:560px}
+.trajectory-controls button{min-width:30px;min-height:32px}
+#traj-play{min-width:48px}
+#traj-number{width:62px;box-sizing:border-box;background:#0f172a;color:#e2e8f0;border:1px solid #64748b;border-radius:4px;padding:4px;font-size:11px}
+#traj-speed-label{min-width:42px}
 .trajectory-controls input[type=range]{accent-color:#818cf8}
 .trajectory-controls #traj-frame{flex:1;min-width:60px}
 /* The trajectory bar has its own Play; a second one beside it pushed the bar out of the frame while presenting. */
 body.presentation-mode #present-play{display:none !important}
 .trajectory-speed{display:flex;align-items:center;gap:6px;font-size:10px;color:#cbd5e1;white-space:nowrap}
 .trajectory-speed input{width:70px}
-.trajectory-frame-label{min-width:54px;text-align:right;font-size:11px;color:#e2e8f0;font-variant-numeric:tabular-nums}
+.trajectory-frame-label{min-width:40px;text-align:right;font-size:11px;color:#e2e8f0;font-variant-numeric:tabular-nums}
 .top{display:none;position:absolute;inset:0;align-items:center;justify-content:center;padding:16px;text-align:center;pointer-events:none}
 .top.is-loading,.top.is-error{display:flex}
 .status{max-width:80%;padding:8px 12px;border-radius:8px;background:rgba(15,23,42,.78);color:#cbd5e1;font-size:12px;line-height:1.4}
@@ -1183,10 +1260,14 @@ body.presentation-mode .presentation-controls button[hidden]{display:none}
     <button id="present-rotate" class="secondary" type="button">Rotate</button>
   </div>
   <div id="trajectory-panel" class="panel trajectory-controls" hidden>
-    <button id="traj-play" type="button">Play</button>
+    <button id="traj-first" type="button" aria-label="First frame" title="First frame">|‹</button>
+    <button id="traj-prev" type="button" aria-label="Previous frame" title="Previous frame">‹</button>
+    <button id="traj-play" type="button" aria-label="Play or pause trajectory">Play</button>
+    <button id="traj-next" type="button" aria-label="Next frame" title="Next frame">›</button>
+    <button id="traj-last" type="button" aria-label="Last frame" title="Last frame">›|</button>
     <input id="traj-frame" type="range" min="0" max="0" value="0" aria-label="Trajectory frame">
-    <span id="traj-label" class="trajectory-frame-label">0 / 0</span>
-    <label class="trajectory-speed"><span>Speed</span><input id="traj-speed" type="range" min="1" max="30" step="1" value="10" aria-label="Trajectory speed, frames per second" title="Frames per second"></label>
+    <input id="traj-number" type="number" min="1" value="1" step="1" aria-label="Go to frame"><span id="traj-label" class="trajectory-frame-label">/ 0</span>
+    <label class="trajectory-speed"><span>Speed</span><input id="traj-speed" type="range" min="1" max="30" step="1" value="10" aria-label="Trajectory speed, frames per second" title="Frames per second"><output id="traj-speed-label">10 FPS</output></label>
   </div>
 </div>
 <script>${_moleculeSrcdocScript(payload)}<\/script>
@@ -1256,6 +1337,7 @@ function moleculeEmbedSettingsMessage(elData, slide) {
         fogColor: moleculeFogColor(slide),
         depthCue: elData.moleculeDepthCue !== false,
         autoRotate: Boolean(elData.moleculeAutoRotate),
+        playback: normalizeMoleculePlayback(elData.moleculePlayback),
         projection: elData.moleculeProjection === "orthographic" ? "orthographic" : "perspective",
         defaultStyle: ["cartoon", "stick", "sphere", "line", "surface"].includes(elData.moleculeDefaultStyle) ? elData.moleculeDefaultStyle : "cartoon",
         defaultColor: ["default", "chain", "amino", "ssJmol", "spectrum", "custom"].includes(elData.moleculeDefaultColor) ? elData.moleculeDefaultColor : "spectrum",
@@ -1300,7 +1382,7 @@ function syncMoleculeElementNode(node, elData, slide) {
 // What a molecule's viewer must be reloaded for (its file); everything else is changed in place.
 const MOLECULE_IN_PLACE_KEYS = new Set([
     "x", "y", "width", "height", "moleculeName", "moleculeInteractive", "moleculeAutoRotate", "moleculeProjection",
-    "moleculeDefaultStyle", "moleculeDefaultColor", "moleculeRepresentationLayers", "moleculeDepthCue", "moleculeViewState", "moleculeBackgroundMode",
+    "moleculePlayback", "moleculeDefaultStyle", "moleculeDefaultColor", "moleculeRepresentationLayers", "moleculeDepthCue", "moleculeViewState", "moleculeBackgroundMode",
 ]);
 function moleculeReloadSignature(elData) {
     const rest = {};

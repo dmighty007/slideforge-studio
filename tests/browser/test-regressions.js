@@ -1947,7 +1947,7 @@ async function test(name, fn) {
         };
         await attach(files.dcd);
         const frame = await viewer();
-        const loaded = await frame.evaluate(() => ({ label: document.getElementById("traj-label").textContent, bar: !document.getElementById("trajectory-panel").hidden }));
+        const loaded = await frame.evaluate(() => ({ label: document.getElementById("traj-number").value + " " + document.getElementById("traj-label").textContent, bar: !document.getElementById("trajectory-panel").hidden }));
         assert(loaded.bar && loaded.label === "1 / 20", `trajectory not loaded: ${JSON.stringify(loaded)}`);
         const moved = await frame.evaluate(async () => {
             const y = () => sfMoleculeViewer.component().structure.atomStore.y[0];
@@ -1956,7 +1956,7 @@ async function test(name, fn) {
             input.value = "10";
             input.dispatchEvent(new Event("input"));
             await new Promise(resolve => setTimeout(resolve, 400));
-            return { delta: y() - before, label: document.getElementById("traj-label").textContent };
+            return { delta: y() - before, label: document.getElementById("traj-number").value + " " + document.getElementById("traj-label").textContent };
         });
         assert(Math.abs(moved.delta - 3) < 0.05 && moved.label === "11 / 20", `frame 11 does not show the trajectory's coordinates: ${JSON.stringify(moved)}`);
 
