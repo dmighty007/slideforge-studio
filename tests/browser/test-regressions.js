@@ -2736,6 +2736,42 @@ async function test(name, fn) {
         await page.close();
     });
 
+    await test("presenter view: the next slide is previewed as the audience first sees it, its builds still to come", async () => {
+        const { page } = await openFreshEditor(context);
+        const result = await page.evaluate(() => {
+            addSlide();
+            const index = currentSlideIndex, slide = state.slides[index];
+            const box = (id, extra = {}) => ({ id, type: "shape", shapeType: "rectangle", x: 100, y: 100, width: "100px", height: "100px", styles: { backgroundColor: "#4f7cff" }, ...extra });
+            slide.elements.push(
+                box("el_plain"),
+                box("el_click", { animation: { effect: "fade-in", trigger: "on-click" } }),
+                box("el_arrive", { animation: { effect: "fade-in", trigger: "on-slide" } }),
+                box("el_timeline"),
+                { id: "el_bullets", type: "text", revealBullets: true, x: 100, y: 300, width: "400px", height: "120px", content: "<ul><li>First point</li><li>Second point</li></ul>" },
+            );
+            renderSlidesFromState();
+            applyAnimationPreset("el_timeline", "fadeIn");
+            const timelineTrigger = normalizeElementAnimationConfig(slide.elements.find(e => e.id === "el_timeline"))?.timelines?.[0]?.animations?.[0]?.trigger || "on-slide";
+            const section = [...document.querySelectorAll(`[id="${slide.id}"]`)].find(n => n.tagName === "SECTION");
+            const doc = new DOMParser().parseFromString(_presenterSectionHtml(section, { arrivalOf: index }), "text/html");
+            const hidden = id => { const n = doc.getElementById(id); return !n ? null : /visibility:\s*hidden/.test(n.getAttribute("style") || "") || /opacity:\s*0(\D|$)/.test(n.getAttribute("style") || ""); };
+            const bulletRows = [...(doc.getElementById("el_bullets")?.querySelectorAll(".ppt-bullet-row, .text-element-content > p") || [])];
+            const plainCopy = new DOMParser().parseFromString(_presenterSectionHtml(section), "text/html");
+            return {
+                plain: hidden("el_plain"), click: hidden("el_click"), arrive: hidden("el_arrive"), timeline: hidden("el_timeline"), timelineTrigger,
+                bullets: bulletRows.length ? bulletRows.every(r => /visibility:\s*hidden/.test(r.getAttribute("style") || "")) : null,
+                currentUntouched: !/visibility:\s*hidden/.test(plainCopy.getElementById("el_click")?.getAttribute("style") || ""),
+                liveUntouched: !/visibility:\s*hidden/.test(document.getElementById("el_click")?.getAttribute("style") || ""),
+            };
+        });
+        assert(result.plain === false && result.arrive === false, `elements shown on arrival are hidden in the preview: ${JSON.stringify(result)}`);
+        assert(result.click === true, `an on-click build shows in the next-slide preview: ${JSON.stringify(result)}`);
+        assert(result.timelineTrigger !== "on-click" || result.timeline === true, `an on-click timeline animation shows in the preview: ${JSON.stringify(result)}`);
+        assert(result.bullets === true, `bullets revealed one by one show in the preview: ${JSON.stringify(result)}`);
+        assert(result.currentUntouched && result.liveUntouched, `the arrival state leaked into the current-slide preview or the live slide: ${JSON.stringify(result)}`);
+        await page.close();
+    });
+
     await test("review: Escape closes the Share dialog", async () => {
         const { page } = await openFreshEditor(context);
         await page.locator('button[title="Share a view-only link"]').click();

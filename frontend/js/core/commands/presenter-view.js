@@ -35,6 +35,7 @@ function _syncPresenterPayload() {
     const nextSlide = state.slides?.[presentationShownSlideFrom(currentSlideIndex, 1)];
     const liveNextSection = nextSlide ? document.getElementById(nextSlide.id) : null;
     const nextSection = liveNextSection || buildPresenterSection(nextSlide);
+    const nextIndex = nextSlide ? state.slides.indexOf(nextSlide) : -1;
     const payload = {
         type: "state",
         currentIndex: currentSlideIndex,
@@ -49,7 +50,7 @@ function _syncPresenterPayload() {
         // but not these variables, without which slides were drawn on black.
         cssVars: (typeof getPresentationTheme === "function" && getPresentationTheme()?.cssVars) || {},
         currentHtml: _presenterSectionHtml(currentSection),
-        nextHtml: _presenterSectionHtml(nextSection),
+        nextHtml: _presenterSectionHtml(nextSection, { arrivalOf: nextIndex }),
     };
     _postPresenterMessage(payload);
 }
@@ -85,11 +86,58 @@ function _handlePresenterCommand(msg) {
 // A slide's markup for the presenter window. Canvases (charts) carry no pixels in markup, so each is sent as a
 // picture of what it shows now. Editor-only marks are left out: the presenter window has no rule hiding them,
 // so an animation's "⚡ Slide" badge showed on its preview.
-function _presenterSectionHtml(section) {
+// The next slide as the audience will first see it: a slide's markup holds every build already in, so the "Next
+// Slide" preview showed bullets and click-in elements that only appear on later clicks. This mirrors what
+// _preparePresentationSlideAnimations does on arrival, on the copy only (the live slides are left alone).
+function _applyPresenterArrivalState(copy, slideIndex) {
+    const slide = state.slides?.[slideIndex];
+    if (!slide) return;
+    const find = id => (id ? copy.querySelector(`[id="${CSS.escape(String(id))}"]`) : null);
+    const hide = node => node?.style.setProperty("visibility", "hidden", "important");
+    // Simple effects: each on-click one waits for its click; on-slide ones play on arrival and end shown.
+    if (typeof _getAnimatedSlideEntries === "function") {
+        _getAnimatedSlideEntries(slideIndex).forEach(entry => {
+            const node = find(entry.el.id);
+            if (!node) return;
+            node.classList.remove("sf-anim-hidden", "sf-anim-visible", "sf-anim-playing", "sf-anim-done");
+            if (entry.animation.trigger === "on-click") hide(node);
+        });
+    }
+    // "Reveal bullets one by one" and a diagram's branch reveal: every step is still to come.
+    (slide.elements || []).forEach(el => {
+        const node = find(el.id);
+        if (!node) return;
+        if (el.type === "text" && el.revealBullets) {
+            let rows = [...node.querySelectorAll(".ppt-bullet-row")];
+            if (!rows.length) rows = [...node.querySelectorAll(".text-element-content > p")].filter(p => p.textContent.trim());
+            rows.forEach(hide);
+        } else if (el.type === "mermaid" && el.graphDocument?.presentationState?.activePreset === "branch-reveal") {
+            node.querySelectorAll(".mermaid-graph-node, [data-edge-id]").forEach(hide);
+        }
+    });
+    // Timeline animations (PowerPoint's): each on-click one starts from its own first frame, in the show's order.
+    const engine = typeof getAnimationEngine === "function" ? getAnimationEngine() : null;
+    if (engine && typeof engine._applyAnimationInitial === "function" && typeof _getAdvancedAnimationClickGroups === "function") {
+        _getAdvancedAnimationClickGroups(slideIndex).forEach(group =>
+            (group.entries || []).forEach(entry => {
+                const node = find(entry.el?.id);
+                if (!node || !entry.animation) return;
+                try {
+                    engine._applyAnimationInitial(node, entry.animation);
+                } catch (_error) {
+                    // an effect the preview cannot set up: the element shows as authored
+                }
+            }),
+        );
+    }
+}
+
+function _presenterSectionHtml(section, { arrivalOf = -1 } = {}) {
     if (!section) return "";
     const canvases = [...section.querySelectorAll("canvas")];
     const copy = section.cloneNode(true);
     copy.querySelectorAll(".anim-badge, .resize-handle, .crop-handle, .connector-point-handle").forEach(node => node.remove());
+    if (arrivalOf >= 0) _applyPresenterArrivalState(copy, arrivalOf);
     [...copy.querySelectorAll("canvas")].forEach((canvas, index) => {
         const img = document.createElement("img");
         try {

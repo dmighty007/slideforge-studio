@@ -329,6 +329,42 @@ async function startRecordingFromEditor(page, { audioOnly = false } = {}) {
         await page.close();
     });
 
+    await test("Show timer: the presenter view's 'This slide' restarts on a new slide, as the show's does", async () => {
+        const { page, errors } = await openEditor(context);
+        await page.evaluate(() => togglePlayMode());
+        await page.waitForFunction(() => document.body.classList.contains("play-mode-active"));
+        const popupPromise = context.waitForEvent("page");
+        await page.evaluate(() => openPresenterView());
+        const popup = await popupPromise;
+        await popup.waitForSelector("#presenter-current section");
+        // Both clocks read together; the presenter window runs its own copy between messages.
+        const drift = async () => {
+            const [main, presenter] = await Promise.all([
+                page.evaluate(() => ({ at: Date.now(), ...showTimer.snapshot() })),
+                popup.evaluate(() => { const now = Date.now(), passed = clock.running ? now - clock.at : 0; return { at: now, totalMs: clock.totalMs + passed, slideMs: clock.slideMs + passed }; }),
+            ]);
+            const gap = presenter.at - main.at;
+            return { total: Math.abs(presenter.totalMs - main.totalMs - gap), slide: Math.abs(presenter.slideMs - main.slideMs - gap), mainSlide: main.slideMs };
+        };
+        await page.waitForTimeout(1500);
+        for (const [label, move] of [
+            ["a key in the show", () => page.keyboard.press("ArrowRight")],
+            ["Next in the presenter view", () => popup.locator('[data-action="next"]').click()],
+            ["Previous while the timer is paused", async () => { await page.keyboard.press("Shift+T"); await page.waitForTimeout(300); await popup.locator('[data-action="prev"]').click(); }],
+        ]) {
+            await page.waitForTimeout(1200);
+            await move();
+            await page.waitForTimeout(400);
+            const d = await drift();
+            assert(d.mainSlide < 1000 && d.slide < 250 && d.total < 250, `after ${label} the presenter's clock differs: ${JSON.stringify(d)}`);
+        }
+        await popup.close();
+        await page.keyboard.press("Escape");
+        await page.waitForFunction(() => !document.body.classList.contains("play-mode-active"));
+        assert(!errors.length, errors.join("\n"));
+        await page.close();
+    });
+
     await test("Show recorder: a slide's own sound is recorded when the browser shares no tab audio", async () => {
         const { page, errors } = await openEditor(context);
         await page.evaluate(() => {

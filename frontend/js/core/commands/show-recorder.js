@@ -146,8 +146,12 @@ function showTimerOnShowStart(slideIndex) {
 
 function showTimerOnSlideChange(slideIndex) {
     if (!showTimer.active) return;
+    const changed = slideIndex !== showTimer.slideIndex;
     showTimer.markSlide(slideIndex);
     _renderShowHud();
+    // The presenter window runs its own copy of the clock: a new slide's count must reach it at once, however the
+    // slide was reached (keys, the presenter's buttons, a link, a jump by number).
+    if (changed) _syncPresenterTimer();
 }
 
 function setShowTimerVisible(visible) {

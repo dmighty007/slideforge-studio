@@ -110,10 +110,12 @@ window.onload = async () => {
         }
 
         if (document.body.classList.contains("play-mode-active")) {
+            // The timer first: playing the slide's animations sends the presenter window its update, which carries
+            // the timer, and it used to carry the previous slide's time as "This slide".
+            if (typeof showTimerOnSlideChange === "function") showTimerOnSlideChange(event.indexh);
             if (typeof _playSlideAnimations === "function") {
                 _playSlideAnimations(event.indexh);
             }
-            if (typeof showTimerOnSlideChange === "function") showTimerOnSlideChange(event.indexh);
         } else if (typeof centerSlide === "function") {
             // Editor-only recentering. In presentation mode this causes a visible
             // stage bump because the fullscreen wrapper is intentionally fixed.
