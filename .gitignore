@@ -29,6 +29,7 @@ tests/*
 !tests/desktop/
 tests/browser/*
 !tests/browser/test-landscape-usability.js
+!tests/browser/test-async-lifecycle.js
 !tests/browser/test-molecule-trajectory.js
 !tests/browser/test-landscape.js
 !tests/browser/test-landscape-wigner.js

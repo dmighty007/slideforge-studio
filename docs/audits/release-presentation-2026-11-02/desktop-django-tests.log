@@ -1,0 +1,10 @@
+Creating test database for alias 'default'...
+...................................................Found 56 test(s).
+System check identified no issues (0 silenced).
+SlideForge is already running at http://127.0.0.1:1234/?token=abc
+.....
+----------------------------------------------------------------------
+Ran 56 tests in 4.856s
+
+OK
+Destroying test database for alias 'default'...

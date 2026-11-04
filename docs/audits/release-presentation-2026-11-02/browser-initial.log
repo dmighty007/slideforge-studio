@@ -1,0 +1,186 @@
+PASS create themed deck through first-launch UI
+PASS insert chart and paste spreadsheet data
+PASS edit chart value and verify rendered chart updates
+FAIL resize and reposition chart through geometry controls locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for locator('.properties-tab').filter({ hasText: 'Base' })[22m
+
+PASS duplicate chart, undo, redo and undo duplicate
+PASS insert and edit LaTeX equation
+PASS insert and edit mechanism diagram with branch reveal
+PLOT UI PROPERTIES
+Arrange
+Content
+Style
+Motion
+Notes
+Curve Fit
+Data
+Example data
+Clear
+2 series, 16 points · applied when you leave the box (Ctrl+Enter)
+ Expand
+ Load CSV…
+
+x in the first column, then one column of y per series (a header row names them). Repeat an x for replicates.
+
+Drug A: EC50 0.709 µM (0.669–0.752), Hill 1.06, R² 1.000; Drug B: EC50 2.79 µM (2.63–2.96), Hill 1.09, R² 1.000
+
+Model
+Dose-response (4 parameters)
+Straight line
+Michaelis–Menten
+One-phase decay
+Draw the fitted curve
+x axis label
+y axis label
+More options
+ Fill content area
+Readable labels (at least 18 px)
+PASS insert scientific curve-fit plugin
+FINAL UI SlideForge
+Command
+Ctrl K
+Share
+Export
+Text
+Table
+Image
+Charts
+Science
+Graphics
+Connect
+Media
+DECK
+New Slide
+
+
+
+
+1
+
+
+02
+2
+
+
+03
+𝑣
+=
+𝑉
+𝑚
+𝑎
+𝑥
+[
+𝑆
+]
+𝐾
+𝑀
++
+[
+𝑆
+]
+v=
+K
+M
+	​
+
++[S]
+V
+max
+	​
+
+[S]
+	​
+
+3
+
+
+04
+Illustrative substrate
+Enzyme binding
+Illustrative product
+4
+
+
+05
+5
+
+
+03
+𝑣
+=
+𝑉
+𝑚
+𝑎
+𝑥
+[
+𝑆
+]
+𝐾
+𝑀
++
+[
+𝑆
+]
+v=
+K
+M
+	​
+
++[S]
+V
+max
+	​
+
+[S]
+	​
+
+
+
+04
+Illustrative substrate
+Enzyme binding
+Illustrative product
+
+
+05
+05
+Quick actions
+For the slide you are on
+Tidy this slide's layout
+Run a command (Ctrl+K)
+Add an equation
+Build a flowchart or pathway
+83%
+83%
+Fit
+PROPERTIES
+Arrange
+Content
+Style
+Motion
+Notes
+Curve Fit
+Data
+Example data
+Clear
+2 series, 16 points · applied when you leave the box (Ctrl+Enter)
+ Expand
+ Load CSV…
+
+x in the first column, then one column of y per series (a header row names them). Repeat an x for replicates.
+
+Drug A: EC50 0.709 µM (0.669–0.752), Hill 1.06, R² 1.000; Drug B: EC50 2.79 µM (2.63–2.96), Hill 1.09, R² 1.000
+
+Model
+Dose-response (4 parameters)
+Straight line
+Michaelis–Menten
+One-phase decay
+Draw the fitted curve
+x axis label
+y axis label
+More options
+ Fill content area
+Readable labels (at least 18 px)

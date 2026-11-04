@@ -1,0 +1,247 @@
+Creating test database for alias 'default'...
+.....F..............E..F...FFF......FF..................F..................F.FF.FFFF...EF.FEF.....F.F.FF................................................................................
+======================================================================
+ERROR: test_list_includes_slide_count_and_cover_title (slideforge.studio.test_reliability.PresentationListSummaryTests.test_list_includes_slide_count_and_cover_title)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/test_reliability.py", line 231, in test_list_includes_slide_count_and_cover_title
+    item = client.get("/api/presentations/").json()["presentations"][0]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^
+IndexError: list index out of range
+
+======================================================================
+ERROR: test_deleting_the_presentation_ends_the_link (slideforge.studio.tests.ShareLinkTests.test_deleting_the_presentation_ends_the_link)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/tests.py", line 1433, in test_deleting_the_presentation_ends_the_link
+    path = self.share().json()["path"]
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^
+KeyError: 'path'
+
+======================================================================
+ERROR: test_stop_sharing_breaks_the_link (slideforge.studio.tests.ShareLinkTests.test_stop_sharing_breaks_the_link)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/tests.py", line 1407, in test_stop_sharing_breaks_the_link
+    path = self.share().json()["path"]
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^
+KeyError: 'path'
+
+======================================================================
+FAIL: test_only_staff_can_change_plugins_on_the_web (slideforge.studio.test_plugins.PluginManagerTests.test_only_staff_can_change_plugins_on_the_web)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/test_plugins.py", line 69, in test_only_staff_can_change_plugins_on_the_web
+    self.assertFalse(data["canManage"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false
+
+======================================================================
+FAIL: test_asset_upload_accepts_valid_image_for_authenticated_user (slideforge.studio.tests.AssetUploadHardeningTests.test_asset_upload_accepts_valid_image_for_authenticated_user)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/tests.py", line 1091, in test_asset_upload_accepts_valid_image_for_authenticated_user
+    self.assertEqual(Asset.objects.get().owner, self.user)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: <User: local> != <User: asset-user>
+
+======================================================================
+FAIL: test_asset_upload_requires_authentication (slideforge.studio.tests.AssetUploadHardeningTests.test_asset_upload_requires_authentication)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/tests.py", line 1064, in test_asset_upload_requires_authentication
+    self.assertEqual(response.status_code, 401)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 201 != 401
+
+======================================================================
+FAIL: test_pdf_page_is_rendered_for_its_owner_only (slideforge.studio.tests.AssetUploadHardeningTests.test_pdf_page_is_rendered_for_its_owner_only)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/tests.py", line 1043, in test_pdf_page_is_rendered_for_its_owner_only
+    self.assertEqual(self.client.get("/api/assets/pdf-page/?url=/media/assets/x.pdf").status_code, 401)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 404 != 401
+
+======================================================================
+FAIL: test_auth_rejects_non_object_and_non_utf8_bodies (slideforge.studio.tests.BugReviewRegressionTests.test_auth_rejects_non_object_and_non_utf8_bodies)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/tests.py", line 1477, in test_auth_rejects_non_object_and_non_utf8_bodies
+    self.assertEqual(self.client.post(url, data=body, content_type="application/json").status_code, 400)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 404 != 400
+
+======================================================================
+FAIL: test_login_is_rate_limited (slideforge.studio.tests.BugReviewRegressionTests.test_login_is_rate_limited)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/tests.py", line 1499, in test_login_is_rate_limited
+    self.assertEqual(statuses[:10], [401] * 10)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [404, 404, 404, 404, 404, 404, 404, 404, 404, 404] != [401, 401, 401, 401, 401, 401, 401, 401, 401, 401]
+
+First differing element 0:
+404
+401
+
+- [404, 404, 404, 404, 404, 404, 404, 404, 404, 404]
+?    ^    ^    ^    ^    ^    ^    ^    ^    ^    ^
+
++ [401, 401, 401, 401, 401, 401, 401, 401, 401, 401]
+?    ^    ^    ^    ^    ^    ^    ^    ^    ^    ^
+
+
+======================================================================
+FAIL: test_register_validates_username (slideforge.studio.tests.BugReviewRegressionTests.test_register_validates_username)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/tests.py", line 1487, in test_register_validates_username
+    self.assertEqual(response.status_code, 400, username)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 404 != 400 : bad name
+
+======================================================================
+FAIL: test_names_files_and_hosts_are_checked (slideforge.studio.tests.GoogleFontsTests.test_names_files_and_hosts_are_checked)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/tests.py", line 1683, in test_names_files_and_hosts_are_checked
+    self.assertEqual(self._post(["Roboto"]).status_code, 401)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 200 != 401
+
+======================================================================
+FAIL: test_presentation_delete_is_scoped_to_owner_and_deletes_owned_decks (slideforge.studio.tests.PresentationApiRegressionTests.test_presentation_delete_is_scoped_to_owner_and_deletes_owned_decks)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/tests.py", line 307, in test_presentation_delete_is_scoped_to_owner_and_deletes_owned_decks
+    self.assertEqual(allowed.status_code, 200)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 404 != 200
+
+======================================================================
+FAIL: test_presentation_update_accepts_matching_autosave_version (slideforge.studio.tests.PresentationApiRegressionTests.test_presentation_update_accepts_matching_autosave_version)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/tests.py", line 233, in test_presentation_update_accepts_matching_autosave_version
+    self.assertEqual(response.status_code, 200)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 404 != 200
+
+======================================================================
+FAIL: test_presentation_update_increments_version_and_revision_atomically (slideforge.studio.tests.PresentationApiRegressionTests.test_presentation_update_increments_version_and_revision_atomically)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/tests.py", line 175, in test_presentation_update_increments_version_and_revision_atomically
+    self.assertEqual(response.status_code, 200)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 404 != 200
+
+======================================================================
+FAIL: test_presentation_update_rejects_duplicate_element_ids (slideforge.studio.tests.PresentationApiRegressionTests.test_presentation_update_rejects_duplicate_element_ids)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/tests.py", line 131, in test_presentation_update_rejects_duplicate_element_ids
+    self.assertEqual(response.status_code, 400)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 404 != 400
+
+======================================================================
+FAIL: test_presentation_update_rejects_duplicate_element_ids_across_slides (slideforge.studio.tests.PresentationApiRegressionTests.test_presentation_update_rejects_duplicate_element_ids_across_slides)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/tests.py", line 158, in test_presentation_update_rejects_duplicate_element_ids_across_slides
+    self.assertEqual(response.status_code, 400)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 404 != 400
+
+======================================================================
+FAIL: test_presentation_update_rejects_invalid_autosave_version (slideforge.studio.tests.PresentationApiRegressionTests.test_presentation_update_rejects_invalid_autosave_version)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/tests.py", line 254, in test_presentation_update_rejects_invalid_autosave_version
+    self.assertEqual(response.status_code, 400)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 404 != 400
+
+======================================================================
+FAIL: test_presentation_update_rejects_stale_autosave_version (slideforge.studio.tests.PresentationApiRegressionTests.test_presentation_update_rejects_stale_autosave_version)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/tests.py", line 203, in test_presentation_update_rejects_stale_autosave_version
+    self.assertEqual(response.status_code, 409)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 404 != 409
+
+======================================================================
+FAIL: test_link_serves_the_viewer_to_anyone_without_sign_in (slideforge.studio.tests.ShareLinkTests.test_link_serves_the_viewer_to_anyone_without_sign_in)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/tests.py", line 1374, in test_link_serves_the_viewer_to_anyone_without_sign_in
+    self.assertEqual(self.client.get(self.url).json(), {"active": False})
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: {'error': 'Presentation not found'} != {'active': False}
+- {'error': 'Presentation not found'}
++ {'active': False}
+
+======================================================================
+FAIL: test_publishing_again_replaces_the_shared_copy_and_keeps_the_link (slideforge.studio.tests.ShareLinkTests.test_publishing_again_replaces_the_shared_copy_and_keeps_the_link)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/tests.py", line 1400, in test_publishing_again_replaces_the_shared_copy_and_keeps_the_link
+    self.assertEqual(second.status_code, 200)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 404 != 200
+
+======================================================================
+FAIL: test_unsafe_bundles_are_refused (slideforge.studio.tests.ShareLinkTests.test_unsafe_bundles_are_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/tests.py", line 1420, in test_unsafe_bundles_are_refused
+    self.assertEqual(response.status_code, 400, files)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 404 != 400 : {'index.html': 'x', '../evil.txt': 'x'}
+
+======================================================================
+FAIL: test_web_upload_has_no_copy_and_an_mp4_is_converted_on_request (slideforge.studio.tests.VideoWebmCopyTests.test_web_upload_has_no_copy_and_an_mp4_is_converted_on_request)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/tests.py", line 1179, in test_web_upload_has_no_copy_and_an_mp4_is_converted_on_request
+    self.assertNotIn("webmUrl", payload)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'webmUrl' unexpectedly found in {'id': '8c599874-fd65-48ae-ac19-04db3d101fc4', 'assetType': 'video', 'url': '/media/assets/13d6e4681bee466f83018b5b8d26fc96.mp4', 'contentType': 'video/mp4', 'metadata': {'originalName': 'clip.mp4', 'contentType': 'video/mp4', 'size': 4529, 'originalContentType': 'video/mp4', 'transcoded': True}, 'webmUrl': '/media/assets/13d6e4681bee466f83018b5b8d26fc96.webm'}
+
+======================================================================
+FAIL: test_movie_is_stored_as_a_video_asset (slideforge.bridge.keynote.tests.KeynoteImportViewTests.test_movie_is_stored_as_a_video_asset)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/bridge/keynote/tests.py", line 783, in test_movie_is_stored_as_a_video_asset
+    self.assertEqual(Asset.objects.filter(owner=self.user, asset_type="video").count(), 1)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_requires_sign_in (slideforge.bridge.keynote.tests.KeynoteImportViewTests.test_requires_sign_in)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/bridge/keynote/tests.py", line 756, in test_requires_sign_in
+    self.assertEqual(response.status_code, 401)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 200 != 401
+
+======================================================================
+FAIL: test_returns_the_deck_with_stored_pictures (slideforge.bridge.keynote.tests.KeynoteImportViewTests.test_returns_the_deck_with_stored_pictures)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/bridge/keynote/tests.py", line 770, in test_returns_the_deck_with_stored_pictures
+    self.assertEqual(Asset.objects.filter(owner=self.user, asset_type="image").count(), 1)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 != 1
+
+----------------------------------------------------------------------
+Ran 184 tests in 14.553s
+
+FAILED (failures=22, errors=3)
+Destroying test database for alias 'default'...
+Found 184 test(s).
+System check identified no issues (0 silenced).

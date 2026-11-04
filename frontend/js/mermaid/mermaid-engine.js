@@ -137,7 +137,8 @@ export async function renderMermaid(source, options = {}) {
     const key = cacheKey(diagramSource, theme, style);
     if (svgCache.has(key)) return svgCache.get(key);
 
-    renderQueue = renderQueue.then(async () => {
+    // Keep each failure visible to its caller without poisoning all subsequent renders.
+    renderQueue = renderQueue.catch(() => {}).then(async () => {
         await idle();
         const mermaid = await loadMermaid();
         mermaid.initialize({

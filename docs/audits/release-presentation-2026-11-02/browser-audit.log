@@ -1,0 +1,141 @@
+PASS create themed deck through first-launch UI
+PASS insert chart and paste spreadsheet data
+PASS edit chart value and verify rendered chart updates
+FAIL resize and reposition chart through geometry controls {"id":"el_ec41a118-a523-41a7-a1f2-2da8a0d89bea","type":"chart","chartType":"bar","chartData":{"labels":["Control","Low dose","High dose"],"datasets":[{"label":"Illustrative response","data":[12,31,38],"backgroundColor":"#3B82F6","borderColor":"#3B82F6","borderWidth":1,"errors":[0,0,0]}]},"chartOptions":{"responsive":true,"maintainAspectRatio":false,"plugins":{"legend":{"display":true,"position":"top"}}},"chartStyle":{"legend":"top","title":"","xTitle":"Condition","yTitle":"","grid":true,"fontSize":18,"seriesColors":[]},"x":64,"y":168,"width":"1152px","height":"442px","styles":{"zIndex":6,"borderRadius":"12px","backgroundColor":"rgba(248, 250, 252, 0.88)","padding":"16px","boxShadow":"0 4px 12px rgba(0,0,0,0.05)"},"animation":null,"content":""}
+PASS duplicate chart, undo, redo and undo duplicate
+PASS insert and edit LaTeX equation
+PASS insert and edit mechanism diagram with branch reveal
+PASS insert scientific curve-fit plugin
+FAIL edit scientific curve-fit data and model locator.selectOption: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for locator('#properties-panel select').first()[22m
+[2m    - locator resolved to <select class="w-full" id="prop-align-reference" onchange="selectionAlignmentReference=this.value; buildPropertiesPanel()">…</select>[22m
+[2m  - attempting select option action[22m
+[2m    2 × waiting for element to be visible and enabled[22m
+[2m      - element is not visible[22m
+[2m    - retrying select option action[22m
+[2m    - waiting 20ms[22m
+[2m    2 × waiting for element to be visible and enabled[22m
+[2m      - element is not visible[22m
+[2m    - retrying select option action[22m
+[2m      - waiting 100ms[22m
+[2m    20 × waiting for element to be visible and enabled[22m
+[2m       - element is not visible[22m
+[2m     - retrying select option action[22m
+[2m       - waiting 500ms[22m
+
+PASS label demonstration slides through canvas text editing
+PASS insert local molecule and verify interactive renderer
+MOLECULE CONTROLS {"controls":"PROPERTIES\nArrange\nContent\nStyle\nMotion\nNotes\nMolecule Viewer\nReplace PDB / Trajectory\nAdd trajectory (.xtc, .trr, .dcd, .nc)\nDrag rotates the molecule\nBackground\nMatch slide\nTransparent\nCustom colour\nStyle\nCartoon\nStick\nSphere\nLine\nSurface\nColor\nSpectrum\nElement\nChain\nResidue\nSS Jmol\nDepth cue\nReset view\nAuto-rotate: off\nView: perspective\nREPRESENTATION LAYER\nCartoon\nStick\nSphere\nLine\nSurface\nHidden\nSpectrum\nElement\nChain\nResidue\nSS Jmol\nCustom\nThickness (1 = normal)\nOpacity\nAdd Layer\nSAVED LAYERS\nClear\nNo layers: the style above is used for everything\n\nA layer restyles just its selection (a cartoon layer of chain A recolours chain A; Hidden removes it). Layers are kept in exports and presentations.","selects":[{"id":"prop-align-reference","options":[{"text":"Automatic (one: slide; multiple: selection)","value":"auto"},{"text":"Slide","value":"slide"},{"text":"Selection","value":"selection"}]},{"id":"prop-molecule-bg-mode","options":[{"text":"Match slide","value":"theme"},{"text":"Transparent","value":"transparent"},{"text":"Custom colour","value":"custom"}]},{"id":"prop-molecule-style","options":[{"text":"Cartoon","value":"cartoon"},{"text":"Stick","value":"stick"},{"text":"Sphere","value":"sphere"},{"text":"Line","value":"line"},{"text":"Surface","value":"surface"}]},{"id":"prop-molecule-color","options":[{"text":"Spectrum","value":"spectrum"},{"text":"Element","value":"default"},{"text":"Chain","value":"chain"},{"text":"Residue","value":"amino"},{"text":"SS Jmol","value":"ssJmol"}]},{"id":"prop-molecule-layer-style","options":[{"text":"Cartoon","value":"cartoon"},{"text":"Stick","value":"stick"},{"text":"Sphere","value":"sphere"},{"text":"Line","value":"line"},{"text":"Surface","value":"surface"},{"text":"Hidden","value":"hidden"}]},{"id":"prop-molecule-layer-color","options":[{"text":"Spectrum","value":"spectrum"},{"text":"Element","value":"default"},{"text":"Chain","value":"chain"},{"text":"Residue","value":"amino"},{"text":"SS Jmol","value":"ssJmol"},{"text":"Custom","value":"custom"}]}]}
+PASS edit molecule representation
+PASS save deck, reload and reopen from recent presentations
+FAIL add presenter notes and open presenter view browserContext.waitForEvent: Timeout 10000ms exceeded while waiting for event "page"
+FAIL present diagram build states locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for locator('#slide-previews .slide-preview-card').nth(3)[22m
+[2m    - locator resolved to <div draggable="true" data-slide-index="3" class="slide-preview-card ">…</div>[22m
+[2m  - attempting click action[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is visible, enabled and stable[22m
+[2m      - scrolling into view if needed[22m
+[2m      - done scrolling[22m
+[2m      - <div onclick="closeCommandPalette()" class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"></div> from <div id="command-palette-modal" class="fixed inset-0 z-[600] flex items-start justify-center pt-[15vh]">…</div> subtree intercepts pointer events[22m
+[2m    - retrying click action[22m
+[2m    - waiting 20ms[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is visible, enabled and stable[22m
+[2m      - scrolling into view if needed[22m
+[2m      - done scrolling[22m
+[2m      - <div onclick="closeCommandPalette()" class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"></div> from <div id="command-palette-modal" class="fixed inset-0 z-[600] flex items-start justify-center pt-[15vh]">…</div> subtree intercepts pointer events[22m
+[2m    - retrying click action[22m
+[2m      - waiting 100ms[22m
+[2m    19 × waiting for element to be visible, enabled and stable[22m
+[2m       - element is visible, enabled and stable[22m
+[2m       - scrolling into view if needed[22m
+[2m       - done scrolling[22m
+[2m       - <div onclick="closeCommandPalette()" class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"></div> from <div id="command-palette-modal" class="fixed inset-0 z-[600] flex items-start justify-center pt-[15vh]">…</div> subtree intercepts pointer events[22m
+[2m     - retrying click action[22m
+[2m       - waiting 500ms[22m
+
+FAIL export pptx locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for locator('#export-menu-container > button')[22m
+[2m    - locator resolved to <button title="Export" onclick="toggleExportMenu()" class="toolbar-btn toolbar-btn-primary">…</button>[22m
+[2m  - attempting click action[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is visible, enabled and stable[22m
+[2m      - scrolling into view if needed[22m
+[2m      - done scrolling[22m
+[2m      - <div onclick="closeCommandPalette()" class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"></div> from <div id="command-palette-modal" class="fixed inset-0 z-[600] flex items-start justify-center pt-[15vh]">…</div> subtree intercepts pointer events[22m
+[2m    - retrying click action[22m
+[2m    - waiting 20ms[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is visible, enabled and stable[22m
+[2m      - scrolling into view if needed[22m
+[2m      - done scrolling[22m
+[2m      - <div onclick="closeCommandPalette()" class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"></div> from <div id="command-palette-modal" class="fixed inset-0 z-[600] flex items-start justify-center pt-[15vh]">…</div> subtree intercepts pointer events[22m
+[2m    - retrying click action[22m
+[2m      - waiting 100ms[22m
+[2m    19 × waiting for element to be visible, enabled and stable[22m
+[2m       - element is visible, enabled and stable[22m
+[2m       - scrolling into view if needed[22m
+[2m       - done scrolling[22m
+[2m       - <div onclick="closeCommandPalette()" class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"></div> from <div id="command-palette-modal" class="fixed inset-0 z-[600] flex items-start justify-center pt-[15vh]">…</div> subtree intercepts pointer events[22m
+[2m     - retrying click action[22m
+[2m       - waiting 500ms[22m
+
+FAIL export pdf locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for locator('#export-menu-container > button')[22m
+[2m    - locator resolved to <button title="Export" onclick="toggleExportMenu()" class="toolbar-btn toolbar-btn-primary">…</button>[22m
+[2m  - attempting click action[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is visible, enabled and stable[22m
+[2m      - scrolling into view if needed[22m
+[2m      - done scrolling[22m
+[2m      - <div onclick="closeCommandPalette()" class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"></div> from <div id="command-palette-modal" class="fixed inset-0 z-[600] flex items-start justify-center pt-[15vh]">…</div> subtree intercepts pointer events[22m
+[2m    - retrying click action[22m
+[2m    - waiting 20ms[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is visible, enabled and stable[22m
+[2m      - scrolling into view if needed[22m
+[2m      - done scrolling[22m
+[2m      - <div onclick="closeCommandPalette()" class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"></div> from <div id="command-palette-modal" class="fixed inset-0 z-[600] flex items-start justify-center pt-[15vh]">…</div> subtree intercepts pointer events[22m
+[2m    - retrying click action[22m
+[2m      - waiting 100ms[22m
+[2m    19 × waiting for element to be visible, enabled and stable[22m
+[2m       - element is visible, enabled and stable[22m
+[2m       - scrolling into view if needed[22m
+[2m       - done scrolling[22m
+[2m       - <div onclick="closeCommandPalette()" class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"></div> from <div id="command-palette-modal" class="fixed inset-0 z-[600] flex items-start justify-center pt-[15vh]">…</div> subtree intercepts pointer events[22m
+[2m     - retrying click action[22m
+[2m       - waiting 500ms[22m
+
+FAIL export web locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for locator('#export-menu-container > button')[22m
+[2m    - locator resolved to <button title="Export" onclick="toggleExportMenu()" class="toolbar-btn toolbar-btn-primary">…</button>[22m
+[2m  - attempting click action[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is visible, enabled and stable[22m
+[2m      - scrolling into view if needed[22m
+[2m      - done scrolling[22m
+[2m      - <div onclick="closeCommandPalette()" class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"></div> from <div id="command-palette-modal" class="fixed inset-0 z-[600] flex items-start justify-center pt-[15vh]">…</div> subtree intercepts pointer events[22m
+[2m    - retrying click action[22m
+[2m    - waiting 20ms[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is visible, enabled and stable[22m
+[2m      - scrolling into view if needed[22m
+[2m      - done scrolling[22m
+[2m      - <div onclick="closeCommandPalette()" class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"></div> from <div id="command-palette-modal" class="fixed inset-0 z-[600] flex items-start justify-center pt-[15vh]">…</div> subtree intercepts pointer events[22m
+[2m    - retrying click action[22m
+[2m      - waiting 100ms[22m
+[2m    19 × waiting for element to be visible, enabled and stable[22m
+[2m       - element is visible, enabled and stable[22m
+[2m       - scrolling into view if needed[22m
+[2m       - done scrolling[22m
+[2m       - <div onclick="closeCommandPalette()" class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"></div> from <div id="command-palette-modal" class="fixed inset-0 z-[600] flex items-start justify-center pt-[15vh]">…</div> subtree intercepts pointer events[22m
+[2m     - retrying click action[22m
+[2m       - waiting 500ms[22m
+
+PASS core editing without external network

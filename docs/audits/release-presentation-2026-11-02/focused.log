@@ -1,0 +1,10 @@
+PASS canvas title typing with settled focus
+FAIL molecule representation changes and rotates during show locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for locator('[data-properties-tab="content"]')[22m
+
+FAIL presenter notes sync after ready handshake {"notes":"","text":"CURRENT SLIDE\n1 / 1\nELAPSED\n00:00\nPrevious\nNext\nReset Timer\nNEXT SLIDE\nNOTES\nNo notes for this slide.","errors":[],"debug":{"origin":"http://127.0.0.1:8094","url":"http://127.0.0.1:8094/","channel":false,"purify":"undefined","ready":"loading","scripts":[{"src":"http://127.0.0.1:8094/vendor/dompurify/purify.min.js","bytes":0}]}}
+PASS finish demonstration titles using text content inspector
+PASS capture finished chart and curve-fit screenshots
+PASS import synthetic PowerPoint through file picker
+PASS import synthetic Keynote through file picker

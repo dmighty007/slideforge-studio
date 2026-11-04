@@ -1,0 +1,1 @@
+convert /home/dm/Dibyendu/Projects/slideforge-studio/docs/audits/release-presentation-2026-11-02/evidence/demonstration.pptx as a Impress document -> /tmp/sf-release-lo-pdf/demonstration.pdf using filter : impress_pdf_Export

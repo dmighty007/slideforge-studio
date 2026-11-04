@@ -1,0 +1,43 @@
+{
+  "slides": 6,
+  "before": "1 / 6",
+  "after": "2 / 6",
+  "errors": [],
+  "requests": [],
+  "images": [
+    {
+      "src": "docs/images/readme-hero.png",
+      "naturalWidth": 1600,
+      "shownWidth": 830,
+      "shownHeight": 643
+    },
+    {
+      "src": "docs/images/gallery.jpg",
+      "naturalWidth": 1960,
+      "shownWidth": 830,
+      "shownHeight": 474
+    },
+    {
+      "src": "docs/images/molecule.jpg",
+      "naturalWidth": 1200,
+      "shownWidth": 407,
+      "shownHeight": 229
+    },
+    {
+      "src": "docs/images/diagram.jpg",
+      "naturalWidth": 1200,
+      "shownWidth": 407,
+      "shownHeight": 229
+    },
+    {
+      "src": "docs/images/plugins.jpg",
+      "naturalWidth": 1600,
+      "shownWidth": 830,
+      "shownHeight": 498
+    }
+  ],
+  "mobile": {
+    "viewport": 390,
+    "documentWidth": 390
+  }
+}

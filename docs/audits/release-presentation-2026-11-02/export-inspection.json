@@ -1,0 +1,83 @@
+{
+  "pptx": {
+    "slides": 6,
+    "shapeTypes": {
+      "AUTO_SHAPE (1)": 18,
+      "TEXT_BOX (17)": 12,
+      "CHART (3)": 1,
+      "PICTURE (13)": 4
+    },
+    "charts": [
+      {
+        "slide": 2,
+        "categories": [
+          "Control",
+          "Low dose",
+          "High dose"
+        ],
+        "values": [
+          [
+            15.0,
+            31.0,
+            38.0
+          ]
+        ]
+      }
+    ],
+    "texts": [
+      [
+        "",
+        "Illustrative enzyme response",
+        ""
+      ],
+      [
+        "",
+        "Dose sponse \u2014 illustrative data",
+        "",
+        "",
+        "02",
+        ""
+      ],
+      [
+        "",
+        "",
+        "",
+        "",
+        "03"
+      ],
+      [
+        "",
+        "",
+        "",
+        "",
+        "04"
+      ],
+      [
+        "",
+        "",
+        "",
+        "",
+        "05",
+        ""
+      ],
+      [
+        "",
+        "",
+        "",
+        "",
+        "06"
+      ]
+    ]
+  },
+  "pdf": {
+    "pages": 6,
+    "texts": [
+      "Illustrative enzyme response\n",
+      "Dose sponse \u2014 illustrative data\n02\n",
+      "03\n",
+      "04\n",
+      "05\n",
+      "06\nOrbit\n"
+    ]
+  }
+}

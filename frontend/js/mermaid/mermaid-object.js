@@ -175,6 +175,9 @@ export function updateMermaidElement(id, updates = {}, options = {}) {
 
 export function renderMermaidElement(host, elData = {}, options = {}) {
     if (!host) return;
+    // Every new rendering decision supersedes pending work, including manual/semantic SVG.
+    const task = {};
+    host._sfMermaidRenderTask = task;
     host.classList.add("mermaid-canvas-element");
     host.style.opacity = elData.opacity ?? host.style.opacity ?? "1";
 
@@ -227,7 +230,7 @@ export function renderMermaidElement(host, elData = {}, options = {}) {
     host.dataset.mermaidRenderToken = token;
     renderMermaid(source, { theme: elData.theme || "default", style })
         .then(({ svg }) => {
-            if (host.dataset.mermaidRenderToken !== token) return;
+            if (!host.isConnected || host._sfMermaidRenderTask !== task) return;
             svgHost.innerHTML = svg;
             elData.svgContent = svg;
             elData.mermaidType = inferMermaidType(source);
@@ -244,7 +247,7 @@ export function renderMermaidElement(host, elData = {}, options = {}) {
             }
         })
         .catch(error => {
-            if (host.dataset.mermaidRenderToken !== token) return;
+            if (!host.isConnected || host._sfMermaidRenderTask !== task) return;
             if (!currentSvg) {
                 svgHost.innerHTML = `<div class="mermaid-render-error">${escapeHtml(error?.message || String(error))}</div>`;
             }

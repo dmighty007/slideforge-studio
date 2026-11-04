@@ -330,6 +330,7 @@ function bindVideoPanel(data, onCommit) {
   );
 
   // --- LIVE CONTROLLER BINDINGS ---
+  const dashboard = document.getElementById("video-live-player");
   const canvasVideo = document.querySelector(`#${data.id} video`);
   const playBtn = document.getElementById("player-btn-play");
   const muteBtn = document.getElementById("player-btn-mute");
@@ -451,7 +452,8 @@ function bindVideoPanel(data, onCommit) {
 
     const updatePlayerDashboard = () => {
       // Check if elements are still in DOM
-      if (!document.getElementById("video-live-player")) return;
+      if (!dashboard?.isConnected || !canvasVideo.isConnected ||
+          document.getElementById("video-live-player") !== dashboard) return;
 
       // Sync Play/Pause button style
       if (playBtn) {

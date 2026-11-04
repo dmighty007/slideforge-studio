@@ -3004,11 +3004,16 @@ function initViewer(data) {
                 }
             });
             slideDom.querySelectorAll('video').forEach(video => {
+                const shouldAutoplay = video.autoplay || video.classList.contains('slide-background-video');
+                const becameActive = video.dataset.sfMediaActive !== 'true';
+                const enabledAutoplay = video.dataset.sfMediaAutoplay !== 'true' && shouldAutoplay;
+                video.dataset.sfMediaActive = String(isActive);
+                video.dataset.sfMediaAutoplay = String(shouldAutoplay);
                 if (!isActive) {
                     if (!video.paused) video.pause();
                     return;
                 }
-                if (video.autoplay || video.classList.contains('slide-background-video')) {
+                if (shouldAutoplay && (becameActive || enabledAutoplay)) {
                     video.play().catch(() => {});
                 }
             });

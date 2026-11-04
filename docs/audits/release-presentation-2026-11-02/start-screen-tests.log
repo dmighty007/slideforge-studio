@@ -1,0 +1,29 @@
+PASS opens on launch and creates nothing until the user chooses
+PASS New presentation creates a project and shows the editor
+PASS a theme tile creates a project in that theme
+PASS the screen grows with a large or maximised window, and a long recent list keeps full-size cards
+PASS More themes shows every theme as a tile
+FAIL recent list shows both decks, marks the open one, and Escape returns to the editor
+  page.waitForFunction: Timeout 30000ms exceeded.
+FAIL clicking a recent deck opens it
+  page.waitForFunction: Timeout 30000ms exceeded.
+FAIL search filters the list
+  page.waitForFunction: Timeout 30000ms exceeded.
+FAIL Delete key on a card asks first and does not touch the editor behind
+  cancel deleted the deck
+FAIL deleting another deck removes it from the list and the server
+  locator.textContent: Error: strict mode violation: locator('.sf-card:not(.sf-card--current)').locator('.sf-card__title') resolved to 2 elements:
+    1) <p class="sf-card__title">Untitled Presentation</p> aka getByText('Untitled Presentation1 slideUntitled PresentationEdited 1 minute ago')
+    2) <p class="sf-card__title">Untitled Presentation</p> aka getByText('Untitled Presentation1 slideUntitled PresentationEdited 2 minutes ago')
+
+Call log:
+[2m  - waiting for locator('.sf-card:not(.sf-card--current)').locator('.sf-card__title')[22m
+
+FAIL deleting the open deck keeps the start screen up with nothing open
+  page.waitForSelector: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for locator('.sf-recent__empty') to be visible[22m
+
+PASS no page errors or dialogs
+
+6 passed, 6 failed

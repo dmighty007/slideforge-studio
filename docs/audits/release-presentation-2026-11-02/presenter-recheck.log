@@ -1,0 +1,18 @@
+{
+  "errors": [],
+  "requests": [
+    "http://127.0.0.1:8094/vendor/dompurify/purify.min.js",
+    "http://127.0.0.1:8094/vendor/dompurify/purify.min.js"
+  ],
+  "before": {
+    "index": 1,
+    "slides": 6,
+    "notes": "Illustrative notes: explain the response."
+  },
+  "popup": {
+    "body": "CURRENT SLIDE\n2 / 6\nELAPSED\n00:05\nDose response: illustrative data\n02\nPrevious\nNext\nReset Timer\nNEXT SLIDE\nA model for the response\n03\n𝑣\n=\n𝑉\n𝑚\n𝑎\n𝑥\n[\n𝑆\n]\n𝐾\n𝑀\n+\n[\n𝑆\n]\nv=\nK\nM\n\t​\n\n+[S]\nV\nmax\n\t​\n\n[S]\n\t​\n\nNOTES\nIllustrative notes: explain the response.",
+    "ready": "complete",
+    "purify": "function",
+    "channel": true
+  }
+}
