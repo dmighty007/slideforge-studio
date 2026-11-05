@@ -11219,6 +11219,52 @@ async function test(name, fn) {
         });
     }
 
+    if (!FRONTEND_ONLY) {
+        await test("Open PDF as slides: one slide per page at the page's proportions, and its links work while presenting", async () => {
+            // Three 4:3 pages made with pymupdf: page 1 links to page 3 and to a web page.
+            const { spawnSync } = require("child_process");
+            const python = process.env.SLIDEFORGE_PYTHON || (fs.existsSync(".venv/bin/python") ? ".venv/bin/python" : "python3");
+            const made = spawnSync(python, ["-c", `import pymupdf, sys
+d = pymupdf.open()
+for i in range(3):
+    p = d.new_page(width=400, height=300)
+    p.draw_rect(p.rect, color=None, fill=(0.1, 0.2, 0.5))
+    p.insert_text((40, 60), f"Slide {i + 1}", fontsize=24, color=(1, 1, 1))
+d[0].insert_link({"kind": pymupdf.LINK_GOTO, "from": pymupdf.Rect(0, 0, 200, 150), "page": 2})
+d[0].insert_link({"kind": pymupdf.LINK_URI, "from": pymupdf.Rect(0, 200, 400, 300), "uri": "https://example.org/paper"})
+sys.stdout.buffer.write(d.tobytes())`], { maxBuffer: 16 * 1024 * 1024 });
+            assert(made.status === 0, `could not make the PDF: ${made.stderr}`);
+            const { page, errors } = await openFreshEditor(context);
+            const out = await pageAwait(
+                page,
+                async base64 => {
+                    const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+                    await importPdfSlides(new File([bytes], "Beamer talk.pdf", { type: "application/pdf" }));
+                    const [first, , third] = state.slides;
+                    const links = first.elements.map(el => ({ href: el.clickLink, x: el.x, y: el.y, w: parseFloat(el.width), h: parseFloat(el.height) }));
+                    const picture = await fetch(first.background.content);
+                    renderSlidesFromState();
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                    const linkNode = [...document.querySelectorAll(`[data-id="${first.elements[0]?.id}"]`)].find(n => !n.closest("#slide-previews"));
+                    document.body.classList.add("play-mode-active");
+                    linkNode?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+                    const afterClick = currentSlideIndex;
+                    document.body.classList.remove("play-mode-active");
+                    return { count: state.slides.length, pageSetup: state.pageSetup, title: currentPresentationTitle, fit: first.background.fit, pictureOk: picture.ok, links, thirdId: third.id, afterClick };
+                },
+                made.stdout.toString("base64"),
+            );
+            assert(out.count === 3 && out.pageSetup === "standard-4-3", `slides and page setup: ${JSON.stringify(out)}`);
+            assert(/^Beamer talk/.test(out.title) && out.fit === "contain" && out.pictureOk, `title and page picture: ${JSON.stringify(out)}`);
+            // 400×300 points on a 1024×768 slide: 2.56 times.
+            assert(out.links.length === 2 && out.links[0].href === `#slide:${out.thirdId}` && out.links[0].w === 512 && out.links[0].h === 384, `link to a page: ${JSON.stringify(out.links)}`);
+            assert(out.links[1].href === "https://example.org/paper" && out.links[1].y === 512, `web link: ${JSON.stringify(out.links)}`);
+            assert(out.afterClick === 2, `clicking the link while presenting goes to the third slide: ${JSON.stringify(out)}`);
+            assert(!errors.length, errors.join("\n"));
+            await page.close();
+        });
+    }
+
     await browser.close();
     console.log(`\n${results.passed.length} passed, ${results.failed.length} failed`);
     process.exit(results.failed.length ? 1 : 0);

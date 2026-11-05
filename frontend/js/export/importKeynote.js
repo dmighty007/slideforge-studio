@@ -411,11 +411,11 @@ function _keynoteSkippedSummary(skipped) {
 }
 
 // The upload, with progress: fetch() cannot report how much of a large file has been sent. Resolves to
-// { ok, status, deck } like the fetch it replaces.
-function _keynoteUpload(form, onProgress) {
+// { ok, status, deck } like the fetch it replaces. The PDF import (importPdfSlides.js) posts its file the same way.
+function _keynoteUpload(form, onProgress, url = "/api/presentations/import/keynote/") {
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/presentations/import/keynote/");
+        xhr.open("POST", url);
         xhr.withCredentials = true;
         const csrfToken = typeof _getCsrfToken === "function" ? _getCsrfToken() : "";
         if (csrfToken) xhr.setRequestHeader("X-CSRFToken", csrfToken);

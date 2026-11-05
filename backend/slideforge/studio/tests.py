@@ -1059,6 +1059,54 @@ class AssetUploadHardeningTests(TestCase):
         other.force_login(get_user_model().objects.create_user(username="pdf-other", password="strong-password-123"))
         self.assertEqual(other.get("/api/assets/pdf-page/", {"url": url}).status_code, 404)
 
+    def _linked_pdf_upload(self):
+        """Three 4:3 pages; the first links to the third and to a web page, the second to a local file."""
+        document = fitz.open()
+        for index in range(3):
+            page = document.new_page(width=400, height=300)
+            page.insert_text((40, 60), f"Slide {index + 1}")
+        document[0].insert_link({"kind": fitz.LINK_GOTO, "from": fitz.Rect(10, 20, 110, 50), "page": 2})
+        document[0].insert_link({"kind": fitz.LINK_URI, "from": fitz.Rect(10, 200, 210, 230), "uri": "https://example.org/paper"})
+        document[1].insert_link({"kind": fitz.LINK_LAUNCH, "from": fitz.Rect(10, 20, 110, 50), "file": "secret.txt"})
+        document.set_metadata({"title": "My Talk"})
+        return SimpleUploadedFile("talk.pdf", document.tobytes(), content_type="application/pdf")
+
+    def test_pdf_opens_as_one_picture_per_page_with_its_links(self):
+        self.assertEqual(self.client.post("/api/presentations/import/pdf/", {"file": self._linked_pdf_upload()}).status_code, 401)
+        self.client.force_login(self.user)
+        presentation = Presentation.objects.create(owner=self.user, title="Imported")
+
+        response = self.client.post("/api/presentations/import/pdf/", {"file": self._linked_pdf_upload(), "presentationId": str(presentation.id)})
+        self.assertEqual(response.status_code, 200, response.content)
+        result = response.json()
+        self.assertEqual(result["title"], "My Talk")
+        self.assertEqual(len(result["pages"]), 3)
+        first = result["pages"][0]
+        self.assertEqual((first["width"], first["height"]), (400, 300))
+        self.assertTrue(first["src"].startswith("/media/assets/"))
+        pictures = Asset.objects.filter(owner=self.user, presentation=presentation, asset_type="image")
+        self.assertEqual(pictures.count(), 3)
+        with pictures.first().file.open("rb") as fh:
+            self.assertEqual(max(Image.open(fh).size), 2560)
+        self.assertEqual(
+            first["links"],
+            [
+                {"x": 10, "y": 20, "width": 100, "height": 30, "page": 3},
+                {"x": 10, "y": 200, "width": 200, "height": 30, "href": "https://example.org/paper"},
+            ],
+        )
+        # A link that opens a file is left out.
+        self.assertEqual(result["pages"][1]["links"], [])
+
+    def test_pdf_import_refuses_files_that_are_not_pdfs_and_cleans_up_on_quota(self):
+        self.client.force_login(self.user)
+        not_pdf = SimpleUploadedFile("talk.pdf", b"hello", content_type="application/pdf")
+        self.assertEqual(self.client.post("/api/presentations/import/pdf/", {"file": not_pdf}).status_code, 422)
+        with override_settings(PPTMAKER_MAX_USER_ASSET_STORAGE_BYTES=1):
+            response = self.client.post("/api/presentations/import/pdf/", {"file": self._linked_pdf_upload()})
+        self.assertEqual(response.status_code, 413)
+        self.assertFalse(Asset.objects.filter(owner=self.user).exists())
+
     def test_asset_upload_requires_authentication(self):
         response = self.client.post("/api/assets/upload/", {"file": self._png_upload()})
 

@@ -12,7 +12,7 @@ It runs for a single local user, so there is no account and no sign-in. Your pre
   - PDF and PNG;
   - a stand-alone HTML viewer;
   - view-only share links.
-- **Importing:** PowerPoint files, Keynote files (text, pictures, shapes, tables, movies, sounds, transitions, builds and notes; merged table cells come in unmerged) and SlideForge files. Slides can also be drafted from a PDF paper with a language model (your own API key, or a local Ollama).
+- **Importing:** PowerPoint files, Keynote files (text, pictures, shapes, tables, movies, sounds, transitions, builds and notes; merged table cells come in unmerged), SlideForge files, and PDFs to present as they are (one slide per page, its links still working). Slides can also be drafted from a PDF paper with a language model (your own API key, or a local Ollama).
 
 ## Install
 
@@ -121,7 +121,7 @@ pip install "slideforge-studio[pdf]"
 slideforge              # opens the editor in a native window
 slideforge --browser    # opens it in your default browser
 slideforge --no-open    # only starts the server and prints its URL
-slideforge talk.pptx    # opens a presentation (.pptx, .key or a SlideForge .json export)
+slideforge talk.pptx    # opens a presentation (.pptx, .key, .pdf or a SlideForge .json export)
 ```
 
 Each file given opens as a new project, as Import on the start screen would; several can be given at once. If
@@ -131,7 +131,7 @@ slide show opens when the show ends). A missing or unsupported file is reported 
 SlideForge opens on a start screen. It lists your recent presentations and offers:
 - a new blank deck;
 - a deck in one of six themes;
-- an import from PowerPoint (.pptx), Keynote (.key) or a SlideForge .json file.
+- an import from PowerPoint (.pptx), Keynote (.key), a PDF (its pages as slides) or a SlideForge .json file.
 
 Reopen the start screen any time with the house button in the toolbar. Nothing is created until you choose (or start editing).
 

@@ -22,6 +22,15 @@ Use this review sequence:
 3. **Charts and tables:** inspect values, series, labels and cell structure.
 4. **Media and motion:** test sounds, videos, builds and transitions in presentation mode.
 
+### Present a PDF
+
+Choose **PDF** under Import on the start screen (or **Open PDF as Slides** in the command palette) to present a PDF as it is: a Beamer talk, or a deck you received as PDF. Each page becomes a slide whose background is a sharp picture of that page, on the page setup closest to its proportions.
+
+- Links in the PDF stay clickable while presenting: to a web page, or to another page of the PDF.
+- Presenter view, speaker notes, the laser pointer, the chalkboard and the timer work as on any slide, and you can add objects or builds over a page.
+- The page's text is part of the picture: it cannot be edited or searched in SlideForge.
+- Beamer overlays (`\pause`, `\only`) are separate PDF pages, so each step becomes its own slide, as in a PDF viewer.
+
 Import support does not imply pixel-identical conversion. Retain the original deck, especially for complex templates or effects.
 
 !!! note "Keynote import is not Keynote export"

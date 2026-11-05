@@ -762,6 +762,127 @@ def import_keynote_view(request):
     return JsonResponse(result)
 
 
+# A PDF opened as slides: each page becomes a picture this many pixels along its longer side (twice a 1280-pixel
+# slide, sharp on a high-density screen or a 4K projector), up to this many pages.
+PDF_SLIDE_LONG_SIDE_PX = 2560
+PDF_SLIDES_MAX_PAGES = 400
+
+
+def _pdf_page_picture(page) -> Tuple[bytes, str, str]:
+    """One page as (bytes, extension, content type): PNG, or JPEG when that is smaller (a page of photographs)."""
+    import pymupdf
+
+    zoom = PDF_SLIDE_LONG_SIDE_PX / max(1.0, page.rect.width, page.rect.height)
+    pixmap = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), alpha=False)
+    png = pixmap.tobytes("png")
+    jpeg = pixmap.tobytes("jpg", jpg_quality=90)
+    return (jpeg, ".jpg", "image/jpeg") if len(jpeg) < len(png) * 0.7 else (png, ".png", "image/png")
+
+
+def _pdf_page_links(page, page_count: int):
+    """The page's links, in points from its top left: {"x", "y", "width", "height"} and "href" (a web or mail
+    address) or "page" (1-based, a page of the same PDF). Other kinds (files, named destinations) are left out."""
+    import pymupdf
+
+    links = []
+    origin = page.rect
+    for link in page.get_links():
+        rect = pymupdf.Rect(link.get("from")) & origin
+        if rect.is_empty or rect.width < 1 or rect.height < 1:
+            continue
+        box = {"x": rect.x0 - origin.x0, "y": rect.y0 - origin.y0, "width": rect.width, "height": rect.height}
+        uri = str(link.get("uri") or "").strip()
+        if link.get("kind") == pymupdf.LINK_URI and re.match(r"^(https?:|mailto:)", uri, re.I) and len(uri) <= 2048:
+            links.append({**box, "href": uri})
+        elif link.get("kind") in (pymupdf.LINK_GOTO, pymupdf.LINK_NAMED) and isinstance(link.get("page"), int) and 0 <= link["page"] < page_count:
+            links.append({**box, "page": link["page"] + 1})
+    return links
+
+
+@require_http_methods(["POST"])
+@ratelimit(key="user", rate="30/h", method="POST")
+def import_pdf_view(request):
+    """A PDF (a talk made in Beamer, PowerPoint or Keynote, or any document) as slides: one picture per page.
+
+    The pictures are stored like uploads (with presentationId, they belong to that presentation). Returns
+    {"title", "pages": [{"src", "contentType", "width", "height" (points), "links"}]}; the browser makes the slides.
+    """
+    auth_error = _auth_required(request)
+    if auth_error:
+        return auth_error
+    uploaded_file = request.FILES.get("file")
+    if uploaded_file is None:
+        return _json_error("Missing file upload")
+    if uploaded_file.size > settings.PPTMAKER_MAX_ASSET_UPLOAD_BYTES:
+        return _json_error("File is too large", status=413)
+    if _validate_pdf_upload(uploaded_file):
+        return _json_error("This is not a PDF file", status=422)
+    presentation = None
+    presentation_id = request.POST.get("presentationId")
+    if presentation_id:
+        presentation = _owned_presentation(request, presentation_id)
+        if presentation is None:
+            return _json_error("Presentation not found", status=404)
+
+    import pymupdf
+
+    stored = []
+    try:
+        with pymupdf.open(stream=uploaded_file.read(), filetype="pdf") as document:
+            if document.needs_pass:
+                return _json_error("This PDF is protected by a password", status=422)
+            if document.page_count < 1:
+                return _json_error("The PDF has no pages", status=422)
+            if document.page_count > PDF_SLIDES_MAX_PAGES:
+                return _json_error(f"The PDF has {document.page_count} pages; at most {PDF_SLIDES_MAX_PAGES} can be opened as slides", status=422)
+            title = str((document.metadata or {}).get("title") or "").strip()[:200]
+            used_bytes = _user_asset_storage_bytes(request.user)
+            max_user_bytes = settings.PPTMAKER_MAX_USER_ASSET_STORAGE_BYTES
+            pages = []
+            for page in document:
+                data, ext, content_type = _pdf_page_picture(page)
+                if used_bytes + len(data) > max_user_bytes:
+                    collect_unused_assets()
+                    used_bytes = _user_asset_storage_bytes(request.user)
+                    if used_bytes + len(data) > max_user_bytes:
+                        raise _QuotaExceeded()
+                upload = SimpleUploadedFile(f"page-{page.number + 1}{ext}", data, content_type=content_type)
+                asset, _ = _save_asset_file(upload, asset_type="image", owner=request.user, presentation=presentation)
+                stored.append(asset)
+                used_bytes += len(data)
+                pages.append(
+                    {
+                        "src": asset.file.url,
+                        "contentType": content_type,
+                        "width": page.rect.width,
+                        "height": page.rect.height,
+                        "links": _pdf_page_links(page, document.page_count),
+                    }
+                )
+    except _QuotaExceeded:
+        _delete_assets(stored)
+        return _json_error("Asset storage quota exceeded", status=413)
+    except Exception:
+        logger.exception("PDF import failed")
+        _delete_assets(stored)
+        return _json_error("This PDF could not be read", status=422)
+    return JsonResponse({"title": title, "pages": pages})
+
+
+class _QuotaExceeded(Exception):
+    pass
+
+
+def _delete_assets(assets):
+    """Pictures stored for an import that then failed: no slide will use them."""
+    for asset in assets:
+        try:
+            asset.file.delete(save=False)
+            asset.delete()
+        except Exception:
+            logger.warning("Could not remove asset %s after a failed import", asset.id)
+
+
 @require_http_methods(["POST"])
 def asset_video_webm(request):
     """A WebM copy of one of the user's MP4 videos (JSON: {"url": "<the asset's URL>"}), made once and kept.

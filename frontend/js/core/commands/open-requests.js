@@ -1,6 +1,6 @@
 // Presentations given on the command line (desktop app): `slideforge talk.pptx` puts the file in a queue
 // (backend/slideforge/desktop/open_files.py), and this opens each one, as Import on the start screen would: a
-// PowerPoint, Keynote or SlideForge .json file, each into a new project. The queue is read once the editor has
+// PowerPoint, Keynote, PDF or SlideForge .json file, each into a new project. The queue is read once the editor has
 // started, then every few seconds, so a file given while SlideForge is already running opens in this window.
 
 const SF_OPEN_REQUESTS_URL = "/api/desktop/open/";
@@ -15,6 +15,7 @@ async function _sfOpenQueuedFile(request) {
     window.closeStartScreen?.({ force: true });
     if (request.kind === "pptx" && typeof importPptx === "function") await importPptx(file);
     else if (request.kind === "keynote" && typeof importKeynote === "function") await importKeynote(file);
+    else if (request.kind === "pdf" && typeof importPdfSlides === "function") await importPdfSlides(file);
     else if (request.kind === "json" && typeof importPresentationJsonFile === "function") await importPresentationJsonFile(file);
 }
 

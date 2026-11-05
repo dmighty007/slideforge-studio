@@ -75,6 +75,10 @@ computer doesn't have, SlideForge uses the fonts the file carries, offers to dow
 takes a font file you have, so lines break where the author's did. Computer Modern (CMU) and a stand-in for Cambria
 Math come with the app.
 
+A PDF opens too, to present it as it is: a talk from Beamer, or a deck someone sent as PDF. Each page becomes a
+slide (a picture of the page, so its text cannot be edited), its links still work, and the show, presenter view,
+notes, laser pointer and anything you add over a page work as on any slide.
+
 Import results depend on the source deck. Check layout, fonts, media and builds before a talk, especially for
 complex templates. Exported PowerPoint keeps supported text, shapes, tables and charts editable; specialized
 scientific visuals may export as images. Keep the SlideForge deck to continue editing those visuals.

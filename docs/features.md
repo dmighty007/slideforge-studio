@@ -58,7 +58,7 @@ Keep speaker notes with each slide. During the show, use presenter view, the tim
 
 ## Delivery and extension
 
-**Bring an existing deck:** import PowerPoint (.pptx) or Keynote (.key). Review complex layouts, fonts, media and builds before presenting.
+**Bring an existing deck:** import PowerPoint (.pptx) or Keynote (.key), or open a PDF to present its pages as slides. Review complex layouts, fonts, media and builds before presenting.
 
 **Choose an output:** native SlideForge for further editing; PowerPoint for supported editable content; searchable PDF for reading; or an offline web presentation. Specialized scientific objects may export as pictures. Landscape Explorer is live in the native app and a saved still in standalone HTML, PowerPoint and PDF.
 

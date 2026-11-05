@@ -31,10 +31,10 @@ def _parse_args(argv):
     parser = argparse.ArgumentParser(
         prog="slideforge",
         description="SlideForge presentation editor.",
-        epilog="Files given are opened in the editor, each as a new project (PowerPoint .pptx, Keynote .key or a "
-        "SlideForge .json export). If SlideForge is already running, they open in its window.",
+        epilog="Files given are opened in the editor, each as a new project (PowerPoint .pptx, Keynote .key, a PDF "
+        "(its pages as slides) or a SlideForge .json export). If SlideForge is already running, they open in its window.",
     )
-    parser.add_argument("files", nargs="*", metavar="FILE", help="a presentation to open (.pptx, .key or .json)")
+    parser.add_argument("files", nargs="*", metavar="FILE", help="a presentation to open (.pptx, .key, .pdf or .json)")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--browser", action="store_true", help="open in the default web browser instead of a window")
     mode.add_argument("--no-open", action="store_true", help="only start the server and print its URL")

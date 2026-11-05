@@ -83,6 +83,7 @@ const COMMANDS = [
     { id: "import-json", title: "Import from JSON", icon: "fa-file-import", action: importPresentationJson },
     { id: "import-pptx", title: "Import from PPTX", icon: "fa-file-powerpoint", action: triggerImportPptx },
     { id: "import-keynote", title: "Import from Keynote", icon: "fa-file-import", keywords: "key apple mac", action: () => triggerImportKeynote() },
+    { id: "import-pdf", title: "Open PDF as Slides", icon: "fa-file-pdf", keywords: "import present beamer pages", action: () => triggerImportPdfSlides() },
 
     // The selected objects. They are listed only while something is selected, and first then.
     { id: "dup-selection", title: "Duplicate Selection", icon: "fa-clone", keywords: "dup copy clone repeat", needs: 1, action: () => duplicateSelectedElements() },

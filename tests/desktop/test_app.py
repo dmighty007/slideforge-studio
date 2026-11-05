@@ -290,17 +290,19 @@ class OpenFilesFromTheCommandLineTests(SimpleTestCase):
         self.addCleanup(running.release)
         keynote = self.folder / "Other.key"
         keynote.write_bytes(b"PK\x03\x04")
+        slides = self.folder / "Beamer.pdf"  # a PDF opens too, its pages as slides
+        slides.write_bytes(b"%PDF-1.4\n%%EOF\n")
         with (
             mock.patch.dict(os.environ),
             mock.patch.object(app, "_prepare_django") as prepare,
             mock.patch.object(app.webbrowser, "open") as browser,
         ):
-            code = app.main(["--data-dir", str(self.data_dir), str(self.deck), str(keynote)])
+            code = app.main(["--data-dir", str(self.data_dir), str(self.deck), str(keynote), str(slides)])
         self.assertEqual(code, 0)
         prepare.assert_not_called()
         browser.assert_not_called()
         queued = open_files.pending(self.data_dir)
-        self.assertEqual([(item["name"], item["kind"]) for item in queued], [("Talk.pptx", "pptx"), ("Other.key", "keynote")])
+        self.assertEqual([(item["name"], item["kind"]) for item in queued], [("Talk.pptx", "pptx"), ("Other.key", "keynote"), ("Beamer.pdf", "pdf")])
 
     def test_a_new_instance_queues_the_files_before_the_page_loads(self):
         from slideforge.desktop import open_files

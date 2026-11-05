@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Optional
 
 # What can be opened, as the start screen imports it.
-OPENABLE = {".pptx": "pptx", ".key": "keynote", ".json": "json"}
+OPENABLE = {".pptx": "pptx", ".key": "keynote", ".pdf": "pdf", ".json": "json"}
 # Requests nobody picked up (the window was closed before it loaded) are dropped after this long.
 MAX_AGE_SECONDS = 15 * 60
 MAX_BYTES = 1024 * 1024 * 1024
@@ -43,7 +43,7 @@ def check(path: str) -> Path:
     if not target.is_file():
         raise OpenFileError(f"No such file: {path}")
     if target.suffix.lower() not in OPENABLE:
-        raise OpenFileError(f"Cannot open {target.name}: SlideForge opens PowerPoint (.pptx), Keynote (.key) and SlideForge (.json) files")
+        raise OpenFileError(f"Cannot open {target.name}: SlideForge opens PowerPoint (.pptx), Keynote (.key), PDF (.pdf) and SlideForge (.json) files")
     if target.stat().st_size > MAX_BYTES:
         raise OpenFileError(f"{target.name} is too large to open")
     return target.resolve()
