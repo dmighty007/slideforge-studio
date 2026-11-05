@@ -108,6 +108,14 @@ from PyPI, then `slideforge`, and `slideforge --install-shortcut` for the icons.
 
 To run it from this repository instead, or to help build it, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
+## New in 0.7
+
+- **Present a PDF:** open a Beamer talk or any PDF as slides, one per page, with its links still working while presenting.
+- **Presenter view:** the slide timer restarts on each slide, and Next Slide shows what the audience will see first.
+- **Web ZIP:** links in text work again, and hidden backup slides behave as in the app.
+
+See the [0.7.0 release notes](docs/releases/v0.7.0.md).
+
 ## New in 0.5
 
 - **Landscape Explorer:** CSV grids or `f(x, y)` as heatmaps, contours and rotatable 3D surfaces, with live inspection and saved export views.
