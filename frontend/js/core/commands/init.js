@@ -7,6 +7,10 @@ window.addEventListener("beforeunload", () => {
 
 // Toolbar "Transitions": the slide's properties, on the Layout tab where the transition control is.
 window.openTransitionsUI = function() {
+    const active = document.activeElement;
+    if (active && typeof active.blur === "function" && active.closest?.("#properties-content")) {
+        active.blur();
+    }
     if (typeof clearSelection === "function") {
         clearSelection();
     }
@@ -15,7 +19,7 @@ window.openTransitionsUI = function() {
         togglePropertiesPanel();
     }
     if (typeof _propertiesPanelActiveTab !== "undefined") _propertiesPanelActiveTab = "layout";
-    if (typeof buildPropertiesPanel === "function") buildPropertiesPanel();
+    if (typeof buildPropertiesPanel === "function") buildPropertiesPanel({ immediate: true });
     requestAnimationFrame(() => {
         const el = document.getElementById("prop-slide-transition");
         if (!el) return;

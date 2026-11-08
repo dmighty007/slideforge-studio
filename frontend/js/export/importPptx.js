@@ -2916,12 +2916,17 @@ const PPTX_TRANSITIONS = {
     flip: "convex", gallery: "convex", cube: "convex", box: "convex", prism: "convex", conveyor: "convex", ferris: "convex",
     switch: "convex", doors: "concave", window: "concave",
 };
-function _pptxTransition(doc) {
-    for (const transition of Array.from(doc?.getElementsByTagName("p:transition") || [])) {
-        for (const effect of Array.from(transition.children)) {
-            const name = effect.tagName.replace(/^[\w]+:/, "");
-            if (PPTX_TRANSITIONS[name]) return PPTX_TRANSITIONS[name];
+function _pptxTransition(doc, design = null) {
+    for (const source of [doc, design?.layout, design?.master]) {
+        const transitions = Array.from(source?.getElementsByTagName("p:transition") || []);
+        if (!transitions.length) continue;
+        for (const transition of transitions) {
+            for (const effect of Array.from(transition.children)) {
+                const name = effect.tagName.replace(/^[\w]+:/, "");
+                if (PPTX_TRANSITIONS[name]) return PPTX_TRANSITIONS[name];
+            }
         }
+        return "none"; // explicit transition element on the slide with no visual effect overrides layout/master
     }
     return "none"; // no effect (a transition element can hold only timing or a sound)
 }
@@ -3022,10 +3027,17 @@ async function _pptxSlideElements(pkg, slidePath, scale, design = null) {
         if (clickLink) made.forEach(el => el && !el.clickLink && (el.clickLink = clickLink));
         // The builds are the slide's; a layout's or a SmartArt drawing's shape ids can repeat the slide's.
         if (part.inherited || part.quiet) return;
+        const validMade = made.filter(Boolean);
+        if (validMade.length > 1 && node?.tagName !== "p:grpSp") {
+            const shapeGroup = generateId("pptxsp");
+            validMade.forEach(el => {
+                el.pptxShapeGroup = shapeGroup;
+            });
+        }
         const id = _pptxFirst(node, "p:cNvPr")?.getAttribute("id");
         [id, ...owners].filter(Boolean).forEach(key => {
             if (!byShapeId.has(key)) byShapeId.set(key, []);
-            byShapeId.get(key).push(...made);
+            byShapeId.get(key).push(...validMade);
         });
     };
     // EMU in the coordinates of `transform` -> slide pixels
@@ -3498,7 +3510,7 @@ async function importPptx(file) {
                 layoutId: "blank",
                 masterId: "none",
                 notes,
-                presentationTransition: _pptxTransition(slideDoc),
+                presentationTransition: _pptxTransition(slideDoc, design),
                 ...(slideBackground ? { background: slideBackground } : {}),
                 ...(hidden ? { hidden: true } : {}),
                 elements,
@@ -3524,6 +3536,7 @@ async function importPptx(file) {
         setCurrentSlideIndex?.(0);
         clearSelection?.();
         renderSlidesFromState?.();
+        buildPropertiesPanel?.({ immediate: true });
         updateSlideCounter?.();
         if (typeof Reveal !== "undefined" && typeof Reveal.slide === "function") Reveal.slide(0);
         requestAnimationFrame(() => {

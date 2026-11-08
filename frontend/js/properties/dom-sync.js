@@ -201,9 +201,11 @@ function applySidebarTextContent(data, value) {
         next.bulletStyle || "default",
       );
       if (typeof setActiveInlineEditor === "function")
-        setActiveInlineEditor(null);
+        setActiveInlineEditor(contentHost);
       if (typeof _focusEditableHost === "function")
         _focusEditableHost(contentHost);
+      if (typeof captureInlineSelection === "function")
+        captureInlineSelection();
     } else {
       delete contentHost.dataset.structuredEdit;
       delete contentHost.dataset.structuredEditMode;
@@ -309,9 +311,11 @@ function applyTextBulletState(data, nextKind, nextStyle = "default") {
       );
       contentHost.contentEditable = "true";
       if (typeof setActiveInlineEditor === "function")
-        setActiveInlineEditor(null);
+        setActiveInlineEditor(contentHost);
       if (typeof _focusEditableHost === "function")
         _focusEditableHost(contentHost);
+      if (typeof captureInlineSelection === "function")
+        captureInlineSelection();
     } else {
       delete contentHost.dataset.structuredEdit;
       delete contentHost.dataset.structuredEditMode;

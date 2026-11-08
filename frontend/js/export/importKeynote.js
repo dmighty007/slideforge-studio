@@ -509,6 +509,7 @@ async function importKeynote(file) {
         setCurrentSlideIndex?.(0);
         clearSelection?.();
         renderSlidesFromState?.();
+        buildPropertiesPanel?.({ immediate: true });
         updateSlideCounter?.();
         if (typeof Reveal !== "undefined" && typeof Reveal.slide === "function") Reveal.slide(0);
         requestAnimationFrame(() => {

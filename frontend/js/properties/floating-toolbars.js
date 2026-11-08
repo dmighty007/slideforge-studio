@@ -237,8 +237,9 @@ function _bindFloatingTextToolbar(data, toolbar) {
     bindInlineFormattingGuard(boldBtn);
     boldBtn.onclick = () => {
       const latest = getSelectedElementData();
-      const nextWeight =
-        latest?.styles?.fontWeight === "bold" ? "normal" : "bold";
+      const selStyle = typeof getStyleAtSelection === "function" ? getStyleAtSelection() : null;
+      const isBoldNow = selStyle ? selStyle.fontWeight === "bold" : latest?.styles?.fontWeight === "bold";
+      const nextWeight = isBoldNow ? "normal" : "bold";
       applyFloatingTextFormatting("fontWeight", nextWeight, {
         inlineAction: "bold",
       });
@@ -249,8 +250,9 @@ function _bindFloatingTextToolbar(data, toolbar) {
     bindInlineFormattingGuard(italicBtn);
     italicBtn.onclick = () => {
       const latest = getSelectedElementData();
-      const nextStyle =
-        latest?.styles?.fontStyle === "italic" ? "normal" : "italic";
+      const selStyle = typeof getStyleAtSelection === "function" ? getStyleAtSelection() : null;
+      const isItalicNow = selStyle ? selStyle.fontStyle === "italic" : latest?.styles?.fontStyle === "italic";
+      const nextStyle = isItalicNow ? "normal" : "italic";
       applyFloatingTextFormatting("fontStyle", nextStyle, {
         inlineAction: "italic",
       });
@@ -264,12 +266,13 @@ function _bindFloatingTextToolbar(data, toolbar) {
     underlineFloatBtn.onclick = () => {
       const latest = getSelectedElementData();
       const curDec = latest?.styles?.textDecoration || "";
-      const hasUnderline = curDec.includes("underline");
+      const selStyle = typeof getStyleAtSelection === "function" ? getStyleAtSelection() : null;
+      const hasUnderline = selStyle ? Boolean(selStyle.underline) : curDec.includes("underline");
       applyFloatingTextFormatting(
         "textDecoration",
         hasUnderline
           ? curDec.replace("underline", "").trim() || "none"
-          : [curDec, "underline"].filter(Boolean).join(" ").trim(),
+          : [curDec.replace("none", "").trim(), "underline"].filter(Boolean).join(" ").trim(),
         { inlineAction: "underline" },
       );
     };
@@ -287,13 +290,14 @@ function _bindFloatingTextToolbar(data, toolbar) {
     strikethroughFloatBtn.onclick = () => {
       const latest = getSelectedElementData();
       const curDec = latest?.styles?.textDecoration || "";
-      const hasStrike = curDec.includes("line-through");
+      const selStyle = typeof getStyleAtSelection === "function" ? getStyleAtSelection() : null;
+      const hasStrike = selStyle ? Boolean(selStyle.strikethrough) : curDec.includes("line-through");
       applyFloatingTextFormatting(
         "textDecoration",
         hasStrike
           ? curDec.replace("line-through", "").trim() || "none"
-          : [curDec, "line-through"].filter(Boolean).join(" ").trim(),
-        { inlineAction: "textDecoration" },
+          : [curDec.replace("none", "").trim(), "line-through"].filter(Boolean).join(" ").trim(),
+        { inlineAction: "strikethrough" },
       );
     };
     setTextControlActive(
@@ -451,6 +455,9 @@ function _bindFloatingTextToolbar(data, toolbar) {
   }
 
   toolbar.dataset.guarded = "true";
+  if (typeof updateUIFromSelection === "function") {
+    updateUIFromSelection();
+  }
 }
 
 function _bindFloatingShapeToolbar(data, toolbar) {

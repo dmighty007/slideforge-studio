@@ -329,6 +329,11 @@
     user-select: text !important;
     -webkit-user-select: text !important;
 }
+body.sf-moving-element .text-element-content,
+body.sf-moving-element .text-element-content * {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+}
 .canvas-element.editing-text {
     z-index: 60;
 }
@@ -338,14 +343,13 @@
     outline-offset: 3px;
 }
 /* The box being edited is tinted with the text's own colour, so it stays readable on any slide: a near-white
-   fill hid light text on dark themes. */
+   fill hid light text on dark themes. Zero padding change ensures zero layout/wrapping shift on edit entry/exit. */
 .text-element-content[contenteditable="true"] {
-    border-radius: 8px;
+    border-radius: 6px;
     /* A faint tint of the text's own colour (readable on any slide). The amber outline on the box already says
        "editing"; a 9% tint, a ring and a drop shadow on top of it made the whole box look grey and raised. */
     background: color-mix(in srgb, currentColor 3.5%, transparent);
-    box-shadow: none;
-    padding: 2px 4px;
+    box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 3.5%, transparent);
     transition:
         box-shadow 120ms ease,
         background-color 120ms ease;
@@ -708,8 +712,8 @@ body.dark-mode .table-element-cell.is-editing {
     box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.12);
 }
 
-.canvas-element.editing-text > .resize-handle {
-    display: none !important;
+.canvas-element.selected.editing-text > .resize-handle {
+    display: block;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -2417,6 +2421,11 @@ body.play-mode-active.presentation-pointer-active .presentation-menu-shell,
 .table-element-cell::selection,
 .table-element-cell *::selection {
     background: rgba(37, 99, 235, 0.25);
+    color: inherit;
+}
+
+::highlight(sf-inline-selection) {
+    background-color: rgba(37, 99, 235, 0.25);
     color: inherit;
 }
 

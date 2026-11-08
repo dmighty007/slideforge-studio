@@ -507,6 +507,16 @@ function _installStructuredEditorShortcuts() {
     (e) => {
       const host = _getActiveStructuredEditor();
       if (!host) return;
+      if (e.altKey && e.shiftKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+        if (_getStructuredEditorMode(host) === "list") {
+          const moved = _moveStructuredListItem(host, e.key === "ArrowUp" ? -1 : 1);
+          if (moved) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+          return;
+        }
+      }
       if (e.key === "Tab") {
         e.preventDefault();
         e.stopPropagation();
@@ -852,15 +862,44 @@ function _insertDeserializedListItems(host, items) {
   _commitStructuredBulletEditorChange(host);
 }
 
+function _moveStructuredListItem(host, direction) {
+  if (!host || _getStructuredEditorMode(host) !== "list") return false;
+  const item = _getActiveStructuredBulletListItem(host);
+  if (!item) return false;
+  const selection = window.getSelection();
+  const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+  const caretOffset =
+    range && item.contains(range.startContainer)
+      ? _getTextOffsetWithinElement(item, range.startContainer, range.startOffset)
+      : _getPlainTextLength(item);
+
+  if (direction < 0) {
+    const prev = item.previousElementSibling;
+    if (!prev) return false;
+    prev.insertAdjacentElement("beforebegin", item);
+  } else {
+    const next = item.nextElementSibling;
+    if (!next) return false;
+    next.insertAdjacentElement("afterend", item);
+  }
+  _refreshStructuredBulletEditorMarkers(host);
+  _placeCaretAtTextOffset(item, caretOffset);
+  _commitStructuredBulletEditorChange(host);
+  return true;
+}
+
 function _adjustStructuredIndentation(el, direction) {
   if (_getStructuredEditorMode(el) === "list") {
-    const item = _getActiveStructuredBulletListItem(el);
-    if (!item) return;
-    const nextLevel = Math.max(
-      0,
-      Math.min(8, (Number(item.dataset.level) || 0) + direction),
-    );
-    item.dataset.level = String(nextLevel);
+    const selectedItems = _getSelectedListItems(el);
+    const targets = selectedItems.length > 1 ? selectedItems : [_getActiveStructuredBulletListItem(el)].filter(Boolean);
+    if (!targets.length) return;
+    targets.forEach((item) => {
+      const nextLevel = Math.max(
+        0,
+        Math.min(8, (Number(item.dataset.level) || 0) + direction),
+      );
+      item.dataset.level = String(nextLevel);
+    });
     _refreshStructuredBulletEditorMarkers(el);
     _commitStructuredBulletEditorChange(el);
     return;

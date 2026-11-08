@@ -1,28 +1,199 @@
 // Text element content and inline text editing.
 
 
-// Selects the word under (x, y) in `host` (letters, digits and joining marks; a click between words selects nothing).
-function _selectWordAtPoint(host, x, y) {
-  const point = document.caretRangeFromPoint?.(x, y) ||
-    (() => { const p = document.caretPositionFromPoint?.(x, y); if (!p) return null; const r = document.createRange(); r.setStart(p.offsetNode, p.offset); return r; })();
+function _caretRangeFromPoint(x, y) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  if (typeof document.caretRangeFromPoint === "function") {
+    const r = document.caretRangeFromPoint(x, y);
+    if (r) return r;
+  }
+  if (typeof document.caretPositionFromPoint === "function") {
+    const p = document.caretPositionFromPoint(x, y);
+    if (p && p.offsetNode) {
+      const r = document.createRange();
+      r.setStart(p.offsetNode, p.offset);
+      r.collapse(true);
+      return r;
+    }
+  }
+  return null;
+}
+
+function _getSelectionBlockScope(host, node) {
+  const el = node?.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+  const block = el?.closest?.(".ppt-bullet-edit-item, .ppt-bullet-row, li, p, div");
+  return block && host.contains(block) ? block : host;
+}
+
+function _collectBlockTextNodes(scope) {
+  const segments = [];
+  let total = 0;
+  const walker = document.createTreeWalker(
+    scope,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(textNode) {
+        if (textNode.parentElement?.closest?.(".ppt-bullet-marker")) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    },
+  );
+  while (walker.nextNode()) {
+    const textNode = walker.currentNode;
+    const len = textNode.textContent.length;
+    segments.push({
+      node: textNode,
+      start: total,
+      end: total + len,
+      text: textNode.textContent,
+    });
+    total += len;
+  }
+  return {
+    segments,
+    fullText: segments.map((s) => s.text).join(""),
+  };
+}
+
+function _resolveDomPositionFromFlatOffset(segments, flatOffset) {
+  if (!segments.length) return null;
+  for (let i = 0; i < segments.length; i += 1) {
+    const seg = segments[i];
+    if (flatOffset <= seg.end || i === segments.length - 1) {
+      return {
+        node: seg.node,
+        offset: Math.max(0, Math.min(seg.node.textContent.length, flatOffset - seg.start)),
+      };
+    }
+  }
+  const last = segments[segments.length - 1];
+  return { node: last.node, offset: last.node.textContent.length };
+}
+
+function _getWordRangeAtPoint(host, x, y) {
+  const point = _caretRangeFromPoint(x, y);
   const node = point?.startContainer;
-  if (!node || node.nodeType !== Node.TEXT_NODE || !host.contains(node)) return;
-  const text = node.textContent;
+  if (!node || !host.contains(node)) return null;
+
+  const scope = _getSelectionBlockScope(host, node);
+  const { segments, fullText } = _collectBlockTextNodes(scope);
+  if (!segments.length || !fullText) return null;
+
+  let flatPoint = -1;
+  if (node.nodeType === Node.TEXT_NODE) {
+    const seg = segments.find((s) => s.node === node);
+    if (seg) {
+      flatPoint = seg.start + point.startOffset;
+    }
+  } else if (node.nodeType === Node.ELEMENT_NODE) {
+    const child = node.childNodes[point.startOffset] || node.lastChild;
+    const seg = segments.find((s) => child && (s.node === child || child.contains?.(s.node)));
+    if (seg) {
+      flatPoint = seg.start;
+    }
+  }
+  if (flatPoint < 0) return null;
+
   const isWord = (ch) => /[\p{L}\p{N}_'’\-]/u.test(ch || "");
-  let start = point.startOffset;
-  let end = point.startOffset;
-  if (!isWord(text[start]) && isWord(text[start - 1])) start -= 1;
-  if (!isWord(text[start])) return;
-  while (start > 0 && isWord(text[start - 1])) start -= 1;
+  let start = flatPoint;
+  let end = flatPoint;
+  if (!isWord(fullText[start]) && start > 0 && isWord(fullText[start - 1])) {
+    start -= 1;
+  }
+  if (!isWord(fullText[start])) return null;
+  while (start > 0 && isWord(fullText[start - 1])) start -= 1;
   end = start;
-  while (end < text.length && isWord(text[end])) end += 1;
+  while (end < fullText.length && isWord(fullText[end])) end += 1;
+
+  const startPos = _resolveDomPositionFromFlatOffset(segments, start);
+  const endPos = _resolveDomPositionFromFlatOffset(segments, end);
+  if (!startPos || !endPos) return null;
+
   const range = document.createRange();
-  range.setStart(node, start);
-  range.setEnd(node, end);
+  range.setStart(startPos.node, startPos.offset);
+  range.setEnd(endPos.node, endPos.offset);
+  return range;
+}
+
+// Selects the word under (x, y) in `host` across inline spans (letters, digits and joining marks; a click between words selects nothing).
+function _selectWordAtPoint(host, x, y) {
+  const range = _getWordRangeAtPoint(host, x, y);
+  if (!range) return null;
   const selection = window.getSelection();
   selection.removeAllRanges();
   selection.addRange(range);
   if (typeof captureInlineSelection === "function") captureInlineSelection();
+  return range;
+}
+
+function _selectLineOrBlockAtPoint(host, x, y) {
+  const point = _caretRangeFromPoint(x, y);
+  const selection = window.getSelection();
+  const fallbackNode = selection?.rangeCount ? selection.anchorNode : null;
+  const targetNode =
+    point?.startContainer && host.contains(point.startContainer)
+      ? point.startContainer
+      : fallbackNode && host.contains(fallbackNode)
+        ? fallbackNode
+        : host;
+
+  const el =
+    targetNode.nodeType === Node.TEXT_NODE
+      ? targetNode.parentElement
+      : targetNode;
+  const blockItem = el?.closest?.(
+    ".ppt-bullet-edit-item, .ppt-bullet-row, li, p",
+  );
+  const range = document.createRange();
+  if (blockItem && host.contains(blockItem)) {
+    range.selectNodeContents(blockItem);
+  } else {
+    // Plain text host potentially containing <br>-separated lines
+    const topChildren = Array.from(host.childNodes);
+    const brIndices = topChildren
+      .map((child, idx) => (child.nodeName === "BR" ? idx : -1))
+      .filter((idx) => idx !== -1);
+    if (!brIndices.length) {
+      range.selectNodeContents(host);
+    } else {
+      let topChild = targetNode;
+      while (topChild && topChild.parentNode && topChild.parentNode !== host) {
+        topChild = topChild.parentNode;
+      }
+      const childIdx = Math.max(0, topChildren.indexOf(topChild));
+      let lineStartIdx = 0;
+      let lineEndIdx = topChildren.length;
+      for (const brIdx of brIndices) {
+        if (brIdx < childIdx) lineStartIdx = brIdx + 1;
+        else if (brIdx >= childIdx) {
+          lineEndIdx = brIdx;
+          break;
+        }
+      }
+      range.setStart(host, lineStartIdx);
+      range.setEnd(host, lineEndIdx);
+    }
+  }
+  if (selection) {
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+  if (typeof captureInlineSelection === "function") captureInlineSelection();
+  return range;
+}
+
+function _selectAllInHost(host) {
+  const range = document.createRange();
+  range.selectNodeContents(host);
+  const selection = window.getSelection();
+  if (selection) {
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+  if (typeof captureInlineSelection === "function") captureInlineSelection();
+  return range;
 }
 
 function commitActiveTextEditors() {
@@ -174,7 +345,7 @@ function _applyTextTypeContent(el, elData, options) {
     }
   };
 
-  const beginInlineTextEdit = ({ preserveSelection = false } = {}) => {
+  const beginInlineTextEdit = ({ preserveSelection = false, clickPoint = null } = {}) => {
     if (document.body.classList.contains("play-mode-active")) return;
     // The box's data as it is now: this closure holds the copy the box was drawn from, and a bullet style (or
     // font, colour, content) changed in Properties since then reached only the live element. Editing started from
@@ -202,11 +373,19 @@ function _applyTextTypeContent(el, elData, options) {
     let targetCaretOffset = 0;
     if (isStructured) {
       const selection = window.getSelection();
-      if (selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
+      let range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+      if (
+        (!range || !contentHost.contains(range.startContainer)) &&
+        clickPoint &&
+        Number.isFinite(clickPoint.x) &&
+        Number.isFinite(clickPoint.y)
+      ) {
+        range = _caretRangeFromPoint(clickPoint.x, clickPoint.y);
+      }
+      if (range && contentHost.contains(range.startContainer)) {
         const clickedRow =
           range.startContainer.nodeType === Node.TEXT_NODE
-            ? range.startContainer.parentElement.closest(".ppt-bullet-row")
+            ? range.startContainer.parentElement?.closest?.(".ppt-bullet-row")
             : range.startContainer.closest?.(".ppt-bullet-row");
         if (clickedRow) {
           const rows = Array.from(
@@ -248,20 +427,19 @@ function _applyTextTypeContent(el, elData, options) {
       : "";
     contentHost.contentEditable = true;
     contentHost.spellcheck = true;
-    if (!isStructured) {
-      setActiveInlineEditor(contentHost);
-    }
+    setActiveInlineEditor(contentHost);
     syncTextBoxLayout(el, elData);
     el.classList.add("cursor-text", "editing-text");
     interact(el).draggable(false);
-    interact(el).resizable(false);
+    // Keep resize active during text editing so users can widen/narrow the text box while typing (PowerPoint/Google Slides behavior).
+    interact(el).resizable(true);
     // The caret goes where the click was, a frame from now. Keys typed before then are already in the box with the
     // caret after them: placing it then put it back in front of them, and the next letters went first ("Sg" was
     // saved as "gS"). So it is placed only when nothing was typed in between.
     const textAtStart = contentHost.textContent;
     requestAnimationFrame(() => {
       if (contentHost.textContent !== textAtStart && contentHost.contains(window.getSelection?.()?.anchorNode)) {
-        if (!isStructured) captureInlineSelection();
+        captureInlineSelection();
         updateFloatingToolbars?.();
         buildPropertiesPanel?.();
         return;
@@ -279,14 +457,31 @@ function _applyTextTypeContent(el, elData, options) {
           });
         }
       } else {
+        if (
+          preserveSelection &&
+          clickPoint &&
+          Number.isFinite(clickPoint.x) &&
+          Number.isFinite(clickPoint.y)
+        ) {
+          const sel = window.getSelection();
+          const hasRangeInHost = Boolean(
+            sel && sel.rangeCount > 0 && contentHost.contains(sel.anchorNode),
+          );
+          if (!hasRangeInHost) {
+            const pointRange = _caretRangeFromPoint(clickPoint.x, clickPoint.y);
+            if (pointRange && contentHost.contains(pointRange.startContainer)) {
+              contentHost.focus();
+              sel?.removeAllRanges();
+              sel?.addRange(pointRange);
+            }
+          }
+        }
         _focusEditableHost(contentHost, {
           placeCaretAtEnd: !preserveSelection,
           preserveSelection,
         });
       }
-      if (!isStructured) {
-        captureInlineSelection();
-      }
+      captureInlineSelection();
       resetTypingHistory();
       updateFloatingToolbars?.();
       buildPropertiesPanel?.();
@@ -295,20 +490,105 @@ function _applyTextTypeContent(el, elData, options) {
 
   el.addEventListener("dblclick", (event) => {
     event.stopPropagation();
-    beginInlineTextEdit({ preserveSelection: true });
+    const { clientX, clientY } = event;
+    beginInlineTextEdit({
+      preserveSelection: true,
+      clickPoint: { x: clientX, y: clientY },
+    });
     // A double-click on a word selects it, as in PowerPoint, also in a box that was not being edited: going into
     // editing rebuilt the text (lists especially), the browser's own word selection was lost, and it took a second
     // double-click before Bold or a colour had a word to apply to.
-    const { clientX, clientY } = event;
     requestAnimationFrame(() => {
-      const selection = window.getSelection();
-      if (selection?.rangeCount && !selection.isCollapsed && contentHost.contains(selection.anchorNode)) return;
       _selectWordAtPoint(contentHost, clientX, clientY);
     });
   });
   contentHost.addEventListener("mousedown", (e) => {
     if (!contentHost.isContentEditable) return;
     e.stopPropagation();
+    if (e.button !== 0) return;
+
+    if (e.detail >= 4) {
+      e.preventDefault();
+      _selectAllInHost(contentHost);
+      return;
+    }
+    if (e.detail === 3) {
+      e.preventDefault();
+      _selectLineOrBlockAtPoint(contentHost, e.clientX, e.clientY);
+      return;
+    }
+    if (e.detail === 2) {
+      const anchorWordRange = _getWordRangeAtPoint(
+        contentHost,
+        e.clientX,
+        e.clientY,
+      );
+      if (!anchorWordRange) return;
+      e.preventDefault();
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(anchorWordRange.cloneRange());
+      }
+      captureInlineSelection?.();
+
+      const onWordDragMove = (moveEvent) => {
+        if ((moveEvent.buttons & 1) === 0) {
+          stopWordDrag();
+          return;
+        }
+        const currentWordRange =
+          _getWordRangeAtPoint(
+            contentHost,
+            moveEvent.clientX,
+            moveEvent.clientY,
+          ) || _caretRangeFromPoint(moveEvent.clientX, moveEvent.clientY);
+        if (
+          !currentWordRange ||
+          !contentHost.contains(currentWordRange.startContainer)
+        ) {
+          return;
+        }
+        const combined = document.createRange();
+        const cmp = anchorWordRange.compareBoundaryPoints(
+          Range.START_TO_START,
+          currentWordRange,
+        );
+        if (cmp <= 0) {
+          combined.setStart(
+            anchorWordRange.startContainer,
+            anchorWordRange.startOffset,
+          );
+          combined.setEnd(
+            currentWordRange.endContainer,
+            currentWordRange.endOffset,
+          );
+        } else {
+          combined.setStart(
+            currentWordRange.startContainer,
+            currentWordRange.startOffset,
+          );
+          combined.setEnd(
+            anchorWordRange.endContainer,
+            anchorWordRange.endOffset,
+          );
+        }
+        const sel = window.getSelection();
+        if (sel) {
+          sel.removeAllRanges();
+          sel.addRange(combined);
+        }
+        captureInlineSelection?.();
+      };
+      const stopWordDrag = () => {
+        window.removeEventListener("mousemove", onWordDragMove, true);
+        window.removeEventListener("mouseup", stopWordDrag, true);
+        captureInlineSelection?.();
+        updateFloatingToolbars?.();
+      };
+      window.addEventListener("mousemove", onWordDragMove, true);
+      window.addEventListener("mouseup", stopWordDrag, true);
+    }
   });
   // Where the pointer went down, so the click that ends a drag does not also start editing.
   let pointerDownAt = null;
@@ -323,7 +603,14 @@ function _applyTextTypeContent(el, elData, options) {
     if (document.body.classList.contains("play-mode-active")) return;
     if (elData.iconMode) return;
     e.stopPropagation();
-    if (contentHost.contentEditable === "true") return;
+    if (contentHost.contentEditable === "true") {
+      if (e.detail === 3) {
+        _selectLineOrBlockAtPoint(contentHost, e.clientX, e.clientY);
+      } else if (e.detail >= 4) {
+        _selectAllInHost(contentHost);
+      }
+      return;
+    }
     const moved = pointerDownAt && Math.hypot(e.clientX - pointerDownAt.x, e.clientY - pointerDownAt.y) > 4;
     pointerDownAt = null;
     if (moved) return; // that was a drag of the box
@@ -331,7 +618,10 @@ function _applyTextTypeContent(el, elData, options) {
     // dropped the rest of the selection.
     if (e.shiftKey || e.ctrlKey || e.metaKey) return;
     if (state.selectedIds.includes(elData.id)) {
-      beginInlineTextEdit({ preserveSelection: true });
+      beginInlineTextEdit({
+        preserveSelection: true,
+        clickPoint: { x: e.clientX, y: e.clientY },
+      });
     }
   });
   el.addEventListener("dragstart", (e) => {
@@ -347,6 +637,134 @@ function _applyTextTypeContent(el, elData, options) {
       contentHost.blur();
       return;
     }
+
+    const isMod = e.ctrlKey || e.metaKey;
+    if (isMod && !e.altKey && contentHost.isContentEditable) {
+      const lowerKey = (e.key || "").toLowerCase();
+      // Bold / Italic / Underline / Strikethrough
+      if (!e.shiftKey && lowerKey === "b") {
+        e.preventDefault();
+        e.stopPropagation();
+        recordTypingSnapshot();
+        const cur = getStyleAtSelection?.() || {};
+        const isBold =
+          cur.fontWeight === "bold" || Number(cur.fontWeight) >= 600;
+        applyTextFormatting?.("fontWeight", isBold ? "normal" : "bold", {
+          inlineAction: "bold",
+        });
+        updateUIFromSelection?.();
+        return;
+      }
+      if (!e.shiftKey && lowerKey === "i") {
+        e.preventDefault();
+        e.stopPropagation();
+        recordTypingSnapshot();
+        const cur = getStyleAtSelection?.() || {};
+        const isItalic = cur.fontStyle === "italic";
+        applyTextFormatting?.(
+          "fontStyle",
+          isItalic ? "normal" : "italic",
+          { inlineAction: "italic" },
+        );
+        updateUIFromSelection?.();
+        return;
+      }
+      if (!e.shiftKey && lowerKey === "u") {
+        e.preventDefault();
+        e.stopPropagation();
+        recordTypingSnapshot();
+        const cur = getStyleAtSelection?.() || {};
+        const isUnderline = Boolean(cur.underline);
+        applyTextFormatting?.(
+          "textDecoration",
+          isUnderline ? "none" : "underline",
+          { inlineAction: "underline" },
+        );
+        updateUIFromSelection?.();
+        return;
+      }
+      if (e.shiftKey && lowerKey === "x") {
+        e.preventDefault();
+        e.stopPropagation();
+        recordTypingSnapshot();
+        const cur = getStyleAtSelection?.() || {};
+        const isStrike = Boolean(cur.strikethrough);
+        applyTextFormatting?.(
+          "textDecoration",
+          isStrike ? "none" : "line-through",
+          { inlineAction: "strikethrough" },
+        );
+        updateUIFromSelection?.();
+        return;
+      }
+      // Subscript (Ctrl+=) and Superscript (Ctrl+Shift+= / Ctrl++)
+      if (e.key === "=" || e.key === "+") {
+        e.preventDefault();
+        e.stopPropagation();
+        recordTypingSnapshot();
+        const action = e.shiftKey || e.key === "+" ? "superscript" : "subscript";
+        if (applyInlineTextStyle?.(action)) {
+          contentHost.dispatchEvent(new Event("input", { bubbles: true }));
+          updateUIFromSelection?.();
+        }
+        return;
+      }
+      // Font size stepping: Ctrl+Shift+> / Ctrl+] (grow) and Ctrl+Shift+< / Ctrl+[ (shrink)
+      const isFontGrow =
+        (e.shiftKey && (e.key === ">" || e.key === ".")) ||
+        (!e.shiftKey && e.key === "]");
+      const isFontShrink =
+        (e.shiftKey && (e.key === "<" || e.key === ",")) ||
+        (!e.shiftKey && e.key === "[");
+      if (isFontGrow || isFontShrink) {
+        e.preventDefault();
+        e.stopPropagation();
+        recordTypingSnapshot();
+        const cur = getStyleAtSelection?.() || {};
+        const currentPx =
+          parseInt(cur.fontSize, 10) ||
+          parseInt(elData.styles?.fontSize, 10) ||
+          32;
+        const nextPx = Math.max(
+          8,
+          Math.min(200, currentPx + (isFontGrow ? 2 : -2)),
+        );
+        applyTextFormatting?.("fontSize", `${nextPx}px`, {
+          inlineAction: "fontSize",
+        });
+        updateUIFromSelection?.();
+        return;
+      }
+      // Paragraph alignment: Ctrl+Shift+L/E/R/J
+      if (
+        e.shiftKey &&
+        (lowerKey === "l" ||
+          lowerKey === "e" ||
+          lowerKey === "r" ||
+          lowerKey === "j")
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        const alignMap = {
+          l: "left",
+          e: "center",
+          r: "right",
+          j: "justify",
+        };
+        applyTextAlignmentToSelection?.(alignMap[lowerKey]);
+        return;
+      }
+      // Clear formatting: Ctrl+\
+      if (!e.shiftKey && e.key === "\\") {
+        e.preventDefault();
+        e.stopPropagation();
+        recordTypingSnapshot();
+        clearTextFormatting?.();
+        updateUIFromSelection?.();
+        return;
+      }
+    }
+
     if (contentHost.dataset.structuredEdit !== "true") {
       // Plain text: Tab is a tab character, as in PowerPoint. Left to the browser it moved focus out of the box,
       // and whatever was typed next was lost.
@@ -505,7 +923,39 @@ function _applyTextTypeContent(el, elData, options) {
       });
       elData.content = nextContent;
       elData.textDocument = nextTextDocument;
+      captureInlineSelection?.();
     } else {
+      const rawText = contentHost.textContent || "";
+      if (
+        typeof applyTextBulletState === "function" &&
+        !contentHost.querySelector("ul, ol, li, br") &&
+        /^([-*•]|1\.)[\u00a0 ]$/.test(rawText)
+      ) {
+        const isNumberedPrefix = rawText.startsWith("1.");
+        contentHost.innerHTML = "";
+        elData.content = "";
+        updateElementState(el.id, { content: "" });
+        const targetBulletStyle = isNumberedPrefix
+          ? "decimal"
+          : elData.bulletStyle &&
+              elData.bulletStyle !== "none" &&
+              !(typeof isNumberedBulletStyle === "function" && isNumberedBulletStyle(elData.bulletStyle))
+            ? elData.bulletStyle
+            : "default";
+        applyTextBulletState(
+          elData,
+          isNumberedPrefix ? "numbered" : "bulleted",
+          targetBulletStyle,
+        );
+        const firstItem = contentHost.querySelector(".ppt-bullet-edit-item");
+        if (firstItem) {
+          contentHost.focus();
+          _placeCaretAtTextOffset(firstItem, 0);
+        }
+        captureInlineSelection?.();
+        updateFloatingToolbars?.();
+        return;
+      }
       const nextHtml = contentHost.innerHTML;
       const nextTextDocument =
         typeof createTextDocumentFromLegacyContent === "function"
