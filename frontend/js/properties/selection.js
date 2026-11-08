@@ -339,14 +339,14 @@ function updateUIFromSelection() {
     );
   });
 
-  // Update Bold/Italic states
+  // Update Bold/Italic/Underline/Strikethrough/Subscript/Superscript states
   [
     document.getElementById("prop-bold"),
     document.getElementById("floating-text-bold"),
   ]
     .filter(Boolean)
     .forEach((boldBtn) => {
-      boldBtn.classList.toggle("active", inline.fontWeight === "bold");
+      setTextControlActive(boldBtn, inline.fontWeight === "bold");
     });
   [
     document.getElementById("prop-italic"),
@@ -354,7 +354,39 @@ function updateUIFromSelection() {
   ]
     .filter(Boolean)
     .forEach((italicBtn) => {
-      italicBtn.classList.toggle("active", inline.fontStyle === "italic");
+      setTextControlActive(italicBtn, inline.fontStyle === "italic");
+    });
+  [
+    document.getElementById("prop-underline"),
+    document.getElementById("floating-text-underline"),
+  ]
+    .filter(Boolean)
+    .forEach((underlineBtn) => {
+      setTextControlActive(underlineBtn, Boolean(inline.underline));
+    });
+  [
+    document.getElementById("prop-strikethrough"),
+    document.getElementById("floating-text-strikethrough"),
+  ]
+    .filter(Boolean)
+    .forEach((strikeBtn) => {
+      setTextControlActive(strikeBtn, Boolean(inline.strikethrough));
+    });
+  [
+    document.getElementById("prop-subscript"),
+    document.getElementById("floating-text-sub"),
+  ]
+    .filter(Boolean)
+    .forEach((subBtn) => {
+      setTextControlActive(subBtn, Boolean(inline.subscript));
+    });
+  [
+    document.getElementById("prop-superscript"),
+    document.getElementById("floating-text-sup"),
+  ]
+    .filter(Boolean)
+    .forEach((supBtn) => {
+      setTextControlActive(supBtn, Boolean(inline.superscript));
     });
 }
 

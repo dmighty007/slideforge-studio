@@ -78,11 +78,14 @@ function createAnimation(type = "fadeIn", overrides = {}) {
     const clampedNumber = (value, fallback, min, max) => Math.max(min, Math.min(max, finiteNumber(value, fallback)));
 
     return {
-        id: generateId("anim"),
+        id: overrides.id ? String(overrides.id) : generateId("anim"),
+        ...(overrides.name ? { name: String(overrides.name) } : {}),
         type: safeType,
         duration: Math.max(100, finiteNumber(overrides.duration, 600)),
         delay: Math.max(0, finiteNumber(overrides.delay, 0)),
+        ...(overrides.startTime !== undefined ? { startTime: Math.max(0, finiteNumber(overrides.startTime, 0)) } : {}),
         trigger: overrides.trigger === "on-click" ? "on-click" : "on-slide",
+        ...(overrides.order !== undefined ? { order: Math.max(0, Math.round(finiteNumber(overrides.order, 1))) } : {}),
         easing: ANIMATION_EASINGS.includes(overrides.easing) ? overrides.easing : "easeOut",
         repeatCount: Math.max(0, finiteNumber(overrides.repeatCount, 0)),
         repeatDelay: Math.max(0, finiteNumber(overrides.repeatDelay, 0)),
@@ -208,6 +211,77 @@ function updateAnimationInTimeline(timeline, animationId, updates) {
     return newTimeline;
 }
 
+// Convert a legacy { effect, trigger, order, durationMs, delayMs, easing } animation into a timeline animation entry
+function convertLegacyAnimationToTimelineEntry(raw, elementId = "") {
+    if (!raw || typeof raw !== "object") return null;
+    const effect = String(raw.effect || "").trim();
+    const mappedType = raw.type && ANIMATION_TRANSITION_TYPES.includes(raw.type)
+        ? raw.type
+        : effect
+          ? convertLegacyEffectToType(effect)
+          : "";
+    if (!ANIMATION_TRANSITION_TYPES.includes(mappedType)) {
+        return null;
+    }
+
+    const dirMap = {
+        "slide-up": "up",
+        "slide-down": "down",
+        "slide-left": "left",
+        "slide-right": "right",
+    };
+    const nameMap = {
+        "fade-in": "Fade In",
+        "fade-out": "Fade Out",
+        "slide-up": "Slide In Up",
+        "slide-down": "Slide In Down",
+        "slide-left": "Slide In Left",
+        "slide-right": "Slide In Right",
+        "zoom-in": "Zoom In",
+        "pop-in": "Pop In",
+        "wipe-in": "Wipe In",
+        "pulse": "Pulse",
+        "glow": "Glow",
+    };
+    const easingMap = {
+        "linear": "linear",
+        "ease-in": "easeIn",
+        "ease-out": "easeOut",
+        "ease-in-out": "easeInOut",
+    };
+
+    const duration = Math.max(50, Number(raw.duration ?? raw.durationMs) || 600);
+    const delay = Math.max(0, Number(raw.delay ?? raw.delayMs) || 0);
+    const trigger = raw.trigger === "on-click" ? "on-click" : "on-slide";
+    const order = Math.max(0, Math.round(Number(raw.order) || (trigger === "on-click" ? 1 : 0)));
+    const direction = raw.direction || dirMap[effect] || "up";
+    const easing = easingMap[raw.easing] || (ANIMATION_EASINGS.includes(raw.easing) ? raw.easing : "easeOut");
+    const isExit = effect === "fade-out" || mappedType === "fadeOut" || mappedType === "uncreate";
+    const isEmphasis = effect === "pulse" || effect === "glow" || mappedType === "emphasis" || mappedType === "glow";
+
+    const animEntry = createAnimation(mappedType, {
+        id: raw.id || `anim_${elementId || "el"}_0_0`,
+        name: raw.name || nameMap[effect] || mappedType,
+        duration,
+        delay,
+        startTime: delay,
+        trigger,
+        order,
+        easing,
+        direction,
+        startOpacity: raw.startOpacity !== undefined ? Number(raw.startOpacity) : (isExit || isEmphasis ? 1 : 0),
+        endOpacity: raw.endOpacity !== undefined ? Number(raw.endOpacity) : (isExit ? 0 : 1),
+        startScale: raw.startScale !== undefined ? Number(raw.startScale) : (effect === "pop-in" ? 0.3 : effect === "zoom-in" ? (Number(raw.scaleFrom) || 0.5) : 1),
+        endScale: raw.endScale !== undefined ? Number(raw.endScale) : (effect === "pulse" ? 1.08 : 1),
+    });
+    if (raw.clickGroup) {
+        animEntry.clickGroup = raw.clickGroup;
+    } else if (trigger === "on-click" && order > 0) {
+        animEntry.clickGroup = `order-${order}`;
+    }
+    return animEntry;
+}
+
 // Normalize animation config from element state
 function normalizeElementAnimationConfig(el = {}) {
     const legacyValue = typeof el.animation === "string" ? el.animation.trim() : "";
@@ -229,17 +303,23 @@ function normalizeElementAnimationConfig(el = {}) {
         };
     }
 
-    // If it's the old format with 'effect', convert to new 'type'
-    if (raw.effect && !raw.type) {
-        raw.type = convertLegacyEffectToType(raw.effect);
-    }
-
-    if (!ANIMATION_TRANSITION_TYPES.includes(raw.type)) {
+    const legacyAnim = convertLegacyAnimationToTimelineEntry(raw, el?.id || "");
+    if (!legacyAnim) {
         return null;
     }
 
+    const totalDuration = Math.max(
+        100,
+        (Number(legacyAnim.startTime ?? legacyAnim.delay) || 0) + (Number(legacyAnim.duration) || 600),
+    );
     return {
-        timelines: [],
+        timelines: [
+            {
+                elementId: String(el?.id || ""),
+                animations: [legacyAnim],
+                totalDuration,
+            },
+        ],
         autoAnimate: Boolean(raw.autoAnimate),
         laggedStart: Boolean(raw.laggedStart),
         laggedStartDelay: Math.max(0, Number(raw.laggedStartDelay) || 50),
@@ -258,6 +338,8 @@ function convertLegacyEffectToType(effect) {
         "zoom-in": "scaleInPlace",
         "pop-in": "scaleInPlace",
         "wipe-in": "write",
+        "pulse": "emphasis",
+        "glow": "glow",
     };
     return mapping[effect] || "fadeIn";
 }

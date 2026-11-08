@@ -564,14 +564,24 @@ function createElementNode(elData, options = {}) {
     badge.innerHTML = `<i class="fa-solid fa-wand-sparkles"></i> ${escapeHtml(String(fragmentIndex ?? 0))}`;
     el.appendChild(badge);
   } else if (animation || hasTimelineAnimations) {
+    const firstTimelineAnim = timelineAnimationConfig?.timelines
+      ?.flatMap((tl) => tl.animations || [])
+      ?.find(Boolean);
+    const isClickTrigger =
+      animation?.trigger === "on-click" ||
+      (!animation?.effect && firstTimelineAnim?.trigger === "on-click");
+    const clickOrder =
+      animation?.order ?? firstTimelineAnim?.order ?? 1;
     const badge = document.createElement("div");
     badge.className = "anim-badge";
-    badge.innerHTML = `<i class="fa-solid fa-bolt"></i> ${animation?.trigger === "on-click" ? `#${escapeHtml(String(animation.order))}` : "Slide"}`;
+    badge.innerHTML = `<i class="fa-solid fa-bolt"></i> ${isClickTrigger ? `#${escapeHtml(String(clickOrder))}` : "Slide"}`;
     el.appendChild(badge);
   }
 
   _applyTypeContent(el, elData, options);
-  _applyTimelineInitialStateForPlayMode(el, elData, timelineAnimationConfig);
+  if (!animation?.effect) {
+    _applyTimelineInitialStateForPlayMode(el, elData, timelineAnimationConfig);
+  }
   if (elData.type === "connector") {
     el.style.transform = canvasElementTransform(elData);
     el.setAttribute("data-x", elData.x);

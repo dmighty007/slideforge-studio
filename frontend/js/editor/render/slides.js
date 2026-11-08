@@ -271,6 +271,11 @@ function renderSlidesFromState(options = {}) {
     section.id = slide.id;
     section.classList.add("presentation-slide");
     section.dataset.slideIndex = String(slideIndex);
+    const slideTransition =
+      typeof _getRevealPresentationSlideTransition === "function"
+        ? _getRevealPresentationSlideTransition(slideIndex)
+        : slide.presentationTransition || "none";
+    section.dataset.transition = slideTransition;
     section.style.width = `${slideWidth}px`;
     section.style.height = `${slideHeight}px`;
     section.style.color = theme.defaultTextColor;

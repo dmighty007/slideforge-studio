@@ -358,26 +358,32 @@ function buildTextPanel(panel, data) {
   const bold = document.getElementById("prop-bold");
   if (bold) {
     bindInlineFormattingGuard(bold);
-    bold.onclick = () =>
+    bold.onclick = () => {
+      const selStyle = typeof getStyleAtSelection === "function" ? getStyleAtSelection() : null;
+      const isBoldNow = selStyle ? selStyle.fontWeight === "bold" : data.styles.fontWeight === "bold";
       applyTextFormatting(
         "fontWeight",
-        data.styles.fontWeight === "bold" ? "normal" : "bold",
+        isBoldNow ? "normal" : "bold",
         { inlineAction: "bold" },
       );
+    };
     setTextControlActive(bold, data.styles.fontWeight === "bold");
   }
 
   const italic = document.getElementById("prop-italic");
   if (italic) {
     bindInlineFormattingGuard(italic);
-    italic.onclick = () =>
+    italic.onclick = () => {
+      const selStyle = typeof getStyleAtSelection === "function" ? getStyleAtSelection() : null;
+      const isItalicNow = selStyle ? selStyle.fontStyle === "italic" : data.styles.fontStyle === "italic";
       applyTextFormatting(
         "fontStyle",
-        data.styles.fontStyle === "italic" ? "normal" : "italic",
+        isItalicNow ? "normal" : "italic",
         {
           inlineAction: "italic",
         },
       );
+    };
     setTextControlActive(italic, data.styles.fontStyle === "italic");
   }
 
@@ -386,14 +392,18 @@ function buildTextPanel(panel, data) {
     bindInlineFormattingGuard(underlineBtn);
     const _curDecoration = data.styles.textDecoration || "";
     const _hasUnderline = _curDecoration.includes("underline");
-    underlineBtn.onclick = () =>
+    underlineBtn.onclick = () => {
+      const curDec = data.styles.textDecoration || "";
+      const selStyle = typeof getStyleAtSelection === "function" ? getStyleAtSelection() : null;
+      const hasUnderlineNow = selStyle ? Boolean(selStyle.underline) : curDec.includes("underline");
       applyTextFormatting(
         "textDecoration",
-        _hasUnderline
-          ? _curDecoration.replace("underline", "").trim() || "none"
-          : [_curDecoration, "underline"].filter(Boolean).join(" ").trim(),
+        hasUnderlineNow
+          ? curDec.replace("underline", "").trim() || "none"
+          : [curDec.replace("none", "").trim(), "underline"].filter(Boolean).join(" ").trim(),
         { inlineAction: "underline" },
       );
+    };
     setTextControlActive(underlineBtn, _hasUnderline);
   }
 
@@ -402,14 +412,18 @@ function buildTextPanel(panel, data) {
     bindInlineFormattingGuard(strikethroughBtn);
     const _curDec2 = data.styles.textDecoration || "";
     const _hasStrike = _curDec2.includes("line-through");
-    strikethroughBtn.onclick = () =>
+    strikethroughBtn.onclick = () => {
+      const curDec = data.styles.textDecoration || "";
+      const selStyle = typeof getStyleAtSelection === "function" ? getStyleAtSelection() : null;
+      const hasStrikeNow = selStyle ? Boolean(selStyle.strikethrough) : curDec.includes("line-through");
       applyTextFormatting(
         "textDecoration",
-        _hasStrike
-          ? _curDec2.replace("line-through", "").trim() || "none"
-          : [_curDec2, "line-through"].filter(Boolean).join(" ").trim(),
-        { inlineAction: "textDecoration" },
+        hasStrikeNow
+          ? curDec.replace("line-through", "").trim() || "none"
+          : [curDec.replace("none", "").trim(), "line-through"].filter(Boolean).join(" ").trim(),
+        { inlineAction: "strikethrough" },
       );
+    };
     setTextControlActive(strikethroughBtn, _hasStrike);
   }
 

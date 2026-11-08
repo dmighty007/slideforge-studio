@@ -208,12 +208,23 @@ function _setupElementInteract() {
           }
           const canvasTarget = getInteractCanvasTarget(event.target);
           if (!canvasTarget) return false;
-          if (isElementInTextEditMode(event.target)) return false;
+          const wasEditingText = isElementInTextEditMode(canvasTarget);
+          if (wasEditingText) {
+            captureInlineSelection?.();
+            beginFormattingInteraction?.();
+            canvasTarget._resizingWhileEditingText = true;
+          }
 
           const elementData = state.slides[currentSlideIndex].elements.find(
             (item) => item.id === canvasTarget.id,
           );
-          if (elementData?.locked) return false;
+          if (elementData?.locked) {
+            if (wasEditingText) {
+              endFormattingInteraction?.();
+              delete canvasTarget._resizingWhileEditingText;
+            }
+            return false;
+          }
           // Keep the release in the editor even when the pointer crosses an embedded iframe.
           const pointerId = event.pointerId ?? event.originalEvent?.pointerId;
           if (Number.isFinite(pointerId)) {
@@ -221,7 +232,9 @@ function _setupElementInteract() {
           }
           document.body.classList.add("sf-moving-element"); // floating toolbars step aside until the drop
 
-          selectElement(canvasTarget.id, "replace");
+          if (!wasEditingText || !state.selectedIds.includes(canvasTarget.id)) {
+            selectElement(canvasTarget.id, "replace");
+          }
           saveStateToUndo();
           // Each step is measured from the box as it was here (a step's change added to the last step's result
           // let a snapped left or top edge drift, and the opposite edge with it).
@@ -402,8 +415,14 @@ function _setupElementInteract() {
           window.followAttachedConnectors?.();
           updateGroupBound();
         },
-        end() {
+        end(event) {
           document.body.classList.remove("sf-moving-element");
+          const canvasTarget = getInteractCanvasTarget(event?.target);
+          if (canvasTarget?._resizingWhileEditingText) {
+            delete canvasTarget._resizingWhileEditingText;
+            endFormattingInteraction?.();
+            restoreInlineSelection?.();
+          }
           updateGroupBound();
           renderSlidePreviews(currentSlideIndex);
           updateFloatingToolbars?.();

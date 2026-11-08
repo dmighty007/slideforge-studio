@@ -596,7 +596,7 @@ function stripInlineTextStylesFromTextContent(content, props = []) {
 function stripAllInlineTextFormattingFromHtml(html) {
   const probe = _createInertHtmlProbe();
   probe.innerHTML = stripInlineTextStylesFromHtml(html, "all");
-  Array.from(probe.querySelectorAll("b,strong,i,em,u,s,sub,sup,font"))
+  Array.from(probe.querySelectorAll("b,strong,i,em,u,s,strike,del,sub,sup,font"))
     .reverse()
     .forEach((node) => {
       node.replaceWith(...Array.from(node.childNodes));

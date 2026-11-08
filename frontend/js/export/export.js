@@ -2650,7 +2650,14 @@ function initViewer(data) {
         attachBulletEntrances();
         runtime.bulletSteps.forEach(step => setBulletStepShown(step, false, false));
         if (typeof playConfiguredSlideAnimations === 'function') {
-            playConfiguredSlideAnimations(slideIndex, { trigger: 'on-slide' });
+            playConfiguredSlideAnimations(slideIndex, {
+                trigger: 'on-slide',
+                animationFilter: function(_anim, el) {
+                    if (Array.isArray(el && el.animation && el.animation.timelines)) return true;
+                    const legacy = typeof normalizeElementAnimation === 'function' ? normalizeElementAnimation(el) : null;
+                    return !(legacy && legacy.effect);
+                }
+            });
         }
         runtime.advancedGroups.forEach(group => applyAdvancedGroup(group, false));
         runtime.bulletSteps.forEach(step => { if (step.entrance && step.entrance.kind === 'advanced') applyAdvancedGroup(step.entrance.group, false); });
@@ -2661,22 +2668,32 @@ function initViewer(data) {
         const groups = [];
         if (!slide || typeof normalizeElementAnimationConfig !== 'function') return groups;
         (slide.elements || []).forEach(el => {
+            if (!Array.isArray(el && el.animation && el.animation.timelines)) {
+                const legacy = typeof normalizeElementAnimation === 'function' ? normalizeElementAnimation(el) : null;
+                if (legacy && legacy.effect) return;
+            }
             const config = normalizeElementAnimationConfig(el);
             if (!config || !Array.isArray(config.timelines)) return;
             config.timelines.forEach((timeline, timelineIndex) => {
                 (timeline.animations || []).forEach((animation, animationIndex) => {
                     if ((animation && animation.trigger || 'on-slide') !== 'on-click') return;
                     if (!animation.id) animation.id = 'anim_' + (el.id || 'el') + '_' + timelineIndex + '_' + animationIndex;
-                    const shared = animation.clickGroup && groups.find(group => group.clickGroup === animation.clickGroup);
+                    const explicitOrder = Number(animation.order);
+                    const hasExplicitOrder = Number.isFinite(explicitOrder) && explicitOrder > 0;
+                    const groupKey = animation.clickGroup || (hasExplicitOrder ? 'order-' + explicitOrder : null);
+                    const shared = groupKey && groups.find(group => group.clickGroup === groupKey);
                     if (shared) {
                         shared.animationIds.push(String(animation.id));
                         shared.entries.push({ el, animation });
                     } else {
-                        groups.push({ clickGroup: animation.clickGroup || null, animationIds: [String(animation.id)], entries: [{ el, animation }] });
+                        groups.push({ clickGroup: groupKey, order: hasExplicitOrder ? explicitOrder : groups.length + 1000, seq: groups.length, animationIds: [String(animation.id)], entries: [{ el, animation }] });
                     }
                 });
             });
         });
+        if (groups.some(group => group.order < 1000)) {
+            groups.sort((a, b) => (a.order - b.order) || (a.seq - b.seq));
+        }
         return groups;
     }
 

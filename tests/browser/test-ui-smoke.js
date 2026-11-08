@@ -1435,6 +1435,249 @@ async function ensureEditor(page) {
         }
     });
 
+    await step("Crisp inline text selection, multi-click, persistent span styling, and keyboard shortcuts", async () => {
+        await ensureEditor(page);
+        const testOutcome = await page.evaluate(async () => {
+            addElement("text");
+            const textId = state.selectedIds[0];
+            const elData = state.slides[currentSlideIndex].elements.find(e => e.id === textId);
+            const dom = document.getElementById(textId);
+            const host = dom.querySelector(".text-element-content");
+
+            // 1. Measure padding before and during inline edit (zero layout shift)
+            const paddingBefore = getComputedStyle(host).paddingTop + "/" + getComputedStyle(host).paddingLeft;
+            dom.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true, clientX: 100, clientY: 100 }));
+            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+            const paddingDuring = getComputedStyle(host).paddingTop + "/" + getComputedStyle(host).paddingLeft;
+            const handleDisplay = getComputedStyle(dom.querySelector(".resize-handle.br")).display;
+
+            // 2. Test cross-span word selection and persistent span styling (fontSize + color without collapsing selection)
+            host.innerHTML = "Hello <b>crisp</b>world testing";
+            elData.content = host.innerHTML;
+            const boldTextNode = host.querySelector("b").firstChild;
+            const bRect = host.querySelector("b").getBoundingClientRect();
+            _selectWordAtPoint(host, bRect.left + 4, bRect.top + 4);
+            const crossSpanSelected = window.getSelection().toString();
+
+            // Select "Hello" and apply fontSize then color sequentially without re-selecting
+            const firstText = host.firstChild;
+            const range = document.createRange();
+            range.setStart(firstText, 0);
+            range.setEnd(firstText, 5);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+            captureInlineSelection();
+            beginFormattingInteraction();
+            const hasCustomHighlight = Boolean(!window.CSS?.highlights || window.CSS.highlights.has("sf-inline-selection"));
+            endFormattingInteraction();
+
+            applyTextFormatting("fontSize", "44px", { inlineAction: "fontSize" });
+            const stillSelectedAfterSize = window.getSelection().toString();
+            applyTextFormatting("color", "#ff0055", { inlineAction: "color" });
+            const stillSelectedAfterColor = window.getSelection().toString();
+            const spanCountAroundHello = host.querySelectorAll("span").length;
+
+            // 3. Test Strikethrough inline action and UI sync
+            applyTextFormatting("textDecoration", "line-through", { inlineAction: "strikethrough" });
+            const styleAtSel = getStyleAtSelection();
+            updateUIFromSelection();
+            const strikeBtnActive = document.getElementById("floating-text-strike")?.classList.contains("is-active");
+
+            // 4. Test keyboard font size stepping (Ctrl+])
+            host.dispatchEvent(new KeyboardEvent("keydown", { key: "]", ctrlKey: true, bubbles: true, cancelable: true }));
+            const steppedStyle = getStyleAtSelection();
+
+            // 5. Test markdown auto-list trigger ("- ") and Alt+Shift+ArrowDown reordering
+            host.innerHTML = "- ";
+            host.dispatchEvent(new Event("input", { bubbles: true }));
+            const autoListTriggered = host.dataset.structuredEdit === "true";
+
+            if (autoListTriggered) {
+                host.innerHTML = buildStructuredBulletEditorHtml(
+                    [
+                        { text: "First", html: "First", level: 0 },
+                        { text: "Second", html: "Second", level: 0 },
+                    ],
+                    "default",
+                );
+                const firstItem = host.querySelector(".ppt-bullet-edit-item");
+                _placeCaretAtTextOffset(firstItem, 2);
+                _moveStructuredListItem(host, 1);
+            }
+            const reorderedItems = Array.from(host.querySelectorAll(".ppt-bullet-edit-item")).map(n => n.textContent);
+
+            return {
+                paddingBefore,
+                paddingDuring,
+                handleDisplay,
+                crossSpanSelected,
+                hasCustomHighlight,
+                stillSelectedAfterSize,
+                stillSelectedAfterColor,
+                spanCountAroundHello,
+                strikethroughDetected: Boolean(styleAtSel?.strikethrough),
+                strikeBtnActive: Boolean(strikeBtnActive),
+                steppedFontSize: steppedStyle?.fontSize,
+                autoListTriggered,
+                reorderedItems,
+            };
+        });
+
+        assert(
+            testOutcome.paddingBefore === testOutcome.paddingDuring,
+            `Entering text edit mode should not shift padding (${testOutcome.paddingBefore} vs ${testOutcome.paddingDuring})`,
+        );
+        assert(
+            testOutcome.handleDisplay === "block",
+            `Resize handles should remain visible during text editing, got ${testOutcome.handleDisplay}`,
+        );
+        assert(
+            testOutcome.crossSpanSelected === "crispworld",
+            `Double-click word selection should cross inline spans, got "${testOutcome.crossSpanSelected}"`,
+        );
+        assert(testOutcome.hasCustomHighlight, "CSS Custom Highlight should register for non-collapsed inline selection");
+        assert(
+            testOutcome.stillSelectedAfterSize === "Hello" && testOutcome.stillSelectedAfterColor === "Hello",
+            `Selection should persist across fontSize and color changes: ${JSON.stringify(testOutcome)}`,
+        );
+        assert(
+            testOutcome.spanCountAroundHello === 1,
+            `Repeated style changes on the same range should reuse a single span, got ${testOutcome.spanCountAroundHello}`,
+        );
+        assert(testOutcome.strikethroughDetected, "Strikethrough should be reported by getStyleAtSelection()");
+        assert(
+            testOutcome.steppedFontSize === "46px",
+            `Ctrl+] should step 44px selection font size to 46px, got ${testOutcome.steppedFontSize}`,
+        );
+        assert(testOutcome.autoListTriggered, "Typing '- ' at start of plain text box should auto-trigger bullet list");
+        assert(
+            JSON.stringify(testOutcome.reorderedItems) === JSON.stringify(["Second", "First"]),
+            `Alt+Shift+ArrowDown should reorder bullet items, got ${JSON.stringify(testOutcome.reorderedItems)}`,
+        );
+    });
+
+    await step("Imported PowerPoint animations and transitions can be inspected and modified", async () => {
+        await ensureEditor(page);
+        const pptxOutcome = await page.evaluate(async () => {
+            const ns = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"';
+            const slideXml = `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>
+                <p:sp><p:nvSpPr><p:cNvPr id="2" name="Animated Box"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+                    <p:spPr><a:xfrm><a:off x="914400" y="457200"/><a:ext cx="3657600" cy="914400"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="2563EB"/></a:solidFill></p:spPr>
+                    <p:txBody><a:bodyPr/><a:p><a:r><a:rPr sz="2400"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:rPr><a:t>Animated Shape</a:t></a:r></a:p></p:txBody>
+                </p:sp>
+                <p:sp><p:nvSpPr><p:cNvPr id="3" name="Bullet List"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
+                    <p:spPr><a:xfrm><a:off x="914400" y="1828800"/><a:ext cx="5486400" cy="1828800"/></a:xfrm></p:spPr>
+                    <p:txBody><a:bodyPr/>
+                        <a:p><a:pPr marL="228600" indent="-228600"><a:buChar char="•"/></a:pPr><a:r><a:rPr sz="1800"/><a:t>Point Alpha</a:t></a:r></a:p>
+                        <a:p><a:pPr marL="228600" indent="-228600"><a:buChar char="•"/></a:pPr><a:r><a:rPr sz="1800"/><a:t>Point Beta</a:t></a:r></a:p>
+                    </p:txBody>
+                </p:sp>
+            </p:spTree></p:cSld>
+            <p:transition><p:push/></p:transition>
+            <p:timing><p:tnLst><p:par><p:cTn id="1" dur="indefinite" restart="never" nodeType="tmRoot"><p:childTnLst>
+                <p:seq concurrent="1" nextAc="seek"><p:cTn id="2" dur="indefinite" nodeType="mainSeq"><p:childTnLst>
+                    <p:par><p:cTn id="3" fill="hold"><p:childTnLst><p:par><p:cTn id="4" fill="hold"><p:childTnLst>
+                        <p:par><p:cTn id="5" presetID="2" presetClass="entr" presetSubtype="4" fill="hold" nodeType="clickEffect"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>
+                            <p:set><p:cBhvr><p:cTn id="6" dur="600" fill="hold"/><p:tgtEl><p:spTgt spid="2"/></p:tgtEl></p:cBhvr></p:set>
+                        </p:childTnLst></p:cTn></p:par>
+                    </p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par>
+                    <p:par><p:cTn id="7" fill="hold"><p:childTnLst><p:par><p:cTn id="8" fill="hold"><p:childTnLst>
+                        <p:par><p:cTn id="9" presetID="10" presetClass="entr" fill="hold" nodeType="clickEffect"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>
+                            <p:set><p:cBhvr><p:cTn id="10" dur="400" fill="hold"/><p:tgtEl><p:spTgt spid="3"><p:txEl><p:pRg st="0" end="0"/></p:txEl></p:spTgt></p:tgtEl></p:cBhvr></p:set>
+                        </p:childTnLst></p:cTn></p:par>
+                    </p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par>
+                    <p:par><p:cTn id="11" fill="hold"><p:childTnLst><p:par><p:cTn id="12" fill="hold"><p:childTnLst>
+                        <p:par><p:cTn id="13" presetID="10" presetClass="entr" fill="hold" nodeType="clickEffect"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>
+                            <p:set><p:cBhvr><p:cTn id="14" dur="400" fill="hold"/><p:tgtEl><p:spTgt spid="3"><p:txEl><p:pRg st="1" end="1"/></p:txEl></p:spTgt></p:tgtEl></p:cBhvr></p:set>
+                        </p:childTnLst></p:cTn></p:par>
+                    </p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par>
+                </p:childTnLst></p:cTn></p:seq>
+            </p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>
+            </p:sld>`;
+            const zip = new JSZip();
+            zip.file("ppt/presentation.xml", `<p:presentation ${ns}><p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/></p:presentation>`);
+            zip.file("ppt/_rels/presentation.xml.rels", `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/></Relationships>`);
+            zip.file("ppt/slides/slide1.xml", slideXml);
+            await importPptx(new File([await zip.generateAsync({ type: "blob" })], "AnimatedDeck.pptx"));
+
+            const slide = state.slides[0];
+            const initialTransition = slide.presentationTransition;
+            const animatedEl = slide.elements.find(el => el.animation);
+            const bulletEl = slide.elements.find(el => el.revealBullets);
+
+            // 1. Inspect and modify animation on imported shape in Motion tab
+            selectElement(animatedEl.id, "replace");
+            setPropertiesPanelVisible(true, { persist: false });
+            _propertiesPanelActiveTab = "motion";
+            buildPropertiesPanel({ immediate: true });
+            const itemTypeBefore = document.querySelector(".sf-anim-item-type")?.textContent?.trim();
+            const slideTransInMotionTab = document.getElementById("prop-element-slide-transition")?.value;
+
+            // Change animation preset and duration
+            changeAnimationPreset(animatedEl.id, 0, 0, "zoomIn");
+            updateAnimationProperty(animatedEl.id, 0, 0, "duration", 900);
+            updateAnimationProperty(animatedEl.id, 0, 0, "trigger", "on-slide");
+            const itemTypeAfter = document.querySelector(".sf-anim-item-type")?.textContent?.trim();
+            const updatedAnim = animatedEl.animation?.timelines?.[0]?.animations?.[0];
+
+            // Change slide transition directly from Motion tab
+            const motionTransSelect = document.getElementById("prop-element-slide-transition");
+            if (motionTransSelect) {
+                motionTransSelect.value = "zoom";
+                motionTransSelect.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+            const updatedTransition = slide.presentationTransition;
+
+            // 2. Inspect Timeline Editor tracks
+            const te = getTimelineEditor();
+            te.updateTimeline();
+            const timelineTrackCount = document.querySelectorAll("#timeline-tracks-list .timeline-track").length;
+
+            // 3. Inspect and toggle Bullet build on imported <p>-based list
+            selectElement(bulletEl.id, "replace");
+            _propertiesPanelActiveTab = "motion";
+            buildPropertiesPanel({ immediate: true });
+            const revealCheckbox = document.getElementById("prop-reveal-bullets");
+            const revealCheckboxVisible = Boolean(revealCheckbox);
+            const revealCheckedBefore = Boolean(revealCheckbox?.checked);
+            if (revealCheckbox) {
+                revealCheckbox.checked = false;
+                revealCheckbox.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+            const revealAfterUncheck = Boolean(bulletEl.revealBullets);
+
+            // 4. Remove animation on imported shape
+            removeAnimation(animatedEl.id, 0, 0);
+            const animationAfterRemove = animatedEl.animation;
+
+            return {
+                initialTransition,
+                slideTransInMotionTab,
+                updatedTransition,
+                itemTypeBefore,
+                itemTypeAfter,
+                updatedDuration: updatedAnim?.duration,
+                updatedTrigger: updatedAnim?.trigger,
+                timelineTrackCount,
+                revealCheckboxVisible,
+                revealCheckedBefore,
+                revealAfterUncheck,
+                animationAfterRemove,
+            };
+        });
+
+        assert(pptxOutcome.initialTransition === "slide", `Imported <p:push/> transition should map to "slide", got ${pptxOutcome.initialTransition}`);
+        assert(pptxOutcome.slideTransInMotionTab === "slide", `Motion tab slide transition selector should show "slide", got ${pptxOutcome.slideTransInMotionTab}`);
+        assert(pptxOutcome.updatedTransition === "zoom", `Slide transition should update to "zoom", got ${pptxOutcome.updatedTransition}`);
+        assert(pptxOutcome.itemTypeBefore === "Slide In Up", `Imported fly-in animation should appear as "Slide In Up", got ${pptxOutcome.itemTypeBefore}`);
+        assert(pptxOutcome.itemTypeAfter === "Zoom In", `Changed animation preset should appear as "Zoom In", got ${pptxOutcome.itemTypeAfter}`);
+        assert(pptxOutcome.updatedDuration === 900 && pptxOutcome.updatedTrigger === "on-slide", `Modified animation props did not persist: ${JSON.stringify(pptxOutcome)}`);
+        assert(pptxOutcome.timelineTrackCount >= 1, `Timeline editor should load imported animation tracks, got ${pptxOutcome.timelineTrackCount}`);
+        assert(pptxOutcome.revealCheckboxVisible && pptxOutcome.revealCheckedBefore && !pptxOutcome.revealAfterUncheck, `Imported paragraph bullet build should be visible and toggleable: ${JSON.stringify(pptxOutcome)}`);
+        assert(pptxOutcome.animationAfterRemove === null, `Removing imported animation should clear element.animation, got ${JSON.stringify(pptxOutcome.animationAfterRemove)}`);
+    });
+
     await step("No unexpected browser errors during smoke pass", async () => {
         const filtered = pageErrors.filter(message => !/Failed to load resource.*(404|api)|Video element error/i.test(message));
         assert(filtered.length === 0, `Unexpected browser errors:\n${filtered.join("\n")}`);

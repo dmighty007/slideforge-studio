@@ -101,6 +101,11 @@ function _getAdvancedAnimationClickGroups(slideIndex) {
     if (!slide) return [];
     const groups = [];
     (slide.elements || []).forEach(el => {
+        const rawAnimation = el?.animation && typeof el.animation === "object" ? el.animation : null;
+        if (!Array.isArray(rawAnimation?.timelines)) {
+            const legacy = typeof normalizeElementAnimation === "function" ? normalizeElementAnimation(el) : null;
+            if (legacy?.effect) return;
+        }
         const config =
             typeof normalizeElementAnimationConfig === "function" ? normalizeElementAnimationConfig(el) : null;
         if (!config || !Array.isArray(config.timelines)) return;
@@ -108,22 +113,29 @@ function _getAdvancedAnimationClickGroups(slideIndex) {
             (timeline.animations || []).forEach((animation, animationIndex) => {
                 if ((animation?.trigger || "on-slide") !== "on-click") return;
                 if (!animation.id) animation.id = `anim_${el.id || "el"}_${timelineIndex}_${animationIndex}`;
-                // Animations sharing a click group (an imported PowerPoint exit of a whole group) play on one click.
-                const shared = animation.clickGroup && groups.find(group => group.clickGroup === animation.clickGroup);
+                const explicitOrder = Number(animation.order);
+                const hasExplicitOrder = Number.isFinite(explicitOrder) && explicitOrder > 0;
+                const groupKey = animation.clickGroup || (hasExplicitOrder ? `order-${explicitOrder}` : null);
+                // Animations sharing a click group (an imported PowerPoint exit of a whole group or shared click order) play on one click.
+                const shared = groupKey && groups.find(group => group.clickGroup === groupKey);
                 if (shared) {
                     shared.animationIds.push(String(animation.id));
                     shared.entries.push({ el, animation });
                     return;
                 }
                 groups.push({
-                    clickGroup: animation.clickGroup || null,
-                    order: groups.length,
+                    clickGroup: groupKey,
+                    order: hasExplicitOrder ? explicitOrder : groups.length + 1000,
+                    seq: groups.length,
                     animationIds: [String(animation.id)],
                     entries: [{ el, animation }],
                 });
             });
         });
     });
+    if (groups.some(group => group.order < 1000)) {
+        groups.sort((a, b) => (a.order - b.order) || (a.seq - b.seq));
+    }
     return groups;
 }
 
@@ -391,7 +403,14 @@ function _preparePresentationSlideAnimations(slideIndex) {
         _presentationRuntimeState.restorePreviousSlideFully = false;
     }
     if (typeof playConfiguredSlideAnimations === "function") {
-        playConfiguredSlideAnimations(slideIndex, { trigger: "on-slide" });
+        playConfiguredSlideAnimations(slideIndex, {
+            trigger: "on-slide",
+            animationFilter: (_anim, el) => {
+                if (Array.isArray(el?.animation?.timelines)) return true;
+                const legacy = typeof normalizeElementAnimation === "function" ? normalizeElementAnimation(el) : null;
+                return !legacy?.effect;
+            },
+        });
     }
     if (!restoreFully) {
         _presentationRuntimeState.advancedClickGroups

@@ -426,7 +426,14 @@ function buildAnimationTypeSpecificProps(anim, elementId, timelineIdx, animIdx) 
 function _bulletRevealSection(data) {
     if (data?.type !== "text") return "";
     const node = [...document.querySelectorAll(`[id="${data.id}"]`)].find((n) => !n.closest("#slide-previews"));
-    const isList = Array.isArray(data.content) || !!node?.querySelector(".ppt-bullet-row");
+    const paragraphCount = node
+        ? node.querySelectorAll(".text-element-content > p").length
+        : (String(data.content || "").match(/<p\b/gi) || []).length;
+    const isList =
+        Boolean(data.revealBullets) ||
+        Array.isArray(data.content) ||
+        !!node?.querySelector(".ppt-bullet-row") ||
+        paragraphCount > 1;
     if (!isList) return "";
     // A card of its own: inside the Animations card it looked governed by that card's switch, which stays off for a box
   // whose bullets are revealed one by one (study 2026-10-16b).
@@ -435,7 +442,7 @@ function _bulletRevealSection(data) {
   <div class="sf-anim-panel-header"><span class="sf-anim-panel-title">Bullet build</span></div>
   <div class="sf-anim-section sf-anim-bullets">
     <label class="sf-anim-bullets-row">
-      <input type="checkbox" id="prop-reveal-bullets" ${data.revealBullets ? "checked" : ""}>
+      <input type="checkbox" id="prop-reveal-bullets" ${data.revealBullets ? "checked" : ""} onchange="toggleElementRevealBullets('${data.id}', this.checked)">
       <span>
         <strong>Reveal bullets one by one</strong>
         <small>While presenting, each click shows the next bullet with its sub-points.</small>
@@ -445,6 +452,105 @@ function _bulletRevealSection(data) {
   </div>`;
 }
 
+function _resolvePresetIdForAnimation(anim) {
+    if (!anim || typeof ANIMATION_PRESETS !== "object") return "";
+    for (const [id, preset] of Object.entries(ANIMATION_PRESETS)) {
+        if (anim.name && preset.name === anim.name) return id;
+    }
+    const type = anim.type || "";
+    const dir = anim.direction || "up";
+    const isExit = Number(anim.endOpacity) === 0 && Number(anim.startOpacity ?? 1) > 0;
+    if (type === "fadeIn") return "fadeIn";
+    if (type === "fadeOut") return "fadeOut";
+    if (type === "transform") {
+        const capDir = dir.charAt(0).toUpperCase() + dir.slice(1);
+        const key = `${isExit ? "slideOut" : "slideIn"}${capDir}`;
+        if (ANIMATION_PRESETS[key]) return key;
+    }
+    if (type === "scaleInPlace") {
+        if (isExit) return "zoomOut";
+        if (Number(anim.endScale) > 1) return "pulse";
+        if (Number(anim.startScale) <= 0.35) return "popIn";
+        return "zoomIn";
+    }
+    if (type === "write") return "drawPath";
+    if (type === "create") return "createObject";
+    if (type === "uncreate") return "uncreateObject";
+    if (type === "rotate") return "rotate";
+    for (const [id, preset] of Object.entries(ANIMATION_PRESETS)) {
+        if (preset.type === type) return id;
+    }
+    return "";
+}
+
+function _slideTransitionSection() {
+    const slide = typeof state !== "undefined" && typeof currentSlideIndex !== "undefined"
+        ? state.slides?.[currentSlideIndex]
+        : null;
+    if (!slide) return "";
+    const currentSlideTransition = slide.presentationTransition || "none";
+    const transitions = [
+        ["none", "None"],
+        ["fade", "Fade"],
+        ["diffuse", "Diffuse"],
+        ["slide", "Slide"],
+        ["convex", "Convex"],
+        ["concave", "Concave"],
+        ["zoom", "Zoom"],
+    ];
+    return `
+<div class="sf-anim-panel sf-anim-transition-panel">
+  <div class="sf-anim-panel-header">
+    <span class="sf-anim-panel-title">Slide transition</span>
+  </div>
+  <div class="sf-anim-controls">
+    <div class="sf-anim-prop-row" style="grid-template-columns: 54px 1fr auto;">
+      <label for="prop-element-slide-transition">Effect</label>
+      <select id="prop-element-slide-transition" onchange="updateSlideTransitionFromMotionPanel(this.value)">
+        ${transitions.map(([val, label]) => `<option value="${val}" ${currentSlideTransition === val ? "selected" : ""}>${label}</option>`).join("")}
+      </select>
+      <button id="prop-element-apply-transition-all" class="sf-anim-edit-btn" style="width:auto;padding:0 8px;border:1px solid rgba(148,163,184,0.35);font-size:10px;font-weight:600;color:var(--text-main,#0f172a);" type="button" title="Apply this transition to all slides" onclick="applySlideTransitionToAllFromMotionPanel()">All</button>
+    </div>
+  </div>
+</div>`;
+}
+
+function toggleElementRevealBullets(elementId, checked) {
+    const element = typeof getElementDataById === "function" ? getElementDataById(elementId) : null;
+    saveStateToUndo?.();
+    updateElementState?.(elementId, { revealBullets: Boolean(checked) });
+    if (element) element.revealBullets = Boolean(checked);
+    schedulePresentationAutosave?.(150);
+}
+
+function updateSlideTransitionFromMotionPanel(value) {
+    const activeSlide = state.slides?.[currentSlideIndex];
+    if (!activeSlide) return;
+    saveStateToUndo?.();
+    activeSlide.presentationTransition = String(value || "none");
+    renderSlidesFromState?.();
+    schedulePresentationAutosave?.(150);
+}
+
+function applySlideTransitionToAllFromMotionPanel() {
+    const activeSlide = state.slides?.[currentSlideIndex];
+    if (!activeSlide) return;
+    const selectEl = document.getElementById("prop-element-slide-transition");
+    const transition = selectEl?.value || activeSlide.presentationTransition || "none";
+    saveStateToUndo?.();
+    state.presentationTransition = transition;
+    state.slides.forEach(targetSlide => {
+        targetSlide.presentationTransition = transition;
+    });
+    renderSlidesFromState?.();
+    schedulePresentationAutosave?.(150);
+    showNotification?.(`Applied "${transition}" transition to all slides`, "success");
+}
+
+window.toggleElementRevealBullets = toggleElementRevealBullets;
+window.updateSlideTransitionFromMotionPanel = updateSlideTransitionFromMotionPanel;
+window.applySlideTransitionToAllFromMotionPanel = applySlideTransitionToAllFromMotionPanel;
+
 function buildAnimationInspectorPanel(data) {
     if (!data) data = (typeof getSelectedElementData === "function") ? getSelectedElementData() : null;
     if (!data) return "";
@@ -452,6 +558,7 @@ function buildAnimationInspectorPanel(data) {
     const config    = (typeof normalizeElementAnimationConfig === "function") ? normalizeElementAnimationConfig(data) : null;
     const hasTimelines = config?.timelines?.length > 0;
     const isEnabled = !!config;
+    const presetEntries = typeof ANIMATION_PRESETS === "object" ? Object.entries(ANIMATION_PRESETS) : [];
 
     // Timeline items
     let timelineHTML = "";
@@ -462,6 +569,7 @@ function buildAnimationInspectorPanel(data) {
                 // The preset's name ("Slide In Up"), not its engine type ("transform").
                 const displayName = anim.name || typeLabel;
                 const triggerLabel = anim.trigger === "on-click" ? "On click" : "With slide";
+                const matchedPresetId = _resolvePresetIdForAnimation(anim);
                 const icon = { fadeIn:"✦", slideUp:"↑", slideDown:"↓", slideLeft:"←", slideRight:"→",
                     zoomIn:"⊕", popIn:"⊛", emphasis:"★", blur:"◎", glow:"✵",
                     colorShift:"🎨", flip3D:"⟳", textMorph:"Ꞇ", moveAlongPath:"⤷" }[typeLabel] || "▶";
@@ -472,11 +580,19 @@ function buildAnimationInspectorPanel(data) {
                         <span class="sf-anim-item-type">${escapeAnimationAttr(displayName)}</span>
                         <span class="sf-anim-item-meta">${escapeAnimationAttr(anim.duration||600)}ms · ${triggerLabel}</span>
                         <div class="sf-anim-item-actions">
-                            <button class="sf-anim-edit-btn" onclick="editAnimation('${data.id}',${ti},${ai})" title="Edit">✎</button>
+                            <button class="sf-anim-edit-btn" onclick="editAnimation('${data.id}',${ti},${ai})" title="Change animation">✎</button>
                             <button class="sf-anim-del-btn" onclick="removeAnimation('${data.id}',${ti},${ai})" title="Remove">✕</button>
                         </div>
                     </div>
                     <div class="sf-anim-item-props">
+                        ${presetEntries.length ? `
+                        <div class="sf-anim-prop-row">
+                            <label>Effect</label>
+                            <select class="sf-anim-preset-select" onchange="changeAnimationPreset('${data.id}',${ti},${ai},this.value)">
+                                ${!matchedPresetId ? `<option value="" selected>${escapeAnimationAttr(displayName)}</option>` : ""}
+                                ${presetEntries.map(([id, p]) => `<option value="${escapeAnimationAttr(id)}" ${matchedPresetId === id ? "selected" : ""}>${escapeAnimationAttr(p.name)}</option>`).join("")}
+                            </select>
+                        </div>` : ""}
                         <div class="sf-anim-prop-row">
                             <label>Trigger</label>
                             <select onchange="updateAnimationProperty('${data.id}',${ti},${ai},'trigger',this.value)">
@@ -484,6 +600,12 @@ function buildAnimationInspectorPanel(data) {
                                 <option value="on-click" ${anim.trigger==="on-click"?"selected":""}>On click</option>
                             </select>
                         </div>
+                        ${anim.trigger === "on-click" ? `
+                        <div class="sf-anim-prop-row">
+                            <label>Order</label>
+                            <input type="number" min="1" max="99" step="1" value="${escapeAnimationAttr(anim.order || 1)}"
+                                onchange="updateAnimationProperty('${data.id}',${ti},${ai},'order',this.value)">
+                        </div>` : ""}
                         <div class="sf-anim-prop-row">
                             <label>Duration</label>
                             <input type="number" min="100" max="5000" step="100" value="${escapeAnimationAttr(anim.duration||600)}"
@@ -539,6 +661,7 @@ function buildAnimationInspectorPanel(data) {
   </div>
 </div>
 ${_bulletRevealSection(data)}
+${_slideTransitionSection()}
 
 <style>
 .sf-anim-panel {
@@ -748,6 +871,36 @@ ${_bulletRevealSection(data)}
  * Bind all animation panel event listeners.
  * Called by the properties panel (properties/panel.js) after the panel HTML is injected into the DOM.
  */
+function _syncCompanionShapeAnimations(element) {
+    if (!element?.pptxShapeGroup || typeof state === "undefined" || typeof currentSlideIndex === "undefined") return;
+    const slide = state.slides?.[currentSlideIndex];
+    if (!slide || !Array.isArray(slide.elements)) return;
+    slide.elements.forEach(peer => {
+        if (!peer || peer.id === element.id || peer.pptxShapeGroup !== element.pptxShapeGroup) return;
+        if (!element.animation) {
+            peer.animation = null;
+            peer.fragmentAnimation = "none";
+            peer.fragmentIndex = null;
+            return;
+        }
+        const clone = JSON.parse(JSON.stringify(element.animation));
+        if (clone && typeof clone === "object") {
+            if ("elementId" in clone) clone.elementId = peer.id;
+            if (Array.isArray(clone.timelines)) {
+                clone.timelines.forEach((tl, ti) => {
+                    tl.elementId = peer.id;
+                    (tl.animations || []).forEach((anim, ai) => {
+                        anim.id = `anim_${peer.id}_${ti}_${ai}`;
+                    });
+                });
+            }
+        }
+        peer.animation = clone;
+        peer.fragmentAnimation = "none";
+        peer.fragmentIndex = null;
+    });
+}
+
 function bindAnimationPanelListeners(data) {
     if (!data) return;
     const revealBullets = document.getElementById("prop-reveal-bullets");
@@ -757,6 +910,33 @@ function bindAnimationPanelListeners(data) {
             updateElementState(data.id, { revealBullets: revealBullets.checked });
             data.revealBullets = revealBullets.checked;
             schedulePresentationAutosave?.(150);
+        };
+    }
+    const slideTransitionSelect = document.getElementById("prop-element-slide-transition");
+    if (slideTransitionSelect) {
+        slideTransitionSelect.onchange = e => {
+            const activeSlide = state.slides?.[currentSlideIndex];
+            if (!activeSlide) return;
+            saveStateToUndo?.();
+            activeSlide.presentationTransition = e.target.value;
+            renderSlidesFromState?.();
+            schedulePresentationAutosave?.(150);
+        };
+    }
+    const applyAllTransitionBtn = document.getElementById("prop-element-apply-transition-all");
+    if (applyAllTransitionBtn) {
+        applyAllTransitionBtn.onclick = () => {
+            const activeSlide = state.slides?.[currentSlideIndex];
+            if (!activeSlide) return;
+            const transition = slideTransitionSelect?.value || activeSlide.presentationTransition || "none";
+            saveStateToUndo?.();
+            state.presentationTransition = transition;
+            state.slides.forEach(targetSlide => {
+                targetSlide.presentationTransition = transition;
+            });
+            renderSlidesFromState?.();
+            schedulePresentationAutosave?.(150);
+            showNotification?.(`Applied "${transition}" transition to all slides`, "success");
         };
     }
     const enabled   = document.getElementById("prop-anim-enabled");
@@ -775,6 +955,7 @@ function bindAnimationPanelListeners(data) {
             } else {
                 element.animation = createDefaultAdvancedAnimationConfig(data.id);
             }
+            _syncCompanionShapeAnimations(element);
             renderSlidesFromState?.();
             buildPropertiesPanel?.();
         };
@@ -807,13 +988,42 @@ function createDefaultAdvancedAnimationConfig(elementId = "") {
     return config;
 }
 
+function _upgradeSlideLegacyAnimationsToTimelines() {
+    if (typeof state === "undefined" || typeof currentSlideIndex === "undefined") return;
+    const slide = state.slides?.[currentSlideIndex];
+    if (!slide || !Array.isArray(slide.elements) || typeof normalizeElementAnimationConfig !== "function") return;
+    slide.elements.forEach(peer => {
+        if (!peer?.animation || typeof peer.animation !== "object" || Array.isArray(peer.animation.timelines)) return;
+        const upgraded = normalizeElementAnimationConfig(peer);
+        if (upgraded && Array.isArray(upgraded.timelines) && upgraded.timelines.length > 0) {
+            peer.animation = {
+                elementId: peer.id || "",
+                ...upgraded,
+            };
+        }
+    });
+}
+
 function ensureAdvancedAnimationConfig(element, elementId = "") {
     if (!element) return null;
     if (!element.animation || typeof element.animation !== "object" || !Array.isArray(element.animation.timelines)) {
+        const upgraded =
+            element.animation && typeof normalizeElementAnimationConfig === "function"
+                ? normalizeElementAnimationConfig(element)
+                : null;
+        if (upgraded && Array.isArray(upgraded.timelines) && upgraded.timelines.length > 0) {
+            element.animation = {
+                elementId: elementId || element.id || "",
+                ...upgraded,
+            };
+            _upgradeSlideLegacyAnimationsToTimelines();
+            return element.animation;
+        }
         element.animation =
             typeof createDefaultAnimationConfig === "function"
                 ? createDefaultAnimationConfig(elementId || element.id || "")
                 : { elementId: elementId || element.id || "", timelines: [], autoAnimate: false, laggedStart: false, laggedStartDelay: 50 };
+        _upgradeSlideLegacyAnimationsToTimelines();
     }
     return element.animation;
 }
@@ -879,15 +1089,19 @@ function stopAnimationPresetPreview(card) {
 window.previewAnimationPreset = previewAnimationPreset;
 window.stopAnimationPresetPreview = stopAnimationPresetPreview;
 
-function openAnimationPresetSelector(elementId) {
+function openAnimationPresetSelector(elementId, replaceTarget = null) {
     const presets = getAllPresets();
     const categories = Object.keys(PRESET_CATEGORIES);
+    const isReplace =
+        replaceTarget &&
+        Number.isInteger(Number(replaceTarget.timelineIdx)) &&
+        Number.isInteger(Number(replaceTarget.animIdx));
 
     let html = `
     <div class="modal-overlay" onclick="closeAnimationPresetSelector()">
       <div class="modal-content" onclick="event.stopPropagation()">
         <div class="modal-header">
-          <h3>Choose an animation</h3>
+          <h3>${isReplace ? "Change animation" : "Choose an animation"}</h3>
           <button class="btn-close" onclick="closeAnimationPresetSelector()">×</button>
         </div>
 
@@ -907,8 +1121,11 @@ function openAnimationPresetSelector(elementId) {
     `;
 
         categoryPresets.forEach(preset => {
+            const clickCall = isReplace
+                ? `changeAnimationPreset('${elementId}', ${Number(replaceTarget.timelineIdx)}, ${Number(replaceTarget.animIdx)}, '${preset.id}')`
+                : `applyAnimationPreset('${elementId}', '${preset.id}')`;
             html += `
-        <button class="preset-card" data-preset-id="${preset.id}" onclick="applyAnimationPreset('${elementId}', '${preset.id}')" onmouseenter="previewAnimationPreset(this)" onmouseleave="stopAnimationPresetPreview(this)" onfocus="previewAnimationPreset(this)" onblur="stopAnimationPresetPreview(this)">
+        <button class="preset-card" data-preset-id="${preset.id}" onclick="${clickCall}" onmouseenter="previewAnimationPreset(this)" onmouseleave="stopAnimationPresetPreview(this)" onfocus="previewAnimationPreset(this)" onblur="stopAnimationPresetPreview(this)">
           <span class="preset-preview" aria-hidden="true"><span class="preset-preview-box"></span></span>
           <span class="preset-name">${preset.name}</span>
           <span class="preset-duration">${preset.duration}ms</span>
@@ -1158,6 +1375,7 @@ function applyAnimationPreset(elementId, presetName) {
     config.timelines.push(timeline);
     element.fragmentAnimation = "none";
     element.fragmentIndex = null;
+    _syncCompanionShapeAnimations(element);
 
     // Update UI
     renderSlidesFromState();
@@ -1173,30 +1391,112 @@ function applyAnimationPreset(elementId, presetName) {
     showNotification(`Added animation: ${preset.name}`, "success");
 }
 
+function changeAnimationPreset(elementId, timelineIdx, animIdx, presetName) {
+    if (!presetName) return;
+    const preset = getPreset(presetName);
+    if (!preset) return;
+    closeAnimationPresetSelector();
+
+    const element = getElementDataById(elementId);
+    if (!element || !element.animation) return;
+
+    saveStateToUndo();
+    const config = ensureAdvancedAnimationConfig(element, elementId);
+    const timeline = config?.timelines?.[timelineIdx];
+    const currentAnim = timeline?.animations?.[animIdx];
+    if (!timeline || !currentAnim) return;
+
+    const replacement = createPresetAnimation(presetName, {
+        id: currentAnim.id,
+        trigger: currentAnim.trigger || "on-click",
+        order: currentAnim.order ?? 1,
+        delay: currentAnim.delay ?? 0,
+        startTime: currentAnim.startTime ?? currentAnim.delay ?? 0,
+    });
+    if (!replacement) return;
+    if (currentAnim.clickGroup) {
+        replacement.clickGroup = currentAnim.clickGroup;
+    }
+    timeline.animations[animIdx] = replacement;
+    timeline.totalDuration = Math.max(
+        100,
+        ...timeline.animations.map(anim => (Number(anim.startTime ?? anim.delay) || 0) + (Number(anim.duration) || 600)),
+    );
+    _syncCompanionShapeAnimations(element);
+
+    renderSlidesFromState();
+    buildPropertiesPanel();
+    if (typeof getTimelineEditor === "function" && typeof _timelineEditor !== "undefined" && _timelineEditor?.isVisible) {
+        getTimelineEditor().updateFromSelection();
+    }
+    schedulePresentationAutosave?.(150);
+}
+window.changeAnimationPreset = changeAnimationPreset;
+
 function updateAnimationProperty(elementId, timelineIdx, animIdx, property, value) {
     const element = getElementDataById(elementId);
     if (!element || !element.animation) return;
 
-    const timeline = element.animation.timelines?.[timelineIdx];
+    saveStateToUndo();
+    const config = ensureAdvancedAnimationConfig(element, elementId);
+    const timeline = config?.timelines?.[timelineIdx];
     if (!timeline) return;
 
     const animation = timeline.animations?.[animIdx];
     if (!animation) return;
 
-    saveStateToUndo();
-
     // Update property - handle all supported types
     switch (property) {
         // Base properties
+        case "type": {
+            const nextType = String(value);
+            animation.type = nextType;
+            animation.name = nextType;
+            if (nextType === "fadeOut" || nextType === "uncreate") {
+                animation.startOpacity = 1;
+                animation.endOpacity = 0;
+            } else if (nextType === "fadeIn" || nextType === "create" || nextType === "transform" || nextType === "scaleInPlace") {
+                animation.startOpacity = 0;
+                animation.endOpacity = 1;
+            }
+            break;
+        }
         case "duration":
             animation.duration = Math.max(100, Number(value) || 600);
             break;
         case "delay":
             animation.delay = Math.max(0, Number(value) || 0);
+            animation.startTime = animation.delay;
             break;
         case "trigger":
             animation.trigger = value === "on-click" ? "on-click" : "on-slide";
+            if (animation.trigger === "on-click" && !animation.order) {
+                animation.order = 1;
+            }
+            if (animation.trigger !== "on-click") {
+                delete animation.clickGroup;
+            } else if (!animation.clickGroup && animation.order) {
+                animation.clickGroup = `order-${animation.order}`;
+            }
             break;
+        case "order": {
+            const nextOrder = Math.max(1, Math.round(Number(value) || 1));
+            animation.order = nextOrder;
+            if (animation.trigger === "on-click") {
+                animation.clickGroup = `order-${nextOrder}`;
+            }
+            break;
+        }
+        case "direction": {
+            const nextDir = String(value);
+            animation.direction = nextDir;
+            if (/^Slide (In|Out)/i.test(String(animation.name || ""))) {
+                const cap = nextDir.charAt(0).toUpperCase() + nextDir.slice(1);
+                const isExit = Number(animation.endOpacity) === 0 && Number(animation.startOpacity ?? 1) > 0;
+                animation.name = `Slide ${isExit ? "Out" : "In"} ${cap}`;
+            }
+            break;
+        }
         case "easing":
             animation.easing = String(value);
             break;
@@ -1283,18 +1583,28 @@ function updateAnimationProperty(elementId, timelineIdx, animIdx, property, valu
             break;
     }
 
+    timeline.totalDuration = Math.max(
+        100,
+        ...timeline.animations.map(anim => (Number(anim.startTime ?? anim.delay) || 0) + (Number(anim.duration) || 600)),
+    );
+    _syncCompanionShapeAnimations(element);
+
     renderSlidesFromState();
     buildPropertiesPanel();
+    if (typeof getTimelineEditor === "function" && typeof _timelineEditor !== "undefined" && _timelineEditor?.isVisible) {
+        getTimelineEditor().updateFromSelection();
+    }
+    schedulePresentationAutosave?.(150);
 }
 
 function removeAnimation(elementId, timelineIdx, animIdx) {
     const element = getElementDataById(elementId);
     if (!element || !element.animation) return;
 
-    const timeline = element.animation.timelines?.[timelineIdx];
-    if (!timeline) return;
-
     saveStateToUndo();
+    const config = ensureAdvancedAnimationConfig(element, elementId);
+    const timeline = config?.timelines?.[timelineIdx];
+    if (!timeline) return;
 
     timeline.animations.splice(animIdx, 1);
 
@@ -1305,17 +1615,18 @@ function removeAnimation(elementId, timelineIdx, animIdx) {
     if (element.animation.timelines.length === 0) {
         element.animation = null;
     }
+    _syncCompanionShapeAnimations(element);
 
     renderSlidesFromState();
     buildPropertiesPanel();
+    if (typeof getTimelineEditor === "function" && typeof _timelineEditor !== "undefined" && _timelineEditor?.isVisible) {
+        getTimelineEditor().updateFromSelection();
+    }
+    schedulePresentationAutosave?.(150);
 }
 
-// editAnimation - currently a no-op since props are always shown inline
-// (UI calls this, but inline editing is the primary workflow)
 function editAnimation(elementId, timelineIdx, animIdx) {
-    // Future: could open a dedicated modal for complex animation types.
-    // For now, properties are already editable inline in the animation list.
-    console.log('[Animation] editAnimation called:', elementId, timelineIdx, animIdx);
+    openAnimationPresetSelector(elementId, { timelineIdx, animIdx });
 }
 
 // action: { label, run } adds a button (the notice then stays up longer, until it is used or closed).

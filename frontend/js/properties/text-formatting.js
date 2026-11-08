@@ -252,6 +252,18 @@ function bindFontSizeFormattingControl(input) {
   input.addEventListener("change", commit);
   input.addEventListener("blur", commit);
   input.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      e.preventDefault();
+      e.stopPropagation();
+      const current = parseInt(input.value, 10) || 24;
+      const step = (e.shiftKey ? 4 : 1) * (e.key === "ArrowUp" ? 1 : -1);
+      const next = Math.max(6, Math.min(300, current + step));
+      input.value = String(next);
+      commit();
+      input.focus();
+      input.select();
+      return;
+    }
     if (e.key !== "Enter") return;
     e.preventDefault();
     commit();
@@ -365,6 +377,9 @@ function _placeCaretAtTextOffset(editor, offset) {
 }
 
 function applyTextFormatting(prop, value, options = {}) {
+  if (prop && typeof prop === "object") {
+    return applyTextFormatting(value, options, arguments[3] || {});
+  }
   const data = getSelectedElementData();
   if (!data || data.type !== "text") return;
 

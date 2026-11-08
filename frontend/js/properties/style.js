@@ -34,7 +34,36 @@ function applyStyle(prop, value) {
         contentHost?.dataset.structuredEdit === "true" &&
         _getStructuredEditorMode(contentHost) === "list"
       ) {
-        nextContent = data.content;
+        const caretOffsets =
+          typeof _getStructuredSelectionOffsets === "function"
+            ? _getStructuredSelectionOffsets(contentHost)
+            : null;
+        const parsedItems =
+          typeof parseStructuredBulletEditorHtml === "function"
+            ? parseStructuredBulletEditorHtml(contentHost, {
+                preserveTrailingEmpty: true,
+              })
+            : data.content;
+        nextContent = stripInlineTextStylesFromTextContent(parsedItems, [prop]);
+        if (typeof buildStructuredBulletEditorHtml === "function") {
+          contentHost.innerHTML = buildStructuredBulletEditorHtml(
+            nextContent,
+            data.bulletStyle ||
+              contentHost.dataset.structuredEditBulletStyle ||
+              "default",
+          );
+          if (
+            caretOffsets &&
+            typeof _setStructuredSelectionOffsets === "function"
+          ) {
+            _setStructuredSelectionOffsets(
+              contentHost,
+              caretOffsets.start,
+              caretOffsets.end,
+            );
+          }
+          captureInlineSelection?.();
+        }
       } else {
         nextContent = stripInlineTextStylesFromTextContent(nextContent, [prop]);
         if (contentHost?.isContentEditable) {
@@ -43,7 +72,7 @@ function applyStyle(prop, value) {
         }
       }
 
-      if (nextContent !== data.content) {
+      if (JSON.stringify(nextContent) !== JSON.stringify(data.content)) {
         const nextTextDocument =
           typeof createTextDocumentFromLegacyContent === "function"
             ? createTextDocumentFromLegacyContent(nextContent, {
