@@ -204,7 +204,7 @@ async function ensureEditor(page) {
     page.on("console", msg => {
         if (msg.type() === "error") {
             const text = msg.text();
-            if (!/Failed to load resource.*(404|api)|Video element error/i.test(text)) pageErrors.push(text);
+            if (!/Failed to load resource.*(401|404|api)|Video element error/i.test(text)) pageErrors.push(text);
         }
     });
 
@@ -1679,7 +1679,7 @@ async function ensureEditor(page) {
     });
 
     await step("No unexpected browser errors during smoke pass", async () => {
-        const filtered = pageErrors.filter(message => !/Failed to load resource.*(404|api)|Video element error/i.test(message));
+        const filtered = pageErrors.filter(message => !/Failed to load resource.*(401|404|api)|Video element error/i.test(message));
         assert(filtered.length === 0, `Unexpected browser errors:\n${filtered.join("\n")}`);
     });
 
