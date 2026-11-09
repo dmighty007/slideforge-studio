@@ -377,9 +377,6 @@ function _placeCaretAtTextOffset(editor, offset) {
 }
 
 function applyTextFormatting(prop, value, options = {}) {
-  if (prop && typeof prop === "object") {
-    return applyTextFormatting(value, options, arguments[3] || {});
-  }
   const data = getSelectedElementData();
   if (!data || data.type !== "text") return;
 

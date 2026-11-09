@@ -140,10 +140,12 @@ function hasNonCollapsedInlineSelection() {
     const editor = getInlineEditorForFormatting();
     const selection = _getNativeSelection();
     if (!editor) return false;
+    // The live selection decides while it is in the editor (the saved one can lag behind it: it follows the
+    // asynchronous selectionchange). The saved one stands in only when focus has gone to a toolbar or panel input.
     if (selection && selection.rangeCount > 0) {
         const range = selection.getRangeAt(0);
-        if (!range.collapsed && editor.contains(range.commonAncestorContainer)) {
-            return true;
+        if (editor.contains(range.commonAncestorContainer)) {
+            return !range.collapsed;
         }
     }
     if (savedRange && !savedRange.collapsed && editor.contains(savedRange.commonAncestorContainer)) {

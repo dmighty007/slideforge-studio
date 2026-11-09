@@ -555,7 +555,10 @@ function buildAnimationInspectorPanel(data) {
     if (!data) data = (typeof getSelectedElementData === "function") ? getSelectedElementData() : null;
     if (!data) return "";
 
-    const config    = (typeof normalizeElementAnimationConfig === "function") ? normalizeElementAnimationConfig(data) : null;
+    // A basic build (an imported PowerPoint entrance) is listed in its timeline form, the form editing it upgrades
+    // it to (ensureAdvancedAnimationConfig), so the indices below address the same animation.
+    const config    = (typeof buildLegacyAnimationTimelineConfig === "function" && buildLegacyAnimationTimelineConfig(data))
+        || ((typeof normalizeElementAnimationConfig === "function") ? normalizeElementAnimationConfig(data) : null);
     const hasTimelines = config?.timelines?.length > 0;
     const isEnabled = !!config;
     const presetEntries = typeof ANIMATION_PRESETS === "object" ? Object.entries(ANIMATION_PRESETS) : [];
@@ -903,42 +906,9 @@ function _syncCompanionShapeAnimations(element) {
 
 function bindAnimationPanelListeners(data) {
     if (!data) return;
-    const revealBullets = document.getElementById("prop-reveal-bullets");
-    if (revealBullets) {
-        revealBullets.onchange = () => {
-            saveStateToUndo?.();
-            updateElementState(data.id, { revealBullets: revealBullets.checked });
-            data.revealBullets = revealBullets.checked;
-            schedulePresentationAutosave?.(150);
-        };
-    }
-    const slideTransitionSelect = document.getElementById("prop-element-slide-transition");
-    if (slideTransitionSelect) {
-        slideTransitionSelect.onchange = e => {
-            const activeSlide = state.slides?.[currentSlideIndex];
-            if (!activeSlide) return;
-            saveStateToUndo?.();
-            activeSlide.presentationTransition = e.target.value;
-            renderSlidesFromState?.();
-            schedulePresentationAutosave?.(150);
-        };
-    }
-    const applyAllTransitionBtn = document.getElementById("prop-element-apply-transition-all");
-    if (applyAllTransitionBtn) {
-        applyAllTransitionBtn.onclick = () => {
-            const activeSlide = state.slides?.[currentSlideIndex];
-            if (!activeSlide) return;
-            const transition = slideTransitionSelect?.value || activeSlide.presentationTransition || "none";
-            saveStateToUndo?.();
-            state.presentationTransition = transition;
-            state.slides.forEach(targetSlide => {
-                targetSlide.presentationTransition = transition;
-            });
-            renderSlidesFromState?.();
-            schedulePresentationAutosave?.(150);
-            showNotification?.(`Applied "${transition}" transition to all slides`, "success");
-        };
-    }
+    // The reveal-bullets checkbox and the slide-transition controls carry their own inline handlers
+    // (toggleElementRevealBullets, updateSlideTransitionFromMotionPanel, applySlideTransitionToAllFromMotionPanel):
+    // they work as soon as the panel's HTML is in, before this binding runs.
     const enabled   = document.getElementById("prop-anim-enabled");
     const controls  = document.getElementById("prop-anim-controls");
 
@@ -991,16 +961,12 @@ function createDefaultAdvancedAnimationConfig(elementId = "") {
 function _upgradeSlideLegacyAnimationsToTimelines() {
     if (typeof state === "undefined" || typeof currentSlideIndex === "undefined") return;
     const slide = state.slides?.[currentSlideIndex];
-    if (!slide || !Array.isArray(slide.elements) || typeof normalizeElementAnimationConfig !== "function") return;
+    if (!slide || !Array.isArray(slide.elements) || typeof buildLegacyAnimationTimelineConfig !== "function") return;
+    // Basic builds play on their own clicks, all before the timeline clicks: once one of the slide's builds is a
+    // timeline, the others become timelines too, so the clicks keep their order.
     slide.elements.forEach(peer => {
-        if (!peer?.animation || typeof peer.animation !== "object" || Array.isArray(peer.animation.timelines)) return;
-        const upgraded = normalizeElementAnimationConfig(peer);
-        if (upgraded && Array.isArray(upgraded.timelines) && upgraded.timelines.length > 0) {
-            peer.animation = {
-                elementId: peer.id || "",
-                ...upgraded,
-            };
-        }
+        const upgraded = peer?.animation ? buildLegacyAnimationTimelineConfig(peer) : null;
+        if (upgraded) peer.animation = upgraded;
     });
 }
 
@@ -1008,14 +974,11 @@ function ensureAdvancedAnimationConfig(element, elementId = "") {
     if (!element) return null;
     if (!element.animation || typeof element.animation !== "object" || !Array.isArray(element.animation.timelines)) {
         const upgraded =
-            element.animation && typeof normalizeElementAnimationConfig === "function"
-                ? normalizeElementAnimationConfig(element)
+            element.animation && typeof buildLegacyAnimationTimelineConfig === "function"
+                ? buildLegacyAnimationTimelineConfig(element)
                 : null;
-        if (upgraded && Array.isArray(upgraded.timelines) && upgraded.timelines.length > 0) {
-            element.animation = {
-                elementId: elementId || element.id || "",
-                ...upgraded,
-            };
+        if (upgraded) {
+            element.animation = { ...upgraded, elementId: elementId || element.id || "" };
             _upgradeSlideLegacyAnimationsToTimelines();
             return element.animation;
         }

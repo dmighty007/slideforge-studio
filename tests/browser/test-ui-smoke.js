@@ -1459,6 +1459,39 @@ async function ensureEditor(page) {
             _selectWordAtPoint(host, bRect.left + 4, bRect.top + 4);
             const crossSpanSelected = window.getSelection().toString();
 
+            // Double-click "Hello", drag to "testing" and release: the dblclick that follows the release keeps the
+            // grown selection (it used to shrink it back to the word under the pointer).
+            const wordRect = (textNode, start, end) => {
+                const r = document.createRange();
+                r.setStart(textNode, start);
+                r.setEnd(textNode, end);
+                return r.getBoundingClientRect();
+            };
+            const helloRect = wordRect(host.firstChild, 0, 5);
+            const testingNode = host.lastChild;
+            const testingRect = wordRect(testingNode, testingNode.textContent.indexOf("testing"), testingNode.textContent.length);
+            const at = rect => ({ clientX: rect.left + 3, clientY: rect.top + rect.height / 2 });
+            host.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0, buttons: 1, detail: 2, ...at(helloRect) }));
+            window.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, buttons: 1, ...at(testingRect) }));
+            window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, button: 0, ...at(testingRect) }));
+            dom.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true, detail: 2, ...at(testingRect) }));
+            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+            const dragSelected = window.getSelection().toString();
+
+            // Ctrl+U with only a caret underlines the whole box and keeps its strikethrough.
+            elData.styles.textDecoration = "line-through";
+            const caret = document.createRange();
+            caret.setStart(host.firstChild, 2);
+            caret.collapse(true);
+            window.getSelection().removeAllRanges();
+            window.getSelection().addRange(caret);
+            host.dispatchEvent(new KeyboardEvent("keydown", { key: "u", ctrlKey: true, bubbles: true, cancelable: true }));
+            const liveEl = state.slides[currentSlideIndex].elements.find(e => e.id === textId);
+            const decorationAfterCtrlU = liveEl?.styles?.textDecoration || "";
+            liveEl.styles.textDecoration = "none";
+            host.innerHTML = "Hello <b>crisp</b>world testing";
+            liveEl.content = host.innerHTML;
+
             // Select "Hello" and apply fontSize then color sequentially without re-selecting
             const firstText = host.firstChild;
             const range = document.createRange();
@@ -1512,6 +1545,8 @@ async function ensureEditor(page) {
                 paddingDuring,
                 handleDisplay,
                 crossSpanSelected,
+                dragSelected,
+                decorationAfterCtrlU,
                 hasCustomHighlight,
                 stillSelectedAfterSize,
                 stillSelectedAfterColor,
@@ -1536,7 +1571,15 @@ async function ensureEditor(page) {
             testOutcome.crossSpanSelected === "crispworld",
             `Double-click word selection should cross inline spans, got "${testOutcome.crossSpanSelected}"`,
         );
-        assert(testOutcome.hasCustomHighlight, "CSS Custom Highlight should register for non-collapsed inline selection");
+        assert(
+            testOutcome.dragSelected === "Hello crispworld testing",
+            `Double-click-drag selection should survive the dblclick on release, got "${testOutcome.dragSelected}"`,
+        );
+        assert(
+            /underline/.test(testOutcome.decorationAfterCtrlU) && /line-through/.test(testOutcome.decorationAfterCtrlU),
+            `Ctrl+U with a caret should keep the box's strikethrough, got "${testOutcome.decorationAfterCtrlU}"`,
+        );
+        assert(testOutcome.hasCustomHighlight,"CSS Custom Highlight should register for non-collapsed inline selection");
         assert(
             testOutcome.stillSelectedAfterSize === "Hello" && testOutcome.stillSelectedAfterColor === "Hello",
             `Selection should persist across fontSize and color changes: ${JSON.stringify(testOutcome)}`,

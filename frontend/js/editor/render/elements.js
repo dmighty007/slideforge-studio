@@ -579,9 +579,7 @@ function createElementNode(elData, options = {}) {
   }
 
   _applyTypeContent(el, elData, options);
-  if (!animation?.effect) {
-    _applyTimelineInitialStateForPlayMode(el, elData, timelineAnimationConfig);
-  }
+  _applyTimelineInitialStateForPlayMode(el, elData, timelineAnimationConfig);
   if (elData.type === "connector") {
     el.style.transform = canvasElementTransform(elData);
     el.setAttribute("data-x", elData.x);

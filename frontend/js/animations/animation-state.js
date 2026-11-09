@@ -303,16 +303,40 @@ function normalizeElementAnimationConfig(el = {}) {
         };
     }
 
-    const legacyAnim = convertLegacyAnimationToTimelineEntry(raw, el?.id || "");
-    if (!legacyAnim) {
+    // A basic build ({ effect, trigger, order, ... }) plays through the presentation's own click steps, not the
+    // timeline engine: it has no timelines here, so playback, the exported viewer and the timeline editor leave it to
+    // that path. buildLegacyAnimationTimelineConfig() converts it when the Motion panel shows or edits it.
+    if (!convertLegacyAnimationToTimelineEntry(raw, el?.id || "")) {
         return null;
     }
+    return {
+        timelines: [],
+        autoAnimate: Boolean(raw.autoAnimate),
+        laggedStart: Boolean(raw.laggedStart),
+        laggedStartDelay: Math.max(0, Number(raw.laggedStartDelay) || 50),
+    };
+}
+
+// The timeline form of an element's basic build, or null when it has none (or already has timelines). Used by the
+// Motion panel: to list an imported PowerPoint build, and to upgrade the slide's builds when one of them is edited.
+function buildLegacyAnimationTimelineConfig(el = {}) {
+    const legacyValue = typeof el.animation === "string" ? el.animation.trim() : "";
+    const raw = legacyValue
+        ? { type: legacyValue }
+        : el.animation && typeof el.animation === "object"
+          ? el.animation
+          : null;
+    if (!raw || Array.isArray(raw.timelines)) return null;
+
+    const legacyAnim = convertLegacyAnimationToTimelineEntry(raw, el?.id || "");
+    if (!legacyAnim) return null;
 
     const totalDuration = Math.max(
         100,
         (Number(legacyAnim.startTime ?? legacyAnim.delay) || 0) + (Number(legacyAnim.duration) || 600),
     );
     return {
+        elementId: String(el?.id || ""),
         timelines: [
             {
                 elementId: String(el?.id || ""),
@@ -432,6 +456,8 @@ if (typeof module !== "undefined" && module.exports) {
         removeAnimationFromTimeline,
         updateAnimationInTimeline,
         normalizeElementAnimationConfig,
+        buildLegacyAnimationTimelineConfig,
+        convertLegacyAnimationToTimelineEntry,
         convertLegacyEffectToType,
         createDefaultAnimationConfig,
         serializeAnimation: serializeAnimationState,
