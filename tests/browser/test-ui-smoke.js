@@ -1642,7 +1642,15 @@ async function ensureEditor(page) {
             zip.file("ppt/presentation.xml", `<p:presentation ${ns}><p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/></p:presentation>`);
             zip.file("ppt/_rels/presentation.xml.rels", `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/></Relationships>`);
             zip.file("ppt/slides/slide1.xml", slideXml);
-            await importPptx(new File([await zip.generateAsync({ type: "blob" })], "AnimatedDeck.pptx"));
+            // The import names the deck after the saved ones (uniqueImportTitle); this page is not signed in, and the
+            // server's refusal (401) is logged by the browser as an error. The saved names do not matter here.
+            const realListSavedProjects = window.listSavedProjects;
+            window.listSavedProjects = async () => [];
+            try {
+                await importPptx(new File([await zip.generateAsync({ type: "blob" })], "AnimatedDeck.pptx"));
+            } finally {
+                window.listSavedProjects = realListSavedProjects;
+            }
 
             const slide = state.slides[0];
             const initialTransition = slide.presentationTransition;
