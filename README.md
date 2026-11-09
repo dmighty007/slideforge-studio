@@ -113,8 +113,10 @@ To run it from this repository instead, or to help build it, see [docs/DEVELOPME
 - **Present a PDF:** open a Beamer talk or any PDF as slides, one per page, with its links still working while presenting.
 - **Presenter view:** the slide timer restarts on each slide, and Next Slide shows what the audience will see first.
 - **Web ZIP:** links in text work again, and hidden backup slides behave as in the app.
+- **Text editing (0.7.1):** double- and triple-click selection across styled text, a selection that stays highlighted while you use the toolbar, and PowerPoint's formatting shortcuts.
+- **Imported PowerPoint animations (0.7.1):** see and change them in the Motion panel, with their click order and the slide's transition.
 
-See the [0.7.0 release notes](docs/releases/v0.7.0.md).
+See the [0.7.0](docs/releases/v0.7.0.md) and [0.7.1](docs/releases/v0.7.1.md) release notes.
 
 ## New in 0.5
 
