@@ -101,11 +101,6 @@ function _getAdvancedAnimationClickGroups(slideIndex) {
     if (!slide) return [];
     const groups = [];
     (slide.elements || []).forEach(el => {
-        const rawAnimation = el?.animation && typeof el.animation === "object" ? el.animation : null;
-        if (!Array.isArray(rawAnimation?.timelines)) {
-            const legacy = typeof normalizeElementAnimation === "function" ? normalizeElementAnimation(el) : null;
-            if (legacy?.effect) return;
-        }
         const config =
             typeof normalizeElementAnimationConfig === "function" ? normalizeElementAnimationConfig(el) : null;
         if (!config || !Array.isArray(config.timelines)) return;
@@ -403,14 +398,7 @@ function _preparePresentationSlideAnimations(slideIndex) {
         _presentationRuntimeState.restorePreviousSlideFully = false;
     }
     if (typeof playConfiguredSlideAnimations === "function") {
-        playConfiguredSlideAnimations(slideIndex, {
-            trigger: "on-slide",
-            animationFilter: (_anim, el) => {
-                if (Array.isArray(el?.animation?.timelines)) return true;
-                const legacy = typeof normalizeElementAnimation === "function" ? normalizeElementAnimation(el) : null;
-                return !legacy?.effect;
-            },
-        });
+        playConfiguredSlideAnimations(slideIndex, { trigger: "on-slide" });
     }
     if (!restoreFully) {
         _presentationRuntimeState.advancedClickGroups

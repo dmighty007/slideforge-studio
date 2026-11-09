@@ -2650,14 +2650,7 @@ function initViewer(data) {
         attachBulletEntrances();
         runtime.bulletSteps.forEach(step => setBulletStepShown(step, false, false));
         if (typeof playConfiguredSlideAnimations === 'function') {
-            playConfiguredSlideAnimations(slideIndex, {
-                trigger: 'on-slide',
-                animationFilter: function(_anim, el) {
-                    if (Array.isArray(el && el.animation && el.animation.timelines)) return true;
-                    const legacy = typeof normalizeElementAnimation === 'function' ? normalizeElementAnimation(el) : null;
-                    return !(legacy && legacy.effect);
-                }
-            });
+            playConfiguredSlideAnimations(slideIndex, { trigger: 'on-slide' });
         }
         runtime.advancedGroups.forEach(group => applyAdvancedGroup(group, false));
         runtime.bulletSteps.forEach(step => { if (step.entrance && step.entrance.kind === 'advanced') applyAdvancedGroup(step.entrance.group, false); });
@@ -2668,10 +2661,6 @@ function initViewer(data) {
         const groups = [];
         if (!slide || typeof normalizeElementAnimationConfig !== 'function') return groups;
         (slide.elements || []).forEach(el => {
-            if (!Array.isArray(el && el.animation && el.animation.timelines)) {
-                const legacy = typeof normalizeElementAnimation === 'function' ? normalizeElementAnimation(el) : null;
-                if (legacy && legacy.effect) return;
-            }
             const config = normalizeElementAnimationConfig(el);
             if (!config || !Array.isArray(config.timelines)) return;
             config.timelines.forEach((timeline, timelineIndex) => {

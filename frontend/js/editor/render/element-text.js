@@ -488,6 +488,9 @@ function _applyTextTypeContent(el, elData, options) {
     });
   };
 
+  // Set when a double-click-and-drag grew the selection past the first word: the dblclick that follows the release
+  // must leave that selection alone instead of shrinking it back to the word under the pointer.
+  let wordDragExtended = false;
   el.addEventListener("dblclick", (event) => {
     event.stopPropagation();
     const { clientX, clientY } = event;
@@ -499,6 +502,10 @@ function _applyTextTypeContent(el, elData, options) {
     // editing rebuilt the text (lists especially), the browser's own word selection was lost, and it took a second
     // double-click before Bold or a colour had a word to apply to.
     requestAnimationFrame(() => {
+      if (wordDragExtended) {
+        wordDragExtended = false;
+        return;
+      }
       _selectWordAtPoint(contentHost, clientX, clientY);
     });
   });
@@ -523,6 +530,7 @@ function _applyTextTypeContent(el, elData, options) {
         e.clientX,
         e.clientY,
       );
+      wordDragExtended = false;
       if (!anchorWordRange) return;
       e.preventDefault();
       const selection = window.getSelection();
@@ -572,6 +580,12 @@ function _applyTextTypeContent(el, elData, options) {
             anchorWordRange.endContainer,
             anchorWordRange.endOffset,
           );
+        }
+        if (
+          combined.compareBoundaryPoints(Range.START_TO_START, anchorWordRange) !== 0 ||
+          combined.compareBoundaryPoints(Range.END_TO_END, anchorWordRange) !== 0
+        ) {
+          wordDragExtended = true;
         }
         const sel = window.getSelection();
         if (sel) {
@@ -669,17 +683,22 @@ function _applyTextTypeContent(el, elData, options) {
         updateUIFromSelection?.();
         return;
       }
+      // Underline and strikethrough share textDecoration: with only a caret the whole box takes the value, so it
+      // keeps the other decoration the box already has (as the toolbar buttons do).
+      const toggleDecoration = (token, isOn, inlineAction) => {
+        const live = state.slides?.[currentSlideIndex]?.elements?.find((item) => item.id === elData.id) || elData;
+        const parts = String(live.styles?.textDecoration || "")
+          .split(/\s+/)
+          .filter((part) => part && part !== "none" && part !== token);
+        if (!isOn) parts.push(token);
+        applyTextFormatting?.("textDecoration", parts.join(" ") || "none", { inlineAction });
+      };
       if (!e.shiftKey && lowerKey === "u") {
         e.preventDefault();
         e.stopPropagation();
         recordTypingSnapshot();
         const cur = getStyleAtSelection?.() || {};
-        const isUnderline = Boolean(cur.underline);
-        applyTextFormatting?.(
-          "textDecoration",
-          isUnderline ? "none" : "underline",
-          { inlineAction: "underline" },
-        );
+        toggleDecoration("underline", Boolean(cur.underline), "underline");
         updateUIFromSelection?.();
         return;
       }
@@ -688,12 +707,7 @@ function _applyTextTypeContent(el, elData, options) {
         e.stopPropagation();
         recordTypingSnapshot();
         const cur = getStyleAtSelection?.() || {};
-        const isStrike = Boolean(cur.strikethrough);
-        applyTextFormatting?.(
-          "textDecoration",
-          isStrike ? "none" : "line-through",
-          { inlineAction: "strikethrough" },
-        );
+        toggleDecoration("line-through", Boolean(cur.strikethrough), "strikethrough");
         updateUIFromSelection?.();
         return;
       }
@@ -745,6 +759,7 @@ function _applyTextTypeContent(el, elData, options) {
       ) {
         e.preventDefault();
         e.stopPropagation();
+        recordTypingSnapshot();
         const alignMap = {
           l: "left",
           e: "center",
