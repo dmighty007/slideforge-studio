@@ -55,7 +55,7 @@
     <link rel="stylesheet" href="css/layout.css?v=20261102-icons" />
     <link rel="stylesheet" href="css/components.css?v=20261103-landscape-ui" />
     <link rel="stylesheet" href="css/properties.css?v=20260614-properties-panel-stable" />
-    <link rel="stylesheet" href="css/start-screen.css?v=20260929" />
+    <link rel="stylesheet" href="css/start-screen.css?v=20261110-projects" />
     <link rel="stylesheet" href="css/dark-mode.css?v=20261001-dark" />
     <link rel="stylesheet" href="css/editor-chrome.css?v=20261018" />
     <!-- Tailwind's utilities, built ahead by tools/build-tailwind.cjs (last, where its in-page compiler put them). The
@@ -130,7 +130,7 @@
                     <button onclick="createNewProject()" class="toolbar-btn" title="New Project">
                         <i class="fa-regular fa-file text-sm"></i>
                     </button>
-                    <button onclick="openProjectsModal()" class="toolbar-btn" title="Open Saved Project">
+                    <button onclick="openProjectsTab()" class="toolbar-btn" title="Projects (Ctrl+O)" aria-label="Open Projects tab">
                         <i class="fa-regular fa-folder-open text-sm"></i>
                     </button>
                 </div>
@@ -386,6 +386,7 @@
                 <!-- JS rendered layers -->
             </div>
         </div>
+        <div id="project-tabs" class="project-tabs" role="tablist" aria-label="Open projects" hidden></div>
     </header>
 
     <!-- ═══════════════════════════════════════════════════════════ MAIN BODY -->
@@ -1073,6 +1074,7 @@
                     <h3 class="shortcut-heading">General</h3>
                     <div class="shortcut-list">
                         <div class="shortcut-row"><span>Save</span><kbd>Ctrl + S</kbd></div>
+                        <div class="shortcut-row"><span>Open projects</span><kbd>Ctrl + O</kbd></div>
                         <div class="shortcut-row"><span>Undo / Redo</span><kbd>Ctrl + Z / Y</kbd></div>
                         <div class="shortcut-row"><span>New slide</span><kbd>Ctrl + M</kbd></div>
                         <div class="shortcut-row"><span>Command palette</span><kbd>Ctrl + K</kbd></div>
@@ -1282,7 +1284,8 @@
     <script src="js/editor/zoom.js?v=20260519-no-slide-bump"></script>
     <script src="js/editor/insert-toolbar.js?v=20261018"></script>
     <script src="js/editor/contextMenu.js"></script>
-    <script src="js/ui/start-screen.js?v=20260929"></script>
+    <script src="js/ui/project-tabs.js?v=20261110"></script>
+    <script src="js/ui/start-screen.js?v=20261110-projects"></script>
     <script src="js/ui/share.js?v=20261001"></script>
     <script src="js/ui/plugin-manager.js?v=20261014"></script>
     <script src="js/ui/app-theme.js?v=20261001"></script>

@@ -968,7 +968,8 @@ class FrontendExportRegressionTests(TestCase):
 
         self.assertIn("autosaveVersion: currentPresentationAutosaveVersion", state_js)
         self.assertIn("err?.status === 409", state_js)
-        self.assertIn("Save conflict. Reload project before saving.", state_js)
+        # A conflict says what happened and both ways out (reload, or Ctrl+S to keep this version).
+        self.assertIn("Changed in another window. Reload to get that version, or press Ctrl+S to keep yours.", state_js)
 
 
 class StaticHardeningSourceTests(TestCase):

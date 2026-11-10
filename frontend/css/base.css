@@ -99,6 +99,14 @@ body {
     text-rendering: optimizeLegibility;
 }
 
+/* A server run without accounts and with no local user (state.js, setAuthState) has no saved projects: Home and
+   Projects only said "not ready yet". */
+body.no-saved-projects .toolbar-btn[onclick^="openStartScreen"],
+body.no-saved-projects .toolbar-btn[onclick^="openProjectsTab"],
+body.no-saved-projects .toolbar-btn[onclick^="openProjectsModal"] {
+    display: none !important;
+}
+
 /* Desktop app (no accounts): the server marks <body class="accounts-disabled">; no sign-in UI at all. */
 body.accounts-disabled #entry-hero,
 body.accounts-disabled #auth-modal,

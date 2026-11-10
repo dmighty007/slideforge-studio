@@ -154,9 +154,13 @@
 }
 
 .sf-start__create {
-    padding: 22px 30px 24px 36px;
+    padding: 22px 30px 36px 36px;
     border-right: 1px solid var(--sf-border);
     overflow-y: auto;
+    /* Its bottom edge fades: a column cut mid-tile looked broken, not scrollable (the bottom padding keeps the
+       last tiles clear of the fade once scrolled to the end). */
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
 }
 
 .sf-start__recent {
@@ -242,6 +246,14 @@
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
+}
+
+/* In the theme grid (start-screen.js), filling the rest of the last row. */
+.sf-themes > .sf-more-themes {
+    grid-column: auto / span 2;
+    align-self: center;
+    justify-self: start;
+    margin-top: 0;
 }
 
 .sf-more-themes:hover {
@@ -673,6 +685,22 @@
         border-right: 0;
         border-bottom: 1px solid var(--sf-border);
     }
+
+    /* One column scrolls as a whole: inner scrollers left the themes cut mid-tile in a 225 px box and the project
+       list in a 118 px one, which looked broken rather than scrollable. */
+    .sf-start__create,
+    .sf-start__recent,
+    .sf-recent__grid {
+        overflow: visible;
+        min-height: auto;
+        -webkit-mask-image: none;
+        mask-image: none;
+    }
+}
+
+@media (max-width: 640px) {
+    /* The description took six lines of a phone's screen before anything could be done. */
+    .sf-start__brand p { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -735,3 +763,100 @@ html[data-theme="dark"] .sf-recent__more {
     border-color: var(--dk-border);
     color: var(--dk-text);
 }
+
+.sf-start__tabs {
+    display: flex;
+    gap: 8px;
+    padding: 12px 36px;
+    border-bottom: 1px solid var(--sf-border);
+}
+.sf-start__tab,
+.sf-project-controls :is(button, select) {
+    border: 1px solid var(--sf-border);
+    border-radius: 10px;
+    background: var(--sf-card);
+    color: var(--sf-text);
+    padding: 9px 14px;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+.sf-start__tab[aria-selected="true"] {
+    background: var(--sf-primary);
+    color: white;
+    border-color: var(--sf-primary);
+}
+.sf-start__tab:focus-visible,
+.sf-project-controls :is(button, select):focus-visible {
+    outline: 2px solid var(--sf-primary);
+    outline-offset: 3px;
+}
+.sf-start--projects .sf-start__create[hidden] { display: none; }
+.sf-start.sf-start--projects .sf-start__body { grid-template-columns: minmax(0, 1fr); }
+.sf-project-controls {
+    display: none;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 18px;
+}
+.sf-start--projects .sf-project-controls { display: flex; }
+.sf-project-controls > span {
+    margin-right: auto;
+    color: var(--sf-sub);
+    font-size: 13px;
+}
+.sf-start__panel > .sf-start__error:not(:empty) { margin: 12px 36px; }
+/* The tabs sit in the header row (start-screen.js), pushed right, before "Back to editor". */
+.sf-start__hero > .sf-start__tabs {
+    margin-left: auto;
+    align-self: flex-start;
+    padding: 0;
+    border-bottom: 0;
+}
+.sf-start__hero > .sf-start__tabs ~ .sf-start__close { margin-left: 0; }
+@media (max-width: 640px) {
+    .sf-start__tabs { padding: 12px 18px; }
+    .sf-start__hero > .sf-start__tabs { order: 3; margin-left: 0; }
+    .sf-project-controls > span { flex-basis: 100%; }
+}
+@media (max-width: 640px) {
+    .sf-start__hero { flex-wrap: wrap; padding: 18px; gap: 12px; }
+    .sf-start__brand { min-width: 0; flex-basis: calc(100% - 64px); }
+    .sf-start__close { margin-left: auto; }
+    .sf-start__recent { padding: 18px; min-width: 0; }
+    .sf-recent__head { flex-wrap: wrap; }
+    .sf-start--projects .sf-search { width: 100%; margin: 0; }
+}
+
+.project-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 6px 12px 0;
+    overflow-x: auto;
+    background: var(--bg-surface, #f8fafc);
+    border-top: 1px solid var(--border, #e2e8f0);
+}
+.project-tabs[hidden] { display: none; }
+.project-tab {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    max-width: 240px;
+    border: 1px solid #cbd5e1;
+    border-bottom: 0;
+    border-radius: 8px 8px 0 0;
+    color: #475569;
+    background: #f1f5f9;
+}
+.project-tab.is-active { color: #4338ca; background: #fff; border-top: 2px solid #6366f1; }
+.project-tab button { font: inherit; font-size: 12px; background: transparent; border: 0; color: inherit; cursor: pointer; }
+.project-tab__select { padding: 9px 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-tab__close { flex-shrink: 0; padding: 5px 9px; margin-right: 3px; border-radius: 5px; }
+.project-tab__close:hover { background: #e2e8f0; }
+.project-tab button:focus-visible { outline: 2px solid #6366f1; outline-offset: -2px; }
+.project-tab button:disabled { cursor: wait; opacity: .65; }
+:root[data-theme="dark"] .project-tabs { background: #0f172a; border-color: #334155; }
+:root[data-theme="dark"] .project-tab { color: #cbd5e1; background: #1e293b; border-color: #475569; }
+:root[data-theme="dark"] .project-tab.is-active { color: #c7d2fe; background: #0f172a; border-top-color: #818cf8; }
+:root[data-theme="dark"] .project-tab__close:hover { background: #334155; }

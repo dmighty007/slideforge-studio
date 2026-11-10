@@ -38,6 +38,8 @@ tests/browser/*
 !tests/browser/test-animations.js
 !tests/browser/test-regressions.js
 !tests/browser/test-start-screen.js
+!tests/browser/test-projects-tab.js
+!tests/browser/test-open-project-tabs.js
 .ruff_cache/
 
 # Python packaging (desktop wheel)

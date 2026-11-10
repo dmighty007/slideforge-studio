@@ -225,19 +225,26 @@ async function ensureEditor(page) {
         assert(authOpened || /local|saved|offline|unavailable/i.test(hint), `Unexpected save hint: ${hint}`);
         if (authOpened) await page.evaluate(() => closeAuthModal());
 
-        await page.locator("button[title='Open Saved Project']").click();
-        await page.waitForTimeout(100);
-        const projectsOpened = await page.locator("#projects-modal").isVisible();
-        const authOpenedForProjects = await page.locator("#auth-modal").isVisible();
-        const projectHint = await page.locator("#project-save-hint").innerText();
-        assert(
-            projectsOpened || authOpenedForProjects || /unavailable|local/i.test(projectHint),
-            "Open Saved Project should open projects/auth UI or show local-mode feedback",
-        );
-        await page.evaluate(() => {
-            closeProjectsModal();
-            closeAuthModal();
-        });
+        // The Projects button opens the project library; a server with no saved projects (accounts off, nobody
+        // signed in) hides it instead of offering a button that does nothing.
+        const projectsButton = page.locator("button[onclick='openProjectsTab()']");
+        if (await projectsButton.isVisible()) {
+            await projectsButton.click();
+            await page.waitForTimeout(100);
+            const libraryOpened = await page.evaluate(() => isStartScreenOpen());
+            const authOpenedForProjects = await page.locator("#auth-modal").isVisible();
+            const projectHint = await page.locator("#project-save-hint").innerText();
+            assert(
+                libraryOpened || authOpenedForProjects || /unavailable|local/i.test(projectHint),
+                "Projects should open the project library, sign-in, or show local-mode feedback",
+            );
+            await page.evaluate(() => {
+                closeStartScreen({ force: true });
+                closeAuthModal();
+            });
+        } else {
+            assert(await page.evaluate(() => document.body.classList.contains("no-saved-projects")), "Projects button hidden without a reason");
+        }
 
         const accountsDisabled = await page.evaluate(() => document.body.classList.contains("accounts-disabled"));
         if (accountsDisabled) {

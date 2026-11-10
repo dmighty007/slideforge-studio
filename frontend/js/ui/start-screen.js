@@ -12,6 +12,8 @@ const START_SCREEN_FEATURES = [
 
 let _startScreenProjects = [];
 let _startScreenReturnFocus = null;
+let _startScreenTab = "home";
+let _startProjectsRequest = 0;
 
 function _startEl(tag, className, text) {
     const node = document.createElement(tag);
@@ -127,7 +129,12 @@ function _startConfirmDelete(card, project) {
         remove.disabled = true;
         try {
             await _presentationRequest(`/api/presentations/${project.id}/`, { method: "DELETE" });
-            if (project.id === currentPresentationId) _startForgetCurrentProject();
+            window.forgetProjectTab?.(project.id);
+            if (project.id === currentPresentationId) {
+                _startForgetCurrentProject();
+                // The close button goes (there is no deck to go back to); say so, and what to do.
+                _startShowError("The open presentation was deleted. Open another one or start a new one to keep working.");
+            }
             _startScreenProjects = _startScreenProjects.filter(item => item.id !== project.id);
             card.style.transition = "opacity 180ms, transform 180ms";
             card.style.opacity = "0";
@@ -202,12 +209,18 @@ function _startRenderProjects() {
     const projects = _startScreenProjects.filter(
         project => !query || `${project.title} ${project.coverTitle || ""}`.toLowerCase().includes(query),
     );
+    const sort = _startScreenTab === "projects" ? document.getElementById("sf-project-sort")?.value || "updated" : "updated";
+    projects.sort((a, b) => sort === "title"
+        ? (a.title || "").localeCompare(b.title || "")
+        : new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+    const count = document.getElementById("sf-project-count");
+    if (count) count.textContent = `${projects.length} of ${_startScreenProjects.length} projects`;
     grid.replaceChildren();
     if (!_startScreenProjects.length) {
         const empty = _startEl("div", "sf-recent__empty");
         empty.append(_startIcon("fa-regular fa-folder-open"));
         empty.append(_startEl("strong", "", "No presentations yet"));
-        empty.append(_startEl("span", "", "Create one on the left. It will show up here next time."));
+        empty.append(_startEl("span", "", _startScreenTab === "projects" ? "Use New presentation to create your first project." : "Create one on the left. It will show up here next time."));
         grid.append(empty);
         return;
     }
@@ -231,15 +244,21 @@ function _startRenderProjects() {
 }
 
 async function _startLoadProjects() {
+    const request = ++_startProjectsRequest;
+    const count = document.getElementById("sf-project-count");
+    if (count) count.textContent = "Loading projects…";
     const grid = document.getElementById("sf-start-recent");
     if (grid) {
         grid.replaceChildren(...Array.from({ length: 4 }, () => _startEl("div", "sf-skeleton")));
     }
     try {
         const payload = await _presentationRequest("/api/presentations/", { method: "GET" });
+        if (request !== _startProjectsRequest) return;
         _startScreenProjects = Array.isArray(payload?.presentations) ? payload.presentations : [];
     } catch (err) {
+        if (request !== _startProjectsRequest) return;
         console.warn("Could not load recent presentations:", err);
+        document.getElementById("sf-project-count").textContent = "Projects unavailable";
         _startScreenProjects = [];
         if (grid) {
             grid.replaceChildren(_startEl("div", "sf-recent__message", "Recent presentations could not be loaded."));
@@ -287,7 +306,31 @@ function _buildStartScreen() {
     close.addEventListener("click", () => closeStartScreen());
     hero.append(logo, brand, close);
 
+    const tabs = _startEl("div", "sf-start__tabs");
+    tabs.setAttribute("role", "tablist");
+    tabs.setAttribute("aria-label", "Workspace");
+    ["home", "projects"].forEach((tab, index) => {
+        const button = _startEl("button", "sf-start__tab", tab === "home" ? "Home" : "Projects");
+        button.id = `sf-tab-${tab}`;
+        button.type = "button";
+        button.setAttribute("role", "tab");
+        button.setAttribute("aria-controls", "sf-start-content");
+        button.addEventListener("click", () => _startSelectTab(tab));
+        button.addEventListener("keydown", event => {
+            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+            event.preventDefault();
+            const next = event.key === "Home" ? "home" : event.key === "End" ? "projects" : index ? "home" : "projects";
+            _startSelectTab(next);
+            document.getElementById(`sf-tab-${next}`).focus();
+        });
+        tabs.append(button);
+    });
+    // In the header row, beside "Back to editor": a row of their own took 65 px from the columns below, and the
+    // import tiles went out of sight at 1366×768.
+    hero.insertBefore(tabs, close);
     const body = _startEl("div", "sf-start__body");
+    body.id = "sf-start-content";
+    body.setAttribute("role", "tabpanel");
 
     const create = _startEl("section", "sf-start__create");
     create.append(_startEl("h2", "", "Start"));
@@ -327,7 +370,8 @@ function _buildStartScreen() {
             themes.children[firstNew]?.focus({ preventScroll: true });
             moreButton.remove();
         });
-        create.append(moreButton);
+        // In the grid, beside the last tile: on a row of its own it pushed the import tiles further out of sight.
+        themes.append(moreButton);
     }
 
     create.append(_startEl("h3", "", "Import"));
@@ -365,11 +409,13 @@ function _buildStartScreen() {
     const error = _startEl("p", "sf-start__error");
     error.id = "sf-start-error";
     error.setAttribute("role", "alert");
-    create.append(error);
+
 
     const recent = _startEl("section", "sf-start__recent");
     const head = _startEl("div", "sf-recent__head");
-    head.append(_startEl("h2", "", "Recent presentations"));
+    const recentTitle = _startEl("h2", "", "Recent presentations");
+    recentTitle.id = "sf-project-heading";
+    head.append(recentTitle);
     const search = _startEl("label", "sf-search");
     const searchInput = _startEl("input");
     searchInput.id = "sf-start-search";
@@ -381,7 +427,27 @@ function _buildStartScreen() {
     head.append(search);
     const grid = _startEl("div", "sf-recent__grid");
     grid.id = "sf-start-recent";
-    recent.append(head, grid);
+    const controls = _startEl("div", "sf-project-controls");
+    const count = _startEl("span", "", "Loading projects…");
+    count.id = "sf-project-count";
+    count.setAttribute("role", "status");
+    const sort = _startEl("select");
+    sort.id = "sf-project-sort";
+    sort.setAttribute("aria-label", "Sort projects");
+    [["updated", "Recently edited"], ["title", "Name A–Z"]].forEach(([value, text]) => {
+        const option = _startEl("option", "", text);
+        option.value = value;
+        sort.append(option);
+    });
+    sort.addEventListener("change", _startRenderProjects);
+    const refresh = _startEl("button", "", "Refresh");
+    refresh.type = "button";
+    refresh.addEventListener("click", _startLoadProjects);
+    const newProject = _startEl("button", "", "New presentation");
+    newProject.type = "button";
+    newProject.addEventListener("click", () => _startRun(newProject, _startNewPresentation()));
+    controls.append(count, sort, refresh, newProject);
+    recent.append(head, controls, grid);
 
     body.append(create, recent);
 
@@ -390,12 +456,28 @@ function _buildStartScreen() {
     reopen.append(_startIcon("fa-solid fa-house"), document.createTextNode(" button in the toolbar."));
     footer.append(reopen);
 
-    panel.append(hero, body, footer);
+    panel.append(hero, error, body, footer);
     root.append(panel);
     root.addEventListener("keydown", event => {
         if (event.key === "Escape" && _startCanClose()) {
             event.preventDefault();
             closeStartScreen();
+        }
+        // A modal dialog: Tab wraps inside it. Past the last card it reached the editor's toolbar behind, which could
+        // then be used, and Esc (handled here) no longer closed the screen.
+        if (event.key === "Tab") {
+            const focusable = [...root.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+                .filter(node => !node.disabled && node.tabIndex >= 0 && node.offsetParent !== null);
+            if (!focusable.length) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
         }
     });
     document.body.append(root);
@@ -424,10 +506,33 @@ function openStartScreenOnLaunch() {
         last = localStorage.getItem(START_SCREEN_LAST_VIEW_KEY) || "";
     } catch (_err) { /* storage blocked */ }
     if (last === "editor" && currentPresentationId) return false;
+    // Signed out, the entry gate asks (sign in, or Continue locally); opening the start screen opened the sign-in
+    // modal as well, under the gate, and it stayed over a guest's editor on every reload.
+    if (!currentAuthUser) return false;
     return openStartScreen();
 }
 
-function openStartScreen() {
+function _startSelectTab(tab) {
+    _startScreenTab = tab === "projects" ? "projects" : "home";
+    const root = document.getElementById("start-screen");
+    root.classList.toggle("sf-start--projects", _startScreenTab === "projects");
+    for (const name of ["home", "projects"]) {
+        const button = document.getElementById(`sf-tab-${name}`);
+        button.setAttribute("aria-selected", String(name === _startScreenTab));
+        button.tabIndex = name === _startScreenTab ? 0 : -1;
+    }
+    document.getElementById("sf-start-content").setAttribute("aria-labelledby", `sf-tab-${_startScreenTab}`);
+    document.querySelector(".sf-start__create").hidden = _startScreenTab === "projects";
+    document.getElementById("sf-project-heading").textContent = _startScreenTab === "projects" ? "All projects" : "Recent presentations";
+    _startShowAllProjects = false;
+    _startRenderProjects();
+}
+
+function openProjectsTab() {
+    return openStartScreen("projects");
+}
+
+function openStartScreen(tab = "home") {
     // Saved projects need the server and (in the web app) a signed-in account.
     if (!_backendApiAvailable) {
         setProjectSaveHint?.("Saved projects are unavailable while the server is offline", "warn");
@@ -447,10 +552,11 @@ function openStartScreen() {
     _startShowError("");
     const search = document.getElementById("sf-start-search");
     if (search) search.value = "";
+    _startSelectTab(tab);
     _startUpdateClose();
     _startLoadProjects();
     _rememberLastView("start");
-    requestAnimationFrame(() => document.getElementById("sf-start-new")?.focus());
+    requestAnimationFrame(() => document.getElementById(_startScreenTab === "projects" ? "sf-tab-projects" : "sf-start-new")?.focus());
     return true;
 }
 
@@ -478,3 +584,5 @@ window.openStartScreen = openStartScreen;
 window.openStartScreenOnLaunch = openStartScreenOnLaunch;
 window.closeStartScreen = closeStartScreen;
 window.isStartScreenOpen = isStartScreenOpen;
+
+window.openProjectsTab = openProjectsTab;

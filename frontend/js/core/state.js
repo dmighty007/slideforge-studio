@@ -191,7 +191,7 @@ function placeInContentPlaceholder(slide, element, { anywhere = false, claim = t
     const bounds = _getSlideInsertBounds();
     const footerTop = typeof _currentSlideFooterTop === "function" ? _currentSlideFooterTop() : null;
     const floor = footerTop === null ? bounds.slideH - bounds.margin : footerTop - 12;
-    const boxes = _currentSlideContentBoxes(element.id);
+    const boxes = _currentSlideContentBoxes(element.id, { skipEmptyPlaceholders: true });
     let best = { ..._leastOverlapPosition(width, height, bounds, boxes, floor), width, height };
     // On a crowded slide, a smaller copy that fits beside the content beats a full-size one on top of it (text
     // boxes keep their size: their height follows the text).
@@ -799,6 +799,8 @@ function enterEditorWorkspace() {
 
 function continueAsGuest() {
     setProjectSaveHint("Local autosave on", "success");
+    // The sign-in modal may be open under the gate (opened at launch); a guest chose not to sign in.
+    closeAuthModal();
     enterEditorWorkspace();
 }
 
@@ -939,7 +941,9 @@ function updateAuthUi() {
             authPrimary.onclick = currentAuthUser
                 ? () => {
                       closeUserMenu();
-                      openProjectsModal();
+                      // The Projects tab (start-screen.js) has thumbnails, search and delete; the old list had none.
+                      if (typeof openProjectsTab === "function") openProjectsTab();
+                      else openProjectsModal();
                   }
                 : () => openAuthModal("login");
         }
@@ -975,6 +979,8 @@ function updateAuthUi() {
 function setAuthState(user) {
     currentAuthUser = user || null;
     _authReady = true;
+    // A server run without accounts and no local user keeps one deck: no start screen or projects to open.
+    document.body.classList.toggle("no-saved-projects", accountsDisabled() && !currentAuthUser);
     updateAuthUi();
     updateEntryGate();
     updateProjectTitleUi();
@@ -2180,7 +2186,14 @@ function toggleAuthMode() {
 
 function openAuthModal(mode = "login") {
     if (accountsDisabled()) {
-        setProjectSaveHint("Local server not ready yet. Try again in a moment.", "warn");
+        // Before the session is known (the desktop app starting) the local user may still arrive; after that, a
+        // server run without accounts keeps one local deck and has no saved projects to show.
+        setProjectSaveHint(
+            _authReady && !currentAuthUser
+                ? "This server keeps one local presentation; saved projects need the SlideForge app or an account"
+                : "Local server not ready yet. Try again in a moment.",
+            "warn",
+        );
         return;
     }
     if (!_backendApiAvailable) {
@@ -2191,6 +2204,12 @@ function openAuthModal(mode = "login") {
     const modal = document.getElementById("auth-modal");
     closeUserMenu();
     switchAuthMode(mode);
+    if (modal && !modal.dataset.backdropBound) {
+        modal.dataset.backdropBound = "true";
+        modal.addEventListener("click", event => {
+            if (event.target === modal) closeAuthModal();
+        });
+    }
     if (modal) {
         modal.classList.remove("hidden");
         modal.classList.add("flex");
@@ -2235,6 +2254,7 @@ async function logoutCurrentUser() {
     closeStartScreen?.({ force: true });
     sessionStorage.removeItem(ENTRY_GATE_DISMISSED_KEY);
     setAuthState(null);
+    window.clearProjectTabs?.();
     currentPresentationId = null;
     currentPresentationAutosaveVersion = 0;
     _presentationPersistenceEnabled = false;
@@ -2269,6 +2289,7 @@ function _inferPresentationTitle() {
 function setCurrentPresentationTitle(title) {
     currentPresentationTitle = (title || "").trim() || "Untitled Presentation";
     updateProjectTitleUi();
+    window.updateProjectTabTitle?.();
 }
 
 async function createPresentationRecord() {
@@ -2296,6 +2317,7 @@ async function createPresentationRecord() {
     _lastPersistedFingerprint = JSON.stringify(created.state || payload.state);
     _lastPersistedTitle = created.title || payload.title;
     setProjectSaveHint("Project saved", "success");
+    window.registerProjectTab?.();
     return created;
 }
 
@@ -2307,6 +2329,7 @@ async function loadPresentationRecord(presentationId, generation = ++_presentati
     if (generation !== _presentationLoadGeneration) return null;
     currentPresentationId = loaded.id;
     currentPresentationAutosaveVersion = loaded.autosaveVersion || 1;
+    _saveConflict = null; // opened afresh: this is the server's latest
     setCurrentPresentationTitle(loaded.title || "Untitled Presentation");
     const hasSlides = loaded.state && Array.isArray(loaded.state.slides) && loaded.state.slides.length > 0;
     if (hasSlides) {
@@ -2341,6 +2364,7 @@ async function loadPresentationRecord(presentationId, generation = ++_presentati
     _lastPersistedTitle = loaded.title || _inferPresentationTitle();
     const anyRecovered = recovered || typed;
     setProjectSaveHint(anyRecovered ? "Recovered unsaved changes" : "All changes saved", anyRecovered ? "warn" : "success");
+    window.registerProjectTab?.();
     return loaded;
 }
 
@@ -2404,13 +2428,20 @@ async function initPresentationPersistence(force = false) {
 // refused it (409): the newer edits stayed unsaved and the user was told to reload, which would have lost them.
 // Each call now waits for the one before; it then saves only what is still unsaved.
 let _autosaveChain = Promise.resolve();
-function autosavePresentationNow() {
-    const run = _autosaveChain.catch(() => {}).then(() => _autosavePresentationOnce());
+// keepMine: an explicit save (Save button, Ctrl+S) after a conflict, which replaces the other window's version.
+function autosavePresentationNow({ keepMine = false } = {}) {
+    const run = _autosaveChain.catch(() => {}).then(() => _autosavePresentationOnce({ keepMine }));
     _autosaveChain = run;
     return run;
 }
 
-async function _autosavePresentationOnce() {
+// The deck was saved from another tab or window since this one loaded it: { id, serverVersion }. Autosave stops for
+// it here. It used to take the server's version number and save again, so the next edit here silently replaced the
+// other window's work while both said "All changes saved". Reloading takes that version; Ctrl+S keeps this one.
+let _saveConflict = null;
+const SAVE_CONFLICT_MESSAGE = "Changed in another window. Reload to get that version, or press Ctrl+S to keep yours.";
+
+async function _autosavePresentationOnce({ keepMine = false } = {}) {
     if (
         !_presentationPersistenceEnabled ||
         !_presentationPersistenceReady ||
@@ -2426,6 +2457,15 @@ async function _autosavePresentationOnce() {
         await syncMoleculeViewStatesFromDom();
     }
     if (!stillCurrent()) return false;
+    if (_saveConflict?.id === presentationId) {
+        if (!keepMine) {
+            setProjectSaveHint(SAVE_CONFLICT_MESSAGE, "danger");
+            return false;
+        }
+        currentPresentationAutosaveVersion = _saveConflict.serverVersion || currentPresentationAutosaveVersion;
+        _saveConflict = null;
+        _lastPersistedFingerprint = ""; // the server has the other version: this one is unsaved whatever it matches
+    }
     const fingerprint = getPersistableFingerprint();
     if (_persistedStateIsCurrent()) {
         setProjectSaveHint("All changes saved", "success");
@@ -2451,9 +2491,9 @@ async function _autosavePresentationOnce() {
         _pendingSaveHashes.delete(fingerprintHash);
         if (!stillCurrent()) return false;
         if (err?.status === 409) {
-            currentPresentationAutosaveVersion =
-                err.payload?.autosaveVersion || currentPresentationAutosaveVersion;
-            setProjectSaveHint("Save conflict. Reload project before saving.", "danger");
+            _saveConflict = { id: presentationId, serverVersion: err.payload?.autosaveVersion || 0 };
+            setProjectSaveHint(SAVE_CONFLICT_MESSAGE, "danger");
+            return false; // said; not a failure for the callers to report again as "Save failed"
         }
         throw err;
     }
@@ -2663,7 +2703,8 @@ function schedulePresentationAutosave(delay = 1200) {
             .then(created => (created ? true : autosavePresentationNow()))
             .catch(err => {
                 console.warn("Autosave failed:", err);
-                setProjectSaveHint("Save failed", "danger");
+                // A conflict has said so already, with what to do (_autosavePresentationOnce).
+                if (err?.status !== 409) setProjectSaveHint("Save failed", "danger");
             });
     }, delay);
 }
@@ -2804,7 +2845,9 @@ async function saveCurrentProject() {
         setProjectSaveHint("Project saved", "success");
         return true;
     }
-    const saved = await autosavePresentationNow();
+    const saved = await autosavePresentationNow({ keepMine: true });
+    // Saved again from elsewhere while this save went: not saved (the hint says what to do).
+    if (_saveConflict?.id === currentPresentationId) return false;
     if (!saved) {
         setProjectSaveHint("All changes saved", "success");
     }
@@ -2827,6 +2870,7 @@ async function saveProjectFromUi() {
         busy?.done();
     }
     if (!saved) {
+        if (_saveConflict?.id === currentPresentationId) return false; // the conflict hint says what to do
         setProjectSaveHint("Save failed", "danger");
         if (typeof showNotification === "function") showNotification("The project could not be saved. Try again in a moment.", "error");
         return false;
@@ -2857,13 +2901,57 @@ async function saveProjectFromUi() {
     return true;
 }
 
-async function createNewProject() {
+// Before New or Open replaces the open project: save what the autosave timer has not sent yet. Edits made within its
+// debounce (about a second) were dropped with the timer, so the old deck reopened without them. A save that fails
+// keeps a backup of this deck, recovered when it is next opened.
+async function _saveOpenProjectBeforeSwitch() {
+    if (
+        !_backendApiAvailable ||
+        !_presentationPersistenceEnabled ||
+        !_presentationPersistenceReady ||
+        !currentPresentationId ||
+        isPresentationHydrating()
+    ) {
+        return;
+    }
+    // A title or text box being typed in is committed on blur (from a shortcut nothing has blurred it yet).
+    document.activeElement?.blur?.();
+    if (_persistedStateIsCurrent()) return;
+    try {
+        await autosavePresentationNow();
+    } catch (err) {
+        console.warn("Could not save the open project before switching:", err);
+        _writeUnsavedBackup({
+            title: _inferPresentationTitle(),
+            presentationTheme: state.presentationTheme,
+            state: getPersistableState(),
+            autosaveVersion: currentPresentationAutosaveVersion,
+        });
+    }
+    if (!_persistedStateIsCurrent() || _saveConflict) {
+        showNotification?.("Save the current project's changes before switching projects.", "info");
+        return false;
+    }
+    return true;
+}
+
+// A new deck replaces the only local one (no saved projects without an account): ask when it has anything in it.
+function _localDeckHasContent() {
+    const slides = state?.slides || [];
+    if (slides.length > 1) return true;
+    return slides.some(slide => (slide.elements || []).some(el =>
+        !el.isMasterElement && !el.editableMasterFooterElement && !(el.type === "text" && _isEmptyTextElement(el))));
+}
+
+// offerUndo: false for an import, which says what it did itself.
+async function createNewProject({ offerUndo = true } = {}) {
     // Signed out on a server run without accounts there is nothing to sign in to: the open deck is the local one
     // (initPresentationPersistence), and a new project replaces it, as without a server. Asking to sign in did
     // nothing ("not ready yet"), so New kept the old deck. Before the session is known (the desktop app starting),
     // it still waits.
     const localOnly = !_backendApiAvailable || (accountsDisabled() && _authReady && !currentAuthUser);
     if (localOnly) {
+        const replacedContent = _localDeckHasContent();
         ++_presentationLoadGeneration;
         setPresentationHydrating(false);
         saveStateToUndo();
@@ -2879,12 +2967,20 @@ async function createNewProject() {
         setProjectSaveHint("New local project", "muted");
         renderSlidesFromState?.();
         updateSlideCounter?.();
+        // Without accounts there is one local deck, and this replaced it without a word (only Ctrl+Z knew).
+        if (offerUndo && replacedContent && typeof showNotification === "function") {
+            showNotification("New presentation started. The previous one was replaced.", "info", {
+                action: { label: "Undo", run: () => window.undo?.() },
+            });
+        }
         return true;
     }
     if (!currentAuthUser) {
         openAuthModal("login");
         return false;
     }
+    if (await _saveOpenProjectBeforeSwitch() === false) return false;
+    window.captureProjectTab?.();
     ++_presentationLoadGeneration;
     setPresentationHydrating(false);
     clearTimeout(_autosaveTimer);
@@ -2915,6 +3011,13 @@ async function loadProjectById(presentationId) {
         openAuthModal("login");
         return false;
     }
+    if (String(presentationId) === String(currentPresentationId)) {
+        window.registerProjectTab?.();
+        return true;
+    }
+    if (await _saveOpenProjectBeforeSwitch() === false) return false;
+    window.captureProjectTab?.();
+    if (window.restoreProjectTab?.(presentationId)) return true;
     const generation = ++_presentationLoadGeneration;
     clearTimeout(_autosaveTimer);
     setPresentationHydrating(true);

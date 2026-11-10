@@ -108,6 +108,15 @@ from PyPI, then `slideforge`, and `slideforge --install-shortcut` for the icons.
 
 To run it from this repository instead, or to help build it, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
+## New in 0.8
+
+- **Projects library:** the start screen has a Projects tab to sort, search, open and delete your saved presentations. Ctrl+O opens it from anywhere in the editor.
+- **Open project tabs:** with more than one project open, tabs above the canvas switch between them, each keeping its own slide and undo history. Closing a tab never deletes the project.
+- **Safer saving:** switching or creating projects saves the open one first; a deck changed in another window is no longer silently overwritten.
+- **Line spacing** now reaches imported and bulleted text and undoes in one step.
+
+See the [0.8.0 release notes](docs/releases/v0.8.0.md).
+
 ## New in 0.7
 
 - **Present a PDF:** open a Beamer talk or any PDF as slides, one per page, with its links still working while presenting.

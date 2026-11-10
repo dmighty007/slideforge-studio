@@ -101,6 +101,17 @@ function initKeyboard() {
 
         // Do not trigger shortcuts in play mode, or behind the start screen
         if (document.body.classList.contains("play-mode-active")) return;
+        // Ctrl/Cmd+O: the project library (not the browser's file picker). On the start screen it moves to that tab.
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && key === "o") {
+            e.preventDefault();
+            if (document.body.classList.contains("start-screen-open")) {
+                window._startSelectTab?.("projects");
+                document.getElementById("sf-tab-projects")?.focus();
+            } else if (!isModalDialogOpen()) {
+                window.openProjectsTab?.();
+            }
+            return;
+        }
         if (document.body.classList.contains("start-screen-open")) return;
         // Excalidraw has its own shortcuts (undo, delete, tools) while a drawing is open.
         if (document.body.classList.contains("drawing-editor-open")) return;

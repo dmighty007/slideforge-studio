@@ -3,6 +3,10 @@
 // ─── Command Palette ──────────────────────────────────────────────────────────
 
 const COMMANDS = [
+    // Save, Share and the shortcut list: the palette is the command entry point, and these returned nothing.
+    { id: "save", title: "Save Project", icon: "fa-floppy-disk", keywords: "store ctrl+s", action: () => saveProjectFromUi() },
+    { id: "share", title: "Share a View-Only Link…", icon: "fa-share-nodes", keywords: "link publish send", action: () => window.openShareDialog?.() },
+    { id: "shortcuts", title: "Keyboard Shortcuts", icon: "fa-keyboard", keywords: "keys hotkeys help f1", action: () => openShortcutsModal() },
     { id: "add-slide", title: "Add Slide", icon: "fa-plus", action: addSlide },
     { id: "duplicate-slide", title: "Duplicate Slide", icon: "fa-copy", action: duplicateCurrentSlide },
     { id: "delete-slide", title: "Delete Slide", icon: "fa-trash", action: deleteCurrentSlide },

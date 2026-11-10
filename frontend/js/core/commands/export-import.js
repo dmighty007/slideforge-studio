@@ -65,7 +65,7 @@ async function startNewProjectForImport() {
     } catch (err) {
         console.warn("Could not save the open project before importing:", err);
     }
-    const created = await createNewProject();
+    const created = await createNewProject({ offerUndo: false });
     if (created === false) throw new Error("sign in to import a presentation");
 }
 

@@ -100,7 +100,11 @@ function addSlide(targetIndex = null) {
 
 function deleteCurrentSlide(targetIndex = null) {
     const activeIndex = _normalizeSlideIndex(targetIndex) ?? ensureActiveSlideSync();
-    if (state.slides.length <= 1) return;
+    if (state.slides.length <= 1) {
+        // A deck keeps one slide; the button did nothing and said nothing.
+        if (typeof showNotification === "function") showNotification("A presentation needs at least one slide.", "info");
+        return;
+    }
     
     // CRITICAL FIX: Cleanup 3D backgrounds before deleting slide
     if (typeof cleanupSlideBackground3D === 'function') {
