@@ -133,7 +133,11 @@ function _renderChartDom(container, elData) {
   }
 
   try {
-    container._chartInstance = new Chart(canvas, buildChartJsConfig(elData));
+    const config = buildChartJsConfig(elData);
+    // Editor and thumbnail charts are still previews. Presentation animations are
+    // driven separately by the slide animation system.
+    config.options = { ...config.options, animation: false };
+    container._chartInstance = new Chart(canvas, config);
   } catch (err) {
     console.error("Chart.js Error:", err);
     container.innerHTML = `<div class="flex items-center justify-center h-full text-xs text-red-400">Chart Error</div>`;
@@ -340,6 +344,11 @@ function _createStaticNode(elData, options = {}) {
     const frame = document.createElement("iframe");
     frame.srcdoc = buildHtmlEmbedSrcdoc(elData.content || "", elData);
     applyHtmlEmbedSandbox(frame);
+    if (options.forPreview) {
+      // Thumbnails must not run another copy of an embed's JavaScript or CSS animations.
+      frame.setAttribute("sandbox", "");
+      frame.srcdoc += "<style>*,*::before,*::after{animation:none!important;transition:none!important}</style>";
+    }
     frame.className = "w-full h-full html-embed-frame";
     frame.style.border = "0";
     frame.style.pointerEvents = "none";

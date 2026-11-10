@@ -34,6 +34,16 @@ function syncAllSlideFooterNumbers() {
   return changed;
 }
 
+// Renderers own observers, animation frames and Chart.js registry entries. Dispose them
+// before removing a slide or thumbnail, including when switching project tabs.
+function disposeSlideRenderers(root) {
+  if (!root) return;
+  cleanupSlideBackground3D(root);
+  if (typeof Chart !== "undefined") {
+    root.querySelectorAll("canvas").forEach(canvas => Chart.getChart(canvas)?.destroy());
+  }
+}
+
 const REUSABLE_ELEMENT_TYPES = new Set(["molecule", "pdf", "video"]);
 
 // What a heavy element looks like, for deciding whether its node can be kept. The saved camera of a molecule is
@@ -135,7 +145,7 @@ function _collectReusableSlideNodes(container, { mode }) {
   oldSections.forEach((section) => {
     Array.from(section.children).forEach((child) => {
       if (elements.get(child.id) === child || backgrounds.get(section.id) === child) return;
-      if (child.classList?.contains("slide-background-three")) cleanupSlideBackground3D(section);
+      disposeSlideRenderers(child);
       child.remove();
     });
     section.removeAttribute("id");

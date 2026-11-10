@@ -135,7 +135,15 @@ function _applyPresenterArrivalState(copy, slideIndex) {
 function _presenterSectionHtml(section, { arrivalOf = -1 } = {}) {
     if (!section) return "";
     const canvases = [...section.querySelectorAll("canvas")];
+    const frames = [...section.querySelectorAll("iframe")];
     const copy = section.cloneNode(true);
+    // Embeds on a slide not opened yet (the next one, usually) have no document in the editor; the copy gets the
+    // one they will show, and the editor's own frames stay unloaded.
+    [...copy.querySelectorAll("iframe")].forEach((frame, index) => {
+        if (frame.hasAttribute("srcdoc") || typeof deferredIframeSrcdoc !== "function") return;
+        const srcdoc = deferredIframeSrcdoc(frames[index]);
+        if (srcdoc) frame.setAttribute("srcdoc", srcdoc);
+    });
     copy.querySelectorAll(".anim-badge, .resize-handle, .crop-handle, .connector-point-handle").forEach(node => node.remove());
     // "Click to add title" and an empty list's first bullet are editing prompts: hidden while presenting and in
     // exports by body classes (base.css) this window does not have, so the speaker saw them.
