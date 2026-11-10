@@ -77,7 +77,9 @@
     // sets its own size, so its line is as tall as its words; without it the line kept the box's height.
     const PARAGRAPH_STYLE_PROPS = ["marginLeft", "textIndent", "marginTop", "marginBottom", "lineHeight", "fontSize"];
     function paragraphStyle(style = {}) {
-        return Object.fromEntries(PARAGRAPH_STYLE_PROPS.filter(key => style[key] && /^-?[\d.]+(?:px|em|%)?$/.test(String(style[key]))).map(key => [key, String(style[key])]));
+        // lineHeight "inherit": the paragraph follows the box's line spacing (set when that changes), not Reveal's for <p>.
+        const kept = key => /^-?[\d.]+(?:px|em|%)?$/.test(String(style[key])) || (key === "lineHeight" && style[key] === "inherit");
+        return Object.fromEntries(PARAGRAPH_STYLE_PROPS.filter(key => style[key] && kept(key)).map(key => [key, String(style[key])]));
     }
 
     function normalizeBlock(block = {}) {

@@ -765,6 +765,96 @@ async function ensureEditor(page) {
         );
     });
 
+    await step("Line spacing applies to plain, bulleted and imported text with one undo step", async () => {
+        await ensureEditor(page);
+        const result = await page.evaluate(async () => {
+            const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+            const ratio = node => {
+                const cs = getComputedStyle(node);
+                return Math.round((parseFloat(cs.lineHeight) / parseFloat(cs.fontSize)) * 100) / 100;
+            };
+            const run = async (content, extraStyles, setup) => {
+                currentSlideIndex = 0;
+                state.slides[0].elements = [
+                    {
+                        id: "smoke_line_spacing",
+                        type: "text",
+                        x: 180,
+                        y: 180,
+                        width: 520,
+                        height: 140,
+                        content,
+                        autoHeight: true,
+                        styles: { fontSize: "30px", color: "#172033", zIndex: 2, ...extraStyles },
+                    },
+                ];
+                selectedIds = ["smoke_line_spacing"];
+                // The history holds 30 steps and is full by now; start empty so its length counts this change's.
+                resetUndoHistory();
+                renderSlidesFromState();
+                selectElement("smoke_line_spacing", "replace");
+                buildPropertiesPanel({ immediate: true });
+                await sleep(80);
+                if (setup) {
+                    await setup();
+                    selectElement("smoke_line_spacing", "replace");
+                    buildPropertiesPanel({ immediate: true });
+                    await sleep(80);
+                }
+                const host = () => document.querySelector("#smoke_line_spacing .text-element-content");
+                const lines = () => [...host().querySelectorAll("p, .ppt-bullet-row")].map(ratio);
+                const shownBefore = document.getElementById("prop-line-height").value;
+                const drawnBefore = ratio(host());
+                const heightBefore = host().scrollHeight;
+                const undoBefore = undoStack.length;
+                const input = document.getElementById("prop-line-height");
+                input.focus();
+                input.value = "2";
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+                input.blur();
+                await sleep(120);
+                const after = { box: ratio(host()), lines: lines(), height: host().scrollHeight };
+                const undoSteps = undoStack.length - undoBefore;
+                restoreUndoState();
+                renderSlidesFromState();
+                await sleep(80);
+                return {
+                    shownBefore,
+                    drawnBefore,
+                    heightBefore,
+                    after,
+                    undoSteps,
+                    undoneLines: lines(),
+                    undoneBox: ratio(host()),
+                };
+            };
+            return {
+                plain: await run("Line one<br>Line two", {}),
+                bulleted: await run("Alpha<br>Beta<br>Gamma", {}, async () => {
+                    document.querySelector("#prop-list-bullet")?.click();
+                    await sleep(120);
+                }),
+                // As PowerPoint import writes it: every paragraph with its own line height.
+                imported: await run(
+                    '<p style="margin:0;line-height:1.2">Para one</p><p style="margin:0;line-height:1.2">Para two</p>',
+                    { lineHeight: "1.2" },
+                ),
+                pixels: await run("Single", { lineHeight: "36px" }),
+            };
+        });
+        const { plain, bulleted, imported, pixels } = result;
+        const detail = JSON.stringify(result);
+        assert(Number(plain.shownBefore) === plain.drawnBefore, `Field should show the drawn line spacing: ${detail}`);
+        assert(Number(pixels.shownBefore) === 1.2, `A pixel line height should be shown as a multiple: ${detail}`);
+        [plain, bulleted, imported].forEach((item) => {
+            assert(item.after.box === 2 && item.after.lines.every(value => value === 2), `Line spacing 2 should reach every line: ${detail}`);
+            assert(item.after.height > item.heightBefore, `Wider line spacing should make the text taller: ${detail}`);
+            assert(item.undoSteps === 1, `One line spacing change should be one undo step: ${detail}`);
+        });
+        assert(bulleted.after.lines.length === 3, `Bulleted text should render three rows: ${detail}`);
+        assert(imported.undoneLines.every(value => value === 1.2) && imported.undoneBox === 1.2, `Undo should restore imported paragraph spacing: ${detail}`);
+    });
+
     await step("Multiple text boxes support shared formatting without hover toolbar", async () => {
         await ensureEditor(page);
         const result = await page.evaluate(async () => {

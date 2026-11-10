@@ -553,6 +553,11 @@ function stripInlineTextStylesFromHtml(html, props = []) {
         node.style.removeProperty("text-decoration");
         node.style.removeProperty("text-decoration-line");
       }
+      // A paragraph follows the box's line spacing; set, not just dropped, as Reveal gives <p> its own (1.3).
+      if (propSet.has("lineHeight")) {
+        if (/^(P|H[1-6])$/.test(node.tagName)) node.style.setProperty("line-height", "inherit");
+        else node.style.removeProperty("line-height");
+      }
     }
     if (node.tagName === "FONT") {
       if (removeAll || propSet.has("color")) node.removeAttribute("color");

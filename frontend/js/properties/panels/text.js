@@ -199,7 +199,18 @@ function buildTextPanel(panel, data) {
   // Line Height + Letter Spacing
   const spacingRow = document.createElement("div");
   spacingRow.className = "grid grid-cols-2 gap-2 items-end";
-  const lineHeightRaw = parseFloat(data.styles.lineHeight) || 1.2;
+  // A plain multiple is shown as stored; with none (the theme's), "normal" or pixels, the spacing the text is drawn with.
+  const storedLineHeight = String(data.styles.lineHeight ?? "").trim();
+  const drawnLineHeight = (() => {
+    const host = document.getElementById(data.id)?.querySelector(".text-element-content");
+    if (!host) return null;
+    const cs = getComputedStyle(host);
+    const ratio = parseFloat(cs.lineHeight) / parseFloat(cs.fontSize);
+    return Number.isFinite(ratio) && ratio > 0 ? Math.round(ratio * 100) / 100 : null;
+  })();
+  const lineHeightRaw = /^\d*\.?\d+$/.test(storedLineHeight)
+    ? parseFloat(storedLineHeight)
+    : drawnLineHeight || 1.2;
   const letterSpacingRaw = parseFloat(data.styles.letterSpacing) || 0;
   spacingRow.innerHTML = `
         <div>
@@ -624,8 +635,13 @@ function buildTextPanel(panel, data) {
     const commitLineHeight = () => {
       const v = parseFloat(lineHeightInput.value);
       if (!Number.isFinite(v) || v < 0.5) return;
-      saveStateToUndo();
-      applyStyle("lineHeight", String(Math.round(v * 100) / 100));
+      const next = String(Math.round(v * 100) / 100);
+      // change and blur both land here; applyStyle saves the undo step, so a change is one Ctrl+Z.
+      const live = state.slides[currentSlideIndex]?.elements?.find((item) => item.id === data.id) || data;
+      // (Unless paragraphs still carry their own, as imported text does: the same number then evens them out.)
+      const paragraphsOwnSpacing = /line-height:\s*[\d.]/.test(JSON.stringify(live.content ?? ""));
+      if (String(live.styles?.lineHeight ?? "") === next && !paragraphsOwnSpacing) return;
+      applyStyle("lineHeight", next);
       refreshPreviews?.();
     };
     lineHeightInput.addEventListener("change", commitLineHeight);
