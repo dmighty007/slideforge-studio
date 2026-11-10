@@ -137,6 +137,12 @@ function _presenterSectionHtml(section, { arrivalOf = -1 } = {}) {
     const canvases = [...section.querySelectorAll("canvas")];
     const copy = section.cloneNode(true);
     copy.querySelectorAll(".anim-badge, .resize-handle, .crop-handle, .connector-point-handle").forEach(node => node.remove());
+    // "Click to add title" and an empty list's first bullet are editing prompts: hidden while presenting and in
+    // exports by body classes (base.css) this window does not have, so the speaker saw them.
+    copy.querySelectorAll(".text-element-content[data-placeholder]").forEach(node => {
+        if (node.classList.contains("is-empty")) node.replaceChildren();
+        node.removeAttribute("data-placeholder");
+    });
     if (arrivalOf >= 0) _applyPresenterArrivalState(copy, arrivalOf);
     [...copy.querySelectorAll("canvas")].forEach((canvas, index) => {
         const img = document.createElement("img");

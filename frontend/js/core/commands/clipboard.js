@@ -153,10 +153,16 @@ function _currentSlideFooterTop() {
 
 // Boxes of the user's content on the current slide (footer excluded; it limits placement instead).
 // excludeId: an object being placed again (after it grew) is not in its own way.
-function _currentSlideContentBoxes(excludeId = null) {
+// skipEmptyPlaceholders: on a slide holding nothing but placeholders nobody has typed in (a new title slide; they
+// show only while editing), leave them out, so its first object is not made smaller for them with a "slide is busy"
+// notice over it. On a slide with anything else they count: a chart must not take the empty title's place.
+function _currentSlideContentBoxes(excludeId = null, { skipEmptyPlaceholders = false } = {}) {
     const elements = state.slides?.[currentSlideIndex]?.elements || [];
-    return elements
-        .filter(el => !el?.isMasterElement && !el?.editableMasterFooterElement && (!excludeId || el?.id !== excludeId))
+    const own = elements.filter(el => !el?.isMasterElement && !el?.editableMasterFooterElement && (!excludeId || el?.id !== excludeId));
+    const emptyPlaceholder = el => Boolean(el?.placeholder) && typeof _isEmptyTextElement === "function" && _isEmptyTextElement(el);
+    const skip = skipEmptyPlaceholders && own.length > 0 && own.every(emptyPlaceholder);
+    return own
+        .filter(el => !(skip && emptyPlaceholder(el)))
         .map(el => {
             let w = parseFloat(el.width) || 0;
             let h = parseFloat(el.height) || 0;

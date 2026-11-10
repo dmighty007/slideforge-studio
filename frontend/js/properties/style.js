@@ -24,6 +24,8 @@ function applyStyle(prop, value) {
         "fontWeight",
         "fontStyle",
         "textDecoration",
+        // Imported PowerPoint and Keynote text sets a line height on every paragraph, which outranked the box's.
+        "lineHeight",
       ].includes(prop)
     ) {
       let nextContent = contentHost?.isContentEditable
@@ -125,6 +127,7 @@ function applyStyle(prop, value) {
             "fontWeight",
             "fontStyle",
             "textDecoration",
+            "lineHeight",
           ].includes(prop) &&
           contentHost.dataset.structuredEdit !== "true" &&
           !contentHost.isContentEditable

@@ -87,7 +87,8 @@ async function openFreshEditor(context) {
     await opened.page.waitForLoadState("networkidle");
     await opened.page.waitForFunction(() => typeof isPresentationHydrating !== "function" || !isPresentationHydrating());
     await opened.page.evaluate(async () => {
-        await createNewProject();
+        // Setup, not a user replacing their deck: no "previous one was replaced" notice to mistake for the test's own.
+        await createNewProject({ offerUndo: false });
     });
     await opened.page.waitForLoadState("networkidle");
     await opened.page.waitForTimeout(300);
@@ -11186,6 +11187,8 @@ async function test(name, fn) {
                 } catch (err) {
                     conflict = err?.status === 409;
                 }
+                // A conflict is reported in the save hint now, not thrown (state.js, _saveConflict).
+                conflict = conflict || _saveConflict?.id === currentPresentationId;
                 return { versionB, versionAfter: currentPresentationAutosaveVersion, conflict, projectNow: currentPresentationId };
             }, ids);
             assert(outcome.projectNow === ids.b, "project changed unexpectedly");
