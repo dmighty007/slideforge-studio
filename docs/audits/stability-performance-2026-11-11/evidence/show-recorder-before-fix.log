@@ -1,0 +1,33 @@
+PASS Show timer: counts the talk and the slide, pauses, resets, and warns as a talk length runs out
+PASS Show timer: T shows and hides it, Shift+T pauses it, the slide count restarts on a new slide, a talk length counts down
+PASS Show recorder: records the show with pause and resume, Shift+R stops it while the show goes on, and the file has a length
+PASS Show recorder: Esc ends the show and the recording, and the editor offers the file; Discard asks twice
+PASS Show recorder: when screen sharing is refused it offers to record the sound only
+PASS Show recorder: R during a show opens the setup over the slides; typing in it does not move slides, Esc closes it only
+PASS Show recorder: the presenter view shows the timer and pauses it and the recording
+PASS Show timer: the presenter view's 'This slide' restarts on a new slide, as the show's does
+Audio autoplay diagnostics {
+  focused: true,
+  visibility: 'visible',
+  presenting: true,
+  index: 0,
+  reveal: { h: 0, v: 0, f: undefined },
+  audio: [
+    {
+      paused: true,
+      src: 'blob:http://127.0.0.1:8076/f96c623d-ac11-4ce0-9521-ece1f3515352',
+      ready: 4,
+      autoplay: 'true',
+      started: '',
+      error: undefined
+    }
+  ]
+}
+FAIL Show recorder: a slide's own sound is recorded when the browser shares no tab audio
+  page.waitForFunction: Timeout 30000ms exceeded.
+    at /home/dm/Dibyendu/Projects/slideforge-studio/tests/browser/test-show-recorder.js:405:20
+    at async test (/home/dm/Dibyendu/Projects/slideforge-studio/tests/browser/test-show-recorder.js:45:9)
+    at async /home/dm/Dibyendu/Projects/slideforge-studio/tests/browser/test-show-recorder.js:368:5
+PASS Show recorder: with Element Capture the video holds the slides, not the timer or the menus
+
+9 passed, 1 failed

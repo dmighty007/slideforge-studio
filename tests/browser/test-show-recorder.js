@@ -47,7 +47,7 @@ async function test(name, fn) {
         console.log(`PASS ${name}`);
     } catch (error) {
         results.failed.push(name);
-        console.log(`FAIL ${name}\n  ${error.message}`);
+        console.log(`FAIL ${name}\n  ${error.stack || error.message}`);
     }
 }
 
@@ -365,6 +365,51 @@ async function startRecordingFromEditor(page, { audioOnly = false } = {}) {
         await page.close();
     });
 
+    await test("Show recorder: skipping the countdown waits for fullscreen setup before recording or navigating", async () => {
+        const { page, errors } = await openEditor(context);
+        await page.evaluate(() => {
+            const target = _getPresentationFullscreenTarget();
+            const request = target.requestFullscreen.bind(target);
+            target.requestFullscreen = (...args) => request(...args).then(() => new Promise(resolve => {
+                window.releaseRecorderFullscreen = resolve;
+            }));
+        });
+        await page.locator("#btn-record").click();
+        await page.waitForSelector("#sf-rec-setup:not(.hidden)");
+        await page.locator('#sf-rec-setup [data-rec="prepare"]').click();
+        await page.waitForFunction(() => ["ready", "countdown"].includes(showRecorderState()) || document.querySelector('#sf-rec-setup [data-rec="begin"]'));
+        if (await page.locator('#sf-rec-setup:not(.hidden) [data-rec="begin"]').count()) await page.locator('#sf-rec-setup [data-rec="begin"]').click();
+        await page.waitForFunction(() => typeof releaseRecorderFullscreen === "function");
+        await page.locator("#sf-rec-countdown").click();
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        assert(await recState(page) === "countdown", "Recording started before fullscreen/slide setup finished");
+        await page.evaluate(() => releaseRecorderFullscreen());
+        await page.waitForFunction(() => showRecorderState() === "recording");
+        await page.evaluate(() => {
+            window.recorderStartupKeys = [];
+            document.addEventListener("keydown", event => recorderStartupKeys.push({ key: event.key, target: event.target?.id, owns: showRecorderOwnsKey(event), index: currentSlideIndex }), true);
+        });
+        await page.keyboard.press("ArrowRight");
+        await page.waitForFunction(() => currentSlideIndex === 1 && Reveal.getIndices().h === 1).catch(async error => {
+            console.error("Recorder startup diagnostics", await page.evaluate(() => ({
+                index: currentSlideIndex, reveal: Reveal.getIndices(), focused: document.hasFocus(),
+                active: document.activeElement?.outerHTML?.slice(0, 400), keys: recorderStartupKeys,
+                fragments: [...Reveal.getCurrentSlide().querySelectorAll(".fragment")].map(n => n.className),
+                entering: _playModeEntering, state: showRecorderState(), dialog: isShowRecorderDialogOpen(),
+            })));
+            throw error;
+        });
+        await page.waitForTimeout(250);
+        assert(await page.evaluate(() => currentSlideIndex === 1), "Late presentation setup reset the navigation");
+        await page.keyboard.press("Shift+R");
+        await page.waitForSelector("#sf-rec-save:not(.hidden)");
+        await page.locator('#sf-rec-save [data-rec-save="close"]').click();
+        await page.keyboard.press("Escape");
+        await page.waitForFunction(() => !document.body.classList.contains("play-mode-active"));
+        assert(!errors.length, errors.join("\n"));
+        await page.close();
+    });
+
     await test("Show recorder: a slide's own sound is recorded when the browser shares no tab audio", async () => {
         const { page, errors } = await openEditor(context);
         await page.evaluate(() => {
@@ -402,7 +447,18 @@ async function startRecordingFromEditor(page, { audioOnly = false } = {}) {
         await page.waitForFunction(() => showRecorderState() === "recording");
         assert(await page.evaluate(() => !_rec.tabAudio), "the test needs a screen without sound");
         await page.keyboard.press("ArrowRight");
-        await page.waitForFunction(() => [...document.querySelectorAll("#slides-container audio")].some(a => !a.paused));
+        await page.waitForFunction(() => [...document.querySelectorAll("#slides-container audio")].some(a => !a.paused)).catch(async error => {
+            console.error("Audio autoplay diagnostics", await page.evaluate(() => ({
+                focused: document.hasFocus(), visibility: document.visibilityState,
+                presenting: document.body.classList.contains("play-mode-active"),
+                index: currentSlideIndex, reveal: Reveal.getIndices(),
+                audio: [...document.querySelectorAll("#slides-container audio")].map(a => ({
+                    paused: a.paused, src: a.currentSrc, ready: a.readyState,
+                    autoplay: a.dataset.sfAutoplay, started: a.dataset.started, error: a.error?.message,
+                })),
+            })));
+            throw error;
+        });
         await page.waitForTimeout(2000);
         await page.keyboard.press("Shift+R");
         await page.waitForSelector("#sf-rec-save:not(.hidden)");

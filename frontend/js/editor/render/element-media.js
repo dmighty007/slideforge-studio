@@ -17,10 +17,13 @@ function _applyImageTypeContent(el, elData) {
         const hasNaturalRatio =
           Number.isFinite(naturalRatio) && naturalRatio > 0;
         if (hasNaturalRatio && !elData.imageAspectRatio) {
-          elData.imageAspectRatio = naturalRatio;
-          updateElementState(elData.id, {
-            imageAspectRatio: naturalRatio,
-            lockAspectRatio: elData.lockAspectRatio ?? true,
+          // Changes nothing drawn: the slide is not out of date (see noteDrawnElementChange).
+          noteDrawnElementChange(el, () => {
+            elData.imageAspectRatio = naturalRatio;
+            updateElementState(elData.id, {
+              imageAspectRatio: naturalRatio,
+              lockAspectRatio: elData.lockAspectRatio ?? true,
+            });
           });
         }
         if (

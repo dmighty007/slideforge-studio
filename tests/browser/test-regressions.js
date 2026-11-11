@@ -61,6 +61,13 @@ async function pageAwait(page, fn, arg) {
 
 // SLIDEFORGE_TEST_FILTER: optional text; only tests whose name contains it run ("a||b" runs tests matching either).
 const TEST_FILTERS = (process.env.SLIDEFORGE_TEST_FILTER || "").split("||").filter(Boolean);
+// Optional zero-based sharding. Each shard needs its own disposable server/database.
+const SHARD_COUNT = Number(process.env.SLIDEFORGE_TEST_SHARD_COUNT || 1);
+const SHARD_INDEX = Number(process.env.SLIDEFORGE_TEST_SHARD_INDEX || 0);
+if (!Number.isInteger(SHARD_COUNT) || SHARD_COUNT < 1 || !Number.isInteger(SHARD_INDEX) || SHARD_INDEX < 0 || SHARD_INDEX >= SHARD_COUNT) {
+    throw new Error("Invalid regression shard index/count");
+}
+let regressionTestIndex = 0;
 
 // The editor on a new, empty project: tests that add their own objects do not meet ones an earlier run saved.
 // A tool may sit in a group menu of the insert bar ("Charts ▾") or in the top bar's "More tools" menu: open that
@@ -96,6 +103,7 @@ async function openFreshEditor(context) {
 }
 
 async function test(name, fn) {
+    if (regressionTestIndex++ % SHARD_COUNT !== SHARD_INDEX) return;
     if (TEST_FILTERS.length && !TEST_FILTERS.some(filter => name.includes(filter))) return;
     try {
         await fn();
@@ -6983,7 +6991,10 @@ async function test(name, fn) {
         const chrome = await page.evaluate(() => {
             const header = document.getElementById("app-toolbar").getBoundingClientRect();
             const bar = document.querySelector("#insert-toolbar-row .insert-toolbar");
-            return { header: header.height, layout: bar.dataset.layout, bar: bar.getBoundingClientRect().width, content: bar.scrollWidth };
+            // Multiple saved projects add their own tab strip below the two
+            // control rows. Its height is not a third wrapped control row.
+            const tabs = document.getElementById("project-tabs").getBoundingClientRect();
+            return { header: header.height - tabs.height, layout: bar.dataset.layout, bar: bar.getBoundingClientRect().width, content: bar.scrollWidth };
         });
         // The logo had a row to itself: 142px of header.
         assert(chrome.header < 115, `header ${chrome.header}px`);

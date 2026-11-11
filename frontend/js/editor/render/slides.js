@@ -129,9 +129,30 @@ function _collectReusableSlideNodes(container, { mode, keep = new Set() }) {
     const active = document.activeElement;
     const editing = active?.isContentEditable ? active.closest?.(".canvas-element.editing-text") : null;
     if (editing && container.contains(editing) && editing.parentElement?.parentElement === container) {
-      // The caret, taken now: hiding and clearing the old slides below moves the selection out of the box.
-      editing.__sfKeepWhileEditing = _caretOf(editing) || true;
-      elements.set(editing.id, editing);
+      const fresh = state.slides.flatMap(slide => slide.elements || []).find(el => el.id === editing.id);
+      const expectedContent = JSON.stringify(fresh?.content);
+      let contentMatches = active.__sfEditorContent === expectedContent;
+      if (!contentMatches && fresh) {
+        // Formatting commands can update both DOM and model without an input
+        // event. Keep that editor too when its current content agrees.
+        const drawnContent = active.dataset.structuredEdit === "true"
+          ? (_getStructuredEditorMode(active) === "list"
+            ? parseStructuredBulletEditorHtml(active, { preserveTrailingEmpty: true })
+            : parseEditableStructuredText(active.textContent || "", fresh.content))
+          : active.innerHTML;
+        contentMatches = JSON.stringify(drawnContent) === expectedContent;
+      }
+      if (contentMatches) {
+        active.__sfEditorContent = expectedContent;
+        // The caret, taken now: hiding and clearing the old slides below moves the selection out of the box.
+        editing.__sfKeepWhileEditing = _caretOf(editing) || true;
+        elements.set(editing.id, editing);
+      } else {
+        // Undo or another command replaced the model's content. The old editor
+        // must neither survive the redraw nor commit its stale DOM on blur.
+        active.contentEditable = "false";
+        clearActiveInlineEditor?.(active);
+      }
     }
     oldSections.forEach((section) => {
       section.querySelectorAll(":scope > .canvas-element").forEach((node) => {
@@ -291,9 +312,24 @@ function _adoptKeptSlideElements(section, slide) {
   });
 }
 
-function _rememberBuiltSlide(section, slide, signature) {
+function _rememberBuiltSlide(section, slide, signature, deckKey) {
   section.__sfRenderSignature = signature;
+  section.__sfDeckKey = deckKey;
   section.__sfBuiltElements = new Map((slide.elements || []).map((el) => [el.id, el]));
+}
+
+// Drawing that finishes after the redraw writes what it measured back to the element (a text box's height, a
+// picture's proportions, a plugin's saved drawing). The slide on the page already shows it, but its data then no
+// longer matched what it was drawn from, and the next edit rebuilt every slide of the deck (577 ms on 200 slides).
+// The slide's record is brought up to date with the change, only when nothing else had changed on it since.
+function noteDrawnElementChange(node, change) {
+  const section = node?.closest?.(".presentation-slide");
+  const index = Number(section?.dataset.slideIndex);
+  const slide = state.slides?.[index];
+  const drawn = Boolean(section?.__sfRenderSignature) && section.parentElement?.id === "slides-container" && slide?.id === section.id;
+  const unchanged = drawn && _slideRenderSignature(slide, index, section.__sfDeckKey) === section.__sfRenderSignature;
+  change();
+  if (unchanged) section.__sfRenderSignature = _slideRenderSignature(slide, index, section.__sfDeckKey);
 }
 
 function _keptSlideSections(container, deckKey, options) {
@@ -405,7 +441,7 @@ function renderSlidesFromState(options = {}) {
       slideHeight,
     );
     if (whiteboardLayer) section.appendChild(whiteboardLayer);
-    _rememberBuiltSlide(section, slide, _slideRenderSignature(slide, slideIndex, deckKey));
+    _rememberBuiltSlide(section, slide, _slideRenderSignature(slide, slideIndex, deckKey), deckKey);
   });
   reuse.discardOld();
   // Slides removed around the selection leave it in the container, between the slides kept. Focusing a text box

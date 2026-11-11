@@ -294,8 +294,11 @@ function _applyTextTypeContent(el, elData, options) {
       layout?.autoHeight &&
       Number.isFinite(layout.height)
     ) {
-      updateElementState(el.id, { height: `${layout.height}px` });
-      elData.height = `${layout.height}px`;
+      // Already drawn at this height: the slide is not out of date (see noteDrawnElementChange).
+      noteDrawnElementChange(el, () => {
+        updateElementState(el.id, { height: `${layout.height}px` });
+        elData.height = `${layout.height}px`;
+      });
     }
   });
 
@@ -425,6 +428,7 @@ function _applyTextTypeContent(el, elData, options) {
     contentHost.dataset.editingSnapshotTextDocument = elData.textDocument
       ? JSON.stringify(elData.textDocument)
       : "";
+    contentHost.__sfEditorContent = JSON.stringify(elData.content);
     contentHost.contentEditable = true;
     contentHost.spellcheck = true;
     setActiveInlineEditor(contentHost);
@@ -433,56 +437,50 @@ function _applyTextTypeContent(el, elData, options) {
     interact(el).draggable(false);
     // Keep resize active during text editing so users can widen/narrow the text box while typing (PowerPoint/Google Slides behavior).
     interact(el).resizable(true);
-    // The caret goes where the click was, a frame from now. Keys typed before then are already in the box with the
-    // caret after them: placing it then put it back in front of them, and the next letters went first ("Sg" was
-    // saved as "gS"). So it is placed only when nothing was typed in between.
-    const textAtStart = contentHost.textContent;
-    requestAnimationFrame(() => {
-      if (contentHost.textContent !== textAtStart && contentHost.contains(window.getSelection?.()?.anchorNode)) {
-        captureInlineSelection();
-        updateFloatingToolbars?.();
-        buildPropertiesPanel?.();
-        return;
-      }
-      if (isStructured && targetRowIndex !== -1) {
-        const items = contentHost.querySelectorAll(".ppt-bullet-edit-item");
-        const targetItem = items[targetRowIndex];
-        if (targetItem) {
-          contentHost.focus();
-          _placeCaretAtTextOffset(targetItem, targetCaretOffset);
-        } else {
-          _focusEditableHost(contentHost, {
-            placeCaretAtEnd: !preserveSelection,
-            preserveSelection,
-          });
-        }
+    // Focus and place the caret in the pointer event itself. On a busy frame,
+    // the first key can arrive before requestAnimationFrame and otherwise goes
+    // to the slide instead of the new editor.
+    if (isStructured && targetRowIndex !== -1) {
+      const items = contentHost.querySelectorAll(".ppt-bullet-edit-item");
+      const targetItem = items[targetRowIndex];
+      if (targetItem) {
+        contentHost.focus();
+        _placeCaretAtTextOffset(targetItem, targetCaretOffset);
       } else {
-        if (
-          preserveSelection &&
-          clickPoint &&
-          Number.isFinite(clickPoint.x) &&
-          Number.isFinite(clickPoint.y)
-        ) {
-          const sel = window.getSelection();
-          const hasRangeInHost = Boolean(
-            sel && sel.rangeCount > 0 && contentHost.contains(sel.anchorNode),
-          );
-          if (!hasRangeInHost) {
-            const pointRange = _caretRangeFromPoint(clickPoint.x, clickPoint.y);
-            if (pointRange && contentHost.contains(pointRange.startContainer)) {
-              contentHost.focus();
-              sel?.removeAllRanges();
-              sel?.addRange(pointRange);
-            }
-          }
-        }
         _focusEditableHost(contentHost, {
           placeCaretAtEnd: !preserveSelection,
           preserveSelection,
         });
       }
-      captureInlineSelection();
-      resetTypingHistory();
+    } else {
+      if (
+        preserveSelection &&
+        clickPoint &&
+        Number.isFinite(clickPoint.x) &&
+        Number.isFinite(clickPoint.y)
+      ) {
+        const sel = window.getSelection();
+        const hasRangeInHost = Boolean(
+          sel && sel.rangeCount > 0 && contentHost.contains(sel.anchorNode),
+        );
+        if (!hasRangeInHost) {
+          const pointRange = _caretRangeFromPoint(clickPoint.x, clickPoint.y);
+          if (pointRange && contentHost.contains(pointRange.startContainer)) {
+            contentHost.focus();
+            sel?.removeAllRanges();
+            sel?.addRange(pointRange);
+          }
+        }
+      }
+      _focusEditableHost(contentHost, {
+        placeCaretAtEnd: !preserveSelection,
+        preserveSelection,
+      });
+    }
+    captureInlineSelection();
+    resetTypingHistory();
+    requestAnimationFrame(() => {
+      if (!contentHost.isConnected || !contentHost.isContentEditable) return;
       updateFloatingToolbars?.();
       buildPropertiesPanel?.();
     });
@@ -501,7 +499,9 @@ function _applyTextTypeContent(el, elData, options) {
     // A double-click on a word selects it, as in PowerPoint, also in a box that was not being edited: going into
     // editing rebuilt the text (lists especially), the browser's own word selection was lost, and it took a second
     // double-click before Bold or a colour had a word to apply to.
+    const textAtDoubleClick = contentHost.textContent;
     requestAnimationFrame(() => {
+      if (contentHost.textContent !== textAtDoubleClick) return;
       if (wordDragExtended) {
         wordDragExtended = false;
         return;
@@ -967,6 +967,7 @@ function _applyTextTypeContent(el, elData, options) {
           contentHost.focus();
           _placeCaretAtTextOffset(firstItem, 0);
         }
+        contentHost.__sfEditorContent = JSON.stringify(elData.content);
         captureInlineSelection?.();
         updateFloatingToolbars?.();
         return;
@@ -986,6 +987,7 @@ function _applyTextTypeContent(el, elData, options) {
       elData.textDocument = nextTextDocument;
       captureInlineSelection();
     }
+    contentHost.__sfEditorContent = JSON.stringify(elData.content);
     keepTypingBackup?.(el.id, elData);
     schedulePresentationAutosave?.();
     updateFloatingToolbars?.();

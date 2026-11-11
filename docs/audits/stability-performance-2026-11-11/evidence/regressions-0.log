@@ -1,0 +1,89 @@
+PASS Web animation parity: transitions, shared click groups, fragments and final states match local playback
+PASS reordering slides is its own undo step
+PASS the first inserted object takes the content placeholder; images avoid existing content and the footer
+PASS Escape leaves a text box and keeps what was typed
+PASS a new text box is empty, ready for typing, and clear of other content
+PASS the floating toolbar turns bullets and numbering on and off, keeping formatting
+PASS a bullet sits beside a large first word, not above it (shown and while editing)
+PASS after presenting, the editor zoom fits the slide again
+PASS a drawing made in Excalidraw lands on the slide as a movable picture and reopens with its scene
+PASS flowchart code survives a save and reopen: hyphenated labels, every shape, every link style
+PASS list controls are on the Content tab of a text box
+PASS on a crowded slide, new objects shrink to fit beside the content instead of covering it
+PASS mermaid: themes recolour flowcharts, Draw and Sketch differ, and the controls follow the diagram type
+PASS packaging: SVG pictures go to PowerPoint as PNGs drawn by the browser (no Cairo needed)
+PASS Shift+click adds a text box to the selection without starting to edit it
+PASS opening Presenter View does not end the presentation, and it gets the slide's colours
+PASS molecules draw sharp in a scaled slide and are fitted to their drawn atoms, not far waters
+PASS the 3D background does not reallocate its surface every frame, and sliders or edits do not rebuild it
+PASS PDF tools: Highlight and Note work as soon as they are chosen, without reloading the document
+PASS review: filled shapes keep their fill while several are selected
+PASS review: the default subtitle takes the theme's muted colour (readable on Horizon)
+PASS review: changing the slide size keeps every object on the slide
+PASS review: an animation added from the picker waits for a click and is listed by its name
+PASS review: SVG export draws the theme's slide background (gradient), not a card colour
+PASS missing: X, Y, W, H and rotation can be typed in, and Group is only offered for two or more objects
+PASS style: opening the timeline editor refits the slide above it
+PASS missing: equations, icons and HTML embeds are placed where they cover the least, not at a fixed spot
+PASS missing: a list can reveal its bullets one click at a time while presenting
+PASS missing: during a show, moving the pointer brings up the presentation menu button; it fades when still
+PASS themes: preset slides show the theme's own background and colours; no corner badge or hard-edged bands
+PASS qa2: timeline: a click opens an animation's settings, playback shows its time, Stop restores the slide, slides are followed
+PASS qa: PDF export draws text where the editor shows it, on a page the size of the slide
+PASS review: the HTML viewer waits for clicks: preset click animations and bullet-by-bullet reveal
+PASS review: a line chart is drawn full size again after presenting and pressing Escape
+PASS review: a connector attached to a star or circle ends on its outline, not on the corner of its box
+PASS missing: connector ends dropped on shapes attach and follow the shapes when they move
+PASS Plugins: the Properties panel edits the SMILES; a bad string shows why, and undo brings the drawing back
+PASS Plugins: table fields read CSV, TSV and quoted cells, and Load CSV fills one from a file
+PASS Plugins: a compound name is looked up on PubChem once, captioned, and a failed lookup says why
+PASS Plugins: box plots follow Tukey's rules (outliers beyond 1.5 × IQR) and violins draw a density
+PASS Plugins: a gel places bands by the log of their size between ladder bands, and keeps empty lanes
+PASS Plugins: a two-set Venn diagram is area-proportional, and three sets can be counted from lists
+PASS workflow: late plugin drawings cannot overwrite a newer theme
+PASS Field study: nonnegative curve-fit data does not extrapolate before zero
+PASS A deck too big for localStorage keeps its unsaved backup in IndexedDB, never an older copy
+PASS deck 2: Tab through a plugin's settings keeps the focus after each change; a chart's toolbar does not cover the title
+PASS audit 2026-10-17: a small molecule fills its view when loaded and after Reset view
+PASS deck 3: a pasted header names the chart's x axis; a pie shows its shares; an equation does not land on the title
+PASS deck 3: a plugin's "Example data" tag goes once its data is replaced
+PASS desktop video: a deck's JSON carries its uploaded videos, and opening it uploads them again
+PASS properties: a table's rows, columns and split are on Content; Style shows the header and zebra switches with colours folded
+PASS panel audit 2026-10-19: the text toolbar wraps inside a narrow canvas instead of running under the panel; the video preview's labels are readable
+PASS insert: on a title-and-content slide a text box lines up with the title, and a chart then fills the area below the text instead of covering it
+PASS gestures: the right-click menu has the clipboard and stacking order, Duplicate works, and on the empty slide it pastes where clicked
+PASS review 2026-10-20: a box plot's comparisons fold into their own section, its data opens in a large editor, and a plot that came in small offers the content area or a slide of its own
+PASS dropdowns: a Properties list stays open when the panel scrolls a little after it opened, and follows its dropdown
+PASS workflow audit 2026-10-20 U4: the placement notice never spreads a chart over a table; it fits it into free space or offers a new slide
+PASS user session 2026-10-21: a plot filling the content area lines up with the title
+PASS workflow retest 2026-10-21 R3: objects kept through a layout change do not cover the new title
+FAIL coverage 2026-10-21: a connector between two text boxes stays attached through a layout change, and follows them
+  connector after the layout: {"line":true,"bound":[null,null],"exist":[false,false]}
+PASS Field study: typing survives closing before autosave without pagehide
+PASS Field study: wide equations fit and Blank subtitles follow dark themes
+PASS Plugins: Feynman diagrams draw fermion arrows, photon waves, gluon loops and dashed scalars, presets fill the text
+PASS Plugins: a heatmap z-scores rows and clusters similar rows next to each other
+PASS QA 2026-10-15: a pasted copy of an object at the bottom of a slide goes up, not onto the footer
+PASS Audit 2026-10-15: the plugin manager's search takes words typed one key at a time
+PASS Audit round 3: a blank time, p-value or count is reported as missing, not read as 0
+PASS HTML export: a picture stored as a URL-encoded (not base64) data URL is written out intact
+PASS research deck: the PDF has a searchable text layer over each slide picture
+PASS research deck: structures, at-risk tables and missing heatmap cells read clearly
+PASS research deck: Home and End go to the first and last slide in the show; brackets name **** in their option
+PASS research deck: a reaction scheme names its structures under each of them
+PASS research deck: typing after one click on a table cell edits it, a second click edits too, and Escape keeps the table
+PASS Web ZIP: links in text work, a linked hidden slide is kept and opens from its link, Next and End step over it
+PASS presenter view: the slide arrives even when the first one is missed
+PASS study 2026-10-16: a top-down flowchart edited into a left-to-right one is laid out left to right
+PASS study 2026-10-16: title master on the title slide, a reaction comes in at a useful size, diagrams in the theme font, SVG lines in one piece
+PASS study 2026-10-16b: a title shrunk below 28 pt says so and can keep its size by growing the box
+PASS study 2026-10-16b: objects come in under the title, not low by the footer; bullet build has its own card
+PASS Audit 2026-10-15: renaming a presentation alone is saved
+PASS PowerPoint import: text boxes with equations come in as text and equations, not as their pictures
+PASS Fonts card: a report closes by itself, a deck's card goes with the deck, and none shows over a slide show
+PASS Tables: merged cells from PowerPoint and Keynote are drawn as one and kept on save
+PASS review: PowerPoint shape text comes in centred in its shape and in the shape's text colour
+PASS PowerPoint import: EMF pictures, snipped and framed pictures, glow, highlight, WordArt gradient, paragraph spacing, slide number from the master
+PASS undo does not carry slides from one project into another
+
+85 passed, 1 failed

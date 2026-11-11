@@ -1,0 +1,6 @@
+PASS numerical validation and all static views { numericalChecks: 'passed', viewsDecoded: 4, maskedSamples: 1 }
+PASS editor rotation, explicit saved camera and backend save/reload
+PASS presentation hover, gesture ownership, capture fallback and exit cleanup
+PASS actual PowerPoint and PDF exports /tmp/slideforge-landscape-UL7exh
+PASS deletion disposes live views
+PASS seamless heatmap, clean stills, separate 3D labels, crop to content; no uncaught browser errors { cropped: [ 1194, 653 ] }

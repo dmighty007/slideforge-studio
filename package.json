@@ -17,7 +17,9 @@
     "test:landscape-usability": "node tests/browser/test-landscape-usability.js",
     "test:molecule-trajectory": "node tests/browser/test-molecule-trajectory.js",
     "test:landscape": "node tests/browser/test-landscape.js",
-    "test:landscape-wigner": "node tests/browser/test-landscape-wigner.js"
+    "test:landscape-wigner": "node tests/browser/test-landscape-wigner.js",
+    "test:render-performance": "node tests/browser/test-render-performance.js",
+    "test:performance-soak": "node tests/browser/test-performance-soak.js"
   },
   "dependencies": {
     "@fontsource/bangers": "^5.2.8",

@@ -1,0 +1,8 @@
+PASS shared scales, signed values, smooth GPU lighting and fallback {
+  surfaces: 3,
+  triangles: 24576,
+  gpuPixels: 52594,
+  fallbackDecoded: true
+}
+PASS orbit, pan, real touch pinch and saved comparison camera
+PASS comparison image/PDF/PPTX exports and presentation cleanup /tmp/slideforge-wigner-UKrRMe

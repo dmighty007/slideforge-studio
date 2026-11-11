@@ -134,6 +134,8 @@ function _applyPresenterArrivalState(copy, slideIndex) {
 
 function _presenterSectionHtml(section, { arrivalOf = -1 } = {}) {
     if (!section) return "";
+    // Charts on a slide not shown yet are drawn now, for their pictures below.
+    if (typeof loadDeferredCharts === "function") loadDeferredCharts(section);
     const canvases = [...section.querySelectorAll("canvas")];
     const frames = [...section.querySelectorAll("iframe")];
     const copy = section.cloneNode(true);

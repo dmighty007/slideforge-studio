@@ -1,0 +1,6 @@
+FAIL Typing immediately after entering a text box keeps its first character The text box must accept keys before the next animation frame
+
+false !== true
+
+Error: 1 asynchronous regressions failed
+    at /home/dm/Dibyendu/Projects/slideforge-studio/tests/browser/test-async-lifecycle.js:288:32

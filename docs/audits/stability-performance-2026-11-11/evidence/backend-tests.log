@@ -1,0 +1,40 @@
+/usr/lib/python3.14/importlib/__init__.py:88: RuntimeWarning: DJANGO_SECRET_KEY not set. Using development key. Set DJANGO_SECRET_KEY environment variable in production!
+  return _bootstrap._gcd_import(name[level:], package, level)
+Creating test database for alias 'default'...
+.........AI slide cleanup failed; using deterministic fallback: 
+AI slide cleanup failed; using deterministic fallback: AI cleanup already running
+......................................................Could not download Some Font from Google Fonts: Unexpected font address: https://example.com/x.woff2
+..............................................Could not store a picture or movie from a Keynote file
+Traceback (most recent call last):
+  File "/home/dm/Dibyendu/Projects/slideforge-studio/backend/slideforge/studio/views.py", line 734, in import_keynote_view
+    asset, content_type = _save_asset_file(upload, asset_type=asset_type, owner=request.user, presentation=presentation)
+                          ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/unittest/mock.py", line 1176, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/unittest/mock.py", line 1180, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/unittest/mock.py", line 1241, in _execute_mock_call
+    raise effect
+OSError: disk full
+.Video transcoding failed; storing the original file: .  1.102
+  libavcodec     63.  1.102 / 63.  1.102
+  libavformat    63.  1.102 / 63.  1.102
+  libavdevice    63.  1.102 / 63.  1.102
+  libavfilter    12.  1.102 / 12.  1.102
+  libswscale     10.  1.102 / 10.  1.102
+  libswresample   7.  1.102 /  7.  1.102
+[in#0 @ 0x557f0eddef00] error reading header
+[in#0 @ 0x557f0eddec00] Error opening input: Invalid data found when processing input
+Error opening input file /tmp/tmph3rkrcee.mp4.
+Error opening input files: Invalid data found when processing input
+.............................................Video transcoding failed; storing the original file: Command 'ffmpeg' timed out after 1 seconds
+..........................................
+----------------------------------------------------------------------
+Ran 197 tests in 14.424s
+
+OK
+Destroying test database for alias 'default'...
+Found 197 test(s).
+System check identified no issues (0 silenced).

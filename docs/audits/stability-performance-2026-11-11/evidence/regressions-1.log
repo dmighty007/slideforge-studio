@@ -1,0 +1,88 @@
+PASS whiteboard text: Escape cancels without an error or a committed text
+PASS re-rendering a molecule does not pile up window message listeners
+PASS a long title shrinks to fit instead of running off the slide or into the subtitle
+PASS lines typed with Enter become one bullet each
+PASS Ctrl+A selects the slide's content but not its footer
+PASS the floating toolbar does not cover the title while the body text is edited
+PASS a centred bulleted list stays centred while it is edited
+PASS leaving a presentation returns the editor exactly as it was, even when Escape comes while it is starting
+PASS a picture's corner handle resizes it, and its toolbar buttons work without deselecting it
+PASS the Mermaid editor reports a broken line and reopens with plain code
+PASS a new slide's body is a bulleted list, and Tab never throws typing out of a text box
+PASS objects have a Motion tab to add animations, and the Transitions button shows the transition
+PASS mermaid: a loop keeps its first step first, and diagrams Mermaid draws get a box of their shape and readable text
+PASS shared and exported viewers show charts, diagrams and equations as pictures
+PASS the footer brand keeps its capitals through saving, and gets them back in decks that lost them
+PASS 3D background: readable on/off toggle, saturation 0 is grey, the scene still shows on light slides
+PASS molecule settings: transparent means no box at all, a layer restyles its atoms (no thick tube), depth cue and reset view work, nothing reloads
+PASS Blank theme: new decks start plain white, with no accent rule, corner badge or footer line
+PASS PowerPoint export: text is left-aligned unless set otherwise, and is sent with its drawn height, line spacing and the theme gradient
+PASS review: the thumbnail shows text typed into the first slide's title
+PASS review: adding a table row or column grows the table instead of squashing it
+PASS review: undoing a slide-size change puts the canvas back to that size
+PASS review: the presenter view's slide preview has no animation badges
+PASS missing: the shape picker offers the full shape set, each drawn with its outline in the editor and SVG
+PASS style: theme tags are not repeated, and an embedded picture is described instead of showing its data address
+PASS style: the insert toolbar's buttons sit in captioned groups and the slide starts below the bar
+PASS audio: a sound shows its card, stays quiet while editing, and plays by itself (hidden) when presenting
+PASS missing: hovering an animation in the picker previews it
+PASS missing: shapes hold text: typed on double-click, styled in Properties, kept in SVG and PowerPoint export
+PASS review: after a theme change, preset slides (also edited ones) take the new background and their text stays readable
+PASS qa2: the Rotation field turns the object, and the turn survives a drag, a nudge and a redraw
+PASS qa: Create link makes a local link only; a public tunnel starts when the user asks for it
+PASS review: a bullet style set on a new slide's list survives going back into the box and changing the font
+PASS review: a preset table on a dark theme has no white box behind its see-through cells
+PASS review: a table's columns fill its box: a new table shows its last column whole, and resizing keeps it so
+PASS missing: tables on a dark theme sit on its card with light text, and follow theme changes
+PASS Plugins: a structure follows the theme's text colour unless given its own
+PASS Plugins: a QR code holds the link (decoded), takes a caption, and says when the text is too long
+PASS Plugins: a citation comes from Crossref once, follows the chosen style, and its box takes the text's height
+PASS Plugins: a forest plot draws squares by weight, a pooled diamond, and keeps a log axis inside the data
+PASS Plugins: a plasmid map draws features across the origin and keeps its labels apart
+PASS workflow: alignment, distribution and fit respect geometry and locks
+PASS workflow: plot surfaces are opaque by default and explicit transparency survives export
+PASS Field study: exported titles keep the editor's fitted size
+PASS deck 2: plugin search puts the best match first; fit to content widens a table without stretching its rows; shape words contrast with the fill
+PASS deck 2: a crystal or small molecule (no chain) is drawn as balls and sticks, its lone atoms visible
+PASS audit 2026-10-17: fitted values carry units from the axis labels: per hour for a rate, y/x for a slope
+PASS deck 3: plugin drawings: plasmid rings, gel labels, heatmap names, whole-day ticks, log ticks, Venn names, a shared y unit
+PASS deck 3: Enter applies a crop started from the panel button; a slide never stays scrolled; a slide moves to a numbered place
+PASS editor chrome: themes are collapsed, More keeps specialist tools accessible, and Focus restores the workspace
+PASS rigorous 2026-10-18: values on a chart clear its error bars, for bars, lines, negatives and horizontal bars
+PASS properties: a plugin's advanced settings fold under More options, settings for another mode stay hidden, and an icon has its own small panel
+PASS drag: a shape dragged near the middle of its two neighbours snaps to equal gaps and shows both gaps
+PASS gestures: on a touch screen two fingers pinch and pan, a finger drags an object that was not selected, a held finger opens the menu, and a double tap edits text
+PASS review 2026-10-20: the help lists gestures, and More tools can show names under the top bar's icons
+PASS workflow audit 2026-10-20 U1: with the expanded data editor open, Shift+Tab and Delete do not delete the plot behind it; Cancel leaves it
+PASS workflow audit 2026-10-20 U5: at 700x800 the equation dialog fits the window and Insert works
+PASS launch: SlideForge reopens the deck the user was working in, and the start screen if they left it there
+PASS workflow retest 2026-10-21 R4: at 700px the shape, icon and symbol pickers fit the window and close with their button
+PASS overnight: Ctrl+C on a shape and Ctrl+V on another slide pastes the shape, not a "[shape]" text box
+PASS Field study: typing backs up only its box, and stale typing is refused
+PASS Plugins: the function plot's parser follows precedence, reads 2x and 2sin(x), and points at errors
+PASS Plugins: a circuit draws each part between its nodes with values, junction dots and ground, and names a missing node
+PASS Plugins: a colour bar shows its range with round ticks, either way round
+PASS QA 2026-10-15: the Plugins menu groups plugins by field and finds them by typing
+PASS Audit 2026-10-15: a forest plot whose values are all equal still draws, and a NaN drawing is refused
+PASS Audit round 3: the deterministic SVG export draws plugin objects, and says when something could not be kept
+PASS Plugins: an object whose plugin is missing shows its saved picture, and saved SVG is cleaned
+PASS research deck: footer and logo text changed on the master reach the slides that already exist, and SVG writes capitals
+PASS research deck: a flowchart label's <br/> is a line break, and overlapping kept positions are laid out again
+PASS research deck: a reaction's arrow text is in a sans-serif face, and the KM legend keeps off the curves and bands
+PASS research deck: a box plot draws its own comparison brackets and computes Welch or Mann–Whitney p-values
+PASS research deck: a citation goes to PowerPoint as text, and the slide number is centred in its pill
+PASS research deck: plots draw in the theme's body font, carried inside the picture but not saved with it
+PASS audit: a citation can be placed as a footnote, across the slide just above the footer
+PASS study 2026-10-16: the Web ZIP draws a table in the font and size set in Style
+PASS study 2026-10-16: a slide thumbnail shows every row of a table that grew to hold them
+PASS study 2026-10-16b: loaded data names the axes of a curve fit and a survival curve while the labels are still the example's
+PASS study 2026-10-16: titles on slides not shown keep their size, after reopening too
+PASS review: importing a SlideForge JSON adds one project, named apart from a deck with the same name
+PASS PowerPoint import: Wingdings arrows in text read as arrows, and an equation's picture is not cut at its box
+PASS PowerPoint import: mirrored groups, vertical text, (a)/(i) numbering and links to slides come across
+PASS Importing a SlideForge deck draws equations given as LaTeX only
+PASS qa2: PowerPoint import keeps style-filled shapes, lines with arrowheads and links
+PASS PowerPoint import: scatter, horizontal stacked and log charts, TIFF pictures, EMF drawings and embedded objects, portrait posters
+PASS a slow autosave for project A cannot corrupt project B
+
+86 passed, 0 failed

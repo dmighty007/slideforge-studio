@@ -1,0 +1,14 @@
+PASS opens on launch and creates nothing until the user chooses
+PASS New presentation creates a project and shows the editor
+PASS a theme tile creates a project in that theme
+PASS the screen grows with a large or maximised window, and a long recent list keeps full-size cards
+PASS More themes shows every theme as a tile
+PASS recent list shows both decks, marks the open one, and Escape returns to the editor
+PASS clicking a recent deck opens it
+PASS search filters the list
+PASS Delete key on a card asks first and does not touch the editor behind
+PASS deleting another deck removes it from the list and the server
+PASS deleting the open deck keeps the start screen up with nothing open
+PASS no page errors or dialogs
+
+12 passed, 0 failed

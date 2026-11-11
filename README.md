@@ -108,6 +108,13 @@ from PyPI, then `slideforge`, and `slideforge --install-shortcut` for the icons.
 
 To run it from this repository instead, or to help build it, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
+## New in 0.8.2
+
+- **Steadier text editing:** the first key typed into a box is never lost, and undo while editing no longer writes old text back.
+- **Large decks:** the first edit after opening rebuilds one slide instead of all of them, and charts are drawn when their slide is shown.
+
+See the [0.8.2 release notes](docs/releases/v0.8.2.md).
+
 ## New in 0.8.1
 
 - **Faster editing:** an edit redraws only the slides that changed, embeds and thumbnails load as their slides come into view, and undo history uses a fraction of the memory.

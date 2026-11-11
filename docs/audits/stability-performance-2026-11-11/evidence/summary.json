@@ -1,0 +1,45 @@
+{
+  "baseline": "50e6b5d",
+  "branch": "perf/incremental-render",
+  "workingTreeFixes": true,
+  "backend": {
+    "passed": 197
+  },
+  "desktop": {
+    "passed": 65,
+    "subtests": 3
+  },
+  "regressions": {
+    "exercised": 344,
+    "initialPassed": 339,
+    "initialFailed": 5,
+    "latestPassed": 344,
+    "latestFailed": 0,
+    "method": "full sharded run plus targeted reruns"
+  },
+  "uiSmoke": {
+    "passed": 25
+  },
+  "asyncLifecycle": {
+    "passed": 12
+  },
+  "textRegressions": {
+    "passed": 33
+  },
+  "startScreen": {
+    "passed": 12
+  },
+  "recorder": {
+    "passed": 11
+  },
+  "performance": {
+    "passed": true,
+    "artifact": "performance-final.json"
+  },
+  "limits": [
+    "Chromium Linux only; WebKit missing system libraries",
+    "Native Qt/Windows/macOS not tested",
+    "JS heap only, no GPU/native/RSS accounting",
+    "Large mixed decks retain a first-edit stall"
+  ]
+}

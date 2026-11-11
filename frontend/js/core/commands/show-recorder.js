@@ -541,12 +541,28 @@ function _beginRecordedShow({ fromFirst }) {
     const playing = document.body.classList.contains("play-mode-active");
     _recAudioContext(); // resumes a suspended mix while the click still counts
     _closeShowRecorderSetup({ keepStreams: true });
+    let showReady = Promise.resolve(true);
     if (!playing) {
         if (fromFirst) {
             const first = presentationShownSlideFrom(-1, 1);
             window.switchSlide?.(first >= 0 ? first : 0);
         }
-        togglePlayMode();
+        // Fullscreen and slide setup finish asynchronously. A skipped countdown
+        // must not let the first navigation race the startup's Reveal.slide().
+        showReady = Promise.resolve(togglePlayMode())
+            .then(async () => {
+                // Play mode places the slide on one frame, schedules Reveal's
+                // animation state on the next, then prepares that state on a third.
+                for (let frame = 0; frame < 3; frame++) {
+                    await new Promise(resolve => requestAnimationFrame(resolve));
+                }
+                return true;
+            })
+            .catch(error => {
+                _cancelRecordingSetup();
+                _showRecordingProblem(`Could not start the presentation: ${error.message || error}`);
+                return false;
+            });
     } else if (!document.fullscreenElement) {
         _syncBrowserFullscreen(true);
     }
@@ -561,11 +577,15 @@ function _beginRecordedShow({ fromFirst }) {
     // After play mode has moved the stage into fullscreen.
     requestAnimationFrame(() => _showStageContainer().appendChild(card));
     let count = 3;
-    const go = () => {
+    let starting = false;
+    const go = async () => {
+        if (starting || _rec.state !== "countdown") return;
+        starting = true;
         clearInterval(_rec.countdownTimer);
         _rec.countdownTimer = null;
+        const ready = await showReady;
+        if (!ready || _rec.state !== "countdown" || document.getElementById("sf-rec-countdown") !== card) return;
         card.remove();
-        if (_rec.state !== "countdown") return;
         if (_rec.slideSound && !_rec.tabAudio) _routePlayingSlideMedia();
         _startMediaRecorder();
         // A recording made from the editor starts the talk's clock with it.

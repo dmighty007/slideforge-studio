@@ -1,0 +1,7 @@
+{
+  slides: 6,
+  textBoxes: 11,
+  formattedBoxes: 11,
+  croppedPictures: 0,
+  errors: []
+}
