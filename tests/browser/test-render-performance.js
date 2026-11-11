@@ -83,6 +83,25 @@ const assert = require('node:assert/strict');
             return { shared, exact };
         });
         assert.deepEqual(history, { shared: true, exact: true }, 'undo steps share unchanged slides and restore exactly');
+        // Saving skips elements already normalised, but never one changed since: it is sanitised again.
+        const normalized = await page.evaluate(() => {
+            normalizeStateIds({ truncate: false });
+            // The same deck as a normalisation from scratch.
+            const memoised = JSON.stringify(state);
+            _normalizedElementJson = new WeakMap();
+            normalizeStateIds({ truncate: false });
+            const same = memoised === JSON.stringify(state);
+            const box = { id: generateId('el'), type: 'text', x: 10, y: 10, width: '200px', height: 'auto', content: '<p>Safe</p>', styles: {} };
+            state.slides[5].elements.push(box);
+            normalizeStateIds({ truncate: false });
+            const kept = state.slides[5].elements.find(el => el.id === box.id);
+            kept.content = '<p>Hi<img src=x onerror="window.__sfOwned=1"></p>';
+            normalizeStateIds({ truncate: false });
+            // Sanitised again, and its text document is of what is left.
+            const resanitised = !/onerror/.test(kept.content) && !/onerror/.test(JSON.stringify(kept.textDocument));
+            return { resanitised, same };
+        });
+        assert.deepEqual(normalized, { resanitised: true, same: true }, 'normalising for a save');
         // Deferring must not blank what other views show of a slide not opened yet.
         const deferred = await page.evaluate(async () => {
             const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -125,6 +144,6 @@ const assert = require('node:assert/strict');
         assert.equal(deferred.picture, true, 'A molecule on an unopened slide gets its thumbnail picture');
         assert.equal(deferred.thumbnailShowsPicture, true, 'The rail shows that picture, not the atom icon');
         assert.equal(deferred.unfocusedLoads, true, 'Embeds load on the slide shown even when the window has no focus');
-        console.log('PASS Kept unchanged slides, shared undo steps, deferred embeds, bounded thumbnails, inactive HTML suspension, chart cleanup, presenter preview, molecule thumbnails, unfocused window');
+        console.log('PASS Kept unchanged slides, shared undo steps, normalising only changed elements, deferred embeds, bounded thumbnails, inactive HTML suspension, chart cleanup, presenter preview, molecule thumbnails, unfocused window');
     } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
