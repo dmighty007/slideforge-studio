@@ -1,0 +1,35 @@
+PASS whiteboard text: Escape cancels without an error or a committed text
+PASS Escape closes the equation dialog from its text field, and the start screen closes dialogs
+PASS the page number cannot be typed over
+PASS Escape leaves a text box and keeps what was typed
+PASS lines typed with Enter become one bullet each
+PASS bullets on an empty box add no 'List item' text
+PASS numbering keeps indent levels, on the canvas and back to bullets
+PASS a new text box is empty, ready for typing, and clear of other content
+PASS Ctrl+A selects the slide's content but not its footer
+PASS a font size typed with words selected applies to those words only
+PASS the floating toolbar turns bullets and numbering on and off, keeping formatting
+PASS the floating toolbar does not cover the title while the body text is edited
+PASS after a panel button, Escape still ends the edit and the text box shows normally
+PASS a centred bulleted list keeps each bullet beside its text
+PASS a bullet sits beside a large first word, not above it (shown and while editing)
+PASS a centred bulleted list stays centred while it is edited
+PASS Ctrl+Z while typing undoes the last word and stays in the text box; Ctrl+Y brings it back
+PASS dragging a text box moves it without starting to edit its text
+PASS the text toolbar appears while editing, never on mere hover; toolbars step aside while dragging
+PASS a picture's corner handle resizes it, and its toolbar buttons work without deselecting it
+PASS slide captures for PDF/PNG run at full size with list numbers as text, and the editor is restored
+PASS list controls are on the Content tab of a text box
+PASS a new slide's body is a bulleted list, and Tab never throws typing out of a text box
+PASS Tab moves through table cells even when typing straight on, and Escape keeps the cell
+PASS mermaid: themes recolour flowcharts, Draw and Sketch differ, and the controls follow the diagram type
+PASS mermaid: a loop keeps its first step first, and diagrams Mermaid draws get a box of their shape and readable text
+PASS Shift+click adds a text box to the selection without starting to edit it
+PASS a chart's data can be edited: double-click, type down the rows with Tab, undo with Ctrl+Z
+PASS 3D backgrounds: eight styles with options, quieter behind text, only the slide on screen moves, and exports get them
+PASS PowerPoint export: text is left-aligned unless set otherwise, and is sent with its drawn height, line spacing and the theme gradient
+PASS review: slide clean-up leaves the footer (logo, rule, slide number) where it is
+PASS review: the thumbnail shows text typed into the first slide's title
+PASS review: table text stays readable on its cells through every theme change
+
+33 passed, 0 failed

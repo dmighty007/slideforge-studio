@@ -1,0 +1,6 @@
+PASS {
+  wheel: 'passed',
+  controls: 'visible',
+  cursor: 'grab',
+  views: 'Top/Front/Side/3D'
+} mouse orbit auto-saved, touch continuation, auto rotation, pause/resume, persistence, show never saves

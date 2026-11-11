@@ -1,0 +1,12 @@
+PASS Typing immediately after entering a text box keeps its first character
+PASS Redraw respects text replaced by a command while its old editor is focused
+PASS A failed Mermaid render does not poison later valid renders
+PASS Closing a Mermaid dialog during rendering leaves no rejected callback
+PASS A pending diagram render cannot overwrite later manual SVG edits
+PASS Rebuilding video properties retires its previous dashboard loop
+PASS A late project open cannot replace the most recent choice
+PASS Inline-media optimization cannot overwrite an object in a different project
+PASS Inline-media optimization follows IDs after reorder and respects source replacements
+PASS A late project creation response cannot adopt a different project
+PASS Exported viewer media synchronization also respects manual pause
+PASS Media synchronization does not undo a manual video pause

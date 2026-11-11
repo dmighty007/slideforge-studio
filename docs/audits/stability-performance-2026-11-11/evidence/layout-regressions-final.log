@@ -1,0 +1,5 @@
+PASS review 2026-10-20: at 700px the top bar takes two rows and the icon-only insert bar is as wide as its icons; the drawer says Done, can be widened, and shows the chart it would cover
+PASS coverage 2026-10-21: a layout keeps a group of a rectangle and a text box together
+PASS coverage 2026-10-21: a connector between two text boxes stays attached through a layout change, and follows them
+
+3 passed, 0 failed

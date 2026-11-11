@@ -1,0 +1,29 @@
+PASS Boots editor in local workspace
+PASS Header project buttons open expected UI
+PASS Slide rail add/select and slide-specific transitions work
+PASS Insert toolbar creates core element types
+PASS Text formatting survives presentation mode
+PASS Text box bullet toggle renders and edits a coherent list
+PASS Text box list style selectors preserve bullet and numbered rendering
+PASS Line spacing applies to plain, bulleted and imported text with one undo step
+PASS Multiple text boxes support shared formatting without hover toolbar
+PASS Multi-selection bound does not block objects inside its empty area
+PASS Selection highlights stay scoped to the active slide
+PASS Picker and modal entry points open and close
+PASS LaTeX equation input keeps paste inside the editor
+PASS Inline text box paste does not create a new element
+PASS Properties, layers, timeline, and export panels toggle
+PASS Selection, copy/paste, undo, and redo operate on elements
+PASS Drawing editor and slide rail controls toggle cleanly
+PASS Presentation mode uses Reveal-native transitions and exits
+PASS Keyboard shortcuts expose command palette and shortcuts modal
+PASS Exported HTML viewer script is valid JavaScript
+PASS Presenter view renders slide markup, not escaped text
+PASS Crisp inline text selection, multi-click, persistent span styling, and keyboard shortcuts
+PASS Imported PowerPoint animations and transitions can be inspected and modified
+PASS No unexpected browser errors during smoke pass
+PASS No external dependency requests during smoke pass
+
+UI SMOKE TEST SUMMARY
+Passed: 25
+Failed: 0
