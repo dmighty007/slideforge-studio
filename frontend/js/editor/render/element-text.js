@@ -294,8 +294,11 @@ function _applyTextTypeContent(el, elData, options) {
       layout?.autoHeight &&
       Number.isFinite(layout.height)
     ) {
-      updateElementState(el.id, { height: `${layout.height}px` });
-      elData.height = `${layout.height}px`;
+      // Already drawn at this height: the slide is not out of date (see noteDrawnElementChange).
+      noteDrawnElementChange(el, () => {
+        updateElementState(el.id, { height: `${layout.height}px` });
+        elData.height = `${layout.height}px`;
+      });
     }
   });
 

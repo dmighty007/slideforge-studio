@@ -115,7 +115,20 @@ function _applyStylesToElement(el, styles) {
   }
 }
 
-function _renderChartDom(container, elData) {
+// Draws the charts in `root` that wait for their slide to be shown (see _renderChartDom).
+function loadDeferredCharts(root) {
+  root?.querySelectorAll?.(".canvas-element.chart-pending").forEach((node) => {
+    const draw = node._sfPendingChart;
+    node._sfPendingChart = null;
+    node.classList.remove("chart-pending");
+    if (typeof draw === "function") draw();
+  });
+}
+
+// deferred: the chart is on a slide not on screen. Its canvas is made now and Chart.js draws it when the slide is
+// first shown (syncActiveSlideMedia), the presenter view copies it, or the chart panel redraws it: a 200-slide deck
+// kept 200 charts drawn, most never looked at.
+function _renderChartDom(container, elData, { deferred = false } = {}) {
   container.innerHTML = "";
   // Double-click opens the chart's data in the Properties panel (not in slide thumbnails).
   container.ondblclick = (event) => {
@@ -130,18 +143,24 @@ function _renderChartDom(container, elData) {
 
   if (container._chartInstance) {
     container._chartInstance.destroy();
+    container._chartInstance = null;
   }
 
-  try {
-    const config = buildChartJsConfig(elData);
-    // Editor and thumbnail charts are still previews. Presentation animations are
-    // driven separately by the slide animation system.
-    config.options = { ...config.options, animation: false };
-    container._chartInstance = new Chart(canvas, config);
-  } catch (err) {
-    console.error("Chart.js Error:", err);
-    container.innerHTML = `<div class="flex items-center justify-center h-full text-xs text-red-400">Chart Error</div>`;
-  }
+  const draw = () => {
+    try {
+      const config = buildChartJsConfig(elData);
+      // Editor and thumbnail charts are still previews. Presentation animations are
+      // driven separately by the slide animation system.
+      config.options = { ...config.options, animation: false };
+      container._chartInstance = new Chart(canvas, config);
+    } catch (err) {
+      console.error("Chart.js Error:", err);
+      container.innerHTML = `<div class="flex items-center justify-center h-full text-xs text-red-400">Chart Error</div>`;
+    }
+  };
+  container._sfPendingChart = deferred ? draw : null;
+  container.classList.toggle("chart-pending", deferred);
+  if (!deferred) draw();
 }
 
 function _normalizeRenderCropTransform(elData) {
@@ -693,7 +712,9 @@ function _applyTypeContent(el, elData, options = {}) {
   } else if (elData.type === "table") {
     _renderTableDom(el, elData, { interactive: true });
   } else if (elData.type === "chart") {
-    _renderChartDom(el, elData);
+    _renderChartDom(el, elData, {
+      deferred: Number.isInteger(options.slideIndex) && options.slideIndex !== currentSlideIndex,
+    });
   } else if (elData.type === "image") {
     _applyImageTypeContent(el, elData);
   } else if (elData.type === "video") {

@@ -399,6 +399,9 @@ function _redrawChart(node, data) {
   const canvas = node.querySelector(":scope > canvas");
   if (!canvas || typeof Chart === "undefined") return false;
   node._chartInstance?.destroy();
+  // Drawn now: a chart still waiting for its slide must not be drawn again from that later.
+  node._sfPendingChart = null;
+  node.classList.remove("chart-pending");
   const fresh = document.createElement("canvas");
   fresh.style.width = "100%";
   fresh.style.height = "100%";

@@ -753,6 +753,11 @@ function renderPluginElementContent(host, elData, { interactive = false } = {}) 
                 // draws first: when the slide thumbnail redrew for a new width first, it stored the drawing, the editor's
                 // copy then had nothing new to draw, and the box kept its old height.
                 const drawnForThisWidth = stored && Math.abs(parseFloat(source.width) - parseFloat(stored.width)) <= 0.5;
+                // The slide's own node shows both changes (its picture is set by its own copy of this drawing), so its
+                // slide is not out of date (see noteDrawnElementChange).
+                const slideNode = stored && [...document.querySelectorAll(`[id="${stored.id}"]`)].find(node => !node.closest("#slide-previews"));
+                const noteDrawn = typeof noteDrawnElementChange === "function" ? noteDrawnElementChange : (_node, change) => change();
+                noteDrawn(slideNode, () => {
                 if (plugin.sizeAware && plugin.autoHeight && drawnForThisWidth && Math.abs(parseFloat(stored.height) - drawing.height) > 1) {
                     stored.height = `${Math.round(drawing.height)}px`;
                     host.style.height = stored.height;
@@ -769,6 +774,7 @@ function renderPluginElementContent(host, elData, { interactive = false } = {}) 
                     elData.pluginPreviewKey = drawing.key;
                     if (interactive && typeof refreshActiveSlidePreview === "function") refreshActiveSlidePreview();
                 }
+                });
                 if (interactive && typeof plugin.mount === "function") _syncPluginLiveViews();
             })
             .catch(error => {

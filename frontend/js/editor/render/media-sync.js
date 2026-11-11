@@ -97,6 +97,7 @@ function syncActiveSlideMedia() {
     // view, the speaker's window has it and the audience's does not, and its embeds still have to show.
     const onScreen = index === activeIndex;
     const recent = onScreen || _recentEmbedSlideIds.includes(section.id);
+    if (onScreen && typeof loadDeferredCharts === "function") loadDeferredCharts(section);
     section.querySelectorAll("iframe").forEach((iframe) => {
       if (onScreen) loadDeferredIframe(iframe);
       // HTML embeds may run arbitrary timers/WebGL loops. Removing their document

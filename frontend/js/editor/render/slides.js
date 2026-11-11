@@ -312,9 +312,24 @@ function _adoptKeptSlideElements(section, slide) {
   });
 }
 
-function _rememberBuiltSlide(section, slide, signature) {
+function _rememberBuiltSlide(section, slide, signature, deckKey) {
   section.__sfRenderSignature = signature;
+  section.__sfDeckKey = deckKey;
   section.__sfBuiltElements = new Map((slide.elements || []).map((el) => [el.id, el]));
+}
+
+// Drawing that finishes after the redraw writes what it measured back to the element (a text box's height, a
+// picture's proportions, a plugin's saved drawing). The slide on the page already shows it, but its data then no
+// longer matched what it was drawn from, and the next edit rebuilt every slide of the deck (577 ms on 200 slides).
+// The slide's record is brought up to date with the change, only when nothing else had changed on it since.
+function noteDrawnElementChange(node, change) {
+  const section = node?.closest?.(".presentation-slide");
+  const index = Number(section?.dataset.slideIndex);
+  const slide = state.slides?.[index];
+  const drawn = Boolean(section?.__sfRenderSignature) && section.parentElement?.id === "slides-container" && slide?.id === section.id;
+  const unchanged = drawn && _slideRenderSignature(slide, index, section.__sfDeckKey) === section.__sfRenderSignature;
+  change();
+  if (unchanged) section.__sfRenderSignature = _slideRenderSignature(slide, index, section.__sfDeckKey);
 }
 
 function _keptSlideSections(container, deckKey, options) {
@@ -426,7 +441,7 @@ function renderSlidesFromState(options = {}) {
       slideHeight,
     );
     if (whiteboardLayer) section.appendChild(whiteboardLayer);
-    _rememberBuiltSlide(section, slide, _slideRenderSignature(slide, slideIndex, deckKey));
+    _rememberBuiltSlide(section, slide, _slideRenderSignature(slide, slideIndex, deckKey), deckKey);
   });
   reuse.discardOld();
   // Slides removed around the selection leave it in the container, between the slides kept. Focusing a text box

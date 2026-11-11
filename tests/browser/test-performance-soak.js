@@ -2,6 +2,8 @@
 // Usage: SLIDEFORGE_TEST_URL=http://127.0.0.1:8076/ node tests/browser/test-performance-soak.js
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
+// RECENT_EMBED_SLIDES in media-sync.js: embeds of the last three slides shown stay loaded.
+const RECENT_EMBED_SLIDES_LIMIT = 3;
 const fs = require('node:fs');
 const os = require('node:os');
 const summarize = values => {
@@ -49,6 +51,8 @@ const summarize = values => {
                             ] : []),
                         ],
                     })) };
+                    // Normalised as a deck is when it is opened (the first save would otherwise change every slide).
+                    normalizeStateIds();
                     undoStack = []; redoStack = []; setCurrentSlideIndex(0); Reveal.slide(0);
                     const start = performance.now(); renderSlidesFromState();
                     return performance.now() - start;
@@ -75,7 +79,8 @@ const summarize = values => {
                 const current = await resources();
                 assert.equal(current.detachedCharts, 0);
                 assert(current.thumbnails < 15, `Thumbnail count grew with deck: ${JSON.stringify(current)}`);
-                assert(current.loadedEmbeds <= 1);
+                // The embeds of the last slides shown keep running (media-sync.js), and no more.
+                assert(current.loadedEmbeds <= RECENT_EMBED_SLIDES_LIMIT, `Embeds kept loaded: ${current.loadedEmbeds}`);
                 assert(current.animatedBackgrounds <= 1);
                 const sample = { kind, slides: count, coldRenderMs: +cold.toFixed(2), editMs: summarize(timings.edit), rebuiltSlides: { firstEdit: timings.rebuiltSlides[0], median: summarize(timings.rebuiltSlides).median, max: Math.max(...timings.rebuiltSlides) }, editToFrameMs: summarize(timings.frame), navigationToFrameMs: summarize(timings.navigation), heapMiB: +((await heap()) / 1048576).toFixed(2), resources: current };
                 results.samples.push({ ...sample, timingSamples: timings }); console.log(JSON.stringify(sample));

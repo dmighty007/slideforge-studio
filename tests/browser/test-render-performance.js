@@ -122,6 +122,31 @@ const assert = require('node:assert/strict');
             return { resanitised, same };
         });
         assert.deepEqual(normalized, { resanitised: true, same: true }, 'normalising for a save');
+        // Opened and drawn, the first edit rebuilds one slide: sizes measured after the drawing (a text box's height)
+        // do not make every slide look changed. Charts on other slides wait for their slide.
+        const firstEdit = await page.evaluate(async () => {
+            const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+            const sections = () => [...document.querySelectorAll('#slides-container > section')];
+            state.slides = Array.from({ length: 12 }, (_, i) => ({ id: `fe-${i}`, layoutId: 'blank', masterId: 'none', elements: [
+                { id: `fe-text-${i}`, type: 'text', x: 20, y: 20, width: 400, height: 55, content: `Slide ${i + 1}`, styles: {} },
+                { id: `fe-chart-${i}`, type: 'chart', x: 450, y: 20, width: 300, height: 200, chartType: 'bar', chartData: { labels: ['A', 'B'], datasets: [{ label: 'S', data: [1, 2] }] }, styles: {} },
+            ] }));
+            normalizeStateIds(); // as a deck is when it is opened
+            setCurrentSlideIndex(0); Reveal.slide(0); renderSlidesFromState();
+            await sleep(400);
+            const before = sections();
+            state.slides[0].elements[0].x = 25; renderSlidesFromState();
+            const rebuilt = sections().filter((node, i) => node !== before[i]).length;
+            const chartOf = i => Chart.getChart(document.querySelector(`#slides-container #fe-chart-${i} canvas`));
+            const offScreenDrawn = Boolean(chartOf(5));
+            Reveal.slide(5); syncActiveSlideMedia();
+            const shownDrawn = Boolean(chartOf(5));
+            const copy = new DOMParser().parseFromString(_presenterSectionHtml(document.querySelector('#slides-container #fe-chart-7').closest('section')), 'text/html');
+            const presenterPicture = (copy.querySelector('#fe-chart-7 img')?.getAttribute('src') || '').startsWith('data:image/png') && Boolean(chartOf(7));
+            return { rebuilt, offScreenDrawn, shownDrawn, presenterPicture, charts: Object.keys(Chart.instances).length };
+        });
+        assert.equal(firstEdit.rebuilt, 1, 'The first edit after drawing rebuilds only the edited slide');
+        assert.deepEqual({ offScreenDrawn: firstEdit.offScreenDrawn, shownDrawn: firstEdit.shownDrawn, presenterPicture: firstEdit.presenterPicture }, { offScreenDrawn: false, shownDrawn: true, presenterPicture: true }, 'off-screen charts');
         // Deferring must not blank what other views show of a slide not opened yet.
         const deferred = await page.evaluate(async () => {
             const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -164,6 +189,6 @@ const assert = require('node:assert/strict');
         assert.equal(deferred.picture, true, 'A molecule on an unopened slide gets its thumbnail picture');
         assert.equal(deferred.thumbnailShowsPicture, true, 'The rail shows that picture, not the atom icon');
         assert.equal(deferred.unfocusedLoads, true, 'Embeds load on the slide shown even when the window has no focus');
-        console.log('PASS Kept unchanged slides, shared undo steps, normalising only changed elements, still chart panel redraws, recent embeds kept running, deferred embeds, bounded thumbnails, inactive HTML suspension, chart cleanup, presenter preview, molecule thumbnails, unfocused window');
+        console.log('PASS Kept unchanged slides, one-slide first edit, charts drawn with their slide, shared undo steps, normalising only changed elements, still chart panel redraws, recent embeds kept running, deferred embeds, bounded thumbnails, inactive HTML suspension, chart cleanup, presenter preview, molecule thumbnails, unfocused window');
     } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
