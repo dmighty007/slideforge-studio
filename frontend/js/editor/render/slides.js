@@ -408,6 +408,10 @@ function renderSlidesFromState(options = {}) {
     _rememberBuiltSlide(section, slide, _slideRenderSignature(slide, slideIndex, deckKey));
   });
   reuse.discardOld();
+  // Slides removed around the selection leave it in the container, between the slides kept. Focusing a text box
+  // then left it there, and the first keys typed into the box went nowhere ("Results" came out as "esults").
+  const selection = window.getSelection?.();
+  if (selection?.rangeCount && selection.anchorNode === container) selection.removeAllRanges();
   _lastRenderedCurrentSlideId = state.slides[currentSlideIndex]?.id ?? null;
   if (Reveal.isReady()) {
     Reveal.sync();
