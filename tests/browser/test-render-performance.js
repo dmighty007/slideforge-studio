@@ -36,6 +36,34 @@ const assert = require('node:assert/strict');
         await page.waitForTimeout(300);
         assert.equal(await page.evaluate(() => Object.values(Chart.instances).filter(chart => !chart.canvas.isConnected).length), 0, 'Discarded charts must leave the Chart.js registry');
         assert.equal(await page.evaluate(() => Object.values(Chart.instances).every(chart => chart.options.animation === false)), true);
+        // A redraw keeps the slides whose drawing is unchanged, and they still match a full rebuild.
+        const kept = await page.evaluate(async () => {
+            const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+            const sections = () => [...document.querySelectorAll('#slides-container > section')];
+            const html = () => sections().map(s => { const c = s.cloneNode(true); c.querySelectorAll('[srcdoc]').forEach(n => n.removeAttribute('srcdoc')); return c.innerHTML; });
+            setCurrentSlideIndex(3); Reveal.slide(3); renderSlidesFromState();
+            const before = sections();
+            saveStateToUndo();
+            state.slides[3].elements[1].x = 260;
+            renderSlidesFromState();
+            const after = sections();
+            const rebuilt = after.map((s, i) => (s === before[i] ? null : i)).filter(i => i !== null);
+            // Undo gives the state new objects: the kept slides' nodes must hold the state's own ones.
+            restoreUndoState(); renderSlidesFromState();
+            const owned = state.slides.every((slide, i) => slide.elements.every(el => sections()[i].__sfBuiltElements.get(el.id) === el));
+            state.slides.splice(10, 1); renderSlidesFromState();
+            state.selectedIds = [state.slides[20].elements[0].id]; renderSlidesFromState();
+            await sleep(300); const incremental = html();
+            renderSlidesFromState({ full: true });
+            await sleep(300); const full = html();
+            state.selectedIds = [];
+            return { rebuilt, owned, same: incremental.length === full.length && incremental.every((h, i) => h === full[i]),
+                order: sections().map(s => s.id).join() === state.slides.map(s => s.id).join() };
+        });
+        assert.deepEqual(kept.rebuilt, [3], 'Only the edited slide is rebuilt');
+        assert.equal(kept.owned, true, 'Kept slides adopt the element objects the state now has');
+        assert.equal(kept.same, true, 'Kept slides look the same as a full rebuild');
+        assert.equal(kept.order, true);
         // Deferring must not blank what other views show of a slide not opened yet.
         const deferred = await page.evaluate(async () => {
             const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -78,6 +106,6 @@ const assert = require('node:assert/strict');
         assert.equal(deferred.picture, true, 'A molecule on an unopened slide gets its thumbnail picture');
         assert.equal(deferred.thumbnailShowsPicture, true, 'The rail shows that picture, not the atom icon');
         assert.equal(deferred.unfocusedLoads, true, 'Embeds load on the slide shown even when the window has no focus');
-        console.log('PASS Deferred embeds, bounded thumbnails, inactive HTML suspension, chart cleanup, presenter preview, molecule thumbnails, unfocused window');
+        console.log('PASS Kept unchanged slides, deferred embeds, bounded thumbnails, inactive HTML suspension, chart cleanup, presenter preview, molecule thumbnails, unfocused window');
     } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
