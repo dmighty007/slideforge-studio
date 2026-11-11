@@ -30,8 +30,22 @@ const assert = require('node:assert/strict');
         assert.equal(await page.evaluate(() => [...document.querySelectorAll('#slide-previews iframe')].some(f => f.sandbox.contains('allow-scripts'))), false);
         await page.evaluate(() => { Reveal.slide(20); syncActiveSlideMedia(); });
         await page.waitForFunction(() => document.querySelector('#perf-html-20 iframe').hasAttribute('srcdoc'));
-        assert.equal(await page.locator('#perf-html-0 iframe[srcdoc]').count(), 0);
-        assert.equal(await page.locator('#slides-container iframe[srcdoc]').count(), 1);
+        // The slide just left keeps its embed running: going back does not restart it.
+        assert.equal(await page.locator('#perf-html-0 iframe[srcdoc]').count(), 1);
+        const recent = await page.evaluate(async () => {
+            const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+            for (const i of [21, 22, 23]) { Reveal.slide(i); syncActiveSlideMedia(); await sleep(50); }
+            const frame = document.querySelector('#perf-html-22 iframe');
+            let loads = 0;
+            frame.addEventListener('load', () => loads++);
+            Reveal.slide(22); syncActiveSlideMedia(); await sleep(300);
+            return {
+                loaded: [...document.querySelectorAll('#slides-container iframe[srcdoc]')].map(f => f.closest('.canvas-element').id).sort(),
+                reloadedOnReturn: loads > 0,
+            };
+        });
+        // At most three run at once: older slides' embeds are unloaded.
+        assert.deepEqual(recent, { loaded: ['perf-html-21', 'perf-html-22', 'perf-html-23'], reloadedOnReturn: false });
         await page.evaluate(() => { for (let i = 0; i < 5; i++) renderSlidesFromState(); });
         await page.waitForTimeout(300);
         assert.equal(await page.evaluate(() => Object.values(Chart.instances).filter(chart => !chart.canvas.isConnected).length), 0, 'Discarded charts must leave the Chart.js registry');
@@ -150,6 +164,6 @@ const assert = require('node:assert/strict');
         assert.equal(deferred.picture, true, 'A molecule on an unopened slide gets its thumbnail picture');
         assert.equal(deferred.thumbnailShowsPicture, true, 'The rail shows that picture, not the atom icon');
         assert.equal(deferred.unfocusedLoads, true, 'Embeds load on the slide shown even when the window has no focus');
-        console.log('PASS Kept unchanged slides, shared undo steps, normalising only changed elements, still chart panel redraws, deferred embeds, bounded thumbnails, inactive HTML suspension, chart cleanup, presenter preview, molecule thumbnails, unfocused window');
+        console.log('PASS Kept unchanged slides, shared undo steps, normalising only changed elements, still chart panel redraws, recent embeds kept running, deferred embeds, bounded thumbnails, inactive HTML suspension, chart cleanup, presenter preview, molecule thumbnails, unfocused window');
     } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

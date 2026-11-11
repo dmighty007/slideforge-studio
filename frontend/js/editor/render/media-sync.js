@@ -40,10 +40,20 @@ function loadMoleculeViewersForThumbnail(slide) {
   });
 }
 
+// The slides shown last, newest first (the one on screen included). Their HTML embeds stay loaded: unloaded the
+// moment their slide was left, going back a slide while presenting restarted an interactive embed from scratch.
+// Older ones are unloaded, so at most this many embedded documents run at once.
+const RECENT_EMBED_SLIDES = 3;
+let _recentEmbedSlideIds = [];
+
 function syncActiveSlideMedia() {
   const container = document.getElementById("slides-container");
   if (!container) return;
   const activeIndex = getActiveSlideMediaIndex();
+  const activeId = container.children[activeIndex]?.id;
+  if (activeId && _recentEmbedSlideIds[0] !== activeId) {
+    _recentEmbedSlideIds = [activeId, ..._recentEmbedSlideIds.filter((id) => id !== activeId)].slice(0, RECENT_EMBED_SLIDES);
+  }
   const pageActive =
     document.visibilityState !== "hidden" && document.hasFocus();
   Array.from(container.children).forEach((section, index) => {
@@ -86,11 +96,12 @@ function syncActiveSlideMedia() {
     // Embeds load and unload with the slide on screen, not with the window's focus: presenting with the presenter
     // view, the speaker's window has it and the audience's does not, and its embeds still have to show.
     const onScreen = index === activeIndex;
+    const recent = onScreen || _recentEmbedSlideIds.includes(section.id);
     section.querySelectorAll("iframe").forEach((iframe) => {
       if (onScreen) loadDeferredIframe(iframe);
       // HTML embeds may run arbitrary timers/WebGL loops. Removing their document
-      // suspends that work while off-slide; reopening reconstructs the saved HTML.
-      if (iframe.classList.contains("html-embed-frame") && !onScreen && iframe.hasAttribute("srcdoc")) {
+      // suspends that work once their slide is no longer one of the recent ones; reopening reconstructs the saved HTML.
+      if (iframe.classList.contains("html-embed-frame") && !recent && iframe.hasAttribute("srcdoc")) {
         const content = iframe.srcdoc;
         iframe.removeAttribute("srcdoc");
         iframe._sfPendingSrcdoc = () => content;
