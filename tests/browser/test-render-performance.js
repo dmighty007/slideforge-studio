@@ -36,6 +36,12 @@ const assert = require('node:assert/strict');
         await page.waitForTimeout(300);
         assert.equal(await page.evaluate(() => Object.values(Chart.instances).filter(chart => !chart.canvas.isConnected).length), 0, 'Discarded charts must leave the Chart.js registry');
         assert.equal(await page.evaluate(() => Object.values(Chart.instances).every(chart => chart.options.animation === false)), true);
+        // The chart panel redraws a chart in place after each edit: a still preview too.
+        assert.equal(await page.evaluate(() => {
+            const node = document.querySelector('#slides-container #perf-chart-20');
+            const data = state.slides[20].elements.find(el => el.id === 'perf-chart-20');
+            return _redrawChart(node, data) && Chart.getChart(node.querySelector('canvas')).options.animation === false;
+        }), true, 'The chart panel redraws without animating');
         // A redraw keeps the slides whose drawing is unchanged, and they still match a full rebuild.
         const kept = await page.evaluate(async () => {
             const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -144,6 +150,6 @@ const assert = require('node:assert/strict');
         assert.equal(deferred.picture, true, 'A molecule on an unopened slide gets its thumbnail picture');
         assert.equal(deferred.thumbnailShowsPicture, true, 'The rail shows that picture, not the atom icon');
         assert.equal(deferred.unfocusedLoads, true, 'Embeds load on the slide shown even when the window has no focus');
-        console.log('PASS Kept unchanged slides, shared undo steps, normalising only changed elements, deferred embeds, bounded thumbnails, inactive HTML suspension, chart cleanup, presenter preview, molecule thumbnails, unfocused window');
+        console.log('PASS Kept unchanged slides, shared undo steps, normalising only changed elements, still chart panel redraws, deferred embeds, bounded thumbnails, inactive HTML suspension, chart cleanup, presenter preview, molecule thumbnails, unfocused window');
     } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
