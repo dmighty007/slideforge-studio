@@ -64,6 +64,25 @@ const assert = require('node:assert/strict');
         assert.equal(kept.owned, true, 'Kept slides adopt the element objects the state now has');
         assert.equal(kept.same, true, 'Kept slides look the same as a full rebuild');
         assert.equal(kept.order, true);
+        // Undo steps share what did not change between them, and still give back each version exactly.
+        const history = await page.evaluate(() => {
+            const deck = () => JSON.stringify(state.slides, (key, value) => (key === 'textDocument' ? undefined : value));
+            resetUndoHistory();
+            const versions = [];
+            for (let i = 0; i < 6; i++) {
+                versions.push(deck());
+                saveStateToUndo();
+                state.slides[i].elements[0].x = 400 + i;
+            }
+            const [first, second] = undoStack;
+            const shared = second.slides.slice(2).every((slide, i) => slide.head === first.slides[i + 2].head && slide.elements.every((piece, k) => piece === first.slides[i + 2].elements[k]));
+            let exact = true;
+            for (let i = 5; i >= 0; i--) { restoreUndoState(); if (deck() !== versions[i]) exact = false; }
+            for (let i = 1; i < 6; i++) { restoreRedoState(); if (deck() !== versions[i]) exact = false; }
+            renderSlidesFromState();
+            return { shared, exact };
+        });
+        assert.deepEqual(history, { shared: true, exact: true }, 'undo steps share unchanged slides and restore exactly');
         // Deferring must not blank what other views show of a slide not opened yet.
         const deferred = await page.evaluate(async () => {
             const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -106,6 +125,6 @@ const assert = require('node:assert/strict');
         assert.equal(deferred.picture, true, 'A molecule on an unopened slide gets its thumbnail picture');
         assert.equal(deferred.thumbnailShowsPicture, true, 'The rail shows that picture, not the atom icon');
         assert.equal(deferred.unfocusedLoads, true, 'Embeds load on the slide shown even when the window has no focus');
-        console.log('PASS Kept unchanged slides, deferred embeds, bounded thumbnails, inactive HTML suspension, chart cleanup, presenter preview, molecule thumbnails, unfocused window');
+        console.log('PASS Kept unchanged slides, shared undo steps, deferred embeds, bounded thumbnails, inactive HTML suspension, chart cleanup, presenter preview, molecule thumbnails, unfocused window');
     } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

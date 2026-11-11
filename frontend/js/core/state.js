@@ -1876,32 +1876,57 @@ function setSelectedIds(ids) {
     state.selectedIds = Array.from(new Set(asArray.filter(id => id && selectableIds.has(id))));
 }
 
+// An undo step was a copy of the whole deck: 30 steps each way of a 47-slide deck held 16 MB, and a deck with
+// pasted pictures many times that. A step is now the deck's JSON in pieces (one per slide, one per element), and
+// a piece equal to the one taken last time for the same slide or element is that same string, so the steps share
+// everything that did not change between them.
+let _snapshotPieces = new Map();
+
+function _snapshotPiece(key, value) {
+    const json = JSON.stringify(value);
+    const last = _snapshotPieces.get(key);
+    if (last === json) return last;
+    _snapshotPieces.set(key, json);
+    return json;
+}
+
 function _serializeEditorSnapshot() {
-    // Exclude `textDocument` from snapshots — it is a derived/computed field
-    // built from `content` at render time via ensureElementTextDocument().
-    // Serialising it causes stale textDocument values to survive undo/redo and
-    // then corrupt other text elements when they are re-rendered from the snapshot.
-    const stateForSnapshot = {
-        ...state,
-        slides: (state.slides || []).map(slide => ({
-            ...slide,
+    const slides = (state.slides || []).map(slide => {
+        return {
+            // elements: null keeps the field in its place, so the restored slide has its keys in the same order.
+            head: _snapshotPiece(`slide:${slide.id}`, { ...slide, elements: null }),
             elements: (slide.elements || []).map(el => {
-                if (el.type !== "text") return el;
-                // Omit textDocument; renderer will rebuild it from `content`.
-                const { textDocument: _td, ...rest } = el;
-                return rest;
+                // Omit textDocument: it is derived from `content` at render time (ensureElementTextDocument), and a
+                // stale one surviving undo/redo corrupted other text elements re-rendered from the snapshot.
+                let piece = el;
+                if (el?.type === "text") {
+                    const { textDocument: _td, ...rest } = el;
+                    piece = rest;
+                }
+                return _snapshotPiece(`element:${slide.id}/${el?.id}`, piece);
             }),
-        })),
-    };
-    return JSON.stringify({
-        state: stateForSnapshot,
-        currentSlideIndex,
+        };
     });
+    return {
+        head: JSON.stringify({ state: { ...state, slides: null }, currentSlideIndex }),
+        slides,
+    };
+}
+
+function _parseEditorSnapshot(rawSnapshot) {
+    if (typeof rawSnapshot === "string") return JSON.parse(rawSnapshot);
+    const parsed = JSON.parse(rawSnapshot.head);
+    parsed.state.slides = rawSnapshot.slides.map(slide => {
+        const restored = JSON.parse(slide.head);
+        restored.elements = slide.elements.map(piece => JSON.parse(piece));
+        return restored;
+    });
+    return parsed;
 }
 
 function _restoreEditorSnapshot(rawSnapshot) {
     try {
-        const parsed = JSON.parse(rawSnapshot);
+        const parsed = _parseEditorSnapshot(rawSnapshot);
         if (parsed && typeof parsed === "object" && parsed.state && Array.isArray(parsed.state.slides)) {
             state = parsed.state;
             // Defensively drop any stale textDocument so the renderer always
@@ -1939,6 +1964,7 @@ function saveStateToUndo() {
 function resetUndoHistory() {
     undoStack = [];
     redoStack = [];
+    _snapshotPieces = new Map();
 }
 
 function restoreUndoState() {
