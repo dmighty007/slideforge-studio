@@ -73,7 +73,9 @@
             };
         },
         async render(data, context) {
-            const api = await ensure(context), scene = api.scene(data, api.dataset(data, context.parseTable), context);
+            const api = await ensure(context), grid = api.dataset(data, context.parseTable);
+            // The surface left to the GPU (snapshot paints it face by face only without WebGL).
+            const scene = api.scene(data, grid, context, data, { mesh: data.view === "surface" });
             if (data.view === "surface") {
                 const png = api.snapshot(scene);
                 if (png.length > 1500000) throw Error("This view is too detailed to save. Use fewer samples or a smaller object.");

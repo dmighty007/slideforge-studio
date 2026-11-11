@@ -42,10 +42,21 @@ const fs = require("fs"), os = require("os"), path = require("path"), assert = r
             try { api.createSurfaceRenderer = () => null; fallback = api.snapshot(scene); } finally { api.createSurfaceRenderer = original; }
             const image = new Image(); image.src = fallback; await image.decode();
             check(image.naturalWidth === 1100, "non-WebGL fallback failed");
-            return { surfaces: grid.surfaces.length, triangles: scene.faces.length * 2, gpuPixels: lit.count, fallbackDecoded: true, preview: api.snapshot(scene) };
+            // The explorer and the saved picture leave the surface to the GPU (camera in the vertex shader, vertices
+            // uploaded once): no faces built, and the same picture as projecting every face on the CPU.
+            const turned = { ...data, yaw: 70, pitch: 15 }, meshScene = api.scene(turned, grid, context, turned, { mesh: true });
+            check(meshScene.items.some(i => i.kind === "mesh") && !meshScene.items.some(i => i.kind === "polygon"), "mesh scene still builds faces");
+            check(meshScene.faces.length === scene.faces.length, "faces for hover readouts, on demand");
+            check(api.dataset({ ...turned, yaw: 10, zoom: 2 }, context.parseTable) === grid, "a camera change must reuse the grid (and its mesh)");
+            const pixels = async url => { const img = new Image(); img.src = url; await img.decode(); const c = document.createElement("canvas"); c.width = img.naturalWidth; c.height = img.naturalHeight; const g = c.getContext("2d"); g.drawImage(img, 0, 0); return g.getImageData(0, 0, c.width, c.height).data; };
+            const viaMesh = await pixels(api.snapshot(meshScene)), viaFaces = await pixels(api.snapshot(api.scene(turned, grid, context, turned)));
+            let differing = 0;
+            for (let i = 0; i < viaMesh.length; i += 4) if (Math.max(Math.abs(viaMesh[i] - viaFaces[i]), Math.abs(viaMesh[i + 1] - viaFaces[i + 1]), Math.abs(viaMesh[i + 2] - viaFaces[i + 2])) > 40) differing++;
+            check(viaMesh.length === viaFaces.length && differing < viaMesh.length / 4 / 1000, `GPU-projected picture differs from the CPU one in ${differing} pixels`);
+            return { surfaces: grid.surfaces.length, triangles: scene.faces.length * 2, gpuPixels: lit.count, fallbackDecoded: true, meshPixelsDiffering: differing, preview: api.snapshot(scene) };
         });
         fs.writeFileSync(path.join(output, "wigner-default.png"), Buffer.from(checks.preview.split(",")[1], "base64")); delete checks.preview;
-        console.log("PASS shared scales, signed values, smooth GPU lighting and fallback", checks);
+        console.log("PASS shared scales, signed values, smooth GPU lighting and fallback, GPU-projected mesh", checks);
         const id = await page.evaluate(async () => {
             state.slides = [{ id: "wigner-slide", layoutId: "blank", masterId: "none", elements: [] }, { id: "next-slide", layoutId: "blank", masterId: "none", elements: [] }];
             setCurrentSlideIndex(0); renderSlidesFromState();

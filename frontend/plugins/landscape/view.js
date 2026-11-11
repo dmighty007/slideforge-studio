@@ -12,6 +12,15 @@
     const format = value => Number(value.toPrecision(5)).toString();
     const short = value => Number(value.toPrecision(3)).toString().replace("-", "−");
     const hexRgb = hex => [1, 3, 5].map(k => parseInt(hex.slice(k, k + 2), 16));
+    // color() as numbers (0-255, rounded the same way), for the many vertex colours of a surface mesh.
+    const paletteRgb = new Map();
+    function colorRgb(data, grid, z) {
+        const t = grid.colorMax === grid.colorMin ? 0.5 : Math.max(0, Math.min(1, (z - grid.colorMin) / (grid.colorMax - grid.colorMin)));
+        if (!paletteRgb.has(data.palette)) paletteRgb.set(data.palette, palettes[data.palette].map(hexRgb));
+        const stops = paletteRgb.get(data.palette), p = t * (stops.length - 1), i = Math.min(stops.length - 2, Math.floor(p));
+        const a = stops[i], b = stops[i + 1];
+        return [Math.round(a[0] + (b[0] - a[0]) * (p - i)), Math.round(a[1] + (b[1] - a[1]) * (p - i)), Math.round(a[2] + (b[2] - a[2]) * (p - i))];
+    }
     function color(data, grid, z) {
         const t = grid.colorMax === grid.colorMin ? 0.5 : Math.max(0, Math.min(1, (z - grid.colorMin) / (grid.colorMax - grid.colorMin)));
         const stops = palettes[data.palette], p = t * (stops.length - 1), i = Math.min(stops.length - 2, Math.floor(p));
@@ -39,6 +48,8 @@
     }
     const tickText = (value, decimals) => value.toFixed(Math.min(10, decimals)).replace("-", "−");
 
+    // Camera-independent surface geometry, per grid (see scene()).
+    const meshes = new WeakMap();
     // The heatmap as one bitmap: no seams between cells, and the same piecewise-linear field as contours and hover.
     const bitmaps = new WeakMap();
     function heatmap(data, grid, width, height) {
@@ -77,15 +88,21 @@
         bitmaps.set(grid, { key, canvas });
         return canvas;
     }
+    // One per palette: it was drawn again for every frame of an orbit.
+    const colorBars = new Map();
     function colorBar(data, grid) {
+        if (colorBars.has(data.palette)) return colorBars.get(data.palette);
         const canvas = document.createElement("canvas"); canvas.width = 1; canvas.height = 256;
         const g = canvas.getContext("2d"), image = g.createImageData(1, 256), table = lut(data);
         for (let k = 0; k < 256; k++) { const from = (255 - k) * 3; image.data.set([table[from], table[from + 1], table[from + 2], 255], k * 4); }
         g.putImageData(image, 0, 0);
+        colorBars.set(data.palette, canvas);
         return canvas;
     }
 
-    function scene(data, grid, context, camera = data) {
+    // mesh: the surface is left to the GPU (one "mesh" item, no list of faces until one is asked for): drawn for every
+    // frame of an orbit, building and sorting thousands of faces took a quarter of a second.
+    function scene(data, grid, context, camera = data, { mesh: useMesh = false } = {}) {
         const width = Math.max(320, context.width || 640), height = Math.max(260, context.height || 420);
         const ink = data.stage === "slate" ? "#f1f5f9" : context.textColor || "#172033", background = data.stage === "slate" ? "#454b57" : context.theme?.surfaceColor || "#ffffff";
         const fontFamily = context.fontFamily || "Arial, Helvetica, sans-serif";
@@ -113,7 +130,7 @@
 
         const xMin = grid.xs[0], xMax = grid.xs.at(-1), yMin = grid.ys[0], yMax = grid.ys.at(-1);
         const faces = [], planes = [];
-        let plot, crop = null;
+        let plot, crop = null, projection = null, surfaceMesh = null, buildFaces = null;
         if (!surface) {
             const xTicks = ticks(xMin, xMax, Math.max(2, Math.min(7, Math.floor(width / 110)))), yTicks = ticks(yMin, yMax, Math.max(2, Math.min(7, Math.floor(height / 70))));
             const yLabelWidth = Math.max(...yTicks.values.map(v => measure(tickText(v, yTicks.decimals), small)));
@@ -181,25 +198,70 @@
                 return Number.isFinite(z) ? [-dx / length, -dy / length, 1 / length] : [0, 0, 1];
             };
             const edges = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
-            const projected = [];
+            // What does not depend on the camera (world positions, data normals and colours of every cell corner, as
+            // one vertex buffer too) is built once per grid and look: turning the surface only moves the camera.
+            const meshKey = `${data.palette}|${data.zScale}|${data.zeroPlane}`;
+            let mesh = meshes.get(grid)?.get(meshKey);
+            if (!mesh) {
+                const corners = [[0, 0], [1, 0], [1, 1], [0, 1]];
+                const cells = surfaces.map((s, index) => s.cells.map(cell => ({
+                    value: cell.value, fill: color(data, grid, cell.value),
+                    corners: cell.vertices.map((p, k) => ({ ...world(p, index), normal: normal(s, cell.i + corners[k][0], cell.j + corners[k][1]), rgb: colorRgb(data, grid, p.z) })),
+                })));
+                const zeroPlanes = data.zeroPlane && zLow <= 0 && zHigh >= 0
+                    ? surfaces.map((_s, index) => [[xMin, yMin], [xMax, yMin], [xMax, yMax], [xMin, yMax]].map(([x, y]) => world({ x, y, z: 0 }, index))) : [];
+                const cellCount = cells.reduce((n, list) => n + list.length, 0);
+                const vertices = new Float32Array((cellCount + zeroPlanes.length) * 6 * 10);
+                let offset = 0;
+                const put = (c, normal, rgb, alpha) => {
+                    vertices[offset++] = c.wx; vertices[offset++] = c.wy; vertices[offset++] = c.wz;
+                    vertices[offset++] = normal[0]; vertices[offset++] = normal[1]; vertices[offset++] = normal[2];
+                    vertices[offset++] = rgb[0] / 255; vertices[offset++] = rgb[1] / 255; vertices[offset++] = rgb[2] / 255; vertices[offset++] = alpha;
+                };
+                for (const list of cells) for (const cell of list) for (const k of [0, 1, 2, 0, 2, 3]) put(cell.corners[k], cell.corners[k].normal, cell.corners[k].rgb, 1);
+                const planeRgb = hexRgb("#94a3b8");
+                for (const plane of zeroPlanes) for (const k of [0, 1, 2, 0, 2, 3]) put(plane[k], [0, 0, 0], planeRgb, 0.13);
+                mesh = { cells, zeroPlanes, vertices, cellCount, planeCount: zeroPlanes.length };
+                if (!meshes.has(grid)) meshes.set(grid, new Map());
+                meshes.get(grid).set(meshKey, mesh);
+            }
+            // project() and screen() in one step, for the many cell corners.
+            const cosYaw = Math.cos(yaw), sinYaw = Math.sin(yaw), cosPitch = Math.cos(pitch), sinPitch = Math.sin(pitch);
+            const midU = (loX + hiX) / 2, midV = (loY + hiY) / 2;
+            const place = c => {
+                const u = c.wx * cosYaw - c.wy * sinYaw, v0 = c.wx * sinYaw + c.wy * cosYaw, v = -v0 * sinPitch - c.wz * cosPitch;
+                return { ...c, u, v, depth: v0 * cosPitch - c.wz * sinPitch, sx: centerX + (u - midU) * scale, sy: centerY + (v - midV) * scale };
+            };
+            // The camera, for the GPU to place the same vertices (webgl.js); depths span the boxes around the surfaces.
+            const depths = all.map(p => p.depth);
+            projection = { cosYaw, sinYaw, cosPitch, sinPitch, scale, offsetX: centerX - midU * scale, offsetY: centerY - midV * scale, near: Math.min(...depths), span: Math.max(...depths) - Math.min(...depths) || 1 };
+            surfaceMesh = mesh;
             surfaces.forEach((s, index) => {
                 const cage = cages[index].map(screen);
                 // Clipped like the surface: zoomed in, the box must not run over the color bar or the title.
                 if (data.axesBox) for (const [a, b] of edges) line([[cage[a].sx, cage[a].sy], [cage[b].sx, cage[b].sy]], "#94a3b8", 0.8, 1, true);
-                if (data.zeroPlane && zLow <= 0 && zHigh >= 0) {
-                    const vertices = [[xMin, yMin], [xMax, yMin], [xMax, yMax], [xMin, yMax]].map(([x, y]) => screen(project(world({ x, y, z: 0 }, index))));
+                const zero = mesh.zeroPlanes[index];
+                if (zero) {
+                    const vertices = zero.map(place);
                     const plane = { kind: "plane", points: vertices.map(p => [p.sx, p.sy]), vertices, fill: "#94a3b8" }; planes.push(plane); items.push(plane);
                 }
-                for (const cell of s.cells) {
-                    const indices = [[0, 0], [1, 0], [1, 1], [0, 1]];
-                    const vertices = cell.vertices.map((p, k) => screen(project({ ...world(p, index), normal: normal(s, cell.i + indices[k][0], cell.j + indices[k][1]), color: color(data, grid, p.z) })));
-                    projected.push({ vertices, value: cell.value, label: s.label || "", surface: index });
-                }
             });
-            projected.sort((a, b) => b.vertices.reduce((s, p) => s + p.depth, 0) - a.vertices.reduce((s, p) => s + p.depth, 0));
-            for (const cell of projected) {
-                const points = cell.vertices.map(p => [p.sx, p.sy]);
-                const face = { kind: "polygon", points, vertices: cell.vertices, fill: color(data, grid, cell.value), label: cell.label, surface: cell.surface }; faces.push(face); items.push(face);
+            // Every cell as a face on screen: for painting without WebGL, the saved SVG, and hover readouts.
+            buildFaces = () => {
+                const list = [];
+                mesh.cells.forEach((cells, index) => {
+                    const label = surfaces[index].label || "";
+                    for (const cell of cells) {
+                        const vertices = cell.corners.map(place);
+                        list.push({ kind: "polygon", points: vertices.map(p => [p.sx, p.sy]), vertices, fill: cell.fill, label, surface: index });
+                    }
+                });
+                return list;
+            };
+            if (useMesh) items.push({ kind: "mesh" });
+            else {
+                const depthOf = face => face.vertices[0].depth + face.vertices[1].depth + face.vertices[2].depth + face.vertices[3].depth;
+                for (const face of buildFaces().sort((a, b) => depthOf(b) - depthOf(a))) { faces.push(face); items.push(face); }
             }
             if (data.axesBox) {
                 // Axes on the box's outer edges: the front-most x and y edges, the left-most upright. Labels sit
@@ -259,12 +321,20 @@
             });
             text(data.valueLabel, barX + barBlock, barY + barH / 2, "middle", font - 1, -90);
         }
-        return { width, height, items, plot, faces, planes, background, camera, crop, lighting: data.lighting, fontFamily };
+        const result = { width, height, items, plot, faces, planes, background, camera, crop, lighting: data.lighting, fontFamily, projection, mesh: surfaceMesh };
+        if (useMesh && buildFaces) {
+            let built = null;
+            Object.defineProperty(result, "faces", { get: () => (built ??= buildFaces()), enumerable: true });
+            // The same view with every face, when there is no GPU to draw the mesh.
+            result.withFaces = () => scene(data, grid, context, camera);
+        }
+        return result;
     }
     function svg(scene) {
         const n = v => Number(v.toFixed(2)), points = ps => ps.map(p => p.map(n).join(",")).join(" ");
         const path = ps => ps.map((p, i) => `${i ? "L" : "M"}${n(p[0])} ${n(p[1])}`).join("");
         const parts = scene.items.map(p => {
+            if (p.kind === "mesh") return "";
             if (p.kind === "rect") return `<rect x="${n(p.x)}" y="${n(p.y)}" width="${n(p.w)}" height="${n(p.h)}" fill="${p.fill}"/>`;
             if (p.kind === "image") return `<image x="${n(p.x)}" y="${n(p.y)}" width="${n(p.w)}" height="${n(p.h)}" preserveAspectRatio="none" href="${p.canvas.toDataURL("image/png")}"/>`;
             if (p.kind === "polygon" || p.kind === "plane") return `<polygon clip-path="url(#landscape-plot)" points="${points(p.points)}" fill="${p.fill}"${p.kind === "plane" ? ' fill-opacity="0.13"' : ` stroke="${p.fill}" stroke-width="0.3"`}/>`;
@@ -281,6 +351,7 @@
         const path = ps => { ps.forEach((p, i) => i ? c.lineTo(...p) : c.moveTo(...p)); };
         let meshPainted = false;
         for (const p of scene.items) {
+            if (p.kind === "mesh") { if (mesh && !meshPainted) { c.drawImage(mesh, 0, 0, scene.width, scene.height); meshPainted = true; } continue; }
             if (mesh && p.kind === "plane") continue;
             if (mesh && p.kind === "polygon") { if (!meshPainted) { c.drawImage(mesh, 0, 0, scene.width, scene.height); meshPainted = true; } continue; }
             c.fillStyle = p.fill || "#000"; c.strokeStyle = p.stroke || p.fill || "#000"; c.lineWidth = p.lineWidth || 0.3;
@@ -334,7 +405,10 @@
                 camera.yaw = (camera.yaw + camera.rotationSpeed * Math.min(0.1, Math.max(0, (time - lastTime) / 1000))) % 360;
                 readout.classList.remove("is-visible");
             }
-            lastTime = Number.isFinite(time) ? time : null; current = scene(data, grid, context, camera); const gpu = renderer?.render(current); canvas.dataset.engine = gpu ? "webgl" : "canvas"; paint(canvas, current, gpu ? gpuCanvas : null);
+            lastTime = Number.isFinite(time) ? time : null; current = scene(data, grid, context, camera, { mesh: Boolean(renderer) }); const gpu = renderer?.render(current);
+            // Lost WebGL (or none): the same view painted face by face.
+            if (!gpu && current.withFaces) current = current.withFaces();
+            canvas.dataset.engine = gpu ? "webgl" : "canvas"; paint(canvas, current, gpu ? gpuCanvas : null);
             if (surface && (camera.autoRotate || tween)) redraw();
         };
         const redraw = () => { if (frame === null) frame = requestAnimationFrame(draw); };
