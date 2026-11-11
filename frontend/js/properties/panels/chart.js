@@ -404,7 +404,11 @@ function _redrawChart(node, data) {
   fresh.style.height = "100%";
   canvas.replaceWith(fresh);
   try {
-    node._chartInstance = new Chart(fresh, buildChartJsConfig(data));
+    // A still preview, as the slide draws it (_renderChartDom): animated, every edit in the data grid replayed the
+    // chart growing in for a second, behind the value being typed.
+    const config = buildChartJsConfig(data);
+    config.options = { ...config.options, animation: false };
+    node._chartInstance = new Chart(fresh, config);
   } catch (error) {
     console.error("Chart.js Error:", error);
     return false;

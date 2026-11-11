@@ -1425,39 +1425,20 @@ function presentationOverLimits(slides = state.slides) {
     return index >= 0 ? `${list[index].elements.length.toLocaleString()} objects on slide ${index + 1} (the limit is ${MAX_ELEMENTS_PER_SLIDE.toLocaleString()})` : null;
 }
 
-// truncate: false keeps every slide and object (saving: the server refuses an oversized deck, and says so, rather
-// than the editor quietly dropping content). Loading a file trims to the limits.
-function normalizeStateIds({ truncate = true } = {}) {
-    _normalizedObjects = new WeakSet();
-    // Older imported decks did not carry a schema marker. They remain readable, but every
-    // normalized state is written back in the current format for future migrations.
-    state.schemaVersion = PRESENTATION_SCHEMA_VERSION;
-    if (!state.presentationTheme || typeof state.presentationTheme !== "string") {
-        state.presentationTheme = "blank";
-    }
-    if (
-        !state.presentationTransition ||
-        typeof state.presentationTransition !== "string" ||
-        !PRESENTATION_TRANSITION_EFFECTS.has(state.presentationTransition)
-    ) {
-        state.presentationTransition = "none";
-    }
-    ensurePresentationPageSetup(state);
-    state.masterSlides = normalizeMasterSlidesState(state.masterSlides);
+// Every save, unsaved-changes check and backup normalised the whole deck again, sanitising each element's content:
+// 17 ms of the 22 a check took on a 47-slide deck. Normalising is idempotent and depends only on the element (bar
+// its id being unique), so an element whose data is still exactly what normalising gave last time is skipped.
+// Plugin objects are always normalised: theirs depends on the plugins loaded.
+let _normalizedElementJson = new WeakMap();
 
-    const usedSlideIds = new Set();
-    const usedElementIds = new Set();
+function _alreadyNormalizedElement(el, usedElementIds) {
+    if (!el || typeof el !== "object" || el.type === "plugin" || !_isSafeStateId(el.id) || usedElementIds.has(el.id)) return false;
+    const last = _normalizedElementJson.get(el);
+    return last !== undefined && last === JSON.stringify(el);
+}
 
-    const legacyDeckTransition = state.presentationTransition;
-    state.slides = (truncate ? (state.slides || []).slice(0, MAX_PRESENTATION_SLIDES) : state.slides || []).map(slide => {
-        const safeSlide = slide || { elements: [] };
-        const nextSlideId = _isSafeStateId(safeSlide.id) && !usedSlideIds.has(safeSlide.id) ? safeSlide.id : generateId("slide");
-        usedSlideIds.add(nextSlideId);
-
-        const nextElements = Array.isArray(safeSlide.elements)
-            ? truncate ? safeSlide.elements.slice(0, MAX_ELEMENTS_PER_SLIDE) : safeSlide.elements
-            : [];
-        const normalizedElements = nextElements.map(el => _normalizedInPlace(el, (() => {
+function _normalizeElementForState(el, usedElementIds) {
+    return _normalizedInPlace(el, (() => {
             const safeEl = el || {};
             const nextElId = _isSafeStateId(safeEl.id) && !usedElementIds.has(safeEl.id) ? safeEl.id : generateId("el");
             usedElementIds.add(nextElId);
@@ -1504,6 +1485,22 @@ function normalizeStateIds({ truncate = true } = {}) {
                 fallbackType === "text" && safeEl.iconMode
                     ? sanitizeIconClassValue(safeEl.iconClass || safeEl.content)
                     : "";
+            const normalizedContent =
+                fallbackType === "text" && safeEl.iconMode && normalizedIconClass
+                    ? `<i class="${normalizedIconClass}"></i>`
+                    : fallbackType === "text"
+                      ? typeof normalizeTextElementContent === "function"
+                          ? normalizeTextElementContent(sanitizeElementContent(safeEl, fallbackType))
+                          : sanitizeElementContent(safeEl, fallbackType)
+                      : typeof safeEl.content === "string"
+                        ? sanitizeElementContent(safeEl, fallbackType)
+                        : fallbackType === "image"
+                          ? "https://picsum.photos/400/300"
+                          : fallbackType === "html"
+                            ? "<html><body style='font-family: sans-serif; padding: 16px;'>Embedded HTML</body></html>"
+                            : fallbackType === "molecule" && typeof createDefaultMoleculeContent === "function"
+                              ? createDefaultMoleculeContent()
+                              : "";
             return {
                 ...safeEl,
                 id: nextElId,
@@ -1677,6 +1674,9 @@ function normalizeStateIds({ truncate = true } = {}) {
                           // on every call it got new random block and run ids, so two snapshots of an unchanged deck
                           // never matched (every autosave sent the deck again, "Unsaved changes" stayed after a save,
                           // and a save that landed after the page closed could not be recognised).
+                          // Kept only while the content is what it was built from; built from the sanitised
+                          // content (from the raw content, a box whose content the sanitiser changed got a document
+                          // of what was removed).
                           _textDocumentSourceContent: _textSourceKey(safeEl.content),
                           textDocument:
                               safeEl.textDocument && safeEl._textDocumentSourceContent === _textSourceKey(safeEl.content)
@@ -1684,7 +1684,7 @@ function normalizeStateIds({ truncate = true } = {}) {
                                   : typeof createTextDocumentFromLegacyContent === "function"
                                   ? createTextDocumentFromLegacyContent(
                                         safeEl.content !== undefined && safeEl.content !== null
-                                            ? safeEl.content
+                                            ? normalizedContent
                                             : safeEl.textDocument,
                                         {
                                         bulletStyle:
@@ -1772,22 +1772,7 @@ function normalizeStateIds({ truncate = true } = {}) {
                                     : fallbackType === "molecule"
                                       ? "420px"
                                       : "auto"),
-                content:
-                    fallbackType === "text" && safeEl.iconMode && normalizedIconClass
-                        ? `<i class="${normalizedIconClass}"></i>`
-                        : fallbackType === "text"
-                          ? typeof normalizeTextElementContent === "function"
-                              ? normalizeTextElementContent(sanitizeElementContent(safeEl, fallbackType))
-                              : sanitizeElementContent(safeEl, fallbackType)
-                          : typeof safeEl.content === "string"
-                            ? sanitizeElementContent(safeEl, fallbackType)
-                            : fallbackType === "image"
-                              ? "https://picsum.photos/400/300"
-                              : fallbackType === "html"
-                                ? "<html><body style='font-family: sans-serif; padding: 16px;'>Embedded HTML</body></html>"
-                                : fallbackType === "molecule" && typeof createDefaultMoleculeContent === "function"
-                                  ? createDefaultMoleculeContent()
-                                  : "",
+                content: normalizedContent,
                 styles: (() => {
                     const rawStyles = safeEl.styles && typeof safeEl.styles === "object" ? safeEl.styles : null;
                     const normalizedStyles = { ...fallbackStyles, ...sanitizeElementStyles(rawStyles || {}) };
@@ -1807,7 +1792,50 @@ function normalizeStateIds({ truncate = true } = {}) {
                     return normalizedStyles;
                 })(),
             };
-        })()));
+        })());
+}
+
+// truncate: false keeps every slide and object (saving: the server refuses an oversized deck, and says so, rather
+// than the editor quietly dropping content). Loading a file trims to the limits.
+function normalizeStateIds({ truncate = true } = {}) {
+    _normalizedObjects = new WeakSet();
+    // Older imported decks did not carry a schema marker. They remain readable, but every
+    // normalized state is written back in the current format for future migrations.
+    state.schemaVersion = PRESENTATION_SCHEMA_VERSION;
+    if (!state.presentationTheme || typeof state.presentationTheme !== "string") {
+        state.presentationTheme = "blank";
+    }
+    if (
+        !state.presentationTransition ||
+        typeof state.presentationTransition !== "string" ||
+        !PRESENTATION_TRANSITION_EFFECTS.has(state.presentationTransition)
+    ) {
+        state.presentationTransition = "none";
+    }
+    ensurePresentationPageSetup(state);
+    state.masterSlides = normalizeMasterSlidesState(state.masterSlides);
+
+    const usedSlideIds = new Set();
+    const usedElementIds = new Set();
+
+    const legacyDeckTransition = state.presentationTransition;
+    state.slides = (truncate ? (state.slides || []).slice(0, MAX_PRESENTATION_SLIDES) : state.slides || []).map(slide => {
+        const safeSlide = slide || { elements: [] };
+        const nextSlideId = _isSafeStateId(safeSlide.id) && !usedSlideIds.has(safeSlide.id) ? safeSlide.id : generateId("slide");
+        usedSlideIds.add(nextSlideId);
+
+        const nextElements = Array.isArray(safeSlide.elements)
+            ? truncate ? safeSlide.elements.slice(0, MAX_ELEMENTS_PER_SLIDE) : safeSlide.elements
+            : [];
+        const normalizedElements = nextElements.map(el => {
+            if (_alreadyNormalizedElement(el, usedElementIds)) {
+                usedElementIds.add(el.id);
+                return el;
+            }
+            const normalized = _normalizeElementForState(el, usedElementIds);
+            if (normalized && typeof normalized === "object") _normalizedElementJson.set(normalized, JSON.stringify(normalized));
+            return normalized;
+        });
 
         return _normalizedInPlace(slide, {
             ...safeSlide,
@@ -1876,32 +1904,57 @@ function setSelectedIds(ids) {
     state.selectedIds = Array.from(new Set(asArray.filter(id => id && selectableIds.has(id))));
 }
 
+// An undo step was a copy of the whole deck: 30 steps each way of a 47-slide deck held 16 MB, and a deck with
+// pasted pictures many times that. A step is now the deck's JSON in pieces (one per slide, one per element), and
+// a piece equal to the one taken last time for the same slide or element is that same string, so the steps share
+// everything that did not change between them.
+let _snapshotPieces = new Map();
+
+function _snapshotPiece(key, value) {
+    const json = JSON.stringify(value);
+    const last = _snapshotPieces.get(key);
+    if (last === json) return last;
+    _snapshotPieces.set(key, json);
+    return json;
+}
+
 function _serializeEditorSnapshot() {
-    // Exclude `textDocument` from snapshots — it is a derived/computed field
-    // built from `content` at render time via ensureElementTextDocument().
-    // Serialising it causes stale textDocument values to survive undo/redo and
-    // then corrupt other text elements when they are re-rendered from the snapshot.
-    const stateForSnapshot = {
-        ...state,
-        slides: (state.slides || []).map(slide => ({
-            ...slide,
+    const slides = (state.slides || []).map(slide => {
+        return {
+            // elements: null keeps the field in its place, so the restored slide has its keys in the same order.
+            head: _snapshotPiece(`slide:${slide.id}`, { ...slide, elements: null }),
             elements: (slide.elements || []).map(el => {
-                if (el.type !== "text") return el;
-                // Omit textDocument; renderer will rebuild it from `content`.
-                const { textDocument: _td, ...rest } = el;
-                return rest;
+                // Omit textDocument: it is derived from `content` at render time (ensureElementTextDocument), and a
+                // stale one surviving undo/redo corrupted other text elements re-rendered from the snapshot.
+                let piece = el;
+                if (el?.type === "text") {
+                    const { textDocument: _td, ...rest } = el;
+                    piece = rest;
+                }
+                return _snapshotPiece(`element:${slide.id}/${el?.id}`, piece);
             }),
-        })),
-    };
-    return JSON.stringify({
-        state: stateForSnapshot,
-        currentSlideIndex,
+        };
     });
+    return {
+        head: JSON.stringify({ state: { ...state, slides: null }, currentSlideIndex }),
+        slides,
+    };
+}
+
+function _parseEditorSnapshot(rawSnapshot) {
+    if (typeof rawSnapshot === "string") return JSON.parse(rawSnapshot);
+    const parsed = JSON.parse(rawSnapshot.head);
+    parsed.state.slides = rawSnapshot.slides.map(slide => {
+        const restored = JSON.parse(slide.head);
+        restored.elements = slide.elements.map(piece => JSON.parse(piece));
+        return restored;
+    });
+    return parsed;
 }
 
 function _restoreEditorSnapshot(rawSnapshot) {
     try {
-        const parsed = JSON.parse(rawSnapshot);
+        const parsed = _parseEditorSnapshot(rawSnapshot);
         if (parsed && typeof parsed === "object" && parsed.state && Array.isArray(parsed.state.slides)) {
             state = parsed.state;
             // Defensively drop any stale textDocument so the renderer always
@@ -1939,6 +1992,7 @@ function saveStateToUndo() {
 function resetUndoHistory() {
     undoStack = [];
     redoStack = [];
+    _snapshotPieces = new Map();
 }
 
 function restoreUndoState() {
@@ -2466,16 +2520,19 @@ async function _autosavePresentationOnce({ keepMine = false } = {}) {
         _saveConflict = null;
         _lastPersistedFingerprint = ""; // the server has the other version: this one is unsaved whatever it matches
     }
-    const fingerprint = getPersistableFingerprint();
-    if (_persistedStateIsCurrent()) {
+    // One snapshot for the check, the request and the backup (each used to build its own).
+    const persistable = getPersistableState();
+    const fingerprint = JSON.stringify(persistable);
+    const title = _inferPresentationTitle();
+    if (fingerprint === _lastPersistedFingerprint && title === _lastPersistedTitle) {
         setProjectSaveHint("All changes saved", "success");
         return false;
     }
 
     const payload = {
-        title: _inferPresentationTitle(),
+        title,
         presentationTheme: state.presentationTheme,
-        state: getPersistableState(),
+        state: persistable,
         autosaveVersion: currentPresentationAutosaveVersion,
     };
     let saved;

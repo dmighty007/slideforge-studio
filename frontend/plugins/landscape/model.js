@@ -135,7 +135,18 @@
         // Same diagonal and piecewise-linear field as the contours and the surface picker.
         return v <= u ? z[0] * (1 - u) + z[1] * (u - v) + z[3] * v : z[0] * (1 - v) + z[3] * u + z[2] * (v - u);
     }
+    // The last grids made, by the inputs they are made from: the saved picture and the explorer of one object, and a
+    // view saved after an orbit (camera fields only), share one grid and so one surface mesh (view.js).
+    const grids = new Map();
     function dataset(data, parseTable) {
+        const key = JSON.stringify(["input", "equation", "csv", "csvFormat", "xMin", "xMax", "yMin", "yMax", "resolution", "subtractMin", "colorMin", "colorMax", "view", "compare", "comparison"].map(name => data[name]));
+        if (grids.has(key)) { const grid = grids.get(key); grids.delete(key); grids.set(key, grid); return grid; }
+        const grid = makeDataset(data, parseTable);
+        grids.set(key, grid);
+        if (grids.size > 8) grids.delete(grids.keys().next().value);
+        return grid;
+    }
+    function makeDataset(data, parseTable) {
         if (data.input !== "equation" || data.view !== "surface" || !data.compare) return model(data, parseTable);
         const rows = parseTable(data.comparison, { maxRows: 6, maxColumns: 3 });
         if (rows[0]?.[0]?.toLowerCase() === "label" && /equation|expression|f\(x/i.test(rows[0][1] || "")) rows.shift();

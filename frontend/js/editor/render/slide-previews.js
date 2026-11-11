@@ -156,6 +156,34 @@ function _fitSlidePreview(thumbnail) {
 }
 
 let _slidePreviewResizeObserver = null;
+let _slidePreviewVisibilityObserver = null;
+
+// Keep the cards for navigation/dragging, but build their expensive content only
+// near the rail viewport. A single observer is replaced with each rail rebuild.
+function _observeSlidePreview(thumbnail, render) {
+  thumbnail._sfRenderPreview = render;
+  if (typeof IntersectionObserver !== "function") {
+    render();
+    thumbnail._sfPreviewVisible = true;
+    return;
+  }
+  if (!_slidePreviewVisibilityObserver) {
+    _slidePreviewVisibilityObserver = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        const node = entry.target;
+        node._sfPreviewVisible = entry.isIntersecting;
+        if (entry.isIntersecting) {
+          if (node.isConnected && !node.firstElementChild) node._sfRenderPreview?.();
+        } else {
+          _slidePreviewResizeObserver?.unobserve(node);
+          disposeSlideRenderers(node);
+          node.replaceChildren();
+        }
+      });
+    }, { root: document.getElementById("slide-previews"), rootMargin: "200px" });
+  }
+  _slidePreviewVisibilityObserver.observe(thumbnail);
+}
 
 // One observer for all thumbnails: rescale whenever a thumbnail changes size, e.g. when the rail comes back.
 function _getSlidePreviewResizeObserver() {
@@ -220,11 +248,14 @@ function renderSlidePreviews(targetIndex = null, options = {}) {
     const thumbnail = card.querySelector(".slide-thumbnail");
     if (!thumbnail || !slide) return;
 
+    // An unvisited thumbnail will render the latest state when scrolled into view.
+    if (!thumbnail._sfPreviewVisible) return;
     const previewSlide = buildPreviewSlide(slide, targetIndex);
 
     // Surgical replacement to avoid "abrupt" resets
     const existing = thumbnail.firstElementChild;
     if (existing) {
+      disposeSlideRenderers(existing);
       thumbnail.replaceChild(previewSlide, existing);
     } else {
       thumbnail.appendChild(previewSlide);
@@ -250,6 +281,10 @@ function renderSlidePreviews(targetIndex = null, options = {}) {
   const shouldScrollActive =
     options.scrollActive === true || !_slidePreviewStructureSignature || activeSlideIsNew;
 
+  _slidePreviewVisibilityObserver?.disconnect();
+  _slidePreviewVisibilityObserver = null;
+  _slidePreviewResizeObserver?.disconnect();
+  disposeSlideRenderers(container);
   container.innerHTML = "";
   container.ondragover = (e) => e.preventDefault();
   container.ondrop = (e) => {
@@ -317,8 +352,6 @@ function renderSlidePreviews(targetIndex = null, options = {}) {
 
     const thumbnail = document.createElement("div");
     thumbnail.className = "slide-thumbnail";
-    const previewSlide = buildPreviewSlide(slide, index);
-    thumbnail.appendChild(previewSlide);
     card.appendChild(thumbnail);
 
     const num = document.createElement("div");
@@ -370,7 +403,15 @@ function renderSlidePreviews(targetIndex = null, options = {}) {
       openSlidePreviewMenu(index, e.clientX, e.clientY);
     });
     container.appendChild(card);
-    scalePreviewSlide(thumbnail, previewSlide);
+    _observeSlidePreview(thumbnail, () => {
+      const current = state.slides[index];
+      if (!current || !thumbnail.isConnected) return;
+      const previewSlide = buildPreviewSlide(current, index);
+      thumbnail.appendChild(previewSlide);
+      scalePreviewSlide(thumbnail, previewSlide);
+      // Molecules on a slide not opened yet have no picture: their viewers load now, to take one.
+      if (typeof loadMoleculeViewersForThumbnail === "function") loadMoleculeViewersForThumbnail(current);
+    });
   });
 
   _slidePreviewStructureSignature = getSlidePreviewStructureSignature();

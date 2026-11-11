@@ -34,6 +34,16 @@ function syncAllSlideFooterNumbers() {
   return changed;
 }
 
+// Renderers own observers, animation frames and Chart.js registry entries. Dispose them
+// before removing a slide or thumbnail, including when switching project tabs.
+function disposeSlideRenderers(root) {
+  if (!root) return;
+  cleanupSlideBackground3D(root);
+  if (typeof Chart !== "undefined") {
+    root.querySelectorAll("canvas").forEach(canvas => Chart.getChart(canvas)?.destroy());
+  }
+}
+
 const REUSABLE_ELEMENT_TYPES = new Set(["molecule", "pdf", "video"]);
 
 // What a heavy element looks like, for deciding whether its node can be kept. The saved camera of a molecule is
@@ -107,9 +117,9 @@ function _restoreKeptCaret() {
   requestAnimationFrame(() => apply(false));
 }
 
-function _collectReusableSlideNodes(container, { mode }) {
+function _collectReusableSlideNodes(container, { mode, keep = new Set() }) {
   const canMove = typeof Element.prototype.moveBefore === "function";
-  const oldSections = Array.from(container.children);
+  const oldSections = Array.from(container.children).filter((section) => !keep.has(section));
   const elements = new Map();
   const backgrounds = new Map();
   if (canMove) {
@@ -135,7 +145,7 @@ function _collectReusableSlideNodes(container, { mode }) {
   oldSections.forEach((section) => {
     Array.from(section.children).forEach((child) => {
       if (elements.get(child.id) === child || backgrounds.get(section.id) === child) return;
-      if (child.classList?.contains("slide-background-three")) cleanupSlideBackground3D(section);
+      disposeSlideRenderers(child);
       child.remove();
     });
     section.removeAttribute("id");
@@ -235,6 +245,74 @@ document.addEventListener(
   true,
 );
 
+// A redraw rebuilt every slide of the deck, so moving one box on a 47-slide deck cost about 100 ms. A slide whose
+// drawing would come out the same (same data, number, theme, page size, master and selection) is now kept as it
+// is. The slide in view, and the one in view at the last redraw, are always rebuilt: their nodes are the ones
+// changed directly while editing (a drag, a text box being typed in), which a kept slide would not undo.
+let _slideRenderCacheEpoch = 0;
+let _lastRenderedCurrentSlideId = null;
+
+// Something that changes how slides are drawn without changing their data (a plugin registered, for instance):
+// the next redraw rebuilds every slide.
+function invalidateSlideRenderCache() {
+  _slideRenderCacheEpoch += 1;
+}
+
+function _slideRenderSignature(slide, slideIndex, deckKey) {
+  const ids = new Set((slide.elements || []).map((el) => el.id));
+  const selected = (state.selectedIds || []).filter((id) => ids.has(id)).join(",");
+  const master =
+    typeof getMasterSlideConfig === "function" && typeof resolveSlideMasterId === "function"
+      ? getMasterSlideConfig(resolveSlideMasterId(slide))
+      : null;
+  const transition =
+    typeof _getRevealPresentationSlideTransition === "function" ? _getRevealPresentationSlideTransition(slideIndex) : "";
+  // Any difference only costs a rebuild, so the plain JSON is enough (no normalising of empty fields). A text box's
+  // textDocument is left out: it is derived from its content, and an undo drops it from every box.
+  const { elements = [], ...rest } = slide;
+  const drawn = elements.map((el) => (el?.textDocument === undefined ? el : { ...el, textDocument: undefined }));
+  return `${deckKey}|${slideIndex}|${transition}|${selected}|${JSON.stringify(master)}|${JSON.stringify(rest)}|${JSON.stringify(drawn)}`;
+}
+
+// The kept slide's nodes hold the element objects they were built from (their handlers write to them). The state
+// takes those objects back, with the new copy's fields: after an undo, the state has new objects of the same data.
+function _adoptKeptSlideElements(section, slide) {
+  const built = section.__sfBuiltElements;
+  if (!built) return;
+  slide.elements.forEach((fresh, index) => {
+    const old = built.get(fresh.id);
+    if (!old || old === fresh) return;
+    Object.keys(old).forEach((key) => {
+      // The kept textDocument matches the content drawn (the signature compared everything else).
+      if (!(key in fresh) && key !== "textDocument") delete old[key];
+    });
+    Object.assign(old, fresh);
+    slide.elements[index] = old;
+  });
+}
+
+function _rememberBuiltSlide(section, slide, signature) {
+  section.__sfRenderSignature = signature;
+  section.__sfBuiltElements = new Map((slide.elements || []).map((el) => [el.id, el]));
+}
+
+function _keptSlideSections(container, deckKey, options) {
+  const keep = new Map();
+  if (options.full || document.body.classList.contains("play-mode-active")) return keep;
+  const current = state.slides[currentSlideIndex]?.id;
+  const byId = new Map();
+  Array.from(container.children).forEach((section) => {
+    if (section.id && section.__sfRenderSignature) byId.set(section.id, section);
+  });
+  state.slides.forEach((slide, slideIndex) => {
+    if (slide.id === current || slide.id === _lastRenderedCurrentSlideId) return;
+    const section = byId.get(slide.id);
+    if (!section || section.dataset.slideIndex !== String(slideIndex)) return;
+    if (section.__sfRenderSignature === _slideRenderSignature(slide, slideIndex, deckKey)) keep.set(slideIndex, section);
+  });
+  return keep;
+}
+
 function renderSlidesFromState(options = {}) {
   const preserveState = Boolean(options.preserveState);
   const container = document.getElementById("slides-container");
@@ -263,10 +341,23 @@ function renderSlidesFromState(options = {}) {
   // Heavy parts of a slide (molecule viewers, PDFs, videos, 3D backgrounds) survive a redraw when their own data
   // has not changed: the existing node is moved into the new slide instead of being rebuilt. Rebuilding reloaded
   // the viewer and its file, reset the view and flashed, on every edit anywhere in the deck.
-  const reuse = _collectReusableSlideNodes(container, {
-    mode: `${themeId}|${slideWidth}x${slideHeight}|${document.body.classList.contains("play-mode-active")}`,
-  });
+  const mode = `${themeId}|${slideWidth}x${slideHeight}|${document.body.classList.contains("play-mode-active")}`;
+  const deckKey = `${_slideRenderCacheEpoch}|${mode}|${JSON.stringify(theme)}|${JSON.stringify(slideConfig)}`;
+  const kept = _keptSlideSections(container, deckKey, options);
+  const reuse = _collectReusableSlideNodes(container, { mode, keep: new Set(kept.values()) });
+  // A rebuilt slide goes in before the next kept one, so the slides stay in order without moving the kept ones
+  // (moving a node reloads the frames in it).
+  const nextKept = [];
+  for (let index = state.slides.length - 1, next = null; index >= 0; index -= 1) {
+    nextKept[index] = next;
+    if (kept.has(index)) next = kept.get(index);
+  }
   state.slides.forEach((slide, slideIndex) => {
+    const keptSection = kept.get(slideIndex);
+    if (keptSection) {
+      _adoptKeptSlideElements(keptSection, slide);
+      return;
+    }
     const section = document.createElement("section");
     section.id = slide.id;
     section.classList.add("presentation-slide");
@@ -280,7 +371,7 @@ function renderSlidesFromState(options = {}) {
     section.style.height = `${slideHeight}px`;
     section.style.color = theme.defaultTextColor;
     section.style.fontFamily = theme.bodyFont;
-    container.appendChild(section); // connected first: only connected nodes can take a moved one
+    container.insertBefore(section, nextKept[slideIndex]); // connected first: only connected nodes can take a moved one
     const keptBackground = reuse.takeBackground(section, slide, slideIndex);
     if (!keptBackground) {
       const bgNode = createSlideBackgroundNode(slide.background, {
@@ -314,8 +405,14 @@ function renderSlidesFromState(options = {}) {
       slideHeight,
     );
     if (whiteboardLayer) section.appendChild(whiteboardLayer);
+    _rememberBuiltSlide(section, slide, _slideRenderSignature(slide, slideIndex, deckKey));
   });
   reuse.discardOld();
+  // Slides removed around the selection leave it in the container, between the slides kept. Focusing a text box
+  // then left it there, and the first keys typed into the box went nowhere ("Results" came out as "esults").
+  const selection = window.getSelection?.();
+  if (selection?.rangeCount && selection.anchorNode === container) selection.removeAllRanges();
+  _lastRenderedCurrentSlideId = state.slides[currentSlideIndex]?.id ?? null;
   if (Reveal.isReady()) {
     Reveal.sync();
     const safeIndex = Math.max(

@@ -369,7 +369,9 @@ function _applyHtmlTypeContent(el, elData) {
   wrapper.className = "html-embed-wrapper";
 
   const iframe = document.createElement("iframe");
-  iframe.srcdoc = buildHtmlEmbedSrcdoc(elData.content || "", elData);
+  // Keep scripts and animation loops out of slides that have not been opened: the document is built when the
+  // slide opens (loadDeferredIframe, media-sync.js).
+  iframe._sfPendingSrcdoc = () => buildHtmlEmbedSrcdoc(elData.content || "", elData);
   applyHtmlEmbedSandbox(iframe);
   iframe.className = "w-full h-full html-embed-frame";
   iframe.style.border = "0";
@@ -407,7 +409,8 @@ function _applyMoleculeTypeContent(el, elData, options) {
     document.visibilityState !== "hidden" &&
     document.hasFocus() &&
     Number(options.slideIndex) === getActiveSlideMediaIndex();
-  iframe.srcdoc =
+  // Built when the slide opens, when its thumbnail needs a picture, or for an export (media-sync.js).
+  iframe._sfPendingSrcdoc = () =>
     typeof buildMoleculeEmbedSrcdoc === "function"
       ? buildMoleculeEmbedSrcdoc({
           ...elData,

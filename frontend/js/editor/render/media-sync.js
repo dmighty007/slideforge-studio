@@ -11,10 +11,49 @@ function getActiveSlideMediaIndex() {
   return currentSlideIndex;
 }
 
+// Embeds (HTML, molecules) on slides not opened yet keep their document unbuilt: iframe._sfPendingSrcdoc returns
+// it. Builds it into the iframe; false if it was already built.
+function loadDeferredIframe(iframe) {
+  const build = iframe?._sfPendingSrcdoc;
+  if (typeof build !== "function") return false;
+  iframe._sfPendingSrcdoc = null;
+  iframe.srcdoc = build();
+  return true;
+}
+
+// The document an embed shows or will show, without building it into the live iframe (the presenter view's copy
+// of the next slide needs it).
+function deferredIframeSrcdoc(iframe) {
+  if (!iframe) return "";
+  if (iframe.hasAttribute("srcdoc")) return iframe.getAttribute("srcdoc");
+  return typeof iframe._sfPendingSrcdoc === "function" ? iframe._sfPendingSrcdoc() : "";
+}
+
+// A rail thumbnail in view shows each molecule as a picture its viewer took. On a slide not opened yet the viewer
+// has not loaded, and the thumbnail kept the atom icon: it is loaded for the thumbnail. It reports "drawn", and
+// scheduleMoleculeThumbnail takes the picture and redraws the thumbnail.
+function loadMoleculeViewersForThumbnail(slide) {
+  (slide?.elements || []).forEach((el) => {
+    if (el.type !== "molecule" || moleculeThumbnail(el.id)) return;
+    const node = [...document.querySelectorAll(`[id="${el.id}"]`)].find((item) => !item.closest("#slide-previews"));
+    loadDeferredIframe(node?.querySelector(".molecule-embed-frame"));
+  });
+}
+
+// The slides shown last, newest first (the one on screen included). Their HTML embeds stay loaded: unloaded the
+// moment their slide was left, going back a slide while presenting restarted an interactive embed from scratch.
+// Older ones are unloaded, so at most this many embedded documents run at once.
+const RECENT_EMBED_SLIDES = 3;
+let _recentEmbedSlideIds = [];
+
 function syncActiveSlideMedia() {
   const container = document.getElementById("slides-container");
   if (!container) return;
   const activeIndex = getActiveSlideMediaIndex();
+  const activeId = container.children[activeIndex]?.id;
+  if (activeId && _recentEmbedSlideIds[0] !== activeId) {
+    _recentEmbedSlideIds = [activeId, ..._recentEmbedSlideIds.filter((id) => id !== activeId)].slice(0, RECENT_EMBED_SLIDES);
+  }
   const pageActive =
     document.visibilityState !== "hidden" && document.hasFocus();
   Array.from(container.children).forEach((section, index) => {
@@ -54,7 +93,19 @@ function syncActiveSlideMedia() {
       }
     });
 
+    // Embeds load and unload with the slide on screen, not with the window's focus: presenting with the presenter
+    // view, the speaker's window has it and the audience's does not, and its embeds still have to show.
+    const onScreen = index === activeIndex;
+    const recent = onScreen || _recentEmbedSlideIds.includes(section.id);
     section.querySelectorAll("iframe").forEach((iframe) => {
+      if (onScreen) loadDeferredIframe(iframe);
+      // HTML embeds may run arbitrary timers/WebGL loops. Removing their document
+      // suspends that work once their slide is no longer one of the recent ones; reopening reconstructs the saved HTML.
+      if (iframe.classList.contains("html-embed-frame") && !recent && iframe.hasAttribute("srcdoc")) {
+        const content = iframe.srcdoc;
+        iframe.removeAttribute("srcdoc");
+        iframe._sfPendingSrcdoc = () => content;
+      }
       const src = String(iframe.getAttribute("src") || "");
       const isMolecule = iframe.classList.contains("molecule-embed-frame");
       if (isMolecule) {
@@ -173,6 +224,8 @@ function requestMoleculeIframeViewState(iframe, timeoutMs = 350) {
 // A PNG (data URL) of what a molecule viewer shows now, or null if it has not loaded in time.
 // width/height: the element's size, used when the viewer's slide is hidden and it has no size of its own.
 function requestMoleculeSnapshot(iframe, timeoutMs = 6000, { transparent = true, factor = 2, width = 0, height = 0 } = {}) {
+  // Export may capture a slide the user has never visited.
+  loadDeferredIframe(iframe);
   return new Promise((resolve) => {
     if (!iframe?.contentWindow) {
       resolve(null);

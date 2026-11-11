@@ -164,6 +164,7 @@ function countPluginObjects(id) {
 
 function _activatePlugin(plugin) {
     _sfPlugins.set(plugin.id, plugin);
+    if (typeof invalidateSlideRenderCache === "function") invalidateSlideRenderCache();
     _installPluginInsertControls(plugin);
     // Objects of this plugin that were drawn from their saved picture can now be drawn by the plugin itself.
     if (countPluginObjects(plugin.id) && typeof renderSlidesFromState === "function") renderSlidesFromState();
@@ -189,6 +190,7 @@ async function enableSlidePlugin(id, scriptUrl = "") {
 function disableSlidePlugin(id) {
     _sfSwitchedOff.add(id);
     if (!_sfPlugins.delete(id)) return;
+    if (typeof invalidateSlideRenderCache === "function") invalidateSlideRenderCache();
     _removePluginInsertControls(id);
     // Its open explorers are forgotten: switching the plugin back on shows the saved pictures, not live views.
     for (const elementId of _sfPluginExplorersOpen) if (_findPluginElementInState(elementId)?.pluginId === id) _sfPluginExplorersOpen.delete(elementId);
