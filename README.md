@@ -108,6 +108,13 @@ from PyPI, then `slideforge`, and `slideforge --install-shortcut` for the icons.
 
 To run it from this repository instead, or to help build it, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
+## New in 0.8.1
+
+- **Faster editing:** an edit redraws only the slides that changed, embeds and thumbnails load as their slides come into view, and undo history uses a fraction of the memory.
+- **Landscape Explorer:** the 3D surface turns on the GPU, so orbiting, opening the explorer and saving its view no longer lag.
+
+See the [0.8.1 release notes](docs/releases/v0.8.1.md).
+
 ## New in 0.8
 
 - **Projects library:** the start screen has a Projects tab to sort, search, open and delete your saved presentations. Ctrl+O opens it from anywhere in the editor.
