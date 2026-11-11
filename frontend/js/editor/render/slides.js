@@ -129,9 +129,30 @@ function _collectReusableSlideNodes(container, { mode, keep = new Set() }) {
     const active = document.activeElement;
     const editing = active?.isContentEditable ? active.closest?.(".canvas-element.editing-text") : null;
     if (editing && container.contains(editing) && editing.parentElement?.parentElement === container) {
-      // The caret, taken now: hiding and clearing the old slides below moves the selection out of the box.
-      editing.__sfKeepWhileEditing = _caretOf(editing) || true;
-      elements.set(editing.id, editing);
+      const fresh = state.slides.flatMap(slide => slide.elements || []).find(el => el.id === editing.id);
+      const expectedContent = JSON.stringify(fresh?.content);
+      let contentMatches = active.__sfEditorContent === expectedContent;
+      if (!contentMatches && fresh) {
+        // Formatting commands can update both DOM and model without an input
+        // event. Keep that editor too when its current content agrees.
+        const drawnContent = active.dataset.structuredEdit === "true"
+          ? (_getStructuredEditorMode(active) === "list"
+            ? parseStructuredBulletEditorHtml(active, { preserveTrailingEmpty: true })
+            : parseEditableStructuredText(active.textContent || "", fresh.content))
+          : active.innerHTML;
+        contentMatches = JSON.stringify(drawnContent) === expectedContent;
+      }
+      if (contentMatches) {
+        active.__sfEditorContent = expectedContent;
+        // The caret, taken now: hiding and clearing the old slides below moves the selection out of the box.
+        editing.__sfKeepWhileEditing = _caretOf(editing) || true;
+        elements.set(editing.id, editing);
+      } else {
+        // Undo or another command replaced the model's content. The old editor
+        // must neither survive the redraw nor commit its stale DOM on blur.
+        active.contentEditable = "false";
+        clearActiveInlineEditor?.(active);
+      }
     }
     oldSections.forEach((section) => {
       section.querySelectorAll(":scope > .canvas-element").forEach((node) => {

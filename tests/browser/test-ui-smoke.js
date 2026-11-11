@@ -97,6 +97,7 @@ async function boot(page) {
         window.prompt = () => "https://example.com/video.mp4";
         document.addEventListener("DOMContentLoaded", () => {
             // These suites test the editor itself; test-start-screen.js covers the start screen.
+            window._smokeOpenStartScreen = window.openStartScreen;
             window.openStartScreen = () => false;
         });
     });
@@ -128,7 +129,10 @@ async function boot(page) {
         { timeout: 20000 },
     );
 
+    await page.waitForFunction(() => _presentationPersistenceReady && !isPresentationHydrating());
     await page.evaluate(() => {
+        // Suppress only the automatic launch screen; exercise the real Projects button.
+        window.openStartScreen = window._smokeOpenStartScreen;
         state.presentationTheme = "editorial";
         state.presentationTransition = "none";
         state.slides = [
@@ -1441,6 +1445,10 @@ async function ensureEditor(page) {
         await page.waitForTimeout(100);
         assert(!(await page.evaluate(() => isDrawingEditorOpen())), "The drawing editor should close");
 
+        // An update notice may arrive while this longer suite runs. Dismiss it
+        // through its UI before exercising controls underneath it.
+        const updateLater = page.locator('#sf-update-card [data-update="later"]');
+        if (await updateLater.isVisible()) await updateLater.click();
         await page.locator("button[aria-label='Collapse slide rail']").click();
         await page.waitForTimeout(100);
         assert(await page.evaluate(() => document.body.classList.contains("slide-rail-collapsed")), "Slide rail should collapse");

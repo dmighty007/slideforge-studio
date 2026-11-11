@@ -23,6 +23,53 @@ const url = process.env.SLIDEFORGE_TEST_URL || "http://127.0.0.1:8089/";
         finally { await context.close(); }
     }
     try {
+        await test("Typing immediately after entering a text box keeps its first character", async page => {
+            await page.evaluate(() => {
+                addSlide();
+                const body = state.slides[currentSlideIndex].elements.find(el => el.placeholderRole === "content");
+                window.immediateTextId = body.id;
+                window.immediateTextFrames = [];
+                window.immediateTextRAF = window.requestAnimationFrame;
+                // Simulate a busy frame: pointer and keyboard events can arrive before
+                // the caret's deferred work gets its next animation frame.
+                window.requestAnimationFrame = callback => { immediateTextFrames.push(callback); return 0; };
+                const node = document.getElementById(body.id), rect = node.getBoundingClientRect();
+                node.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, clientX: rect.x + 10, clientY: rect.y + 10 }));
+            });
+            try {
+                const focused = await page.evaluate(() => document.getElementById(immediateTextId).querySelector(".text-element-content") === document.activeElement);
+                assert.equal(focused, true, "The text box must accept keys before the next animation frame");
+                await page.keyboard.type("Alpha");
+                const typed = await page.evaluate(() => {
+                    window.requestAnimationFrame = immediateTextRAF;
+                    immediateTextFrames.splice(0).forEach(callback => callback(performance.now()));
+                    return document.getElementById(immediateTextId).querySelector(".text-element-content").textContent;
+                });
+                assert(typed.includes("Alpha"), `Typed text was lost: ${typed}`);
+                await page.keyboard.type(" Beta");
+                const continued = await page.evaluate(() => document.getElementById(immediateTextId).querySelector(".text-element-content").textContent);
+                assert(continued.includes("Alpha Beta"), `A late caret callback moved the next word: ${continued}`);
+            } finally {
+                await page.evaluate(() => { window.requestAnimationFrame = immediateTextRAF; });
+            }
+        });
+        await test("Redraw respects text replaced by a command while its old editor is focused", async page => {
+            const result = await page.evaluate(() => {
+                addElement("text");
+                const id = state.selectedIds[0];
+                const before = document.getElementById(id).querySelector(".text-element-content");
+                const focused = document.activeElement === before;
+                const element = state.slides[currentSlideIndex].elements.find(el => el.id === id);
+                element.content = "Replacement text";
+                element.textDocument = createTextDocumentFromLegacyContent(element.content);
+                renderSlidesFromState();
+                return { focused, model: state.slides[currentSlideIndex].elements.find(el => el.id === id).content,
+                    drawn: document.getElementById(id).textContent };
+            });
+            assert.equal(result.focused, true);
+            assert.equal(result.model, "Replacement text");
+            assert(result.drawn.includes("Replacement text"), `Stale text drawn: ${result.drawn}`);
+        });
         await test("A failed Mermaid render does not poison later valid renders", async page => {
             const result = await page.evaluate(async () => {
                 const engine = await import("/js/mermaid/mermaid-engine.js");
@@ -125,6 +172,10 @@ const url = process.env.SLIDEFORGE_TEST_URL || "http://127.0.0.1:8089/";
             assert.deepEqual(result, { a: false, b: true, id: "async-B", slide: "async-B-slide" });
             pending.clear();
             await page.evaluate(() => {
+                // Start another pair of network loads. B is now current and cached;
+                // opening it again correctly returns without an API request.
+                clearProjectTabs();
+                currentPresentationId = null;
                 window.openA = loadProjectById("async-A");
                 window.openB = loadProjectById("async-B");
             });
