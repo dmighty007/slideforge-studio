@@ -14,6 +14,8 @@ pywebview runs its event handlers on worker threads, so view changes are queued 
 """
 
 import logging
+import subprocess
+import sys
 import webbrowser
 from pathlib import Path
 
@@ -21,6 +23,35 @@ log = logging.getLogger(__name__)
 _bridge = None
 _app_port = None  # popups on this port belong to the app; anything else goes to the system browser
 _popups = []  # keep popup windows alive until closed
+
+
+def check_platform() -> None:
+    """Probe Linux QPA in a child: missing displays/libraries abort Qt rather than raising.
+
+    Keep the selected platform and environment intact, including explicit user overrides.
+    This must run before importing pywebview's Qt backend, which creates QApplication.
+    """
+    if not sys.platform.startswith("linux"):
+        return
+    probe = (
+        "import resource; resource.setrlimit(resource.RLIMIT_CORE, (0, 0)); "
+        "from qtpy.QtWidgets import QApplication; app = QApplication([])"
+    )
+    hint = (
+        "Qt could not connect to the desktop. Try slideforge --browser. "
+        "If QT_QPA_PLATFORM is set, try unsetting it; on an X11 desktop try "
+        "QT_QPA_PLATFORM=xcb slideforge. On Ubuntu, xcb may require "
+        "sudo apt install libxcb-cursor0."
+    )
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", probe], capture_output=True, text=True, timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError(hint) from exc
+    if result.returncode:
+        log.warning("Qt platform check failed (%s): %s", result.returncode, result.stderr.strip())
+        raise RuntimeError(hint)
 
 
 def available() -> bool:
