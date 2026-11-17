@@ -1593,7 +1593,8 @@ function editAnimation(elementId, timelineIdx, animIdx) {
 }
 
 // action: { label, run } adds a button (the notice then stays up longer, until it is used or closed).
-function showNotification(message, type = "info", { action = null } = {}) {
+// sticky: with an action, the notice stays until it is used or closed (an offer that is gone once it is missed).
+function showNotification(message, type = "info", { action = null, sticky = false } = {}) {
     const notification = document.createElement("div");
     notification.className = `notification notification-${type}`;
     notification.textContent = message;
@@ -1633,6 +1634,7 @@ function showNotification(message, type = "info", { action = null } = {}) {
   `;
     document.body.appendChild(notification);
 
+    if (sticky && action) return;
     // Errors stay up longer: they usually say what to do next.
     setTimeout(() => {
         notification.remove();

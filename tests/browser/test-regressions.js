@@ -5652,13 +5652,13 @@ async function test(name, fn) {
             // A small deck: localStorage.
             _writeUnsavedBackup({ autosaveVersion: 4, state: withContent("small") });
             await settle();
-            const small = { inLocal: Boolean(localStorage.getItem(UNSAVED_BACKUP_STORAGE_KEY)),
-                read: (await _readUnsavedBackup())?.state.slides[0].elements[0].content };
+            const small = { inLocal: Boolean(localStorage.getItem(_unsavedBackupKey("idb-backup-test"))),
+                read: (await _readUnsavedBackup("idb-backup-test"))?.state.slides[0].elements[0].content };
             // Then it grows past the quota (simulated: localStorage refuses the backup), with typing kept meanwhile.
             localStorage.setItem(UNSAVED_TYPING_STORAGE_KEY, JSON.stringify({ scope: "idb-backup-test", elements: {} }));
             const setItem = Storage.prototype.setItem;
             Storage.prototype.setItem = function (key, value) {
-                if (key === UNSAVED_BACKUP_STORAGE_KEY) throw new DOMException("full", "QuotaExceededError");
+                if (key === _unsavedBackupKey("idb-backup-test")) throw new DOMException("full", "QuotaExceededError");
                 return setItem.call(this, key, value);
             };
             try {
@@ -5666,17 +5666,17 @@ async function test(name, fn) {
             } finally {
                 Storage.prototype.setItem = setItem;
             }
-            const staleLeftAtOnce = localStorage.getItem(UNSAVED_BACKUP_STORAGE_KEY);
+            const staleLeftAtOnce = localStorage.getItem(_unsavedBackupKey("idb-backup-test"));
             await settle();
-            const big = await _readUnsavedBackup();
+            const big = await _readUnsavedBackup("idb-backup-test");
             const typingLeft = localStorage.getItem(UNSAVED_TYPING_STORAGE_KEY);
             const recovered = _takeUnsavedBackup(big, "idb-backup-test", 5, null);
             await settle();
-            const afterTake = await _readUnsavedBackup();
+            const afterTake = await _readUnsavedBackup("idb-backup-test");
             // Clearing after a save removes it from IndexedDB too.
             _writeUnsavedBackup({ autosaveVersion: 6, state: withContent("x".repeat(10)) });
             Storage.prototype.setItem = function (key, value) {
-                if (key === UNSAVED_BACKUP_STORAGE_KEY) throw new DOMException("full", "QuotaExceededError");
+                if (key === _unsavedBackupKey("idb-backup-test")) throw new DOMException("full", "QuotaExceededError");
                 return setItem.call(this, key, value);
             };
             try {
@@ -5686,7 +5686,7 @@ async function test(name, fn) {
             }
             _clearUnsavedBackup("idb-backup-test");
             await settle();
-            const afterClear = await _readUnsavedBackup();
+            const afterClear = await _readUnsavedBackup("idb-backup-test");
             return { small, staleLeftAtOnce, big: big?.state.slides[0].elements[0].content, bigVersion: big?.autosaveVersion,
                 typingLeft, recovered: recovered?.state.slides[0].elements[0].content, afterTake, afterClear };
         });
@@ -5694,6 +5694,41 @@ async function test(name, fn) {
         assert(result.staleLeftAtOnce === null, `the older localStorage copy was left: ${JSON.stringify(result)}`);
         assert(result.big === "grown" && result.bigVersion === 5 && result.typingLeft === null, `IndexedDB copy: ${JSON.stringify(result)}`);
         assert(result.recovered === "grown" && result.afterTake === null && result.afterClear === null, `take/clear: ${JSON.stringify(result)}`);
+        await page.close();
+    });
+
+    await test("Unsaved backups are kept per project, and one from before that change is still read", async () => {
+        const { page } = await openFreshEditor(context);
+        const result = await page.evaluate(async () => {
+            const withContent = text => {
+                const copy = JSON.parse(JSON.stringify(getPersistableState()));
+                copy.slides[0].elements[0].content = text;
+                return copy;
+            };
+            const real = currentPresentationId;
+            const read = async id => (await _readUnsavedBackup(id))?.state.slides[0].elements[0].content ?? null;
+            try {
+                // Two projects open in two tabs share localStorage: each backup used to replace the other.
+                currentPresentationId = "slot-a";
+                _writeUnsavedBackup({ autosaveVersion: 1, state: withContent("deck a") });
+                currentPresentationId = "slot-b";
+                _writeUnsavedBackup({ autosaveVersion: 1, state: withContent("deck b") });
+                const both = { a: await read("slot-a"), b: await read("slot-b") };
+                _clearUnsavedBackup("slot-b");
+                const afterClear = { a: await read("slot-a"), b: await read("slot-b") };
+                _clearUnsavedBackup("slot-a");
+                // Written by a version with one slot for every project.
+                localStorage.setItem(UNSAVED_BACKUP_STORAGE_KEY, JSON.stringify({ presentationId: "slot-c", autosaveVersion: 1, state: withContent("deck c") }));
+                const old = { own: await read("slot-c"), other: await read("slot-a") };
+                const taken = _takeUnsavedBackup(await _readUnsavedBackup("slot-c"), "slot-c", 1, null);
+                return { both, afterClear, old, taken: Boolean(taken), oldLeft: localStorage.getItem(UNSAVED_BACKUP_STORAGE_KEY) };
+            } finally {
+                currentPresentationId = real;
+            }
+        });
+        assert(result.both.a === "deck a" && result.both.b === "deck b", `one backup replaced the other: ${JSON.stringify(result)}`);
+        assert(result.afterClear.a === "deck a" && result.afterClear.b === null, `clearing one project's backup: ${JSON.stringify(result)}`);
+        assert(result.old.own === "deck c" && result.old.other === null && result.taken && result.oldLeft === null, `single-slot backup: ${JSON.stringify(result)}`);
         await page.close();
     });
 
@@ -11230,6 +11265,76 @@ async function test(name, fn) {
             const hint = await second.page.evaluate(() => document.getElementById("project-save-hint")?.textContent || "");
             assert(/saved|recovered/i.test(hint), `recovered edit was not saved (hint: ${hint})`);
             await second.page.close();
+        });
+
+        await test("Keeping mine after a conflict asks the server to keep the version it replaces", async () => {
+            const { page } = await openFreshEditor(context);
+            const bodies = [];
+            page.on("request", request => {
+                if (request.method() === "PATCH" && /\/api\/presentations\/[^/]+\/$/.test(request.url())) bodies.push(JSON.parse(request.postData() || "{}"));
+            });
+            const outcome = await page.evaluate(async () => {
+                addElement("text");
+                await autosavePresentationNow();
+                // Another window saves: the server's version moves on.
+                await _presentationRequest(`/api/presentations/${currentPresentationId}/`, {
+                    method: "PATCH",
+                    body: JSON.stringify({ title: "Other window", autosaveVersion: currentPresentationAutosaveVersion }),
+                });
+                addElement("text");
+                await autosavePresentationNow();
+                const conflicted = _saveConflict?.id === currentPresentationId;
+                const kept = await saveCurrentProject();
+                return { conflicted, kept, cleared: !_saveConflict };
+            });
+            assert(outcome.conflicted && outcome.kept && outcome.cleared, `conflict then Ctrl+S: ${JSON.stringify(outcome)}`);
+            const flags = bodies.map(body => Boolean(body.keepReplaced));
+            assert(flags.length >= 3 && flags[flags.length - 1] && flags.slice(0, -1).every(flag => !flag), `keepReplaced per save: ${JSON.stringify(flags)}`);
+            await page.close();
+        });
+
+        await test("Unsaved edits refused on reopening (the project changed elsewhere) are said, and can be restored", async () => {
+            const first = await openFreshEditor(context);
+            const marker = `refused-edit-${Date.now()}`;
+            await first.page.evaluate(async marker => {
+                addElement("text");
+                await autosavePresentationNow();
+                // Edits made on an older version than the server has now: another window saved since.
+                const edited = JSON.parse(JSON.stringify(getPersistableState()));
+                edited.slides[0].notes = marker;
+                _writeUnsavedBackup({ autosaveVersion: currentPresentationAutosaveVersion - 1, state: edited });
+                // Closing must leave that backup as it is (the last save on closing would write its own).
+                window.removeEventListener("pagehide", flushUnsavedChangesOnExit);
+            }, marker);
+            await first.page.close();
+
+            const second = await openEditor(context);
+            await second.page.waitForFunction(() => !isPresentationHydrating());
+            const opened = await second.page.evaluate(marker => ({
+                applied: state.slides.some(s => s.notes === marker),
+                said: [...document.querySelectorAll(".notification")].map(n => n.textContent).join(" | "),
+                offered: [...document.querySelectorAll(".notification .notification-action")].map(b => b.textContent),
+            }), marker);
+            assert(!opened.applied, "edits made on an older version replaced the server's deck");
+            assert(/not applied/i.test(opened.said) && opened.offered.length === 1, `the refused edits were dropped without a word: ${JSON.stringify(opened)}`);
+            const bodies = [];
+            second.page.on("request", request => {
+                if (request.method() === "PATCH" && /\/api\/presentations\/[^/]+\/$/.test(request.url())) bodies.push(JSON.parse(request.postData() || "{}"));
+            });
+            const saved = second.page.waitForResponse(response => response.request().method() === "PATCH" && /\/api\/presentations\/[^/]+\/$/.test(response.url()), { timeout: 15000 });
+            await second.page.click(".notification .notification-action");
+            assert((await saved).status() === 200, "the restored edits were refused by the server");
+            await second.page.waitForFunction(() => _persistedStateIsCurrent(), null, { timeout: 10000 });
+            const restored = await second.page.evaluate(marker => state.slides.some(s => s.notes === marker), marker);
+            assert(restored, "Restore did not bring the refused edits back");
+            assert(bodies.length && bodies.every(body => body.keepReplaced === true), `restoring replaces the server's deck, which must be kept: ${JSON.stringify(bodies.map(b => b.keepReplaced))}`);
+            await second.page.close();
+
+            const third = await openEditor(context);
+            await third.page.waitForFunction(() => !isPresentationHydrating());
+            const kept = await third.page.evaluate(marker => state.slides.some(s => s.notes === marker), marker);
+            assert(kept, "the restored edits were not saved");
+            await third.page.close();
         });
     }
 
