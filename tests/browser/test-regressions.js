@@ -10278,6 +10278,49 @@ async function test(name, fn) {
             await page.close();
         });
 
+        await test("PowerPoint import: a slide that cannot be read is left out and named; the others come in", async () => {
+            const { page } = await openEditor(context);
+            const out = await pageAwait(page, async () => {
+                const ns = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"';
+                const rels = list => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${list.map(([id, type, target]) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`).join("")}</Relationships>`;
+                const words = text => `<p:sp><p:nvSpPr><p:cNvPr id="2" name="TextBox 1"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="600000" y="600000"/><a:ext cx="6000000" cy="800000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr><p:txBody><a:bodyPr/><a:p><a:r><a:rPr lang="en-GB"/><a:t>${text}</a:t></a:r></a:p></p:txBody></p:sp>`;
+                const zip = new JSZip();
+                zip.file("ppt/presentation.xml", `<p:presentation ${ns}><p:sldIdLst><p:sldId id="256" r:id="rId1"/><p:sldId id="257" r:id="rId2"/><p:sldId id="258" r:id="rId3"/></p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/></p:presentation>`);
+                zip.file("ppt/_rels/presentation.xml.rels", rels([1, 2, 3].map(n => [`rId${n}`, "slide", `slides/slide${n}.xml`])));
+                ["first words", "unreadable", "third words"].forEach((text, i) =>
+                    zip.file(`ppt/slides/slide${i + 1}.xml`, `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>${words(text)}</p:spTree></p:cSld></p:sld>`));
+                const file = async () => new File([await zip.generateAsync({ type: "blob" })], "Partly readable.pptx");
+                const texts = () => state.slides.map(slide => slide.elements.map(e => String(e.content || e.shapeText || "")).join(" "));
+                const read = _pptxSlideElements;
+                const alerts = [];
+                const realAlert = window.alert;
+                window.alert = message => alerts.push(String(message));
+                try {
+                    // Every slide failing is still a failed import, said as one.
+                    _pptxSlideElements = () => { throw new Error("cannot read this slide"); };
+                    await importPptx(await file());
+                    const allFailed = alerts.splice(0);
+                    // The second slide fails as a slide with something the importer cannot handle would.
+                    _pptxSlideElements = (pkg, path, ...rest) => {
+                        if (/slide2\.xml$/.test(path)) throw new Error("cannot read this slide");
+                        return read(pkg, path, ...rest);
+                    };
+                    await importPptx(await file());
+                    const partly = { texts: texts(), said: [...document.querySelectorAll(".notification")].map(n => n.textContent).join(" | "), alerts: [...alerts] };
+                    await autosavePresentationNow(); // the imported deck is left saved for the test after this one
+                    return { partly, allFailed };
+                } finally {
+                    _pptxSlideElements = read;
+                    window.alert = realAlert;
+                }
+            });
+            const { partly } = out;
+            assert(partly.texts.length === 2 && /first words/.test(partly.texts[0]) && /third words/.test(partly.texts[1]), `the readable slides: ${JSON.stringify(partly)}`);
+            assert(!partly.alerts.length && /Slide 2 of the file could not be read/.test(partly.said), `the slide left out is named: ${JSON.stringify(partly)}`);
+            assert(out.allFailed.length === 1 && /none of its slides could be read/.test(out.allFailed[0]), `all slides failing: ${JSON.stringify(out.allFailed)}`);
+            await page.close();
+        });
+
         await test("PowerPoint import: a moon shape draws as a crescent in its group's fill, and arcs end where PowerPoint's do", async () => {
             const { page, errors } = await openEditor(context);
             const out = await pageAwait(page, async () => {
