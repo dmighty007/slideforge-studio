@@ -634,6 +634,7 @@ function _buildPropertiesPanelNow() {
 
     if (data.type === "plugin") {
       buildPluginPanel(panel, data);
+      if (typeof buildElementLinkGroup === "function") buildElementLinkGroup(panel, data);
     }
 
     if (data.type === "chart" && typeof buildChartPanel === "function") {

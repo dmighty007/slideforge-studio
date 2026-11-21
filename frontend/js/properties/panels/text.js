@@ -33,8 +33,8 @@ function _slideLabelForLinkOption(slide, idx) {
 }
 
 function buildElementLinkGroup(panel, data) {
-  if (!data || !["text", "shape", "image"].includes(data.type)) return;
-  const currentHref = _extractExistingTextHref(data);
+  if (!data || !["text", "shape", "image", "plugin"].includes(data.type)) return;
+  const currentHref = data.type === "plugin" ? (data.pluginData?.href || data.clickLink || "") : _extractExistingTextHref(data);
   const slides = state.slides || [];
   const isSlideHref = currentHref.startsWith("#slide:");
   const isUrlHref = Boolean(currentHref && !isSlideHref);
@@ -224,8 +224,14 @@ function applyElementLink(elementId, href) {
   } else {
     if (cleanHref) {
       data.clickLink = cleanHref;
+      if (data.type === "plugin" && data.pluginId === "designer-button" && data.pluginData) {
+        data.pluginData = { ...data.pluginData, href: cleanHref };
+      }
     } else {
       delete data.clickLink;
+      if (data.type === "plugin" && data.pluginId === "designer-button" && data.pluginData) {
+        data.pluginData = { ...data.pluginData, href: "" };
+      }
     }
   }
 

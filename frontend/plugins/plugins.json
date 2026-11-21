@@ -26,6 +26,7 @@
         "volcano",
         "heatmap",
         "colorbar",
-        "paper-badge"
+        "paper-badge",
+        "designer-button"
     ]
 }
