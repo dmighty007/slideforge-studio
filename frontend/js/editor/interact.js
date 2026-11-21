@@ -982,7 +982,7 @@ document.addEventListener(
     if (!link) return;
     event.preventDefault();
     if (!document.body.classList.contains("play-mode-active")) return;
-    if (elementLink) event.stopPropagation(); // not also the show's click-to-advance
+    event.stopPropagation(); // not also the show's click-to-advance
     const href = (link.getAttribute("href") || link.dataset.clickLink || "").trim();
     if (/^(https?:|mailto:)/i.test(href)) window.open(href, "_blank", "noopener");
     else if (href.startsWith("#slide:")) goToLinkedSlide(href.slice(7));

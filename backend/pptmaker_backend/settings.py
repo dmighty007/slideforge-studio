@@ -31,8 +31,8 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
-TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
-DEBUG = os.getenv("DJANGO_DEBUG", "1" if "runserver" in sys.argv else "0") == "1"
+TESTING = (len(sys.argv) > 1 and sys.argv[1] in {"test", "check"}) or ("pytest" in (sys.argv[0] if sys.argv else ""))
+DEBUG = _env_bool("DJANGO_DEBUG", default="runserver" in sys.argv)
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 if not SECRET_KEY:
     if DEBUG or TESTING:

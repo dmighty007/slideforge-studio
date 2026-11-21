@@ -3456,14 +3456,15 @@ async function importPptx(file) {
         // Every slide's id before any is read, so a link on one slide to another can name it (PptxPackage.links).
         pkg.slideIds = new Map(slidePaths.map(path => [path, generateId("slide")]));
 
-        // Into a project of its own, named after the file (never over the project that is open). Created before the
-        // slides are read, so the pictures they upload belong to it.
+        // Into a project of its own, named after the file (never over a different project that is open), or updating
+        // the already-open tab when the same file is imported again.
+        const rawBaseTitle = String(file.name || "Imported presentation").replace(/\.pptx$/i, "");
         const importTitle =
             typeof uniqueImportTitle === "function"
-                ? await uniqueImportTitle(String(file.name || "Imported presentation").replace(/\.pptx$/i, ""))
-                : String(file.name || "Imported presentation").replace(/\.pptx$/i, "");
+                ? await uniqueImportTitle(rawBaseTitle, file)
+                : rawBaseTitle;
         busy.update({ detail: "Saving the open project…", progress: 0.03 });
-        if (typeof startNewProjectForImport === "function") await startNewProjectForImport();
+        if (typeof startNewProjectForImport === "function") await startNewProjectForImport(file, { baseTitle: rawBaseTitle });
 
         // The slides take nearly all the time: 5% to 95% of the bar, one step per slide.
         const slides = [];
@@ -3541,6 +3542,9 @@ async function importPptx(file) {
         syncPresentationPageSetup?.(); // the canvas takes the new proportions before the slides are drawn
         state.slides = slides;
         setCurrentPresentationTitle?.(importTitle);
+        if (typeof currentPresentationId !== "undefined" && currentPresentationId && file?.name) {
+            window.setProjectTabImportSource?.(currentPresentationId, file.name);
+        }
         resetUndoHistory?.();
         setCurrentSlideIndex?.(0);
         clearSelection?.();
@@ -3562,11 +3566,13 @@ async function importPptx(file) {
         setProjectSaveHint?.(`Imported ${summary}${unread.length ? `; ${unread.length} left out` : ""}`, unread.length ? "warn" : "success");
         if (left && typeof showNotification === "function") showNotification(left, "error");
         busy.update({ detail: `Imported ${summary}`, progress: 1 });
+        clearImportProjectRollback?.();
         schedulePresentationAutosave?.();
         // Fonts the deck uses that this computer lacks: offered for download from Google Fonts (js/ui/fonts.js).
         setTimeout(() => window.sfOfferMissingFonts?.({ auto: true }), 800);
     } catch (err) {
         console.error("PPTX Import Error:", err);
+        await window.rollbackFailedImportProject?.();
         busy.done(); // gone before the alert, which blocks the page
         alert("Failed to import PPTX: " + err.message);
         setProjectSaveHint?.("Import failed", "danger");

@@ -376,10 +376,13 @@ function restoreRefusedChanges() {
     if (refused.typing) _applyTypingBackup(refused.typing);
     normalizeStateIds();
     syncPresentationThemeFromState?.({ persist: false });
+    syncPresentationPageSetup?.();
     currentSlideIndex = Math.max(0, Math.min(currentSlideIndex, state.slides.length - 1));
     _keepReplacedOnSave = currentPresentationId;
     _lastPersistedFingerprint = "";
+    clearSelection?.();
     renderSlidesFromState?.();
+    buildPropertiesPanel?.({ immediate: true });
     updateSlideCounter?.();
     schedulePresentationAutosave(300);
     return true;

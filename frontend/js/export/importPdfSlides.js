@@ -45,9 +45,10 @@ async function importPdfSlides(file) {
     const busy = sfBusyStart({ title: `Opening ${file.name || "PDF"} as slides`, detail: "Preparing…", progress: 0, delay: 0 });
     try {
         setProjectSaveHint?.("Reading PDF…", "muted");
-        // Its own project first, so the pictures the server stores belong to it.
+        const title = typeof uniqueImportTitle === "function" ? await uniqueImportTitle(name, file) : name;
+        // Its own project first, so the pictures the server stores belong to it (or reuses the open tab for this file).
         busy.update({ detail: "Saving the open project…" });
-        if (typeof startNewProjectForImport === "function") await startNewProjectForImport();
+        if (typeof startNewProjectForImport === "function") await startNewProjectForImport(file, { baseTitle: name });
 
         const form = new FormData();
         form.append("file", file, file.name || "slides.pdf");
@@ -98,12 +99,15 @@ async function importPdfSlides(file) {
         state.pageSetup = setup.id;
         syncPresentationPageSetup?.();
         state.slides = slides;
-        const title = typeof uniqueImportTitle === "function" ? await uniqueImportTitle(name) : name;
         setCurrentPresentationTitle?.(title);
+        if (typeof currentPresentationId !== "undefined" && currentPresentationId && file?.name) {
+            window.setProjectTabImportSource?.(currentPresentationId, file.name);
+        }
         resetUndoHistory?.();
         setCurrentSlideIndex?.(0);
         clearSelection?.();
         renderSlidesFromState?.();
+        buildPropertiesPanel?.({ immediate: true });
         updateSlideCounter?.();
         if (typeof Reveal !== "undefined" && typeof Reveal.slide === "function") Reveal.slide(0);
         requestAnimationFrame(() => {
@@ -115,9 +119,11 @@ async function importPdfSlides(file) {
         const summary = `${slides.length} ${slides.length === 1 ? "slide" : "slides"}${links ? `, ${links} ${links === 1 ? "link" : "links"}` : ""}`;
         setProjectSaveHint?.(`Opened ${summary} from the PDF`, "success");
         busy.update({ detail: `Opened ${summary}`, progress: 1 });
+        clearImportProjectRollback?.();
         schedulePresentationAutosave?.();
     } catch (err) {
         console.error("PDF import error:", err);
+        await window.rollbackFailedImportProject?.();
         busy.done(); // gone before the alert, which blocks the page
         alert("Failed to open the PDF as slides: " + err.message);
         setProjectSaveHint?.("Import failed", "danger");

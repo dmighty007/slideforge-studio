@@ -1,3 +1,263 @@
+function _extractExistingTextHref(data) {
+  if (!data) return "";
+  const dom = document.getElementById(data.id);
+  const host = dom?.querySelector(".text-element-content");
+  const sel = window.getSelection?.();
+  if (host && sel && sel.rangeCount > 0 && host.contains(sel.anchorNode)) {
+    const anchorEl =
+      (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement)?.closest?.("a[href]") ||
+      (sel.focusNode?.nodeType === 1 ? sel.focusNode : sel.focusNode?.parentElement)?.closest?.("a[href]");
+    if (anchorEl) return anchorEl.getAttribute("href") || "";
+  }
+  if (typeof data.content === "string") {
+    const m = data.content.match(/<a\s+[^>]*href=["']([^"']+)["']/i);
+    if (m) return m[1];
+  }
+  return data.clickLink || "";
+}
+
+function _slideLabelForLinkOption(slide, idx) {
+  let heading = "";
+  for (const el of slide?.elements || []) {
+    if (el?.type === "text" && typeof el.content === "string") {
+      const plain = el.content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      if (plain && !/^SLIDEFORGE$/i.test(plain) && !/^\d+\s*\/\s*\d+$/.test(plain) && !/^BACKUP$/i.test(plain)) {
+        heading = plain;
+        break;
+      }
+    }
+  }
+  const shortHeading = heading.length > 36 ? `${heading.slice(0, 35)}…` : heading;
+  const suffix = slide?.hidden ? " (Hidden backup)" : "";
+  return `Slide ${idx + 1}${shortHeading ? ` — ${shortHeading}` : ""}${suffix}`;
+}
+
+function buildElementLinkGroup(panel, data) {
+  if (!data || !["text", "shape", "image"].includes(data.type)) return;
+  const currentHref = _extractExistingTextHref(data);
+  const slides = state.slides || [];
+  const isSlideHref = currentHref.startsWith("#slide:");
+  const isUrlHref = Boolean(currentHref && !isSlideHref);
+  const presetTargets = [
+    ["#slide:next", "Next slide"],
+    ["#slide:previous", "Previous slide"],
+    ["#slide:first", "First slide"],
+    ["#slide:last", "Last shown slide"],
+  ];
+
+  const slideOptionsHtml = [
+    `<option value="" ${!currentHref ? "selected" : ""}>No link</option>`,
+    `<optgroup label="Slide in this deck">`,
+    ...slides.map((s, idx) => {
+      const val = `#slide:${s.id}`;
+      return `<option value="${escapeHtml(val)}" ${currentHref === val ? "selected" : ""}>${escapeHtml(_slideLabelForLinkOption(s, idx))}</option>`;
+    }),
+    ...presetTargets.map(
+      ([val, label]) =>
+        `<option value="${val}" ${currentHref === val ? "selected" : ""}>${label}</option>`,
+    ),
+    `</optgroup>`,
+    `<optgroup label="External">`,
+    `<option value="__url__" ${isUrlHref ? "selected" : ""}>Web address or email (https:// or mailto:)</option>`,
+    `</optgroup>`,
+  ].join("");
+
+  const linkGrp = createGroup("Link");
+  linkGrp.classList.add("prop-group-compact");
+  linkGrp.appendChild(
+    createField(
+      data.type === "text" ? "Link selected text (or box)" : "Click action while presenting",
+      `
+        <div class="space-y-2">
+          <select id="prop-link-destination" class="prop-select">
+            ${slideOptionsHtml}
+          </select>
+          <div id="prop-link-url-row" class="${isUrlHref ? "" : "hidden"} flex gap-1.5">
+            <input type="text" id="prop-link-url" class="prop-input-sm flex-1" placeholder="https://example.org or #slide:..." value="${escapeHtml(isUrlHref ? currentHref : "")}">
+            <button type="button" id="prop-link-apply" class="prop-action-btn" style="width:auto;padding:0 10px;">Apply</button>
+          </div>
+          ${currentHref ? `<div class="flex items-center justify-between text-xs text-slate-600 pt-0.5">
+            <span class="truncate" title="${escapeHtml(currentHref)}"><i class="fa-solid fa-link text-primary mr-1"></i>${escapeHtml(currentHref)}</span>
+            <button type="button" id="prop-link-remove" class="text-red-600 hover:underline font-semibold ml-2 shrink-0">Remove link</button>
+          </div>` : `<div class="prop-field-hint">${data.type === "text" ? "Highlight words on the canvas (or select the box) and choose a slide or hidden backup slide to jump to while presenting." : "Clicking this object while presenting jumps to the chosen slide or opens the web link."}</div>`}
+        </div>
+      `,
+    ),
+  );
+  panel.appendChild(linkGrp);
+
+  const destSelect = linkGrp.querySelector("#prop-link-destination");
+  const urlRow = linkGrp.querySelector("#prop-link-url-row");
+  const urlInput = linkGrp.querySelector("#prop-link-url");
+  const applyBtn = linkGrp.querySelector("#prop-link-apply");
+  const removeBtn = linkGrp.querySelector("#prop-link-remove");
+
+  if (destSelect) bindInlineFormattingGuard(destSelect);
+  if (applyBtn) bindInlineFormattingGuard(applyBtn);
+  if (removeBtn) bindInlineFormattingGuard(removeBtn);
+
+  if (destSelect) {
+    destSelect.onchange = () => {
+      const val = destSelect.value;
+      if (val === "__url__") {
+        urlRow?.classList.remove("hidden");
+        urlInput?.focus();
+        return;
+      }
+      urlRow?.classList.add("hidden");
+      applyElementLink(data.id, val);
+    };
+  }
+  if (applyBtn && urlInput) {
+    const commitUrl = () => {
+      let raw = (urlInput.value || "").trim();
+      if (raw && !/^(https?:|mailto:|#slide:)/i.test(raw)) {
+        raw = `https://${raw}`;
+      }
+      applyElementLink(data.id, raw);
+    };
+    applyBtn.onclick = commitUrl;
+    urlInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        commitUrl();
+      }
+    });
+  }
+  if (removeBtn) {
+    removeBtn.onclick = () => applyElementLink(data.id, "");
+  }
+}
+
+function applyElementLink(elementId, href) {
+  const slide = state.slides?.[currentSlideIndex];
+  const data = slide?.elements?.find((el) => el.id === elementId);
+  if (!data) return false;
+  const cleanHref = String(href || "").trim();
+  if (cleanHref && typeof isSafeClickLink === "function" && !isSafeClickLink(cleanHref)) {
+    showNotification?.("Enter a valid slide link (#slide:...) or web address (https://...)", "error");
+    return false;
+  }
+
+  saveStateToUndo();
+
+  if (data.type === "text" && !data.iconMode && !Array.isArray(data.content)) {
+    const dom = document.getElementById(data.id);
+    const host = dom?.querySelector(".text-element-content");
+    if (host && typeof restoreInlineSelection === "function") {
+      restoreInlineSelection(host);
+    }
+    const sel = window.getSelection?.();
+    const hasInlineRange =
+      host &&
+      sel &&
+      sel.rangeCount > 0 &&
+      !sel.getRangeAt(0).collapsed &&
+      host.contains(sel.getRangeAt(0).commonAncestorContainer);
+
+    if (!cleanHref) {
+      // Remove link from selected anchor or whole text box
+      if (host) {
+        const existingAnchors = [...host.querySelectorAll("a[href]")];
+        existingAnchors.forEach((a) => {
+          const textNode = document.createTextNode(a.textContent || "");
+          a.replaceWith(textNode);
+        });
+        host.normalize();
+        data.content = sanitizeTextContentValue(host.innerHTML);
+      } else if (typeof data.content === "string") {
+        data.content = data.content.replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, "$1");
+      }
+      delete data.clickLink;
+      delete data.textDocument;
+    } else if (hasInlineRange) {
+      const range = sel.getRangeAt(0);
+      // Unwrap any nested anchors inside the selection first
+      const fragment = range.extractContents();
+      fragment.querySelectorAll?.("a").forEach((a) => {
+        a.replaceWith(...a.childNodes);
+      });
+      const anchor = document.createElement("a");
+      anchor.setAttribute("href", cleanHref);
+      anchor.appendChild(fragment);
+      range.insertNode(anchor);
+      sel.removeAllRanges();
+      const newRange = document.createRange();
+      newRange.selectNodeContents(anchor);
+      sel.addRange(newRange);
+      if (typeof saveInlineSelection === "function") saveInlineSelection(host);
+      data.content = sanitizeTextContentValue(host.innerHTML);
+      delete data.textDocument;
+    } else {
+      // If cursor is inside an existing <a>, update its href; otherwise wrap the text box's content in <a href="...">
+      const anchorInHost =
+        host &&
+        sel &&
+        sel.rangeCount > 0 &&
+        host.contains(sel.anchorNode) &&
+        (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement)?.closest?.("a[href]");
+      if (anchorInHost) {
+        anchorInHost.setAttribute("href", cleanHref);
+        data.content = sanitizeTextContentValue(host.innerHTML);
+      } else if (typeof data.content === "string" && /^<a\b[^>]*>[\s\S]*<\/a>$/i.test(data.content.trim())) {
+        data.content = data.content.replace(/^<a\b[^>]*>/i, `<a href="${escapeHtml(cleanHref)}">`);
+      } else {
+        const inner = String(data.content || "").replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, "$1");
+        let fallbackLabel = inner;
+        if (!fallbackLabel.replace(/<[^>]+>/g, "").trim()) {
+          if (cleanHref.startsWith("#slide:")) {
+            const targetId = cleanHref.slice(7);
+            const targetIdx = (state.slides || []).findIndex((s) => s?.id === targetId);
+            if (targetIdx >= 0) {
+              fallbackLabel = escapeHtml(_slideLabelForLinkOption(state.slides[targetIdx], targetIdx));
+            } else {
+              fallbackLabel = escapeHtml(`Go to ${targetId} slide`);
+            }
+          } else {
+            fallbackLabel = escapeHtml(cleanHref);
+          }
+        }
+        data.content = `<a href="${escapeHtml(cleanHref)}">${fallbackLabel}</a>`;
+      }
+      delete data.textDocument;
+    }
+  } else {
+    if (cleanHref) {
+      data.clickLink = cleanHref;
+    } else {
+      delete data.clickLink;
+    }
+  }
+
+  renderSlidesFromState?.();
+  buildPropertiesPanel?.({ immediate: true });
+  schedulePresentationAutosave?.(150);
+  return true;
+}
+
+function openElementLinkInspector(elementId = null) {
+  const id = elementId || state.selectedIds?.[0];
+  if (id && (!state.selectedIds?.includes(id) || state.selectedIds.length !== 1)) {
+    selectElement?.(id, "replace");
+  }
+  setPropertiesPanelVisible?.(true, { persist: false });
+  if (typeof _propertiesPanelActiveTab !== "undefined") {
+    _propertiesPanelActiveTab = "content";
+  }
+  buildPropertiesPanel?.({ immediate: true });
+  requestAnimationFrame(() => {
+    const select = document.getElementById("prop-link-destination");
+    if (select) {
+      select.scrollIntoView({ behavior: "smooth", block: "center" });
+      select.focus();
+    }
+  });
+}
+
+window.buildElementLinkGroup = buildElementLinkGroup;
+window.applyElementLink = applyElementLink;
+window.openElementLinkInspector = openElementLinkInspector;
+
 function buildTextPanel(panel, data) {
   const listState = getTextListState(data.content, data.bulletStyle);
   const contentGrp = createGroup("Text Content");
@@ -12,6 +272,7 @@ function buildTextPanel(panel, data) {
     ),
   );
   panel.appendChild(contentGrp);
+  buildElementLinkGroup(panel, data);
 
   const fitMode =
     data.textFitMode === "autofit"

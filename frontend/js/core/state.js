@@ -2639,7 +2639,9 @@ async function createNewProject({ offerUndo = true } = {}) {
         localStorage.removeItem(LOCAL_PRESENTATION_STORAGE_KEY);
         saveLocalPresentationNow();
         setProjectSaveHint("New local project", "muted");
+        clearSelection?.();
         renderSlidesFromState?.();
+        buildPropertiesPanel?.({ immediate: true });
         updateSlideCounter?.();
         // Without accounts there is one local deck, and this replaced it without a word (only Ctrl+Z knew).
         if (offerUndo && replacedContent && typeof showNotification === "function") {
@@ -2672,8 +2674,10 @@ async function createNewProject({ offerUndo = true } = {}) {
     _lastPersistedTitle = "";
     localStorage.removeItem(PRESENTATION_STORAGE_KEY);
     if (!await createPresentationRecord()) return false;
+    clearSelection?.();
     applyPresentationTheme(state.presentationTheme, { persist: false });
     renderSlidesFromState?.();
+    buildPropertiesPanel?.({ immediate: true });
     updateSlideCounter?.();
     return true;
 }
@@ -2708,9 +2712,11 @@ async function loadProjectById(presentationId) {
         }
         if (generation !== _presentationLoadGeneration) return false;
         currentSlideIndex = 0;
+        clearSelection?.();
         applyPresentationTheme(state.presentationTheme, { persist: false });
         syncPresentationPageSetup?.();
         renderSlidesFromState?.();
+        buildPropertiesPanel?.({ immediate: true });
         updateSlideCounter?.();
         return true;
     } catch (error) {
