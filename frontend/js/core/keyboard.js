@@ -125,6 +125,14 @@ function initKeyboard() {
         // expanded data editor left the focus on the page, and Delete then removed the plot being edited.
         if (isModalDialogOpen()) return;
 
+        // Ctrl/Cmd+W closes the open project (the home screen opens after the last). In the desktop app; a browser
+        // keeps Ctrl+W for closing its own tab and never sends it to the page.
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && key === "w") {
+            e.preventDefault();
+            window.closeCurrentProjectTab?.();
+            return;
+        }
+
         const isUndoShortcut = (e.ctrlKey || e.metaKey) && !e.shiftKey && key === "z";
         const isRedoShortcut =
             ((e.ctrlKey || e.metaKey) && e.shiftKey && key === "z") || ((e.ctrlKey || e.metaKey) && key === "y");

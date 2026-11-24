@@ -57,7 +57,7 @@ const assert = require('node:assert/strict');
         await page.unroute('**/api/presentations/*/');
         await page.getByRole('button', { name: 'Close Project Alpha', exact: true }).click();
         assert.equal(await page.locator('#project-tabs [role="tab"]').count(), 1);
-        // One open project needs no tab strip.
+        // One open project needs no tab strip (Ctrl+W closes it).
         assert.equal(await page.locator('#project-tabs').isVisible(), false);
         // Ctrl+O opens the project library (on its Projects tab), not the browser's file picker.
         await page.evaluate(() => document.activeElement?.blur());
@@ -99,10 +99,38 @@ const assert = require('node:assert/strict');
         assert.equal(reimportResult.title, 'SameDeck');
         assert.equal(reimportResult.tabCountAfterSecond, reimportResult.tabCountAfterFirst);
         assert.match(reimportResult.currentText, /Version Two/);
+        // Ctrl+W closes the open project like its tab's ×, and moves to the neighbouring tab.
+        await page.evaluate(() => document.activeElement?.blur());
+        await page.keyboard.press('Control+w');
+        await page.waitForFunction(() => !_projectTabBusy && _openProjectTabs.size === 1);
+        assert.equal(await page.evaluate(() => currentPresentationTitle), 'Renamed Beta');
+        assert.equal(await page.locator('#project-tabs').isVisible(), false);
+        // Ctrl+W on the only project saves it (an edit still being typed in the title field too), keeps it, and goes
+        // to the home screen with nothing open.
+        const lastId = await page.evaluate(() => currentPresentationId);
+        await page.evaluate(() => { state.slides[0].notes = 'Saved on last close'; });
+        await page.fill('#project-title-input', 'Typed Then Closed');
+        await page.keyboard.press('Control+w');
+        await page.waitForFunction(() => isStartScreenOpen() && !_projectTabBusy);
+        assert.deepEqual(await page.evaluate(() => ({ id: currentPresentationId, tabs: _openProjectTabs.size, stored: localStorage.getItem(PRESENTATION_STORAGE_KEY) })), { id: null, tabs: 0, stored: null });
+        assert.equal(await page.locator('#project-tabs').isVisible(), false);
+        const saved = await page.evaluate(async id => _presentationRequest(`/api/presentations/${id}/`, { method: 'GET' }), lastId);
+        assert.deepEqual({ notes: saved.state.slides[0].notes, title: saved.title }, { notes: 'Saved on last close', title: 'Typed Then Closed' });
+        // Nothing to go back to: Escape keeps the home screen, and no project is created behind it.
+        const projectCount = await page.evaluate(async () => (await listSavedProjects()).length);
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(1500);
+        assert.equal(await page.evaluate(() => isStartScreenOpen()), true);
+        assert.equal(await page.evaluate(async () => (await listSavedProjects()).length), projectCount);
+        // Ctrl+W on the home screen does nothing; opening a project from the library brings it back.
+        await page.keyboard.press('Control+w');
+        assert.equal(await page.evaluate(() => isStartScreenOpen()), true);
+        await page.evaluate(id => loadProjectById(id), lastId);
+        assert.equal(await page.evaluate(() => _openProjectTabs.size), 1);
         await page.evaluate(() => openStartScreen());
         await page.keyboard.press('Control+o');
         assert.equal(await page.locator('#sf-tab-projects').getAttribute('aria-selected'), 'true');
         assert.deepEqual(errors, []);
-        console.log('PASS Open project tabs: independent state/history, deduplication, closing, persistence, save failure, hidden for one project, Ctrl+O');
+        console.log('PASS Open project tabs: independent state/history, deduplication, closing, persistence, save failure, Ctrl+W closes the project (the last one goes home), Ctrl+O');
     } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

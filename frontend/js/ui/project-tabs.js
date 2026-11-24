@@ -167,10 +167,20 @@ async function closeProjectTab(id) {
     }
 }
 
+// Ctrl+W: close the open project like its tab's ×, the only one too (the home screen opens). False when no saved
+// project is open (local mode, or the home screen), so there is nothing to close.
+function closeCurrentProjectTab() {
+    if (!currentPresentationId || !_openProjectTabs.has(String(currentPresentationId))) return false;
+    document.activeElement?.blur?.(); // an edit in progress (a text box, the title field) commits before the save
+    closeProjectTab(currentPresentationId);
+    return true;
+}
+window.closeCurrentProjectTab = closeCurrentProjectTab;
+
 function renderProjectTabs() {
     const strip = document.getElementById("project-tabs");
     if (!strip) return;
-    // One open project needs no tabs: the title field already names it.
+    // One open project needs no tabs: the title field already names it. Ctrl+W closes it all the same.
     strip.hidden = _openProjectTabs.size < 2;
     strip.replaceChildren();
     for (const tab of _openProjectTabs.values()) {
