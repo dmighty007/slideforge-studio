@@ -199,7 +199,10 @@ async function uniqueImportTitle(title, file = null, options = {}) {
         const existingTab = window.findOpenProjectTabForImport(file?.name || "", base, { matchByTitle });
         if (existingTab) return existingTab.title || base;
     }
+    // Saved projects belong to a signed-in user: with nobody signed in there are none to clash with, and asking
+    // for the list only earns a 401.
     if (typeof _backendApiAvailable === "undefined" || !_backendApiAvailable || typeof listSavedProjects !== "function") return base;
+    if (typeof currentAuthUser === "undefined" || !currentAuthUser) return base;
     try {
         const taken = new Set((await listSavedProjects()).map(project => String(project.title || "").trim().toLowerCase()));
         if (!taken.has(base.toLowerCase())) return base;
