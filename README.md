@@ -108,6 +108,10 @@ from PyPI, then `slideforge`, and `slideforge --install-shortcut` for the icons.
 
 To run it from this repository instead, or to help build it, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
+## New in 0.8.5
+
+See the [0.8.5 release notes](docs/releases/v0.8.5.md).
+
 ## New in 0.8.4
 
 See the [0.8.4 release notes](docs/releases/v0.8.4.md).
