@@ -1151,6 +1151,13 @@ def presentation_detail(request, presentation_id):
             state_error = _validate_state_or_error(next_state)
             if state_error:
                 return state_error
+            # A save that knowingly replaces another window's work (Ctrl+S after a conflict): keep what it replaces.
+            if payload.get("keepReplaced"):
+                PresentationRevision.objects.update_or_create(
+                    presentation=presentation,
+                    version=presentation.autosave_version,
+                    defaults={"state_json": presentation.state_json},
+                )
             presentation.state_json = next_state
         if "title" in payload:
             presentation.title = payload.get("title") or presentation.title

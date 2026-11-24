@@ -2377,7 +2377,7 @@ async function createPresentationRecord() {
 
 async function loadPresentationRecord(presentationId, generation = ++_presentationLoadGeneration) {
     // Read before anything changes: once this deck is current, a backup taken of it could replace the one to recover.
-    const keptBackup = _readUnsavedBackup();
+    const keptBackup = _readUnsavedBackup(presentationId);
     const loaded = await _presentationRequest(`/api/presentations/${presentationId}/`, { method: "GET" });
     const backup = await keptBackup;
     if (generation !== _presentationLoadGeneration) return null;
@@ -2400,6 +2400,7 @@ async function loadPresentationRecord(presentationId, generation = ++_presentati
     }
     const serverVersion = loaded.autosaveVersion || 1;
     const hadBackup = backup?.presentationId === loaded.id;
+    _refusedRecovery = null;
     const recovered = _takeUnsavedBackup(backup, loaded.id, serverVersion, loaded.state);
     if (recovered) {
         state = recovered.state;
@@ -2418,6 +2419,7 @@ async function loadPresentationRecord(presentationId, generation = ++_presentati
     _lastPersistedTitle = loaded.title || _inferPresentationTitle();
     const anyRecovered = recovered || typed;
     setProjectSaveHint(anyRecovered ? "Recovered unsaved changes" : "All changes saved", anyRecovered ? "warn" : "success");
+    _offerRefusedRecovery();
     window.registerProjectTab?.();
     return loaded;
 }
@@ -2477,391 +2479,6 @@ async function initPresentationPersistence(force = false) {
         _saveRecoveredChanges();
     }
 }
-
-// One save at a time. A second PATCH sent while one was in flight carried the same autosave version, so the server
-// refused it (409): the newer edits stayed unsaved and the user was told to reload, which would have lost them.
-// Each call now waits for the one before; it then saves only what is still unsaved.
-let _autosaveChain = Promise.resolve();
-// keepMine: an explicit save (Save button, Ctrl+S) after a conflict, which replaces the other window's version.
-function autosavePresentationNow({ keepMine = false } = {}) {
-    const run = _autosaveChain.catch(() => {}).then(() => _autosavePresentationOnce({ keepMine }));
-    _autosaveChain = run;
-    return run;
-}
-
-// The deck was saved from another tab or window since this one loaded it: { id, serverVersion }. Autosave stops for
-// it here. It used to take the server's version number and save again, so the next edit here silently replaced the
-// other window's work while both said "All changes saved". Reloading takes that version; Ctrl+S keeps this one.
-let _saveConflict = null;
-const SAVE_CONFLICT_MESSAGE = "Changed in another window. Reload to get that version, or press Ctrl+S to keep yours.";
-
-async function _autosavePresentationOnce({ keepMine = false } = {}) {
-    if (
-        !_presentationPersistenceEnabled ||
-        !_presentationPersistenceReady ||
-        !currentPresentationId ||
-        isPresentationHydrating()
-    ) {
-        return false;
-    }
-    // A save belongs to the project it started for; if the user opens another project meanwhile, drop it.
-    const presentationId = currentPresentationId;
-    const stillCurrent = () => currentPresentationId === presentationId && !isPresentationHydrating();
-    if (typeof syncMoleculeViewStatesFromDom === "function") {
-        await syncMoleculeViewStatesFromDom();
-    }
-    if (!stillCurrent()) return false;
-    if (_saveConflict?.id === presentationId) {
-        if (!keepMine) {
-            setProjectSaveHint(SAVE_CONFLICT_MESSAGE, "danger");
-            return false;
-        }
-        currentPresentationAutosaveVersion = _saveConflict.serverVersion || currentPresentationAutosaveVersion;
-        _saveConflict = null;
-        _lastPersistedFingerprint = ""; // the server has the other version: this one is unsaved whatever it matches
-    }
-    // One snapshot for the check, the request and the backup (each used to build its own).
-    const persistable = getPersistableState();
-    const fingerprint = JSON.stringify(persistable);
-    const title = _inferPresentationTitle();
-    if (fingerprint === _lastPersistedFingerprint && title === _lastPersistedTitle) {
-        setProjectSaveHint("All changes saved", "success");
-        return false;
-    }
-
-    const payload = {
-        title,
-        presentationTheme: state.presentationTheme,
-        state: persistable,
-        autosaveVersion: currentPresentationAutosaveVersion,
-    };
-    let saved;
-    const fingerprintHash = _stateHash(fingerprint);
-    _pendingSaveHashes.add(fingerprintHash);
-    keepUnsavedBackup(payload.state);
-    try {
-        saved = await _presentationRequest(`/api/presentations/${presentationId}/`, {
-            method: "PATCH",
-            body: JSON.stringify(payload),
-        });
-    } catch (err) {
-        _pendingSaveHashes.delete(fingerprintHash);
-        if (!stillCurrent()) return false;
-        if (err?.status === 409) {
-            _saveConflict = { id: presentationId, serverVersion: err.payload?.autosaveVersion || 0 };
-            setProjectSaveHint(SAVE_CONFLICT_MESSAGE, "danger");
-            return false; // said; not a failure for the callers to report again as "Save failed"
-        }
-        throw err;
-    }
-    _pendingSaveHashes.delete(fingerprintHash);
-    if (!stillCurrent()) return false;
-    currentPresentationAutosaveVersion = saved.autosaveVersion || currentPresentationAutosaveVersion;
-    setCurrentPresentationTitle(payload.title);
-    _lastPersistedFingerprint = fingerprint;
-    _lastPersistedTitle = payload.title;
-    const current = _persistedStateIsCurrent();
-    if (current) _clearUnsavedBackup(presentationId);
-    else keepUnsavedBackup();
-    setProjectSaveHint(current ? "All changes saved" : "Unsaved changes", current ? "success" : "warn");
-    window.dispatchEvent(new CustomEvent("slideforge:presentation-saved", { detail: { id: presentationId } }));
-    return true;
-}
-
-// Hashes of the snapshots of saves still in flight. A hash, not the snapshot: the backup would hold the deck twice.
-const _pendingSaveHashes = new Set();
-
-// Two 32-bit FNV-1a hashes in one pass: enough to recognise a saved snapshot again, far smaller than the snapshot.
-function _stateHash(text) {
-    let a = 0x811c9dc5;
-    let b = 0x01000193;
-    for (let i = 0; i < text.length; i++) {
-        const c = text.charCodeAt(i);
-        a = Math.imul(a ^ c, 16777619);
-        b = Math.imul(b ^ c, 2246822519);
-    }
-    return (a >>> 0).toString(16).padStart(8, "0") + (b >>> 0).toString(16).padStart(8, "0");
-}
-
-// Where this session's recovery data belongs: the open server project, the local project, or nothing yet.
-function _unsavedBackupScope() {
-    if (isPresentationHydrating()) return null;
-    if (!_backendApiAvailable || !_presentationPersistenceEnabled) return "local";
-    return _presentationPersistenceReady && currentPresentationId ? currentPresentationId : null;
-}
-
-let _unsavedBackupDb = null;
-
-// The IndexedDB database for backups too big for localStorage; resolves to null where IndexedDB cannot be used.
-function _openUnsavedBackupDb() {
-    if (!_unsavedBackupDb) {
-        _unsavedBackupDb = new Promise(resolve => {
-            try {
-                const request = indexedDB.open(UNSAVED_BACKUP_DB_NAME, 1);
-                request.onupgradeneeded = () => request.result.createObjectStore(UNSAVED_BACKUP_DB_STORE);
-                request.onsuccess = () => resolve(request.result);
-                request.onerror = () => resolve(null);
-                request.onblocked = () => resolve(null);
-            } catch (_err) {
-                resolve(null);
-            }
-        });
-    }
-    return _unsavedBackupDb;
-}
-
-// Runs `work(store)` in one transaction; resolves to the result of the request it returns (or null) when it commits.
-// Transactions on the store run in the order they were started, so a later write or delete always wins.
-async function _unsavedBackupDbRun(mode, work) {
-    const db = await _openUnsavedBackupDb();
-    if (!db) return null;
-    return new Promise(resolve => {
-        try {
-            const transaction = db.transaction(UNSAVED_BACKUP_DB_STORE, mode);
-            const request = work(transaction.objectStore(UNSAVED_BACKUP_DB_STORE));
-            transaction.oncomplete = () => resolve(request ? request.result ?? null : null);
-            transaction.onerror = transaction.onabort = () => resolve(null);
-        } catch (_err) {
-            resolve(null);
-        }
-    });
-}
-
-// The kept backup, from localStorage or else IndexedDB; null when there is none or it cannot be read.
-async function _readUnsavedBackup() {
-    try {
-        const kept = localStorage.getItem(UNSAVED_BACKUP_STORAGE_KEY);
-        if (kept) return JSON.parse(kept);
-    } catch (_err) {
-        localStorage.removeItem(UNSAVED_BACKUP_STORAGE_KEY);
-    }
-    return _unsavedBackupDbRun("readonly", store => store.get(UNSAVED_BACKUP_STORAGE_KEY));
-}
-
-function _removeUnsavedBackup() {
-    localStorage.removeItem(UNSAVED_BACKUP_STORAGE_KEY);
-    _unsavedBackupDbRun("readwrite", store => store.delete(UNSAVED_BACKUP_STORAGE_KEY));
-}
-
-function _writeUnsavedBackup(snapshot) {
-    const backup = {
-        ...snapshot,
-        presentationId: currentPresentationId,
-        pendingFingerprints: [..._pendingSaveHashes],
-        savedAt: new Date().toISOString(),
-    };
-    try {
-        localStorage.setItem(UNSAVED_BACKUP_STORAGE_KEY, JSON.stringify(backup));
-        // The snapshot holds that typing now; and a copy left in IndexedDB is older than this one.
-        localStorage.removeItem(UNSAVED_TYPING_STORAGE_KEY);
-        _unsavedBackupDbRun("readwrite", store => store.delete(UNSAVED_BACKUP_STORAGE_KEY));
-        return;
-    } catch (_err) {
-        // Too big (or storage refused): the copy left there is older than this one, so it must not be recovered.
-        try { localStorage.removeItem(UNSAVED_BACKUP_STORAGE_KEY); } catch (_removeErr) { /* nothing kept */ }
-    }
-    let typingAtSnapshot = null;
-    try { typingAtSnapshot = localStorage.getItem(UNSAVED_TYPING_STORAGE_KEY); } catch (_err) { /* none */ }
-    _unsavedBackupDbRun("readwrite", store => store.put(backup, UNSAVED_BACKUP_STORAGE_KEY)).then(() => {
-        // Once the snapshot is stored it holds that typing; typing done since is newer, and stays.
-        try {
-            if (typingAtSnapshot !== null && localStorage.getItem(UNSAVED_TYPING_STORAGE_KEY) === typingAtSnapshot) {
-                localStorage.removeItem(UNSAVED_TYPING_STORAGE_KEY);
-            }
-        } catch (_err) { /* kept */ }
-    });
-}
-
-let _unsavedBackupTimer = null;
-
-function keepUnsavedBackup(snapshotState = null) {
-    clearTimeout(_unsavedBackupTimer);
-    _unsavedBackupTimer = null;
-    const scope = _unsavedBackupScope();
-    if (scope === "local") {
-        saveLocalPresentationNow();
-        return;
-    }
-    if (!scope) return;
-    _writeUnsavedBackup({ autosaveVersion: currentPresentationAutosaveVersion, state: snapshotState || getPersistableState() });
-}
-
-// A full snapshot costs a serialisation of the whole deck (pictures included), so take at most one a second.
-// Typing between snapshots is kept by keepTypingBackup, which only writes the box being typed in.
-function _scheduleUnsavedBackup() {
-    if (_unsavedBackupTimer) return;
-    _unsavedBackupTimer = setTimeout(() => keepUnsavedBackup(), 1000);
-}
-
-// Called on every keystroke: closing a browser page need not dispatch pagehide, so the last characters typed are
-// stored right away, as the text of their box only.
-function keepTypingBackup(elementId, fields) {
-    const scope = _unsavedBackupScope();
-    if (!scope || !elementId) return;
-    try {
-        const kept = JSON.parse(localStorage.getItem(UNSAVED_TYPING_STORAGE_KEY) || "null");
-        const typing = kept?.scope === scope ? kept : { scope, elements: {} };
-        typing.autosaveVersion = currentPresentationAutosaveVersion;
-        typing.pendingFingerprints = [..._pendingSaveHashes];
-        typing.elements[elementId] = { content: fields.content, textDocument: fields.textDocument };
-        localStorage.setItem(UNSAVED_TYPING_STORAGE_KEY, JSON.stringify(typing));
-    } catch (err) {
-        console.warn("Could not keep a backup of the text being typed:", err);
-    }
-}
-
-// Puts kept typing back into `state` when `usable(typing)` says its base is the deck just loaded.
-function _takeTypingBackup(scope, usable) {
-    let typing = null;
-    try {
-        typing = JSON.parse(localStorage.getItem(UNSAVED_TYPING_STORAGE_KEY) || "null");
-    } catch (_err) {
-        typing = null;
-    }
-    if (!typing || typing.scope !== scope) return 0;
-    localStorage.removeItem(UNSAVED_TYPING_STORAGE_KEY);
-    if (!usable(typing)) return 0;
-    let applied = 0;
-    (state.slides || []).forEach(slide => (slide.elements || []).forEach(el => {
-        const fields = typing.elements?.[el.id];
-        if (!fields) return;
-        Object.assign(el, fields);
-        applied++;
-    }));
-    return applied;
-}
-
-function _clearTypingBackup(scope) {
-    try {
-        const typing = JSON.parse(localStorage.getItem(UNSAVED_TYPING_STORAGE_KEY) || "null");
-        if (typing?.scope === scope) localStorage.removeItem(UNSAVED_TYPING_STORAGE_KEY);
-    } catch (_err) {
-        localStorage.removeItem(UNSAVED_TYPING_STORAGE_KEY);
-    }
-}
-
-function schedulePresentationAutosave(delay = 1200) {
-    _scheduleUnsavedBackup();
-    if (!_backendApiAvailable || !_presentationPersistenceEnabled) {
-        setProjectSaveHint("Unsaved local changes", "warn");
-        clearTimeout(_autosaveTimer);
-        _autosaveTimer = setTimeout(() => saveLocalPresentationNow(), Math.min(delay, 300));
-        return;
-    }
-    if (!_presentationPersistenceEnabled || !_presentationPersistenceReady || isPresentationHydrating()) {
-        return;
-    }
-    setProjectSaveHint("Unsaved changes", "warn");
-    clearTimeout(_autosaveTimer);
-    _autosaveTimer = setTimeout(() => {
-        // Renders schedule saves too; while the start screen is open with nothing chosen there is nothing to save.
-        if (!currentPresentationId && window.isStartScreenOpen?.()) return;
-        _ensurePresentationRecord()
-            .then(created => (created ? true : autosavePresentationNow()))
-            .catch(err => {
-                console.warn("Autosave failed:", err);
-                // A conflict has said so already, with what to do (_autosavePresentationOnce).
-                if (err?.status !== 409) setProjectSaveHint("Save failed", "danger");
-            });
-    }, delay);
-}
-
-// `backup` is the one _readUnsavedBackup found; it is taken (removed) when it belongs to this deck.
-function _takeUnsavedBackup(backup, presentationId, serverVersion, serverState = null) {
-    if (!backup || backup.presentationId !== presentationId) return null;
-    _removeUnsavedBackup();
-    // Same version as when the backup was taken: the server never received those edits.
-    const sameVersion = backup.autosaveVersion === serverVersion;
-    // A save already in flight can land after the page closes. Recover only if the server has that exact snapshot.
-    const pendingSaveLanded = _pendingSaveLanded(backup, serverVersion, serverState);
-    const usable = (sameVersion || pendingSaveLanded) && Array.isArray(backup.state?.slides) && backup.state.slides.length;
-    return usable ? backup : null;
-}
-
-function _pendingSaveLanded(backup, serverVersion, serverState) {
-    return serverVersion === backup.autosaveVersion + 1 &&
-        Boolean(backup.pendingFingerprints?.includes(_stateHash(JSON.stringify(serverState))));
-}
-
-function _clearUnsavedBackup(presentationId) {
-    try {
-        const backup = JSON.parse(localStorage.getItem(UNSAVED_BACKUP_STORAGE_KEY) || "null");
-        if (backup?.presentationId === presentationId) localStorage.removeItem(UNSAVED_BACKUP_STORAGE_KEY);
-    } catch (_err) {
-        localStorage.removeItem(UNSAVED_BACKUP_STORAGE_KEY);
-    }
-    // Checked and removed in one transaction, so a backup of another deck written meanwhile is not lost.
-    _unsavedBackupDbRun("readwrite", store => {
-        const request = store.get(UNSAVED_BACKUP_STORAGE_KEY);
-        request.onsuccess = () => {
-            if (request.result?.presentationId === presentationId) store.delete(UNSAVED_BACKUP_STORAGE_KEY);
-        };
-        return null;
-    });
-    _clearTypingBackup(presentationId);
-}
-
-function _saveRecoveredChanges() {
-    if (!_pendingRecoverySave) return;
-    _pendingRecoverySave = false;
-    schedulePresentationAutosave(300);
-}
-
-// Autosave is debounced, so closing the page right after an edit would lose it. Keep a local backup (recovered on
-// the next load if the server never got it) and try one last save that survives the page closing.
-function flushUnsavedChangesOnExit() {
-    if (isPresentationHydrating()) return;
-    if (!_backendApiAvailable || !_presentationPersistenceEnabled) {
-        saveLocalPresentationNow();
-        return;
-    }
-    if (!_presentationPersistenceReady || !currentPresentationId) return;
-    if (_persistedStateIsCurrent()) return;
-    clearTimeout(_autosaveTimer);
-    const payload = {
-        title: _inferPresentationTitle(),
-        presentationTheme: state.presentationTheme,
-        state: getPersistableState(),
-        autosaveVersion: currentPresentationAutosaveVersion,
-    };
-    _writeUnsavedBackup(payload);
-    // keepalive requests are limited to 64 KB; larger decks rely on the backup above.
-    _apiFetch(`/api/presentations/${currentPresentationId}/`, {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-        keepalive: true,
-    }).catch(() => {});
-}
-
-window.addEventListener("pagehide", flushUnsavedChangesOnExit);
-
-// The desktop window calls this when it is closed, and waits for it (app.py, _save_before_close): the text box being
-// edited hands its words to the deck, then the deck is saved to the server. Closed at once, the last words typed
-// could be lost: the typing backup lives in localStorage, which the window writes to disk only after a while.
-async function sfFlushBeforeClose() {
-    // Shown at once: the window stays open until the save ends, and without it the close looked ignored.
-    const busy = window.sfBusyStart?.({ title: "Saving before closing…", detail: "The window closes when your work is saved.", delay: 0 });
-    try {
-        if (typeof commitActiveTextEditors === "function") commitActiveTextEditors();
-        const active = document.activeElement;
-        if (active && (active.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName))) active.blur();
-        await new Promise(resolve => setTimeout(resolve, 30));
-        if (isPresentationHydrating()) return true;
-        if (!_backendApiAvailable || !_presentationPersistenceEnabled) {
-            saveLocalPresentationNow();
-            return true;
-        }
-        // A deck being created by its first edit is waited for; nothing is created for a window closed unused.
-        if (_creatingPresentationRecord) await _creatingPresentationRecord.catch(() => {});
-        if (currentPresentationId) await autosavePresentationNow();
-    } catch (err) {
-        console.warn("Saving before the window closes failed:", err);
-    } finally {
-        busy?.done();
-    }
-    return true;
-}
-window.sfFlushBeforeClose = sfFlushBeforeClose;
 
 function adoptPresentationRecord(presentationId, title = null, autosaveVersion = 1) {
     if (!presentationId) return;
@@ -3022,7 +2639,9 @@ async function createNewProject({ offerUndo = true } = {}) {
         localStorage.removeItem(LOCAL_PRESENTATION_STORAGE_KEY);
         saveLocalPresentationNow();
         setProjectSaveHint("New local project", "muted");
+        clearSelection?.();
         renderSlidesFromState?.();
+        buildPropertiesPanel?.({ immediate: true });
         updateSlideCounter?.();
         // Without accounts there is one local deck, and this replaced it without a word (only Ctrl+Z knew).
         if (offerUndo && replacedContent && typeof showNotification === "function") {
@@ -3055,8 +2674,10 @@ async function createNewProject({ offerUndo = true } = {}) {
     _lastPersistedTitle = "";
     localStorage.removeItem(PRESENTATION_STORAGE_KEY);
     if (!await createPresentationRecord()) return false;
+    clearSelection?.();
     applyPresentationTheme(state.presentationTheme, { persist: false });
     renderSlidesFromState?.();
+    buildPropertiesPanel?.({ immediate: true });
     updateSlideCounter?.();
     return true;
 }
@@ -3091,9 +2712,11 @@ async function loadProjectById(presentationId) {
         }
         if (generation !== _presentationLoadGeneration) return false;
         currentSlideIndex = 0;
+        clearSelection?.();
         applyPresentationTheme(state.presentationTheme, { persist: false });
         syncPresentationPageSetup?.();
         renderSlidesFromState?.();
+        buildPropertiesPanel?.({ immediate: true });
         updateSlideCounter?.();
         return true;
     } catch (error) {

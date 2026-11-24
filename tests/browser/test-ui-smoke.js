@@ -208,7 +208,7 @@ async function ensureEditor(page) {
     page.on("console", msg => {
         if (msg.type() === "error") {
             const text = msg.text();
-            if (!/Failed to load resource.*(404|api)|Video element error/i.test(text)) pageErrors.push(text);
+            if (!/Failed to load resource.*(404|api|ERR_INTERNET_DISCONNECTED|ERR_NAME_NOT_RESOLVED)|Video element error/i.test(text)) pageErrors.push(text);
         }
     });
 
@@ -1834,8 +1834,76 @@ async function ensureEditor(page) {
         assert(pptxOutcome.animationAfterRemove === null, `Removing imported animation should clear element.animation, got ${JSON.stringify(pptxOutcome.animationAfterRemove)}`);
     });
 
+    await step("Failed import rolls back temporary project and project switches refresh properties panel", async () => {
+        await ensureEditor(page);
+        const rollbackOutcome = await page.evaluate(async () => {
+            await createNewProject({ offerUndo: false });
+            setCurrentPresentationTitle("Original Working Deck");
+            state.slides[0].notes = "Original deck speaker notes";
+            state.slides[0].presentationTransition = "convex";
+            clearSelection();
+            setPropertiesPanelVisible(true, { persist: false });
+            _propertiesPanelActiveTab = "overview";
+            buildPropertiesPanel({ immediate: true });
+            const notesInPanelBefore = document.getElementById("prop-slide-notes")?.value;
+            if (currentPresentationId) await autosavePresentationNow();
+            const originalId = currentPresentationId;
+
+            // Simulate a PPTX import where all slides fail to read
+            const ns = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"';
+            const zip = new JSZip();
+            zip.file("ppt/presentation.xml", `<p:presentation ${ns}><p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/></p:presentation>`);
+            zip.file("ppt/_rels/presentation.xml.rels", `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/></Relationships>`);
+            zip.file("ppt/slides/slide1.xml", `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/></p:spTree></p:cSld></p:sld>`);
+            const savedReader = _pptxSlideElements;
+            const realAlert = window.alert;
+            const realConsoleError = console.error;
+            const alerts = [];
+            window.alert = msg => alerts.push(String(msg));
+            console.error = () => {};
+            try {
+                _pptxSlideElements = () => {
+                    throw new Error("corrupt slide");
+                };
+                await importPptx(new File([await zip.generateAsync({ type: "blob" })], "Corrupt.pptx"));
+            } finally {
+                _pptxSlideElements = savedReader;
+                window.alert = realAlert;
+                console.error = realConsoleError;
+            }
+            const idAfterFailedImport = currentPresentationId;
+            const notesAfterFailedImport = state.slides[0]?.notes;
+
+            // Now create a brand-new project and verify Properties panel refreshes immediately
+            await createNewProject({ offerUndo: false });
+            const notesInPanelAfterNew = document.getElementById("prop-slide-notes")?.value;
+            return {
+                originalId,
+                idAfterFailedImport,
+                notesInPanelBefore,
+                notesAfterFailedImport,
+                notesInPanelAfterNew,
+                alertCount: alerts.length,
+            };
+        });
+
+        assert(
+            rollbackOutcome.notesInPanelBefore === "Original deck speaker notes",
+            `Expected original notes in panel, got ${JSON.stringify(rollbackOutcome.notesInPanelBefore)}`,
+        );
+        assert(
+            rollbackOutcome.idAfterFailedImport === rollbackOutcome.originalId &&
+                rollbackOutcome.notesAfterFailedImport === "Original deck speaker notes",
+            `Failed import should roll back to original project: ${JSON.stringify(rollbackOutcome)}`,
+        );
+        assert(
+            rollbackOutcome.notesInPanelAfterNew === "",
+            `Creating a new project should immediately clear stale slide notes in the Properties panel, got ${JSON.stringify(rollbackOutcome.notesInPanelAfterNew)}`,
+        );
+    });
+
     await step("No unexpected browser errors during smoke pass", async () => {
-        const filtered = pageErrors.filter(message => !/Failed to load resource.*(404|api)|Video element error/i.test(message));
+        const filtered = pageErrors.filter(message => !/Failed to load resource.*(404|api|ERR_INTERNET_DISCONNECTED|ERR_NAME_NOT_RESOLVED)|Video element error/i.test(message));
         assert(filtered.length === 0, `Unexpected browser errors:\n${filtered.join("\n")}`);
     });
 

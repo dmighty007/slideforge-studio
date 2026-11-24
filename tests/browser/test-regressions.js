@@ -5652,13 +5652,13 @@ async function test(name, fn) {
             // A small deck: localStorage.
             _writeUnsavedBackup({ autosaveVersion: 4, state: withContent("small") });
             await settle();
-            const small = { inLocal: Boolean(localStorage.getItem(UNSAVED_BACKUP_STORAGE_KEY)),
-                read: (await _readUnsavedBackup())?.state.slides[0].elements[0].content };
+            const small = { inLocal: Boolean(localStorage.getItem(_unsavedBackupKey("idb-backup-test"))),
+                read: (await _readUnsavedBackup("idb-backup-test"))?.state.slides[0].elements[0].content };
             // Then it grows past the quota (simulated: localStorage refuses the backup), with typing kept meanwhile.
             localStorage.setItem(UNSAVED_TYPING_STORAGE_KEY, JSON.stringify({ scope: "idb-backup-test", elements: {} }));
             const setItem = Storage.prototype.setItem;
             Storage.prototype.setItem = function (key, value) {
-                if (key === UNSAVED_BACKUP_STORAGE_KEY) throw new DOMException("full", "QuotaExceededError");
+                if (key === _unsavedBackupKey("idb-backup-test")) throw new DOMException("full", "QuotaExceededError");
                 return setItem.call(this, key, value);
             };
             try {
@@ -5666,17 +5666,17 @@ async function test(name, fn) {
             } finally {
                 Storage.prototype.setItem = setItem;
             }
-            const staleLeftAtOnce = localStorage.getItem(UNSAVED_BACKUP_STORAGE_KEY);
+            const staleLeftAtOnce = localStorage.getItem(_unsavedBackupKey("idb-backup-test"));
             await settle();
-            const big = await _readUnsavedBackup();
+            const big = await _readUnsavedBackup("idb-backup-test");
             const typingLeft = localStorage.getItem(UNSAVED_TYPING_STORAGE_KEY);
             const recovered = _takeUnsavedBackup(big, "idb-backup-test", 5, null);
             await settle();
-            const afterTake = await _readUnsavedBackup();
+            const afterTake = await _readUnsavedBackup("idb-backup-test");
             // Clearing after a save removes it from IndexedDB too.
             _writeUnsavedBackup({ autosaveVersion: 6, state: withContent("x".repeat(10)) });
             Storage.prototype.setItem = function (key, value) {
-                if (key === UNSAVED_BACKUP_STORAGE_KEY) throw new DOMException("full", "QuotaExceededError");
+                if (key === _unsavedBackupKey("idb-backup-test")) throw new DOMException("full", "QuotaExceededError");
                 return setItem.call(this, key, value);
             };
             try {
@@ -5686,7 +5686,7 @@ async function test(name, fn) {
             }
             _clearUnsavedBackup("idb-backup-test");
             await settle();
-            const afterClear = await _readUnsavedBackup();
+            const afterClear = await _readUnsavedBackup("idb-backup-test");
             return { small, staleLeftAtOnce, big: big?.state.slides[0].elements[0].content, bigVersion: big?.autosaveVersion,
                 typingLeft, recovered: recovered?.state.slides[0].elements[0].content, afterTake, afterClear };
         });
@@ -5694,6 +5694,41 @@ async function test(name, fn) {
         assert(result.staleLeftAtOnce === null, `the older localStorage copy was left: ${JSON.stringify(result)}`);
         assert(result.big === "grown" && result.bigVersion === 5 && result.typingLeft === null, `IndexedDB copy: ${JSON.stringify(result)}`);
         assert(result.recovered === "grown" && result.afterTake === null && result.afterClear === null, `take/clear: ${JSON.stringify(result)}`);
+        await page.close();
+    });
+
+    await test("Unsaved backups are kept per project, and one from before that change is still read", async () => {
+        const { page } = await openFreshEditor(context);
+        const result = await page.evaluate(async () => {
+            const withContent = text => {
+                const copy = JSON.parse(JSON.stringify(getPersistableState()));
+                copy.slides[0].elements[0].content = text;
+                return copy;
+            };
+            const real = currentPresentationId;
+            const read = async id => (await _readUnsavedBackup(id))?.state.slides[0].elements[0].content ?? null;
+            try {
+                // Two projects open in two tabs share localStorage: each backup used to replace the other.
+                currentPresentationId = "slot-a";
+                _writeUnsavedBackup({ autosaveVersion: 1, state: withContent("deck a") });
+                currentPresentationId = "slot-b";
+                _writeUnsavedBackup({ autosaveVersion: 1, state: withContent("deck b") });
+                const both = { a: await read("slot-a"), b: await read("slot-b") };
+                _clearUnsavedBackup("slot-b");
+                const afterClear = { a: await read("slot-a"), b: await read("slot-b") };
+                _clearUnsavedBackup("slot-a");
+                // Written by a version with one slot for every project.
+                localStorage.setItem(UNSAVED_BACKUP_STORAGE_KEY, JSON.stringify({ presentationId: "slot-c", autosaveVersion: 1, state: withContent("deck c") }));
+                const old = { own: await read("slot-c"), other: await read("slot-a") };
+                const taken = _takeUnsavedBackup(await _readUnsavedBackup("slot-c"), "slot-c", 1, null);
+                return { both, afterClear, old, taken: Boolean(taken), oldLeft: localStorage.getItem(UNSAVED_BACKUP_STORAGE_KEY) };
+            } finally {
+                currentPresentationId = real;
+            }
+        });
+        assert(result.both.a === "deck a" && result.both.b === "deck b", `one backup replaced the other: ${JSON.stringify(result)}`);
+        assert(result.afterClear.a === "deck a" && result.afterClear.b === null, `clearing one project's backup: ${JSON.stringify(result)}`);
+        assert(result.old.own === "deck c" && result.old.other === null && result.taken && result.oldLeft === null, `single-slot backup: ${JSON.stringify(result)}`);
         await page.close();
     });
 
@@ -8127,7 +8162,7 @@ async function test(name, fn) {
         await page.evaluate(() => SlideForgePlugins.ready);
         await openPluginMenu(page);
         const groups = await page.$$eval("#plugin-insert-menu .sf-select-menu__group", nodes => nodes.map(n => n.textContent));
-        assert(JSON.stringify(groups) === JSON.stringify(["Chemistry", "Biology", "Statistics", "Physics & maths", "Figures & references"]), `groups: ${groups}`);
+        assert(JSON.stringify(groups) === JSON.stringify(["Chemistry", "Biology", "Statistics", "Physics & maths", "Figures & references", "UI & interactive"]), `groups: ${groups}`);
         assert(await page.evaluate(() => document.activeElement?.classList.contains("plugin-insert-search")), "the search box is not focused");
         await page.keyboard.type("survival");
         const shown = await page.$$eval("#plugin-insert-menu [data-plugin-insert]", nodes => nodes.map(n => n.dataset.pluginInsert));
@@ -10243,6 +10278,49 @@ async function test(name, fn) {
             await page.close();
         });
 
+        await test("PowerPoint import: a slide that cannot be read is left out and named; the others come in", async () => {
+            const { page } = await openEditor(context);
+            const out = await pageAwait(page, async () => {
+                const ns = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"';
+                const rels = list => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${list.map(([id, type, target]) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`).join("")}</Relationships>`;
+                const words = text => `<p:sp><p:nvSpPr><p:cNvPr id="2" name="TextBox 1"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="600000" y="600000"/><a:ext cx="6000000" cy="800000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr><p:txBody><a:bodyPr/><a:p><a:r><a:rPr lang="en-GB"/><a:t>${text}</a:t></a:r></a:p></p:txBody></p:sp>`;
+                const zip = new JSZip();
+                zip.file("ppt/presentation.xml", `<p:presentation ${ns}><p:sldIdLst><p:sldId id="256" r:id="rId1"/><p:sldId id="257" r:id="rId2"/><p:sldId id="258" r:id="rId3"/></p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/></p:presentation>`);
+                zip.file("ppt/_rels/presentation.xml.rels", rels([1, 2, 3].map(n => [`rId${n}`, "slide", `slides/slide${n}.xml`])));
+                ["first words", "unreadable", "third words"].forEach((text, i) =>
+                    zip.file(`ppt/slides/slide${i + 1}.xml`, `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>${words(text)}</p:spTree></p:cSld></p:sld>`));
+                const file = async () => new File([await zip.generateAsync({ type: "blob" })], "Partly readable.pptx");
+                const texts = () => state.slides.map(slide => slide.elements.map(e => String(e.content || e.shapeText || "")).join(" "));
+                const read = _pptxSlideElements;
+                const alerts = [];
+                const realAlert = window.alert;
+                window.alert = message => alerts.push(String(message));
+                try {
+                    // Every slide failing is still a failed import, said as one.
+                    _pptxSlideElements = () => { throw new Error("cannot read this slide"); };
+                    await importPptx(await file());
+                    const allFailed = alerts.splice(0);
+                    // The second slide fails as a slide with something the importer cannot handle would.
+                    _pptxSlideElements = (pkg, path, ...rest) => {
+                        if (/slide2\.xml$/.test(path)) throw new Error("cannot read this slide");
+                        return read(pkg, path, ...rest);
+                    };
+                    await importPptx(await file());
+                    const partly = { texts: texts(), said: [...document.querySelectorAll(".notification")].map(n => n.textContent).join(" | "), alerts: [...alerts] };
+                    await autosavePresentationNow(); // the imported deck is left saved for the test after this one
+                    return { partly, allFailed };
+                } finally {
+                    _pptxSlideElements = read;
+                    window.alert = realAlert;
+                }
+            });
+            const { partly } = out;
+            assert(partly.texts.length === 2 && /first words/.test(partly.texts[0]) && /third words/.test(partly.texts[1]), `the readable slides: ${JSON.stringify(partly)}`);
+            assert(!partly.alerts.length && /Slide 2 of the file could not be read/.test(partly.said), `the slide left out is named: ${JSON.stringify(partly)}`);
+            assert(out.allFailed.length === 1 && /none of its slides could be read/.test(out.allFailed[0]), `all slides failing: ${JSON.stringify(out.allFailed)}`);
+            await page.close();
+        });
+
         await test("PowerPoint import: a moon shape draws as a crescent in its group's fill, and arcs end where PowerPoint's do", async () => {
             const { page, errors } = await openEditor(context);
             const out = await pageAwait(page, async () => {
@@ -11230,6 +11308,76 @@ async function test(name, fn) {
             const hint = await second.page.evaluate(() => document.getElementById("project-save-hint")?.textContent || "");
             assert(/saved|recovered/i.test(hint), `recovered edit was not saved (hint: ${hint})`);
             await second.page.close();
+        });
+
+        await test("Keeping mine after a conflict asks the server to keep the version it replaces", async () => {
+            const { page } = await openFreshEditor(context);
+            const bodies = [];
+            page.on("request", request => {
+                if (request.method() === "PATCH" && /\/api\/presentations\/[^/]+\/$/.test(request.url())) bodies.push(JSON.parse(request.postData() || "{}"));
+            });
+            const outcome = await page.evaluate(async () => {
+                addElement("text");
+                await autosavePresentationNow();
+                // Another window saves: the server's version moves on.
+                await _presentationRequest(`/api/presentations/${currentPresentationId}/`, {
+                    method: "PATCH",
+                    body: JSON.stringify({ title: "Other window", autosaveVersion: currentPresentationAutosaveVersion }),
+                });
+                addElement("text");
+                await autosavePresentationNow();
+                const conflicted = _saveConflict?.id === currentPresentationId;
+                const kept = await saveCurrentProject();
+                return { conflicted, kept, cleared: !_saveConflict };
+            });
+            assert(outcome.conflicted && outcome.kept && outcome.cleared, `conflict then Ctrl+S: ${JSON.stringify(outcome)}`);
+            const flags = bodies.map(body => Boolean(body.keepReplaced));
+            assert(flags.length >= 3 && flags[flags.length - 1] && flags.slice(0, -1).every(flag => !flag), `keepReplaced per save: ${JSON.stringify(flags)}`);
+            await page.close();
+        });
+
+        await test("Unsaved edits refused on reopening (the project changed elsewhere) are said, and can be restored", async () => {
+            const first = await openFreshEditor(context);
+            const marker = `refused-edit-${Date.now()}`;
+            await first.page.evaluate(async marker => {
+                addElement("text");
+                await autosavePresentationNow();
+                // Edits made on an older version than the server has now: another window saved since.
+                const edited = JSON.parse(JSON.stringify(getPersistableState()));
+                edited.slides[0].notes = marker;
+                _writeUnsavedBackup({ autosaveVersion: currentPresentationAutosaveVersion - 1, state: edited });
+                // Closing must leave that backup as it is (the last save on closing would write its own).
+                window.removeEventListener("pagehide", flushUnsavedChangesOnExit);
+            }, marker);
+            await first.page.close();
+
+            const second = await openEditor(context);
+            await second.page.waitForFunction(() => !isPresentationHydrating());
+            const opened = await second.page.evaluate(marker => ({
+                applied: state.slides.some(s => s.notes === marker),
+                said: [...document.querySelectorAll(".notification")].map(n => n.textContent).join(" | "),
+                offered: [...document.querySelectorAll(".notification .notification-action")].map(b => b.textContent),
+            }), marker);
+            assert(!opened.applied, "edits made on an older version replaced the server's deck");
+            assert(/not applied/i.test(opened.said) && opened.offered.length === 1, `the refused edits were dropped without a word: ${JSON.stringify(opened)}`);
+            const bodies = [];
+            second.page.on("request", request => {
+                if (request.method() === "PATCH" && /\/api\/presentations\/[^/]+\/$/.test(request.url())) bodies.push(JSON.parse(request.postData() || "{}"));
+            });
+            const saved = second.page.waitForResponse(response => response.request().method() === "PATCH" && /\/api\/presentations\/[^/]+\/$/.test(response.url()), { timeout: 15000 });
+            await second.page.click(".notification .notification-action");
+            assert((await saved).status() === 200, "the restored edits were refused by the server");
+            await second.page.waitForFunction(() => _persistedStateIsCurrent(), null, { timeout: 10000 });
+            const restored = await second.page.evaluate(marker => state.slides.some(s => s.notes === marker), marker);
+            assert(restored, "Restore did not bring the refused edits back");
+            assert(bodies.length && bodies.every(body => body.keepReplaced === true), `restoring replaces the server's deck, which must be kept: ${JSON.stringify(bodies.map(b => b.keepReplaced))}`);
+            await second.page.close();
+
+            const third = await openEditor(context);
+            await third.page.waitForFunction(() => !isPresentationHydrating());
+            const kept = await third.page.evaluate(marker => state.slides.some(s => s.notes === marker), marker);
+            assert(kept, "the restored edits were not saved");
+            await third.page.close();
         });
     }
 

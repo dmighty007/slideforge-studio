@@ -88,6 +88,35 @@ Your saved presentations are kept. For a pip installation, use
 
 ## Need help?
 
+### Ubuntu: Wayland or Qt platform plugin error
+
+`Failed to create wl_display` means Qt could not connect to a Wayland display.
+Forcing `QT_QPA_PLATFORM=wayland` requires a running, accessible Wayland session.
+First let Qt select the platform for your desktop:
+
+```bash
+env -u QT_QPA_PLATFORM slideforge
+```
+
+If you are using an X11 desktop (or XWayland), try:
+
+```bash
+QT_QPA_PLATFORM=xcb slideforge
+```
+
+If Qt reports a missing `libxcb-cursor.so.0`, install it with
+`sudo apt install libxcb-cursor0`. Other missing library errors need the
+corresponding system package; reinstalling SlideForge alone will not fix them.
+
+To use the editor without the native Qt window:
+
+```bash
+slideforge --browser
+```
+
+This requires a local browser. For an SSH or headless session, use
+`slideforge --no-open` to start only the local server.
+
 If the app opens in a browser instead of a native window, check the
 [GUI backend instructions](DESKTOP.md#install). For storage locations and logs, see
 [the desktop guide](DESKTOP.md). To run from source, use the

@@ -67,6 +67,38 @@ const assert = require('node:assert/strict');
         await page.waitForFunction(() => document.activeElement?.id === 'sf-tab-projects');
         await page.keyboard.press('Escape');
         await page.waitForFunction(() => !isStartScreenOpen());
+        // Importing the same file again updates its already-opened tab in place instead of spawning a new tab.
+        const reimportResult = await page.evaluate(async () => {
+            const makePptx = async (slideText) => {
+                const ns = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"';
+                const zip = new JSZip();
+                zip.file("ppt/presentation.xml", `<p:presentation ${ns}><p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/></p:presentation>`);
+                zip.file("ppt/_rels/presentation.xml.rels", `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/></Relationships>`);
+                zip.file("ppt/slides/slide1.xml", `<p:sld ${ns}><p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/><p:sp><p:nvSpPr><p:cNvPr id="2" name="Title"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="914400" y="457200"/><a:ext cx="6000000" cy="914400"/></a:xfrm></p:spPr><p:txBody><a:bodyPr/><a:p><a:r><a:rPr sz="2400"/><a:t>${slideText}</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>`);
+                return new File([await zip.generateAsync({ type: "blob" })], "SameDeck.pptx");
+            };
+            await importPptx(await makePptx("Version One"));
+            const firstImportId = currentPresentationId;
+            const tabCountAfterFirst = document.querySelectorAll('#project-tabs [role="tab"]').length;
+
+            // Re-import the exact same file name with updated slide text
+            await importPptx(await makePptx("Version Two"));
+            const secondImportId = currentPresentationId;
+            const tabCountAfterSecond = document.querySelectorAll('#project-tabs [role="tab"]').length;
+            const currentText = state.slides[0]?.elements?.map(el => el.content || "").join(" ");
+            return {
+                firstImportId,
+                secondImportId,
+                title: currentPresentationTitle,
+                tabCountAfterFirst,
+                tabCountAfterSecond,
+                currentText,
+            };
+        });
+        assert.equal(reimportResult.secondImportId, reimportResult.firstImportId);
+        assert.equal(reimportResult.title, 'SameDeck');
+        assert.equal(reimportResult.tabCountAfterSecond, reimportResult.tabCountAfterFirst);
+        assert.match(reimportResult.currentText, /Version Two/);
         await page.evaluate(() => openStartScreen());
         await page.keyboard.press('Control+o');
         assert.equal(await page.locator('#sf-tab-projects').getAttribute('aria-selected'), 'true');

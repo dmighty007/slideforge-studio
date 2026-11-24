@@ -3456,66 +3456,76 @@ async function importPptx(file) {
         // Every slide's id before any is read, so a link on one slide to another can name it (PptxPackage.links).
         pkg.slideIds = new Map(slidePaths.map(path => [path, generateId("slide")]));
 
-        // Into a project of its own, named after the file (never over the project that is open). Created before the
-        // slides are read, so the pictures they upload belong to it.
+        // Into a project of its own, named after the file (never over a different project that is open), or updating
+        // the already-open tab when the same file is imported again.
+        const rawBaseTitle = String(file.name || "Imported presentation").replace(/\.pptx$/i, "");
         const importTitle =
             typeof uniqueImportTitle === "function"
-                ? await uniqueImportTitle(String(file.name || "Imported presentation").replace(/\.pptx$/i, ""))
-                : String(file.name || "Imported presentation").replace(/\.pptx$/i, "");
+                ? await uniqueImportTitle(rawBaseTitle, file)
+                : rawBaseTitle;
         busy.update({ detail: "Saving the open project…", progress: 0.03 });
-        if (typeof startNewProjectForImport === "function") await startNewProjectForImport();
+        if (typeof startNewProjectForImport === "function") await startNewProjectForImport(file, { baseTitle: rawBaseTitle });
 
         // The slides take nearly all the time: 5% to 95% of the bar, one step per slide.
         const slides = [];
+        const unread = [];
         for (const [index, slidePath] of slidePaths.entries()) {
             setProjectSaveHint?.(`Importing slide ${index + 1} of ${slidePaths.length}…`, "muted");
             busy.update({ detail: `Slide ${index + 1} of ${slidePaths.length}`, progress: 0.05 + (0.9 * index) / slidePaths.length });
             await sfBusyYield();
-            const design = await _pptxSlideDesign(pkg, slidePath);
-            _pptxCurrentThemeColors = design.theme.colors;
-            _pptxCurrentFillStyles = design.theme.fillStyles || [];
-            _pptxCurrentLineStyles = design.theme.lineStyles || [];
-            pkg.themeColors = design.theme.colors;
-            const { elements, notes, background } = await _pptxSlideElements(pkg, slidePath, scale, design);
-            let slideBackground = null;
-            if (background?.picture) {
-                // A picture background stays the slide's background (cover).
-                const url = await _pptxBackgroundPicture(pkg, background.picture);
-                if (url) slideBackground = { type: "image", content: url, fit: "cover" };
-            } else if (background?.color) {
-                // A colour or gradient background comes in as a rectangle behind everything.
-                elements.unshift({
-                    id: generateId("el"),
-                    type: "shape",
-                    shapeType: "rectangle",
-                    x: 0,
-                    y: 0,
-                    width: `${setup.width}px`,
-                    height: `${setup.height}px`,
-                    content: "",
-                    importedBackground: true,
-                    styles: {
-                        backgroundColor: background.color,
-                        ...(background.gradient ? { background: background.gradient } : {}),
-                        borderRadius: "0px",
-                        zIndex: 0,
-                    },
+            // A slide that cannot be read is left out and named afterwards. One such slide used to end the whole
+            // import: the slides already read were dropped, and the new project made for them stayed, empty.
+            try {
+                const design = await _pptxSlideDesign(pkg, slidePath);
+                _pptxCurrentThemeColors = design.theme.colors;
+                _pptxCurrentFillStyles = design.theme.fillStyles || [];
+                _pptxCurrentLineStyles = design.theme.lineStyles || [];
+                pkg.themeColors = design.theme.colors;
+                const { elements, notes, background } = await _pptxSlideElements(pkg, slidePath, scale, design);
+                let slideBackground = null;
+                if (background?.picture) {
+                    // A picture background stays the slide's background (cover).
+                    const url = await _pptxBackgroundPicture(pkg, background.picture);
+                    if (url) slideBackground = { type: "image", content: url, fit: "cover" };
+                } else if (background?.color) {
+                    // A colour or gradient background comes in as a rectangle behind everything.
+                    elements.unshift({
+                        id: generateId("el"),
+                        type: "shape",
+                        shapeType: "rectangle",
+                        x: 0,
+                        y: 0,
+                        width: `${setup.width}px`,
+                        height: `${setup.height}px`,
+                        content: "",
+                        importedBackground: true,
+                        styles: {
+                            backgroundColor: background.color,
+                            ...(background.gradient ? { background: background.gradient } : {}),
+                            borderRadius: "0px",
+                            zIndex: 0,
+                        },
+                    });
+                }
+                // Hidden in PowerPoint (<p:sld show="0">): hidden when presenting here too.
+                const slideDoc = await pkg.xml(slidePath);
+                const hidden = slideDoc?.documentElement?.getAttribute("show") === "0";
+                slides.push({
+                    id: pkg.slideIds.get(slidePath) || generateId("slide"),
+                    layoutId: "blank",
+                    masterId: "none",
+                    notes,
+                    presentationTransition: _pptxTransition(slideDoc, design),
+                    ...(slideBackground ? { background: slideBackground } : {}),
+                    ...(hidden ? { hidden: true } : {}),
+                    elements,
                 });
+            } catch (err) {
+                console.error(`PPTX import: slide ${index + 1} could not be read:`, err);
+                unread.push(index + 1);
             }
-            // Hidden in PowerPoint (<p:sld show="0">): hidden when presenting here too.
-            const slideDoc = await pkg.xml(slidePath);
-            const hidden = slideDoc?.documentElement?.getAttribute("show") === "0";
-            slides.push({
-                id: pkg.slideIds.get(slidePath) || generateId("slide"),
-                layoutId: "blank",
-                masterId: "none",
-                notes,
-                presentationTransition: _pptxTransition(slideDoc, design),
-                ...(slideBackground ? { background: slideBackground } : {}),
-                ...(hidden ? { hidden: true } : {}),
-                elements,
-            });
         }
+        if (!slides.length) throw new Error("none of its slides could be read");
 
         // The fonts the file carries (saved with "Embed fonts"): added to this user's fonts, so its text is drawn in
         // them here too. Only families this computer lacks (an embedded font can hold just the characters the deck uses).
@@ -3532,6 +3542,9 @@ async function importPptx(file) {
         syncPresentationPageSetup?.(); // the canvas takes the new proportions before the slides are drawn
         state.slides = slides;
         setCurrentPresentationTitle?.(importTitle);
+        if (typeof currentPresentationId !== "undefined" && currentPresentationId && file?.name) {
+            window.setProjectTabImportSource?.(currentPresentationId, file.name);
+        }
         resetUndoHistory?.();
         setCurrentSlideIndex?.(0);
         clearSelection?.();
@@ -3549,13 +3562,17 @@ async function importPptx(file) {
         const count = type => kinds.filter(kind => kind === type).length;
         const hiddenSlides = slides.filter(slide => slide.hidden).length;
         const summary = [`${slides.length} slides`, count("image") && `${count("image")} pictures`, count("table") && `${count("table")} tables`, count("chart") && `${count("chart")} charts`, hiddenSlides && `${hiddenSlides} hidden when presenting`].filter(Boolean).join(", ");
-        setProjectSaveHint?.(`Imported ${summary}`, "success");
+        const left = unread.length ? `Slide${unread.length > 1 ? "s" : ""} ${unread.join(", ")} of the file could not be read and ${unread.length > 1 ? "were" : "was"} left out.` : "";
+        setProjectSaveHint?.(`Imported ${summary}${unread.length ? `; ${unread.length} left out` : ""}`, unread.length ? "warn" : "success");
+        if (left && typeof showNotification === "function") showNotification(left, "error");
         busy.update({ detail: `Imported ${summary}`, progress: 1 });
+        clearImportProjectRollback?.();
         schedulePresentationAutosave?.();
         // Fonts the deck uses that this computer lacks: offered for download from Google Fonts (js/ui/fonts.js).
         setTimeout(() => window.sfOfferMissingFonts?.({ auto: true }), 800);
     } catch (err) {
         console.error("PPTX Import Error:", err);
+        await window.rollbackFailedImportProject?.();
         busy.done(); // gone before the alert, which blocks the page
         alert("Failed to import PPTX: " + err.message);
         setProjectSaveHint?.("Import failed", "danger");

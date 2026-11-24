@@ -384,7 +384,7 @@ function _buildPropertiesPanelNow() {
     (active.tagName === "TEXTAREA" || active.tagName === "INPUT");
   if (isInteractingWithPanelControl) return;
 
-  const selectionSignature = `${currentSlideIndex}:${state.selectedIds.join("|")}`;
+  const selectionSignature = `${typeof currentPresentationId !== "undefined" ? currentPresentationId || "" : ""}:${currentSlideIndex}:${state.selectedIds.join("|")}`;
   const shouldRestoreScroll =
     _propertiesPanelSelectionSignature === selectionSignature;
   _propertiesPanelSelectionSignature = selectionSignature;
@@ -569,6 +569,7 @@ function _buildPropertiesPanelNow() {
 
     if (data.type === "shape") {
       buildShapePanel(panel, data);
+      if (typeof buildElementLinkGroup === "function") buildElementLinkGroup(panel, data);
     }
 
     if (data.type === "table") {
@@ -592,6 +593,7 @@ function _buildPropertiesPanelNow() {
 
     if (data.type === "image") {
       buildImagePanel(panel, data);
+      if (typeof buildElementLinkGroup === "function") buildElementLinkGroup(panel, data);
     }
 
     if (data.type === "html") {
@@ -632,6 +634,7 @@ function _buildPropertiesPanelNow() {
 
     if (data.type === "plugin") {
       buildPluginPanel(panel, data);
+      if (typeof buildElementLinkGroup === "function") buildElementLinkGroup(panel, data);
     }
 
     if (data.type === "chart" && typeof buildChartPanel === "function") {

@@ -5,11 +5,42 @@ let _projectTabBusy = false;
 function registerProjectTab() {
     if (!currentPresentationId || !currentAuthUser) return;
     const id = String(currentPresentationId);
-    const tab = _openProjectTabs.get(id) || { id, snapshot: null };
+    const tab = _openProjectTabs.get(id) || { id, snapshot: null, importedFileKey: "" };
     tab.title = currentPresentationTitle;
     _openProjectTabs.set(id, tab);
     renderProjectTabs();
 }
+
+function setProjectTabImportSource(id, fileName) {
+    if (!id || !fileName) return;
+    if (String(id) === String(currentPresentationId)) registerProjectTab();
+    const tab = _openProjectTabs.get(String(id));
+    if (tab) {
+        tab.importedFileKey = String(fileName).trim().toLowerCase();
+    }
+}
+
+function findOpenProjectTabForImport(fileName, baseTitle = "", { matchByTitle = true } = {}) {
+    if (typeof currentPresentationId !== "undefined" && currentPresentationId) {
+        registerProjectTab();
+    }
+    const fileKey = String(fileName || "").trim().toLowerCase();
+    const titleKey = String(baseTitle || "").trim().toLowerCase();
+    const tabs = [..._openProjectTabs.values()];
+    tabs.sort((a, b) => (b.id === String(currentPresentationId)) - (a.id === String(currentPresentationId)));
+    if (fileKey) {
+        const byFile = tabs.find(tab => tab.importedFileKey && tab.importedFileKey === fileKey);
+        if (byFile) return byFile;
+    }
+    if (matchByTitle && titleKey) {
+        const byTitle = tabs.find(tab => String(tab.title || "").trim().toLowerCase() === titleKey);
+        if (byTitle) return byTitle;
+    }
+    return null;
+}
+
+window.setProjectTabImportSource = setProjectTabImportSource;
+window.findOpenProjectTabForImport = findOpenProjectTabForImport;
 
 function updateProjectTabTitle() {
     const tab = _openProjectTabs.get(String(currentPresentationId));

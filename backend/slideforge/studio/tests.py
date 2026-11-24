@@ -181,6 +181,37 @@ class PresentationApiRegressionTests(TestCase):
         self.assertEqual(revision.version, 4)
         self.assertEqual(revision.state_json, {"slides": [{"id": "s1"}]})
 
+    def test_presentation_update_keeps_the_deck_it_replaces_when_asked(self):
+        presentation = Presentation.objects.create(
+            owner=self.user,
+            title="Draft",
+            state_json={"slides": [{"id": "theirs"}]},
+            autosave_version=3,
+        )
+        url = f"/api/presentations/{presentation.id}/"
+
+        response = self.client.patch(
+            url,
+            data=json.dumps({"state": {"slides": [{"id": "mine"}]}, "autosaveVersion": 3, "keepReplaced": True}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        presentation.refresh_from_db()
+        self.assertEqual(presentation.state_json, {"slides": [{"id": "mine"}]})
+        revision = PresentationRevision.objects.get(presentation=presentation)
+        self.assertEqual((revision.version, revision.state_json), (3, {"slides": [{"id": "theirs"}]}))
+
+        # An ordinary save keeps nothing, and a refused one keeps nothing either.
+        self.client.patch(url, data=json.dumps({"state": {"slides": []}, "autosaveVersion": 4}), content_type="application/json")
+        stale = self.client.patch(
+            url,
+            data=json.dumps({"state": {"slides": []}, "autosaveVersion": 3, "keepReplaced": True}),
+            content_type="application/json",
+        )
+        self.assertEqual(stale.status_code, 409)
+        self.assertEqual(PresentationRevision.objects.filter(presentation=presentation).count(), 1)
+
     def test_presentation_update_rejects_stale_autosave_version(self):
         presentation = Presentation.objects.create(
             owner=self.user,
@@ -964,7 +995,7 @@ class FrontendExportRegressionTests(TestCase):
         self.assertIn("#properties-content .properties-tab[aria-selected=\"true\"]", dark_css)
 
     def test_frontend_autosave_sends_expected_version_and_handles_conflict(self):
-        state_js = (FRONTEND_DIR / "js" / "core" / "state.js").read_text(encoding="utf-8")
+        state_js = (FRONTEND_DIR / "js" / "core" / "persistence.js").read_text(encoding="utf-8")
 
         self.assertIn("autosaveVersion: currentPresentationAutosaveVersion", state_js)
         self.assertIn("err?.status === 409", state_js)

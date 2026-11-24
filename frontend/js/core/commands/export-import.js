@@ -57,23 +57,152 @@ function exportPresentationJson() {
     exportJSON();
 }
 
-// Imports never go into the project that happens to be open: its slides were replaced and then autosaved. The
-// open project is saved, and the import gets a project of its own.
-async function startNewProjectForImport() {
+// Imports never go into a different project that happens to be open, unless that project is already open in a tab
+// for this same file (re-importing the same file updates its open tab in place instead of spawning a duplicate tab).
+let _importProjectRollback = null;
+
+async function startNewProjectForImport(file = null, options = {}) {
+    const previousId = typeof currentPresentationId !== "undefined" ? currentPresentationId : null;
+    const baseTitle =
+        options.baseTitle ||
+        String(file?.name || "")
+            .replace(/\.(pptx|key|pdf|json)$/i, "")
+            .trim();
+    const matchByTitle = options.matchByTitle !== undefined ? Boolean(options.matchByTitle) : !/\.json$/i.test(String(file?.name || ""));
+    const existingTab =
+        (file || baseTitle) && typeof window.findOpenProjectTabForImport === "function"
+            ? window.findOpenProjectTabForImport(file?.name || "", baseTitle, { matchByTitle })
+            : null;
+
+    if (existingTab && existingTab.id) {
+        try {
+            if (previousId && String(previousId) !== String(existingTab.id)) {
+                await autosavePresentationNow();
+            }
+        } catch (err) {
+            console.warn("Could not save the open project before switching to import target tab:", err);
+        }
+        if (String(currentPresentationId) !== String(existingTab.id) && typeof loadProjectById === "function") {
+            await loadProjectById(existingTab.id);
+        }
+        _importProjectRollback = {
+            mode: "reused",
+            previousId,
+            reusedId: existingTab.id,
+            reusedSnapshot:
+                typeof getPersistableState === "function"
+                    ? {
+                          state: JSON.parse(JSON.stringify(getPersistableState())),
+                          title: typeof currentPresentationTitle !== "undefined" ? currentPresentationTitle : existingTab.title,
+                          slideIndex: typeof currentSlideIndex !== "undefined" ? currentSlideIndex : 0,
+                      }
+                    : null,
+        };
+        if (file?.name) window.setProjectTabImportSource?.(existingTab.id, file.name);
+        return { reused: true, presentationId: existingTab.id, title: existingTab.title || baseTitle };
+    }
+
+    const localSnapshot =
+        !previousId && typeof getPersistableState === "function"
+            ? {
+                  state: JSON.parse(JSON.stringify(getPersistableState())),
+                  title: typeof currentPresentationTitle !== "undefined" ? currentPresentationTitle : "Untitled Presentation",
+                  slideIndex: typeof currentSlideIndex !== "undefined" ? currentSlideIndex : 0,
+              }
+            : null;
     try {
-        if (typeof currentPresentationId !== "undefined" && currentPresentationId) await autosavePresentationNow();
+        if (previousId) await autosavePresentationNow();
     } catch (err) {
         console.warn("Could not save the open project before importing:", err);
     }
     const created = await createNewProject({ offerUndo: false });
     if (created === false) throw new Error("sign in to import a presentation");
+    const createdId = typeof currentPresentationId !== "undefined" ? currentPresentationId : null;
+    if (createdId && file?.name) {
+        window.setProjectTabImportSource?.(createdId, file.name);
+    }
+    _importProjectRollback =
+        createdId && createdId !== previousId
+            ? { mode: "created", previousId, createdId, localSnapshot: null }
+            : localSnapshot
+              ? { mode: "local", previousId: null, createdId: null, localSnapshot }
+              : null;
+    return { reused: false, presentationId: createdId };
 }
 
+function clearImportProjectRollback() {
+    _importProjectRollback = null;
+}
+
+async function rollbackFailedImportProject() {
+    const rollback = _importProjectRollback;
+    _importProjectRollback = null;
+    if (!rollback) return;
+    if (rollback.mode === "reused" && rollback.reusedId) {
+        if (rollback.reusedSnapshot && String(currentPresentationId) === String(rollback.reusedId)) {
+            state = rollback.reusedSnapshot.state;
+            normalizeStateIds?.();
+            currentSlideIndex = Math.max(0, Math.min(rollback.reusedSnapshot.slideIndex || 0, (state.slides?.length || 1) - 1));
+            setCurrentPresentationTitle?.(rollback.reusedSnapshot.title);
+            syncPresentationThemeFromState?.({ persist: false });
+            syncPresentationPageSetup?.();
+            clearSelection?.();
+            renderSlidesFromState?.();
+            buildPropertiesPanel?.({ immediate: true });
+            updateSlideCounter?.();
+        }
+        if (rollback.previousId && String(rollback.previousId) !== String(currentPresentationId) && typeof loadProjectById === "function") {
+            await loadProjectById(rollback.previousId).catch(() => {});
+        }
+        return;
+    }
+    if (rollback.createdId && typeof currentPresentationId !== "undefined" && currentPresentationId === rollback.createdId) {
+        clearTimeout(_autosaveTimer);
+        currentPresentationId = null;
+        _lastPersistedFingerprint = "";
+        _lastPersistedTitle = "";
+        _saveConflict = null;
+        window.forgetProjectTab?.(rollback.createdId);
+        try {
+            await _presentationRequest?.(`/api/presentations/${rollback.createdId}/`, { method: "DELETE" });
+        } catch (_err) {}
+        if (rollback.previousId && typeof loadProjectById === "function") {
+            await loadProjectById(rollback.previousId).catch(() => {});
+        } else if (typeof _startForgetCurrentProject === "function") {
+            _startForgetCurrentProject();
+        }
+        return;
+    }
+    if (rollback.localSnapshot) {
+        state = rollback.localSnapshot.state;
+        normalizeStateIds?.();
+        currentSlideIndex = Math.max(0, Math.min(rollback.localSnapshot.slideIndex || 0, (state.slides?.length || 1) - 1));
+        setCurrentPresentationTitle?.(rollback.localSnapshot.title);
+        syncPresentationThemeFromState?.({ persist: false });
+        syncPresentationPageSetup?.();
+        clearSelection?.();
+        saveLocalPresentationNow?.();
+        renderSlidesFromState?.();
+        buildPropertiesPanel?.({ immediate: true });
+        updateSlideCounter?.();
+    }
+}
+window.clearImportProjectRollback = clearImportProjectRollback;
+window.rollbackFailedImportProject = rollbackFailedImportProject;
+
 // The name for an imported deck: its own, or with "(imported)" when a saved deck already has that name, so the
-// two can be told apart in Recent.
-async function uniqueImportTitle(title) {
+// two can be told apart in Recent. When re-importing into an already-open tab for the same file, keep that tab's title.
+async function uniqueImportTitle(title, file = null, options = {}) {
     const base = String(title || "").trim() || "Imported Presentation";
+    const matchByTitle = options.matchByTitle !== undefined ? Boolean(options.matchByTitle) : !/\.json$/i.test(String(file?.name || ""));
+    if (typeof window.findOpenProjectTabForImport === "function") {
+        const existingTab = window.findOpenProjectTabForImport(file?.name || "", base, { matchByTitle });
+        if (existingTab) return existingTab.title || base;
+    }
+    // Saved projects belong to a signed-in user: with nobody signed in there are none to clash with, and asking
+    // for the list only earns a 401.
     if (typeof _backendApiAvailable === "undefined" || !_backendApiAvailable || typeof listSavedProjects !== "function") return base;
+    if (typeof currentAuthUser === "undefined" || !currentAuthUser) return base;
     try {
         const taken = new Set((await listSavedProjects()).map(project => String(project.title || "").trim().toLowerCase()));
         if (!taken.has(base.toLowerCase())) return base;
@@ -121,13 +250,17 @@ async function importPresentationJsonFile(file) {
         if (!importedState) {
             throw new Error("Unsupported presentation JSON format.");
         }
-        const title = await uniqueImportTitle(imported.title || file.name.replace(/\.json$/i, ""));
-        await startNewProjectForImport();
+        const baseTitle = imported.title || file.name.replace(/\.json$/i, "");
+        const title = await uniqueImportTitle(baseTitle, file, { matchByTitle: false });
+        await startNewProjectForImport(file, { baseTitle, matchByTitle: false });
         state = importedState;
         normalizeStateIds();
         renderImportedEquations(state);
         currentSlideIndex = 0;
         if (typeof setCurrentPresentationTitle === "function") setCurrentPresentationTitle(title);
+        if (typeof currentPresentationId !== "undefined" && currentPresentationId && file?.name) {
+            window.setProjectTabImportSource?.(currentPresentationId, file.name);
+        }
         if (typeof syncPresentationPageSetup === "function") syncPresentationPageSetup();
         applyPresentationTheme(state.presentationTheme, { persist: false });
         resetUndoHistory?.();

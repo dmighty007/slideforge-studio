@@ -439,13 +439,14 @@ async function importKeynote(file) {
     const busy = sfBusyStart({ title: `Importing ${file.name || "Keynote file"}`, detail: "Preparing…", progress: 0, delay: 0 });
     try {
         setProjectSaveHint?.("Reading Keynote file…", "muted");
+        const rawBaseTitle = String(file.name || "Imported presentation").replace(/\.key$/i, "");
         const importTitle =
             typeof uniqueImportTitle === "function"
-                ? await uniqueImportTitle(String(file.name || "Imported presentation").replace(/\.key$/i, ""))
-                : String(file.name || "Imported presentation").replace(/\.key$/i, "");
-        // Its own project first, so the pictures the server stores belong to it.
+                ? await uniqueImportTitle(rawBaseTitle, file)
+                : rawBaseTitle;
+        // Its own project first, so the pictures the server stores belong to it (or reuses the open tab for this file).
         busy.update({ detail: "Saving the open project…" });
-        if (typeof startNewProjectForImport === "function") await startNewProjectForImport();
+        if (typeof startNewProjectForImport === "function") await startNewProjectForImport(file, { baseTitle: rawBaseTitle });
 
         const form = new FormData();
         form.append("file", file, file.name || "presentation.key");
@@ -505,6 +506,9 @@ async function importKeynote(file) {
         syncPresentationPageSetup?.();
         state.slides = slides;
         setCurrentPresentationTitle?.(importTitle);
+        if (typeof currentPresentationId !== "undefined" && currentPresentationId && file?.name) {
+            window.setProjectTabImportSource?.(currentPresentationId, file.name);
+        }
         resetUndoHistory?.();
         setCurrentSlideIndex?.(0);
         clearSelection?.();
@@ -532,11 +536,13 @@ async function importKeynote(file) {
             .join(", ");
         setProjectSaveHint?.(`Imported ${summary}${_keynoteSkippedSummary(deck.skipped)}`, "success");
         busy.update({ detail: `Imported ${summary}`, progress: 1 });
+        clearImportProjectRollback?.();
         schedulePresentationAutosave?.();
         // Fonts the deck uses that this computer lacks: offered for download from Google Fonts (js/ui/fonts.js).
         setTimeout(() => window.sfOfferMissingFonts?.({ auto: true }), 800);
     } catch (err) {
         console.error("Keynote import error:", err);
+        await window.rollbackFailedImportProject?.();
         busy.done(); // gone before the alert, which blocks the page
         alert("Failed to import the Keynote file: " + err.message);
         setProjectSaveHint?.("Import failed", "danger");

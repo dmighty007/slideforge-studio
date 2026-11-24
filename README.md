@@ -108,6 +108,14 @@ from PyPI, then `slideforge`, and `slideforge --install-shortcut` for the icons.
 
 To run it from this repository instead, or to help build it, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
+## New in 0.8.3
+
+- **Save conflicts keep both versions:** pressing Ctrl+S after "Changed in another window" keeps the deck it replaces on the server, and unsaved edits that could not be applied on reopening are offered back instead of dropped.
+- **PowerPoint import:** a slide that cannot be read is left out and named; the rest of the deck comes in.
+- **Linux:** a native window that cannot start reports why and what to try, instead of ending without a message.
+
+See the [0.8.3 release notes](docs/releases/v0.8.3.md).
+
 ## New in 0.8.2
 
 - **Steadier text editing:** the first key typed into a box is never lost, and undo while editing no longer writes old text back.

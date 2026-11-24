@@ -249,6 +249,9 @@ def _open_window(url, data_dir, *, gui: bool) -> bool:
         _notify(f"Native window unavailable ({exc}).\n{hint}", gui=gui)
         return False
     try:
+        use_qt = qt_support.available()
+        if use_qt:
+            qt_support.check_platform()
         webview.settings["ALLOW_DOWNLOADS"] = True
         window = webview.create_window("SlideForge", url, width=1440, height=900, min_size=(1024, 680))
         _save_before_close(window)
@@ -256,7 +259,7 @@ def _open_window(url, data_dir, *, gui: bool) -> bool:
         backend = None
         # Persistent profile: the editor keeps the open project and unsaved-change backups in localStorage.
         storage = _webview_storage(data_dir)
-        if qt_support.available():
+        if use_qt:
             qt_support.prepare(window)
             qt_support.use_storage_path(storage)
             backend = "qt"

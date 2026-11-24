@@ -445,6 +445,20 @@ function _bindFloatingTextToolbar(data, toolbar) {
     };
   }
 
+  const linkFloatBtn = document.getElementById("floating-text-link");
+  if (linkFloatBtn) {
+    bindInlineFormattingGuard(linkFloatBtn);
+    const hasLink =
+      Boolean(data.clickLink) ||
+      (typeof data.content === "string" && /<a\s+[^>]*href=/i.test(data.content));
+    setTextControlActive(linkFloatBtn, hasLink);
+    linkFloatBtn.onclick = () => {
+      if (typeof openElementLinkInspector === "function") {
+        openElementLinkInspector(data.id);
+      }
+    };
+  }
+
   if (insertSymbolBtn) {
     bindInlineFormattingGuard(insertSymbolBtn);
     // onclick is handled in HTML but we guard it here

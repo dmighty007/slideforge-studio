@@ -273,8 +273,9 @@ const commandKey = "${_PRESENTER_COMMAND_STORAGE_KEY}";
 function sanitizeHtmlForPresenter(html) {
     if (typeof html !== 'string') return '';
     // Same default profile the editor uses for slide markup (keeps images, SVG shapes and styles).
-    if (typeof DOMPurify !== 'undefined') {
-        return DOMPurify.sanitize(html);
+    const purify = typeof DOMPurify !== 'undefined' ? DOMPurify : (window.opener && window.opener.DOMPurify);
+    if (purify && typeof purify.sanitize === 'function') {
+        return purify.sanitize(html);
     }
     // Fallback if DOMPurify failed to load: show the markup as text rather than render it unsanitized.
     const temp = document.createElement('div');
@@ -360,6 +361,7 @@ function updateFromPayload(payload){
   fitSlides();
 }
 window.addEventListener("resize", fitSlides);
+window.addEventListener("load", fitSlides);
 setInterval(renderClock, 250);
 document.addEventListener("keydown", event => {
   if (event.target === jumpEl) return;
