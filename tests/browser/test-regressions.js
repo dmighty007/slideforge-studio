@@ -8162,7 +8162,7 @@ async function test(name, fn) {
         await page.evaluate(() => SlideForgePlugins.ready);
         await openPluginMenu(page);
         const groups = await page.$$eval("#plugin-insert-menu .sf-select-menu__group", nodes => nodes.map(n => n.textContent));
-        assert(JSON.stringify(groups) === JSON.stringify(["Chemistry", "Biology", "Statistics", "Physics & maths", "Figures & references"]), `groups: ${groups}`);
+        assert(JSON.stringify(groups) === JSON.stringify(["Chemistry", "Biology", "Statistics", "Physics & maths", "Figures & references", "UI & interactive"]), `groups: ${groups}`);
         assert(await page.evaluate(() => document.activeElement?.classList.contains("plugin-insert-search")), "the search box is not focused");
         await page.keyboard.type("survival");
         const shown = await page.$$eval("#plugin-insert-menu [data-plugin-insert]", nodes => nodes.map(n => n.dataset.pluginInsert));
